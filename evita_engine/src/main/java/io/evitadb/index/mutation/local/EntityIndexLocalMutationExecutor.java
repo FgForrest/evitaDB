@@ -262,17 +262,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private final boolean usageStatisticsTracking;
 	/**
-	 * What the withdrawal of a reference-histogram value does when the index does not hold the value for the owner -
-	 * fixed when the engine started and read from the catalog once, when the executor is built (see
-	 * {@link ReferenceIndexMutator#removeHistogramForTrigger}).
+	 * The root mutation's policy for a missing reference-histogram value, supplied when the executor is created.
 	 */
 	@Nonnull private final MissingHistogramValueBehavior missingHistogramValueBehavior;
-	/**
-	 * TRUE when the initial catalog-load replay applies the mutation, which reports a missing histogram value whatever
-	 * {@link #missingHistogramValueBehavior} says. This flag belongs to one root mutation and is copied only to the
-	 * executors of its other owners.
-	 */
-	private final boolean startupReplay;
 	/**
 	 * Whether this executor writes the registry of single-owner partitions - records the sort values and chain
 	 * predecessors it writes into a partition in the partition's registry row (see
@@ -485,12 +477,23 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Creates the index executor of one entity's local mutations, which writes the registry of single-owner
 	 * partitions.
 	 *
-	 * @param missingHistogramValueBehavior what the withdrawal of a reference-histogram value the index does not hold
-	 *                                      does in an ordinary write - see {@link #missingHistogramValueBehavior}
+	 * @param containerAccessor             access to the entity's storage parts
+	 * @param entityPrimaryKey              the primary key of the entity being mutated
+	 * @param entityIndexCreatingAccessor   access to the entity collection's indexes
+	 * @param catalogIndexCreatingAccessor  access to the catalog indexes
+	 * @param schemaAccessor                the current schema of the mutated entity type
+	 * @param priceInternalIdSupplier       source of new internal price identifiers
+	 * @param fullEntitySupplier            the entity with all its content
+	 * @param triggerRegistrySupplier       source of the catalog expression triggers, when available
+	 * @param localFacetTriggerSupplier     lookup for local facet triggers by reference and scope, when available
+	 * @param crossEntitySchemaResolver     lookup for schemas of other entity types, when available
+	 * @param entityTypeClassifierResolver  mapping between entity type names and primary keys
+	 * @param usageRegistry                 the collection's capability usage counters
+	 * @param catalogUsageRegistry          the catalog's capability usage counters
+	 * @param usageStatisticsTracking       whether to record capability usage
+	 * @param missingHistogramValueBehavior the root mutation's policy for a missing reference-histogram value
 	 * @param partitionReservations         the reservations of the root mutation the executor belongs to, shared by
 	 *                                      all its executors - see {@link PartitionReservations}
-	 * @param startupReplay                 TRUE when the initial catalog-load replay applies the mutation - see
-	 *                                      {@link #startupReplay}
 	 */
 	public EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -508,30 +511,39 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
 		boolean usageStatisticsTracking,
 		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior,
-		@Nonnull PartitionReservations partitionReservations,
-		boolean startupReplay
+		@Nonnull PartitionReservations partitionReservations
 	) {
 		this(
 			containerAccessor, entityPrimaryKey, entityIndexCreatingAccessor, catalogIndexCreatingAccessor,
 			schemaAccessor, priceInternalIdSupplier, fullEntitySupplier, triggerRegistrySupplier,
 			localFacetTriggerSupplier, crossEntitySchemaResolver, entityTypeClassifierResolver, usageRegistry,
-			catalogUsageRegistry, usageStatisticsTracking, missingHistogramValueBehavior, true, partitionReservations,
-			startupReplay
+			catalogUsageRegistry, usageStatisticsTracking, missingHistogramValueBehavior, true, partitionReservations
 		);
 	}
 
 	/**
 	 * Creates the index executor of one entity's local mutations.
 	 *
-	 * @param missingHistogramValueBehavior what the withdrawal of a reference-histogram value the index does not hold
-	 *                                      does - see {@link #missingHistogramValueBehavior}
+	 * @param containerAccessor             access to the entity's storage parts
+	 * @param entityPrimaryKey              the primary key of the entity being mutated
+	 * @param entityIndexCreatingAccessor   access to the entity collection's indexes
+	 * @param catalogIndexCreatingAccessor  access to the catalog indexes
+	 * @param schemaAccessor                the current schema of the mutated entity type
+	 * @param priceInternalIdSupplier       source of new internal price identifiers
+	 * @param fullEntitySupplier            the entity with all its content
+	 * @param triggerRegistrySupplier       source of the catalog expression triggers, when available
+	 * @param localFacetTriggerSupplier     lookup for local facet triggers by reference and scope, when available
+	 * @param crossEntitySchemaResolver     lookup for schemas of other entity types, when available
+	 * @param entityTypeClassifierResolver  mapping between entity type names and primary keys
+	 * @param usageRegistry                 the collection's capability usage counters
+	 * @param catalogUsageRegistry          the catalog's capability usage counters
+	 * @param usageStatisticsTracking       whether to record capability usage
+	 * @param missingHistogramValueBehavior the root mutation's policy for a missing reference-histogram value
 	 * @param partitionRegistryWritten      TRUE when the executor writes the registry of single-owner partitions,
 	 *                                      FALSE only for an executor writing as another owner of a partition - see
 	 *                                      {@link #partitionRegistryWritten}
 	 * @param partitionReservations         the reservations of the root mutation the executor belongs to, shared by
 	 *                                      all its executors - see {@link PartitionReservations}
-	 * @param startupReplay                 TRUE when the initial catalog-load replay applies the mutation - see
-	 *                                      {@link #startupReplay}
 	 */
 	private EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -550,8 +562,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		boolean usageStatisticsTracking,
 		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior,
 		boolean partitionRegistryWritten,
-		@Nonnull PartitionReservations partitionReservations,
-		boolean startupReplay
+		@Nonnull PartitionReservations partitionReservations
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add((anyType, anyPurpose) -> entityPrimaryKey);
@@ -570,18 +581,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.catalogUsageRegistry = catalogUsageRegistry;
 		this.usageStatisticsTracking = usageStatisticsTracking;
 		this.missingHistogramValueBehavior = missingHistogramValueBehavior;
-		this.startupReplay = startupReplay;
 		this.partitionRegistryWritten = partitionRegistryWritten;
 		this.partitionReservations = partitionReservations;
-	}
-
-	/**
-	 * Returns whether this executor belongs to initial catalog-load replay rather than a live mutation.
-	 *
-	 * @return true only for the initial startup replay
-	 */
-	boolean isStartupReplay() {
-		return this.startupReplay;
 	}
 
 	/**
@@ -715,8 +716,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			false,
 			this.missingHistogramValueBehavior,
 			false,
-			PartitionReservations.REFUSING,
-			this.startupReplay
+			PartitionReservations.REFUSING
 		);
 	}
 
@@ -2932,8 +2932,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Removes the reference's current histogram values before storage changes and schedules one final add for this run.
 	 * Later mutations of the same reference do nothing for its histograms. Each trigger removes its values only when
-	 * its condition holds against current storage; the removal asserts that each value is present for the owner and
-	 * fails otherwise. A reference missing from storage is a protocol error.
+	 * its condition holds against current storage. The executor's policy handles missing values. A reference missing
+	 * from storage is a protocol error.
 	 *
 	 * @param referenceKey the reference, resolving an unknown internal key against current storage
 	 * @param scope the scope of this run

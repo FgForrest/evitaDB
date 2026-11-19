@@ -670,23 +670,29 @@ public final class EntityCollection implements
 	 * Creates the collector of a new root entity mutation applied to this collection. The collector is then shared by
 	 * every implicit and reflected mutation the root mutation spawns, in this collection or in another one.
 	 *
+	 * The collector carries the catalog's configured {@link MissingHistogramValueBehavior}, which is the behavior of
+	 * session writes; the replay of a committed mutation through {@link #applyMutation(EntityMutation)} uses
+	 * {@link MissingHistogramValueBehavior#REPORT} instead.
+	 *
 	 * @return a fresh collector for one root entity mutation
 	 */
 	@Nonnull
 	LocalMutationExecutorCollector createLocalMutationExecutorCollector() {
-		return createLocalMutationExecutorCollector(false);
+		return createLocalMutationExecutorCollector(this.catalog.getMissingHistogramValueBehavior());
 	}
 
 	/**
-	 * Creates one call-scoped root collector, carrying the startup override to every nested executor.
+	 * Creates the root collector, which supplies the effective policy to every nested executor.
 	 *
-	 * @param startupReplay whether initial catalog-load replay owns this mutation
+	 * @param missingHistogramValueBehavior the effective policy for missing histogram values
 	 * @return a fresh collector for this root mutation
 	 */
 	@Nonnull
-	private LocalMutationExecutorCollector createLocalMutationExecutorCollector(boolean startupReplay) {
+	private LocalMutationExecutorCollector createLocalMutationExecutorCollector(
+		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior
+	) {
 		return new LocalMutationExecutorCollector(
-			this.catalog, this.persistenceService, this.dataStoreReader, startupReplay
+			this.catalog, this.persistenceService, this.dataStoreReader, missingHistogramValueBehavior
 		);
 	}
 
@@ -789,28 +795,6 @@ public final class EntityCollection implements
 	@Override
 	public EntityBuilder createNewEntity(int primaryKey) {
 		return new InitialEntityBuilder(getSchema(), primaryKey);
-	}
-
-	/**
-	 * Same method as {@link #upsertEntity(EvitaSessionContract, EntityMutation)}, but in internal API that doesn't
-	 * require session in the input. This method is used from transactional replayer that doesn't have session available.
-	 */
-	@Nonnull
-	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		return upsertEntityInternal(
-			null,
-			entityMutation,
-			entityMutation.getEntityPrimaryKey() == null ? this.defaultMinimalQuery : null,
-			EntityReference.class
-		).orElseThrow(
-			() -> new EntityMissingException(
-				getEntityType(),
-				entityMutation.getEntityPrimaryKey() == null ?
-					ArrayUtils.EMPTY_INT_ARRAY :
-					new int[]{entityMutation.getEntityPrimaryKey()},
-				null
-			)
-		);
 	}
 
 	@Override
@@ -1082,23 +1066,22 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Applies one internal entity mutation with a collector confined to this call. Unlike
-	 * {@link #applyMutation(EvitaSessionContract, EntityMutation)} it needs no session: the transactional replay that
-	 * calls it has none.
+	 * Replays a committed entity mutation. Missing histogram values are reported so WAL incorporation can proceed.
 	 *
 	 * @param entityMutation the entity mutation to apply
-	 * @param startupReplay whether initial catalog-load replay owns this mutation
 	 * @throws InvalidMutationException when the mutation type is unsupported
 	 */
-	public void applyMutation(
-		@Nonnull EntityMutation entityMutation, boolean startupReplay
-	) throws InvalidMutationException {
-		applyMutationInternal(null, entityMutation, createLocalMutationExecutorCollector(startupReplay));
+	public void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
+		applyMutationInternal(
+			null, entityMutation, createLocalMutationExecutorCollector(MissingHistogramValueBehavior.REPORT)
+		);
 	}
 
 	@Override
-	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		applyMutationInternal(session, entityMutation);
+	public void applyMutation(
+		@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation
+	) throws InvalidMutationException {
+		applyMutationInternal(session, entityMutation, createLocalMutationExecutorCollector());
 	}
 
 	@Nonnull
@@ -2738,23 +2721,12 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Applies an entity mutation internally by assessing the type of mutation
-	 * and performing the appropriate operation.
-	 *
-	 * @param session the Evita session that may be involved in the transaction; can be null.
-	 * @param entityMutation the mutation operation to be applied to an entity; must not be null.
-	 * @throws InvalidMutationException if an unsupported mutation type is encountered.
-	 */
-	private void applyMutationInternal(@Nullable EvitaSessionContract session, @Nonnull EntityMutation entityMutation) {
-		applyMutationInternal(session, entityMutation, createLocalMutationExecutorCollector());
-	}
-
-	/**
 	 * Applies the root mutation using its collector, also shared by its implicit and reflected mutations.
 	 *
 	 * @param session the session, or null for internal replay
 	 * @param entityMutation the mutation to apply
-	 * @param collector the call-scoped collector carrying the startup flag
+	 * @param collector the root collector carrying the effective histogram policy
+	 * @throws InvalidMutationException if the mutation type is unsupported
 	 */
 	private void applyMutationInternal(
 		@Nullable EvitaSessionContract session,
@@ -4030,7 +4002,7 @@ public final class EntityCollection implements
 	 * @param entityMutation the entity upsert
 	 * @param returnUpdatedEntity the requested returned content, or null
 	 * @param returnType the result type
-	 * @param collector the root collector carrying the startup flag
+	 * @param collector the root collector carrying the effective histogram policy
 	 * @param <T> the returned result type
 	 * @return the requested result when present
 	 */
@@ -4231,10 +4203,9 @@ public final class EntityCollection implements
 			// their counters belong to the catalog rather than to whichever collection happened to write one
 			this.catalog.getUsageRegistry(),
 			this.catalog.isUsageStatisticsTracked(),
-			this.entityIndexCreator.getMissingHistogramValueBehavior(),
+			localMutationExecutorCollector.getMissingHistogramValueBehavior(),
 			// the collector is shared by the whole root mutation, so its executors share the reservations too
-			localMutationExecutorCollector.getPartitionReservations(),
-			localMutationExecutorCollector.isStartupReplay()
+			localMutationExecutorCollector.getPartitionReservations()
 		);
 
 		return localMutationExecutorCollector.execute(
@@ -5150,15 +5121,6 @@ public final class EntityCollection implements
 			final EntityCollection sourceCollection = EntityCollection.this.catalog
 				.getCollectionForEntityOrThrowException(entityType);
 			return sourceCollection.getInternalSchema().getLocales();
-		}
-
-		/**
-		 * Answers the catalog's behavior, so every executor of the collection reads the one value.
-		 */
-		@Nonnull
-		@Override
-		public MissingHistogramValueBehavior getMissingHistogramValueBehavior() {
-			return EntityCollection.this.catalog.getMissingHistogramValueBehavior();
 		}
 
 		/**

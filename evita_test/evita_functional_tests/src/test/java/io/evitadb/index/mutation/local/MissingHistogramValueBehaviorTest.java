@@ -27,6 +27,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -38,6 +39,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -56,6 +58,9 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.expression.trigger.DefaultHistogramExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.expression.trigger.HistogramValueSource;
+import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.TransactionManager;
+import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -69,6 +74,7 @@ import io.evitadb.index.HistogramCapableEntityIndex;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.index.virtual.CatalogReloadTestSupport;
@@ -91,6 +97,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -122,8 +129,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The missing value is manufactured directly - removed from the index through the engine's own objects - rather than
  * borrowed from an open defect, so the cells keep a missing value when those defects are fixed. Every engine cell
  * boots through {@link #boot}, which sets the property for the start and flips it to the opposite value right after,
- * so ordinary writes must keep the value the engine started with. Initial catalog-load replay reports independently
- * of that value, and the following live write still uses it. The executor cells hand the behavior to the executor
+ * so session writes must keep the value the engine started with. Committed WAL replay reports independently
+ * of that value. The executor cells hand the behavior to the executor
  * directly. The log lines are captured on the logger of {@link ReferenceIndexMutator} and kept only when they name
  * the histogram of the cell, which no other test uses.
  *
@@ -144,6 +151,10 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	private static final String BRAND = "brand";
 	private static final String BRAND_GROUP = "brandGroup";
 	private static final String SHARE = "share";
+	/**
+	 * The reference of the brand reflecting the brand reference of the product.
+	 */
+	private static final String PRODUCTS = "products";
 	private static final int PRODUCT_PK = 1;
 	private static final int OTHER_PRODUCT_PK = 2;
 	private static final int BRAND_PK = 10;
@@ -563,7 +574,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 			final TestPaths paths = createTestPaths("missingHistogramIndexRefused_" + site);
 			try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
 				final ExecutorFixture fixture = createStructuralFixture(
-					evita, site, histogram, MissingHistogramValueBehavior.REFUSE, false
+					evita, site, histogram, MissingHistogramValueBehavior.REFUSE
 				);
 				final EntityIndexLocalMutationExecutor executor = fixture.newExecutor();
 
@@ -574,46 +585,6 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 					() -> assertTrue(message.contains("histogram index primary key -1"), message),
 					() -> assertEquals(List.of(), outcome.reports())
 				);
-			} finally {
-				cleanupTestPaths(paths);
-			}
-		}
-
-		/**
-		 * The initial catalog-load replay reports the missing store of the group although the executor carries
-		 * `REFUSE` - the cell above, applied by the replay. The withdrawal logs one line and returns, and the final add
-		 * creates the store, as the replay of a write meeting a group whose store is not there yet goes on.
-		 *
-		 * The executors writing as another owner of a partition carry the flag as well, but they acquire no index, so
-		 * no withdrawal reaches them and no cell can observe the flag there.
-		 */
-		@Test
-		@DisplayName("Report the missing store during the initial catalog-load replay of a refusing engine")
-		void shouldReportMissingStoreDuringStartupReplayWhenRefusing() {
-			final StructuralSite site = StructuralSite.STORE_MISSING;
-			final String histogram = histogramName("structuralReplayed", site.grouped());
-			final TestPaths paths = createTestPaths("missingHistogramIndexReplayed");
-			try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
-				final ExecutorFixture fixture = createStructuralFixture(
-					evita, site, histogram, MissingHistogramValueBehavior.REFUSE, true
-				);
-				final EntityIndexLocalMutationExecutor executor = fixture.newExecutor();
-
-				final Outcome outcome = capture(histogram, () -> fixture.changeShare(executor, NEW_SHARE));
-
-				assertNull(outcome.failure(), () -> "The withdrawal must return, but threw " + outcome.failure());
-				assertEquals(1, outcome.reports().size(), outcome.reports()::toString);
-				final String line = outcome.reports().get(0);
-				assertAll(
-					() -> assertTrue(line.startsWith(MISSING_VALUE_PREFIX), line),
-					() -> assertTrue(line.contains("value " + OLD_SHARE + ","), line),
-					() -> assertTrue(line.contains("histogram index primary key -1"), line)
-				);
-
-				fixture.finishRun(executor, NEW_SHARE);
-				final GroupHistogramEntityIndex store = fixture.stores().get(STORE_KEY);
-				assertNotNull(store, "The final add must create the store of the group");
-				assertTrue(holds(store, histogram, NEW_SHARE, PRODUCT_PK), "The store must hold the new share");
 			} finally {
 				cleanupTestPaths(paths);
 			}
@@ -634,7 +605,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 			final TestPaths paths = createTestPaths("missingHistogramIndexReported_" + site);
 			try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
 				final ExecutorFixture fixture = createStructuralFixture(
-					evita, site, histogram, MissingHistogramValueBehavior.REPORT, false
+					evita, site, histogram, MissingHistogramValueBehavior.REPORT
 				);
 				final EntityIndexLocalMutationExecutor executor = fixture.newExecutor();
 
@@ -680,7 +651,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 			final TestPaths paths = createTestPaths("missingHistogramIndexRemoved_" + site);
 			try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
 				final ExecutorFixture fixture = createStructuralFixture(
-					evita, site, histogram, MissingHistogramValueBehavior.REPORT, false
+					evita, site, histogram, MissingHistogramValueBehavior.REPORT
 				);
 				final EntityIndexLocalMutationExecutor executor = fixture.newExecutor();
 
@@ -703,13 +674,138 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * A reported write applied more than once: by the trunk of an alive catalog after its session, and by the replay
-	 * of the write-ahead log when the engine starts again.
+	 * Committed WAL replay through live trunk incorporation and catalog loading.
 	 */
 	@Nested
-	@DisplayName("A reported write applied again")
+	@DisplayName("Write-ahead log replay")
 	@Tag(WAL)
 	class ReplayTest {
+
+		/**
+		 * Applies one mutation against the same missing value through both entry points under the refusing default.
+		 */
+		@Test
+		@DisplayName("Refuse the session mutation and report the same missing value through the replay entry")
+		void shouldRefuseSessionWriteAndReportThroughReplayEntry() {
+			final String histogram = "sharesByEntryPoint";
+			final TestPaths paths = createTestPaths("missingHistogramValueEntryPoint");
+			try (final Evita evita = boot(configuration(paths, null), null)) {
+				prepareProductWithMissingValue(evita, true, histogram);
+				final EntityUpsertMutation mutation = newShareMutation();
+				final Outcome sessionWrite = capture(histogram, () -> evita.updateCatalog(
+					TEST_CATALOG, session -> {
+						session.applyMutation(mutation);
+					}, CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
+				));
+				assertTrue(missingValueError(sessionWrite.failure()).getMessage().contains(histogram));
+				assertEquals(List.of(), sessionWrite.reports());
+				assertEquals(OLD_SHARE, readShare(evita));
+				assertTrue(lacksShare(evita, true, histogram, OLD_SHARE, PRODUCT_PK));
+
+				final Outcome replay = capture(histogram, () -> catalog(evita).applyMutation(
+					evita,
+					new ServerEntityUpsertMutation(
+						mutation, EnumSet.allOf(ImplicitMutationBehavior.class), false, false
+					)
+				));
+				assertNull(replay.failure(), () -> "Replay must continue: " + replay.failure());
+				assertEquals(1, replay.reports().size(), replay.reports()::toString);
+				assertTrue(replay.reports().getFirst().contains("value " + OLD_SHARE + ","));
+				assertEquals(NEW_SHARE, readShare(evita));
+				assertTrue(holdsShare(evita, true, histogram, NEW_SHARE, PRODUCT_PK));
+			} finally {
+				cleanupTestPaths(paths);
+			}
+		}
+
+		/**
+		 * Writes the share through the brand's reflected reference, so the withdrawal meeting the missing value runs in
+		 * the product collection while the mutation entered the brand collection. The write the brand mutation spawns
+		 * there refuses when the mutation arrives through a session and reports when it arrives through the replay
+		 * entry: the behavior travels with the root mutation into every collection it reaches.
+		 */
+		@Test
+		@DisplayName("Carry the behavior of the entry point into the write reflected into another collection")
+		void shouldCarryEntryPointBehaviorIntoWriteReflectedIntoAnotherCollection() {
+			final String histogram = "sharesReflected";
+			final TestPaths paths = createTestPaths("missingHistogramValueReflected");
+			final String productSite = "entity type `" + PRODUCT + "`";
+			try (final Evita evita = boot(configuration(paths, null), null)) {
+				prepareReflectedProductWithMissingValue(evita, histogram);
+				final EntityUpsertMutation mutation = newReflectedShareMutation();
+
+				final Outcome sessionWrite = capture(histogram, () -> evita.updateCatalog(
+					TEST_CATALOG, session -> {
+						session.applyMutation(mutation);
+					}, CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
+				));
+				final String refusal = missingValueError(sessionWrite.failure()).getMessage();
+				assertAll(
+					() -> assertTrue(refusal.contains(productSite), refusal),
+					() -> assertEquals(List.of(), sessionWrite.reports()),
+					() -> assertEquals(OLD_SHARE, readShare(evita)),
+					() -> assertTrue(lacksShare(evita, false, histogram, OLD_SHARE, PRODUCT_PK))
+				);
+
+				final Outcome replay = capture(histogram, () -> catalog(evita).applyMutation(
+					evita,
+					new ServerEntityUpsertMutation(
+						mutation, EnumSet.allOf(ImplicitMutationBehavior.class), false, false
+					)
+				));
+				assertNull(replay.failure(), () -> "Replay must continue: " + replay.failure());
+				assertEquals(1, replay.reports().size(), replay.reports()::toString);
+				final String line = replay.reports().getFirst();
+				assertAll(
+					() -> assertTrue(line.contains(productSite), line),
+					() -> assertTrue(line.contains("value " + OLD_SHARE + ","), line),
+					() -> assertEquals(NEW_SHARE, readShare(evita)),
+					() -> assertTrue(holdsShare(evita, false, histogram, NEW_SHARE, PRODUCT_PK))
+				);
+			} finally {
+				cleanupTestPaths(paths);
+			}
+		}
+
+		/**
+		 * Restores the old value in the session's transactional index view so the refusing session can commit.
+		 * Only the entity mutation enters the WAL, so the alive trunk still encounters and reports the missing value.
+		 */
+		@Test
+		@DisplayName("Report a missing value during live trunk incorporation under the refusing default")
+		void shouldReportDuringLiveTrunkIncorporationWithRefusingDefault() {
+			final String histogram = "sharesLiveReplay";
+			final TestPaths paths = createTestPaths("missingHistogramValueLiveReplay");
+			try (final Evita evita = boot(configuration(paths, null), null)) {
+				prepareAliveCatalogWithStoredMissingValue(evita, histogram);
+				assertStoredMissingValue(evita, histogram);
+				assertEquals(CatalogState.ALIVE, catalog(evita).getCatalogState());
+				final long nextVersion = catalog(evita).getVersion() + 1;
+				final TransactionManager manager = catalog(evita).getTransactionManager();
+
+				final Outcome outcome = capture(histogram, () -> evita.updateCatalog(
+					TEST_CATALOG, session -> {
+						assertTrue(Transaction.getTransaction().isPresent(), "The repair must be session-local");
+						for (final HistogramCapableEntityIndex index : shareIndexes(evita, false)) {
+							index.insertHistogramValue(histogram, null, OLD_SHARE, PRODUCT_PK, Integer.class, 0);
+						}
+						assertTrue(holdsShare(evita, false, histogram, OLD_SHARE, PRODUCT_PK));
+						session.applyMutation(newShareMutation());
+					}, CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
+				));
+
+				assertNull(outcome.failure(), () -> "The committed write must become visible: " + outcome.failure());
+				assertEquals(1, outcome.reports().size(), outcome.reports()::toString);
+				assertTrue(outcome.reports().getFirst().contains("value " + OLD_SHARE + ","));
+				assertEquals(nextVersion, manager.getLastDurableCatalogVersion());
+				assertEquals(nextVersion, manager.getLastFinalizedCatalogVersion());
+				assertEquals(CatalogState.ALIVE, catalog(evita).getCatalogState());
+				assertEquals(NEW_SHARE, readShare(evita));
+				assertTrue(holdsShare(evita, false, histogram, NEW_SHARE, PRODUCT_PK));
+			} finally {
+				cleanupTestPaths(paths);
+			}
+		}
 
 		/**
 		 * In an alive catalog the write is applied once in the session and once more when the committed transaction
@@ -843,14 +939,14 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 
 		/**
 		 * Startup replay reports independently of the property even when loading is deferred. The next live write
-		 * still uses the behavior captured when the engine started, proving that the startup override cannot leak.
+		 * still uses the behavior captured when the engine started.
 		 *
 		 * @param behavior the behavior the engine starts with
 		 */
 		@ParameterizedTest(name = "{0}")
 		@EnumSource(MissingHistogramValueBehavior.class)
-		@DisplayName("Startup reports while the next live write keeps the configured behavior")
-		void shouldReportStartupReplayAndKeepConfiguredBehaviorForLiveWrites(
+		@DisplayName("Deferred startup replay reports and the next session write uses the configured behavior")
+		void shouldReportDeferredStartupReplayAndKeepConfiguredBehaviorForSessionWrites(
 			@Nonnull MissingHistogramValueBehavior behavior
 		) {
 			final String histogram = "sharesDeferred";
@@ -884,7 +980,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 							assertEquals(SUBSEQUENT_SHARE, readShare(deferred));
 						}
 						case REFUSE -> {
-							assertNotNull(written.failure(), "The replay override must not leak into a live write");
+							assertNotNull(written.failure(), "The next session write must still refuse");
 							assertTrue(missingValueError(written.failure()).getMessage().contains(histogram));
 							assertEquals(List.of(), written.reports());
 							assertEquals(NEW_SHARE, readShare(deferred));
@@ -1517,6 +1613,26 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Defines the catalog in warm-up with an ungrouped reference and the brand reflecting it as `products`, which
+	 * inherits the `share` attribute, so a share written through the brand reaches the histogram of the product. Then
+	 * stores product 1 with the old share and removes the old share from the index the withdrawal reads.
+	 *
+	 * @param evita     the engine
+	 * @param histogram the histogram name
+	 */
+	private static void prepareReflectedProductWithMissingValue(@Nonnull Evita evita, @Nonnull String histogram) {
+		evita.defineCatalog(TEST_CATALOG);
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			defineSchema(session, false, histogram, Integer.class);
+			session.defineEntitySchema(BRAND)
+				.withReflectedReferenceToEntity(PRODUCTS, PRODUCT, BRAND, whichIs -> whichIs.withAttributesInherited())
+				.updateVia(session);
+			createProduct(session, PRODUCT_PK, BRAND_PK, false, OLD_SHARE);
+		});
+		removeShare(evita, false, histogram, OLD_SHARE, PRODUCT_PK);
+	}
+
+	/**
 	 * Builds an alive catalog whose stored histogram index misses the old share of product 1 while the product keeps
 	 * the share in its body. The hole is made while the warm-up session that goes live is open, and product 2 makes
 	 * the same session write the referenced-type index, so the flush stores the index without the value.
@@ -1577,6 +1693,36 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 					.upsertVia(session);
 			},
 			CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
+		);
+	}
+
+	/**
+	 * Creates the mutation that updates the existing product's share.
+	 *
+	 * @return the share update for the reference to brand 10
+	 */
+	@Nonnull
+	private static EntityUpsertMutation newShareMutation() {
+		return new EntityUpsertMutation(
+			PRODUCT, PRODUCT_PK, EntityExistence.MUST_EXIST,
+			new ReferenceAttributeMutation(
+				new ReferenceKey(BRAND, BRAND_PK), new UpsertAttributeMutation(SHARE, NEW_SHARE)
+			)
+		);
+	}
+
+	/**
+	 * Creates the mutation that sets the new share through the reference of brand 10 reflecting product 1.
+	 *
+	 * @return the share update of the reflected reference
+	 */
+	@Nonnull
+	private static EntityUpsertMutation newReflectedShareMutation() {
+		return new EntityUpsertMutation(
+			BRAND, BRAND_PK, EntityExistence.MUST_EXIST,
+			new ReferenceAttributeMutation(
+				new ReferenceKey(PRODUCTS, PRODUCT_PK), new UpsertAttributeMutation(SHARE, NEW_SHARE)
+			)
 		);
 	}
 
@@ -1727,7 +1873,6 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	 * @param site          the missing index
 	 * @param histogram     the histogram name
 	 * @param behavior      the behavior on a missing histogram value
-	 * @param startupReplay TRUE when the executors apply the initial catalog-load replay
 	 * @return the fixture
 	 */
 	@Nonnull
@@ -1735,11 +1880,10 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		@Nonnull Evita evita,
 		@Nonnull StructuralSite site,
 		@Nonnull String histogram,
-		@Nonnull MissingHistogramValueBehavior behavior,
-		boolean startupReplay
+		@Nonnull MissingHistogramValueBehavior behavior
 	) {
 		return createExecutorFixture(
-			evita, site.grouped(), histogram, behavior, startupReplay,
+			evita, site.grouped(), histogram, behavior,
 			indexes -> {
 				switch (site) {
 					case GROUP_TYPE_INDEX_MISSING -> {
@@ -1773,7 +1917,6 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 	 * @param grouped       whether the reference belongs to group 100
 	 * @param histogram     the histogram name
 	 * @param behavior      the behavior on a missing histogram value
-	 * @param startupReplay TRUE when the executors apply the initial catalog-load replay
 	 * @param layout        registers the indexes by key on the lookup
 	 * @return the fixture
 	 */
@@ -1783,7 +1926,6 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 		boolean grouped,
 		@Nonnull String histogram,
 		@Nonnull MissingHistogramValueBehavior behavior,
-		boolean startupReplay,
 		@Nonnull Consumer<MockEntityIndexCreator<EntityIndexKey, EntityIndex>> layout
 	) {
 		evita.defineCatalog(TEST_CATALOG);
@@ -1861,7 +2003,7 @@ class MissingHistogramValueBehaviorTest implements EvitaTestSupport {
 				new MockEntityIndexCreator<>(new CatalogIndex(Scope.LIVE)), () -> schema, sequencer::getAndIncrement,
 				() -> new Entity(schema, PRODUCT_PK), () -> registry, null, null, classifierResolver,
 				new SchemaCapabilityUsageRegistry(), new SchemaCapabilityUsageRegistry(), true,
-				behavior, new PartitionReservations(), startupReplay
+				behavior, new PartitionReservations()
 			),
 			storage, schema, grouped, globalIndex, stores
 		);

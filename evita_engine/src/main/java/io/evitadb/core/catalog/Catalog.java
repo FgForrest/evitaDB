@@ -2338,23 +2338,26 @@ public final class Catalog
 
 	/**
 	 * Applies an internal mutation: a catalog schema mutation to this catalog, an entity mutation to the collection of
-	 * its entity type. The startup replay flag is carried by this call only; the replay of the write-ahead log in
-	 * {@link TransactionManager} passes `true` only while it replays the log as the catalog loads.
+	 * its entity type.
+	 *
+	 * This is the entry of mutations replayed from the write-ahead log, which belong to no session; session writes use
+	 * {@link #applyMutation(EvitaSessionContract, CatalogBoundMutation)}. An entity mutation is applied through
+	 * {@link EntityCollection#applyMutation(EntityMutation)} as an already committed one: a reference-histogram value
+	 * its withdrawal misses is not refused, whatever {@link MissingHistogramValueBehavior} the engine started with.
 	 *
 	 * @param evita the engine applying the mutation
 	 * @param mutation the mutation to apply
-	 * @param startupReplay whether the initial catalog-load replay is applying this mutation
 	 * @throws InvalidMutationException when the mutation is neither a catalog schema nor an entity mutation
 	 */
 	public void applyMutation(
-		@Nonnull EvitaContract evita, @Nonnull Mutation mutation, boolean startupReplay
+		@Nonnull EvitaContract evita, @Nonnull Mutation mutation
 	) throws InvalidMutationException {
 		if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
 			// apply schema mutation to the catalog
 			updateSchema(evita, null, schemaMutation);
 		} else if (mutation instanceof EntityMutation entityMutation) {
 			getCollectionForEntityOrThrowException(entityMutation.getEntityType())
-				.applyMutation(entityMutation, startupReplay);
+				.applyMutation(entityMutation);
 		} else {
 			throw new InvalidMutationException(
 				"Unexpected mutation type: " + mutation.getClass().getName(),
@@ -2428,10 +2431,8 @@ public final class Catalog
 	}
 
 	/**
-	 * What a write in this catalog does when it must withdraw a reference-histogram value the index does not hold for
-	 * the entity - fixed when the engine started (see {@link MissingHistogramValueBehavior#fromSystemProperty()}) and
-	 * answered here so that every site withdrawing a histogram value reads the one value. It cannot change under a
-	 * running catalog.
+	 * Returns the session write policy for a missing reference-histogram value, fixed at engine start by
+	 * {@link MissingHistogramValueBehavior#fromSystemProperty()}.
 	 *
 	 * @return the behavior on a missing histogram value
 	 */

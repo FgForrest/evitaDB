@@ -560,11 +560,13 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Processes the write-ahead log and returns the catalog instance that is the result of the processing. Every
-	 * mutation is replayed as the initial catalog-load replay: a histogram value a withdrawal cannot find is reported,
-	 * not refused, whatever `MissingHistogramValueBehavior` the engine started with.
+	 * Processes the write-ahead log and returns the result of the processing, which carries the resulting catalog.
 	 *
-	 * @return the catalog instance after processing the write-ahead log
+	 * @param nextCatalogVersion the catalog version of the first transaction the catalog has not applied yet, which
+	 *                           is the version to be processed at minimum
+	 * @param progressCallback   receives the catalog version of every transaction once it is replayed
+	 * @return the replayed range with the resulting catalog, or empty when the finalized version has already reached
+	 * `nextCatalogVersion`
 	 */
 	@Nonnull
 	public Optional<ProcessResult> processEntireWriteAheadLog(
@@ -580,8 +582,7 @@ public class TransactionManager implements Closeable {
 			Long.MAX_VALUE,
 			false,
 			true, // we should obtain lock here easily, since this is called only on catalog instantiation
-			progressCallback,
-			true
+			progressCallback
 		);
 	}
 
@@ -1468,9 +1469,7 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Processes transactions by reading mutations from the WAL and replaying them on the catalog. This is the live
-	 * entry point: its mutations keep the engine's `MissingHistogramValueBehavior`, which only
-	 * {@link #processEntireWriteAheadLog} overrides.
+	 * Processes transactions by reading mutations from the WAL and replaying them on the catalog.
 	 *
 	 * @param nextCatalogVersion The catalog version of the next transaction to be processed at minimum
 	 * @param timeoutMs          The maximum time in milliseconds to process transactions.
@@ -1490,32 +1489,6 @@ public class TransactionManager implements Closeable {
 		boolean alive,
 		boolean waitForLock,
 		@Nonnull LongConsumer progressCallback
-	) {
-		return processTransactions(nextCatalogVersion, timeoutMs, alive, waitForLock, progressCallback, false);
-	}
-
-	/**
-	 * Processes committed transactions with an explicit startup-only histogram withdrawal override. The live entry
-	 * point always supplies false; only the initial complete replay supplies true.
-	 *
-	 * @param nextCatalogVersion the minimum next version to process
-	 * @param timeoutMs the round's time budget
-	 * @param alive whether the round reads only durable live mutations
-	 * @param waitForLock whether to wait for trunk incorporation
-	 * @param progressCallback the progress observer
-	 * @param startupReplay whether this is the initial replay during catalog loading
-	 * @return the processed transaction range
-	 * @throws WriteAheadLogCorruptedException when the mutation stream is empty but the finalized version has not yet
-	 *                                         reached {@code nextCatalogVersion}
-	 */
-	@Nonnull
-	private Optional<ProcessResult> processTransactions(
-		long nextCatalogVersion,
-		long timeoutMs,
-		boolean alive,
-		boolean waitForLock,
-		@Nonnull LongConsumer progressCallback,
-		boolean startupReplay
 	) {
 		// Gate every drain of the WAL, before the trunk lock is taken or a single mutation is read. This is the point
 		// the suspension has to bite: a freshly appended transaction schedules the draining task on its own, entirely
@@ -1629,8 +1602,7 @@ public class TransactionManager implements Closeable {
 								this.evita,
 								transactionMutation,
 								lastTransaction,
-								mutationIterator,
-								startupReplay
+								mutationIterator
 							);
 							atomicMutationCount += processedCounts[0] + 1;
 							localMutationCount += processedCounts[1];
@@ -2335,17 +2307,19 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Replays mutations in the given transaction on the current catalog.
 	 *
+	 * @param evita               The engine the replayed mutations are applied by.
 	 * @param transactionMutation The transaction mutation containing the catalog version and mutation details.
 	 * @param transaction         The transaction object to execute the mutations in.
 	 * @param mutationIterator    The iterator containing the mutations to replay.
-	 * @param startupReplay       whether this is the initial replay during catalog loading
+	 * @return a two-element array: the number of replayed atomic mutations, not counting the transaction mutation
+	 * itself, and the number of local mutations they contain, where a catalog schema mutation counts as one
 	 */
+	@Nonnull
 	private int[] replayMutationsOnCatalog(
 		@Nonnull Evita evita,
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull Transaction transaction,
-		@Nonnull Iterator<CatalogBoundMutation> mutationIterator,
-		boolean startupReplay
+		@Nonnull Iterator<CatalogBoundMutation> mutationIterator
 	) {
 		return Transaction.executeInTransactionIfProvided(
 			transaction,
@@ -2371,8 +2345,7 @@ public class TransactionManager implements Closeable {
 								entityUpsertMutation,
 								EnumSet.allOf(ImplicitMutationBehavior.class),
 								false, false
-							),
-							startupReplay
+							)
 						);
 						localMutationCount += entityUpsertMutation.getLocalMutations().size();
 					} else if (mutation instanceof EntityRemoveMutation entityRemoveMutation) {
@@ -2380,8 +2353,7 @@ public class TransactionManager implements Closeable {
 							evita,
 							new ServerEntityRemoveMutation(
 								entityRemoveMutation, false, false
-							),
-							startupReplay
+							)
 						);
 						localMutationCount += entityRemoveMutation.getLocalMutations().size();
 					} else if (mutation instanceof LocalCatalogSchemaMutation lcsm) {

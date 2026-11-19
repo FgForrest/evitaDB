@@ -2548,8 +2548,7 @@ public interface ReferenceIndexMutator {
 	 * Removes histogram entries contributed by a single trigger for the given reference. Reads the
 	 * current attribute value, resolves to the histogram-value array (typed to the descriptor's
 	 * `plainType`), and checks that each value is present for the owner before removing it - a missing value fails
-	 * the write or is logged and skipped, as the executor's {@link MissingHistogramValueBehavior} decides; the initial
-	 * catalog-load replay always logs and skips it.
+	 * the write or is logged and skipped according to the executor's {@link MissingHistogramValueBehavior}.
 	 *
 	 * Extracted as a separate method so that callers needing per-trigger condition evaluation (the withdrawal
 	 * before a storage change) can iterate triggers themselves, evaluate conditions, and call this method only for
@@ -4070,7 +4069,7 @@ public interface ReferenceIndexMutator {
 	 * - `REPORT` logs every value it cannot withdraw and skips only that value: a missing value skips the value, and a
 	 *   missing index skips every value. Everything else is withdrawn as under `REFUSE`.
 	 *
-	 * The initial catalog-load replay follows `REPORT` whatever the executor's behavior is.
+	 * Session writes use the configured behavior. Committed WAL replay uses `REPORT`.
 	 *
 	 * Diagnostic messages are constructed only when something is missing.
 	 *
@@ -4124,12 +4123,9 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Refuses or reports one value the withdrawal cannot find. Initial catalog-load replay always reports, whatever the
-	 * {@link MissingHistogramValueBehavior} chosen by the system property says. An ordinary write uses the behavior the
-	 * executor carries: any behavior other than `REPORT` throws the error - the withdrawal stops there. `REPORT` logs
-	 * the same identification at error level with a sentence saying the write continues, and returns, so the caller
-	 * skips that value. No stack trace is logged: the line carries everything the error would, and an operator alerts
-	 * on its prefix `Cannot withdraw histogram value`.
+	 * Handles one missing value using the executor's effective {@link MissingHistogramValueBehavior}. `REPORT` logs
+	 * the diagnostic at error level and returns so the caller can skip the value. Other behaviors throw the error.
+	 * The log line starts with `Cannot withdraw histogram value` and carries the same diagnostic as the error.
 	 *
 	 * @param executor the mutation executor, which carries the behavior on a missing histogram value
 	 * @param referenceKey the reference including its internal primary key
@@ -4141,7 +4137,7 @@ public interface ReferenceIndexMutator {
 	 * @param histogramIndexPrimaryKey the primary key of the index the value is missing from, or `-1` when the index
 	 *                                 itself is missing
 	 * @param scope the current scope
-	 * @throws GenericEvitaInternalError unless initial startup replay is running or the behavior is `REPORT`
+	 * @throws GenericEvitaInternalError when the effective behavior requires refusal
 	 */
 	private static void refuseOrReportMissingHistogramValue(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -4157,8 +4153,7 @@ public interface ReferenceIndexMutator {
 		final String description = describeMissingHistogramValue(
 			executor, referenceKey, histogramName, locale, value, ownerPK, groupId, histogramIndexPrimaryKey, scope
 		);
-		if (!executor.isStartupReplay() &&
-			executor.getMissingHistogramValueBehavior() != MissingHistogramValueBehavior.REPORT) {
+		if (executor.getMissingHistogramValueBehavior() != MissingHistogramValueBehavior.REPORT) {
 			throw new GenericEvitaInternalError(description);
 		}
 		LoggerFactory.getLogger(ReferenceIndexMutator.class).error(

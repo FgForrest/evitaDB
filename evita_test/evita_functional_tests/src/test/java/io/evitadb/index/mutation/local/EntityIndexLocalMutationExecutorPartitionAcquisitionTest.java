@@ -143,8 +143,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			this.catalogUsageRegistry,
 			true,
 			MissingHistogramValueBehavior.REFUSE,
-			new PartitionReservations(),
-			false
+			new PartitionReservations()
 		);
 	}
 

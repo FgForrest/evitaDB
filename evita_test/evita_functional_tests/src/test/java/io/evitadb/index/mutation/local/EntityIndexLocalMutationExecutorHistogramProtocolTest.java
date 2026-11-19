@@ -876,8 +876,7 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 				}
 			},
 			new SchemaCapabilityUsageRegistry(), new SchemaCapabilityUsageRegistry(), true,
-			MissingHistogramValueBehavior.REFUSE, new PartitionReservations(),
-			false
+			MissingHistogramValueBehavior.REFUSE, new PartitionReservations()
 		);
 	}
 

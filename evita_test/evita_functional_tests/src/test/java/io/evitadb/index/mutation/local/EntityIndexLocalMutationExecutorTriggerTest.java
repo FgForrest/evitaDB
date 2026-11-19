@@ -316,8 +316,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			new SchemaCapabilityUsageRegistry(),
 			true,
 			MissingHistogramValueBehavior.REFUSE,
-			new PartitionReservations(),
-			false
+			new PartitionReservations()
 		);
 	}
 
@@ -1253,8 +1252,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			new SchemaCapabilityUsageRegistry(),
 			true,
 			MissingHistogramValueBehavior.REFUSE,
-			new PartitionReservations(),
-			false
+			new PartitionReservations()
 		);
 	}
 

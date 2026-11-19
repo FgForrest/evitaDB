@@ -182,8 +182,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 			true,
 			MissingHistogramValueBehavior.REFUSE,
-			new PartitionReservations(),
-			false
+			new PartitionReservations()
 		);
 	}
 

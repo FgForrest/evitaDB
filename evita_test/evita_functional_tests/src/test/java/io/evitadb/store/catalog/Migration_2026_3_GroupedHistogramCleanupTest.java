@@ -223,12 +223,12 @@ class Migration_2026_3_GroupedHistogramCleanupTest implements EvitaTestSupport {
 
 	/**
 	 * Takes a crash image of a committed but unpublished grouped update. Cleanup empties the grouped histograms,
-	 * then startup replay reports independently of the refusing property, reaches the tail and keeps live refusal.
+	 * then startup replay reports and reaches the tail under the refusing policy. The next session write still refuses.
 	 */
 	@Test
 	@Tag(WAL)
-	@DisplayName("startup replays an unpublished grouped update with a report and subsequent live writes still refuse")
-	void shouldReportDuringStartupReplayOnly() {
+	@DisplayName("Startup reports an unpublished grouped update and the next session write refuses")
+	void shouldReportGroupedUpdateDuringStartupReplayAndRefuseSessionWrite() {
 		final TestPaths source = allocate("tailSource");
 		final TestPaths crash = allocate("tailImage");
 		final EvitaConfiguration sourceConfiguration = configuration(source);

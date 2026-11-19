@@ -1,7 +1,7 @@
 ---
 title: Upgrade released catalogs from surviving parts, refusing collisions and warning about loss
 date: 2026-11-03
-updated: 2026-11-17 01:20
+updated: 2026-11-19 10:22
 status: accepted
 kind: fix
 issues: [1696, 1699]
@@ -259,8 +259,8 @@ All five errors were HTTPS subscription session timeouts, and their three classe
 [One histogram store per group](2026-11-17-one-histogram-store-per-group.md) extends this migration with cleanup
 of grouped histogram roots, counters and bucket/range pages, planned before writes and folded into its single
 publication from 6 to 9. Protocols 7 and 8 are explicitly refused development formats. The protocol-7 statements
-below describe this record's original implementation. Cleanup does not fill stores from bodies; startup WAL
-replay reports missing histogram withdrawals independently of live-write policy.
+below describe this record's original implementation. Cleanup does not fill stores from bodies; every replay of
+the committed WAL reports missing histogram withdrawals, while session writes keep the configured policy.
 
 The decimal-range fold follows the same warning policy as lost temporal precision and localized spellings.
 Every filterable or unique `BigDecimalNumberRange` attribute qualifies: entity attributes in all scopes,
@@ -288,7 +288,7 @@ into unproven stale membership/locale cases or histogram and price reconstructio
 ## Related work
 
 - [One histogram store per group](2026-11-17-one-histogram-store-per-group.md) — extends the surviving-parts
-  migration with grouped histogram cleanup, protocol 9 and startup-only missing-value reporting.
+  migration with grouped histogram cleanup, protocol 9 and missing-value reporting in every WAL replay.
 
 - [Millisecond precision](2026-09-04-millisecond-temporal-precision.md) defines current equality and the released
   readers' temporal bounds; this record completes release-data handling without changing that contract.

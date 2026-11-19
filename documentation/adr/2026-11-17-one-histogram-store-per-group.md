@@ -1,7 +1,7 @@
 ---
 title: One histogram store per group
 date: 2026-11-17
-updated: 2026-11-19 09:12
+updated: 2026-11-19 10:06
 status: accepted
 kind: fix
 issues: [1924]
@@ -23,8 +23,8 @@ relates: [2026-11-11-reference-histogram-net-change-per-run,
 A grouped reference writes its histogram contributions once into a histogram-only `GroupHistogramEntityIndex`,
 addressed by reference name, scope and group primary key. Reduced group indexes supply the references used to
 resolve boundary entities, but hold no histogram copies. The released protocol-6 upgrade removes the old grouped
-histograms and publishes protocol 9 once; it does not fill the stores. Startup WAL replay reports missing
-withdrawal values so the catalog can load, while live writes retain their configured missing-value behavior.
+histograms, leaving them empty, and publishes protocol 9 once. Committed WAL replay reports and skips missing
+withdrawal values during catalog loading and live trunk incorporation. Session writes use the configured policy.
 
 ## Why
 
@@ -85,8 +85,14 @@ make replication correct when a representative tuple changed the set of destinat
 - **Rejected because:** tail refusal needs real pre-upgrade WAL inspection: the WAL service is not initialized at
   format verification, so its ordinary probe cannot establish an empty tail there. It also rejects tails unrelated
   to histograms. An instruction alone leaves a replayed withdrawal able to mark the catalog `CORRUPTED` after
-  upgrade publication. Startup-only reporting lets the committed tail replay without changing later live policy.
+  upgrade publication. Reporting lets the committed tail replay and preserves the configured session policy.
   Filling grouped stores would not cure drift in ungrouped histograms either.
+
+### Thread a startup-only flag through the WAL replay call chain (declined)
+
+- **Rejected because** eight signatures carried the flag to one check, and the write is already committed to the
+  WAL by the time any replay could refuse it. Refusal can prevent catalog loading or exhaust the live
+  incorporation retries. Revisit only if replay can still reject a write.
 
 ## Decision
 
@@ -101,11 +107,11 @@ including obsolete schema definitions and localized keys, and remove roots, card
 pages. Preserve ungrouped histograms. Publish the result as protocol 9 in one bootstrap publication. A protocol-6
 input containing a group store, or an affected manifest with legacy inline bitmap carriers, is refused.
 
-Only the initial `TransactionManager#processEntireWriteAheadLog` passes the internal startup-replay flag.
-It follows the mutation call through catalog, collection, collector and executor, including nested/reflected work.
-`ReferenceIndexMutator#refuseOrReportMissingHistogramValue` logs and skips a missing value during this replay,
-independently of the hidden system property's policy. Ordinary transaction processing passes false; subsequent
-live writes keep the configured REFUSE or REPORT behavior. Reporting missing withdrawals is not a rebuild.
+The session-less entity mutation entry point creates its root collector with `REPORT` for committed WAL replay,
+both during catalog loading and during live trunk incorporation. The session mutation entry point creates its
+collector with the engine's configured policy, which defaults to `REFUSE`. Nested implicit and reflected
+mutations share their root collector. `ReferenceIndexMutator#refuseOrReportMissingHistogramValue` uses the
+effective policy to log and skip a missing withdrawal value or throw while the session can still roll back.
 
 ### Boundary pick: merge producing indexes and stop at the first owned candidate
 
@@ -183,6 +189,12 @@ Migration entry points live in `evita_store/evita_store_server/.../store/catalog
 
 ## Verification
 
+The replay policy run on 2026-11-19 passed **76 / 0 / 0 / 0** across six classes. In
+`MissingHistogramValueBehaviorTest`, the same missing value is refused through a session and reported through
+the replay entry point. Live trunk incorporation reports under the refusing default and makes the committed
+write visible. Deferred startup reports under both configured policies, and the following session write uses
+the configured policy. Switching either entry point to the other policy made the same-value test fail.
+
 These are completed implementation runs on 2026-11-16 and 2026-11-17, checked against the shipped tests and
 archived results; no performance run was made. Counts are tests / failures / errors / skips.
 
@@ -194,13 +206,14 @@ archived results; no performance run was made. Counts are tests / failures / err
 - `Migration_2026_3_GroupedHistogramCleanupTest` **6 / 0 / 0 / 0** proves a complete hand-built protocol-6 image,
   exactly one publication at 9, both cleaned manifest kinds, localized/stale keys, bucket/range leaves,
   cardinalities, ungrouped retention, refusal before writes, reload guards, rebuild parity and an unpublished
-  committed WAL tail. Startup succeeds and reaches the committed version under REFUSE, then a live write refuses.
+  committed WAL tail. Startup replay reports and reaches the committed version under `REFUSE`, then the next
+  session write refuses.
   `StorageProtocolRefusalTest` **3 / 0 / 0 / 0** includes unchanged-file refusals of protocols 7 and 8.
 - Independent cleanup counterfactuals kept protocol 9: disabling cleanup gave **6 / 1 / 2 / 0**, including the
   expected manifest assertion; disabling either reload guard gave **6 / 1 / 0 / 0**, at its own load-refusal cell.
   Skipping only leaf-page removal gave **6 / 1 / 0 / 0**, at the exact footprint check. Restored follow-up suite:
-  **408 / 0 / 0 / 0** over 14 classes, including `MissingHistogramValueBehaviorTest` 31 (32 with the later
-  startup-replay cell under refusal) and
+  **408 / 0 / 0 / 0** over 14 classes, including `MissingHistogramValueBehaviorTest` 31 (32 after adding
+  the missing-group-store cell, now driven with `REPORT`) and
   `ReferenceHistogramLocaleSetFunctionalTest` 72. Compatibility audit: 9 configurers, 190 registrations,
   111 backward-compatible readers, zero unparsed registrations and zero findings; no manifest UID change.
 - The hand-built image above uses today's serializers. `Release2026_2GroupedHistogramUpgradeTest` **4 / 0 / 0 / 0**
@@ -257,9 +270,9 @@ classes ran again with every release fixture regenerated by the release engines:
 - Grouped histograms are empty after upgrade until rebuilt or populated by later admitted writes. Ordinary
   withdrawals expecting old contributions can refuse until rebuild; REPORT skips missing values without repairing
   the absent contributions. Preserve a pre-upgrade backup for downgrade and rebuild from source for completeness.
-- Startup WAL replay reports missing values for every histogram, not just migrated grouped stores. A replayed
-  reference can add its final value while untouched contributions remain absent. This also tolerates a genuine
-  replay inconsistency; logs remain necessary evidence. The override is call-scoped and cannot alter live policy.
+- Committed WAL replay reports missing withdrawal values for grouped and ungrouped histograms during both catalog
+  loading and trunk incorporation. Replayed references can add their final values while untouched contributions
+  remain absent. Logs record the skipped withdrawals. The session policy still controls whether a write rolls back.
 - Every development catalog stamped 7 or 8 is refused and must be recreated. Header-based format dispatch remains;
   historical development images with a protocol-6 header under a protocol-7 bootstrap were described previously.
   Their continued existence is unproven; this change does not add original-bootstrap inspection.
@@ -307,3 +320,5 @@ classes ran again with every release fixture regenerated by the release engines:
   verified after rejecting the candidate-by-index walk.
 - **2026-11-17** — release-written upgrade fixture added; pull request #2001 opened. Times in `updated` use
   Europe/Prague.
+- **2026-11-19** — moved missing-value policy selection to the mutation entry points. Every committed WAL replay
+  reports while session writes use the configured policy.

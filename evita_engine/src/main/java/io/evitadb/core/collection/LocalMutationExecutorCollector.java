@@ -60,6 +60,7 @@ import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.MissingHistogramValueBehavior;
 import io.evitadb.index.mutation.local.PartitionReservations;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ForeignEntityStorageParts;
@@ -137,10 +138,9 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	 */
 	private final DataStoreReader dataStoreReader;
 	/**
-	 * True only for a root mutation applied by initial catalog-load replay. Nested mutations share this collector,
-	 * so their executors receive the same override without changing catalog or engine configuration.
+	 * The policy chosen at the root mutation entry point and shared by all its nested mutations.
 	 */
-	private final boolean startupReplay;
+	@Nonnull private final MissingHistogramValueBehavior missingHistogramValueBehavior;
 	/**
 	 * The list of all involved local mutation executors.
 	 */
@@ -978,12 +978,13 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	}
 
 	/**
-	 * Returns whether this root mutation and its nested mutations belong to initial startup replay.
+	 * Returns the effective policy for missing histogram values throughout this root mutation.
 	 *
-	 * @return true only for initial catalog-load replay
+	 * @return the behavior on a missing histogram value
 	 */
-	boolean isStartupReplay() {
-		return this.startupReplay;
+	@Nonnull
+	MissingHistogramValueBehavior getMissingHistogramValueBehavior() {
+		return this.missingHistogramValueBehavior;
 	}
 
 }

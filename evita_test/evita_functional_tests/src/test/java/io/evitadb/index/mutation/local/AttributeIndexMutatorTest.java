@@ -438,8 +438,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 						true,
 						MissingHistogramValueBehavior.REFUSE,
-						new PartitionReservations(),
-						false
+						new PartitionReservations()
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -473,8 +472,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 						true,
 						MissingHistogramValueBehavior.REFUSE,
-						new PartitionReservations(),
-						false
+						new PartitionReservations()
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -513,8 +511,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 				true,
 				MissingHistogramValueBehavior.REFUSE,
-				new PartitionReservations(),
-				false
+				new PartitionReservations()
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -543,8 +540,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 				true,
 				MissingHistogramValueBehavior.REFUSE,
-				new PartitionReservations(),
-				false
+				new PartitionReservations()
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -678,8 +674,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 				true,
 				MissingHistogramValueBehavior.REFUSE,
-				new PartitionReservations(),
-				false
+				new PartitionReservations()
 			),
 			null,
 			this.productAttributeSchemaProvider,

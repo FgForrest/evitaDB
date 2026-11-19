@@ -385,7 +385,7 @@ histogram trigger of each - O(N·K). On any other entity type it costs one regis
 ## Related work
 
 - [One histogram store per group](2026-11-17-one-histogram-store-per-group.md) — fixes split-group replication,
-  preserves this record's deferred-run protocol and scopes missing-value reporting to startup replay.
+  preserves this record's deferred-run protocol and uses reporting for all committed WAL replay.
 
 - [[2026-04-23-bucketed-histogram-indexing]] — introduced the counter-gated insert and remove pair and the
   deferred local queue this record changes the use of. Its invariant, an owner at most once per value, is what
