@@ -627,16 +627,20 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Filters entities to those with at least one price in the specified price list(s), using the order of price lists to set priority for the "price for sale" selection. Only one `priceInPriceLists` constraint is allowed per query, and it cannot be nested in user filters.
+	 * Filters entities to those with at least one price in the given price list. It is the single price list form of
+	 * `priceInPriceLists`: only one such constraint is allowed per query, and it cannot be nested in user filters.
+	 * A null or blank price list returns null, and the constraint is then left out of the query.
 	 *
 	 * ```evitaql
 	 * filterBy(
-	 *   priceInPriceLists("vip", "reference", "basic")
+	 *   priceInPriceLists("basic")
 	 * )
 	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/price#price-in-price-lists)
 	 *
+	 * @param priceList the price list to match
+	 * @return the price list filter, or null when the price list is null or blank
 	 * @see io.evitadb.api.query.filter.PriceInPriceLists
 	 */
 	@SourceHash("28bb219ae6dc8bc77cb5a144fb6de65a")
@@ -1456,16 +1460,20 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Filters entities by exact primary key match, enabling rapid retrieval of specific entities using evitaDB’s most efficient lookup (bitmap index). Equivalent to an OR of multiple primary key equality checks. Nulls are ignored; empty input matches no entities.
+	 * Filters entities by an exact match on the given primary key, the fastest lookup evitaDB offers. It is the single
+	 * key form of `entityPrimaryKeyInSet`. A null primary key returns null, and the constraint is then left out of
+	 * the query.
 	 *
 	 * ```evitaql
 	 * filterBy(
-	 *     entityPrimaryKeyInSet(1, 5, 8)
+	 *     entityPrimaryKeyInSet(1)
 	 * )
 	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/constant#entity-primary-key-in-set)
 	 *
+	 * @param primaryKey the primary key to match
+	 * @return the primary key filter, or null when the primary key is null
 	 * @see io.evitadb.api.query.filter.EntityPrimaryKeyInSet
 	 */
 	@SourceHash("e05a3fa43cc07b963525ab56e544dc4b")
@@ -2364,6 +2372,7 @@ public interface QueryConstraints {
 	 * ```evitaql
 	 * histogramStatistics(10, OPTIMIZED, "ratingIndex", "weightIndex")
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
@@ -2387,6 +2396,7 @@ public interface QueryConstraints {
 	 *     histogramStatistics(20, entityFetch(attributeContent("code")), "priceIndex")
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
@@ -2410,6 +2420,7 @@ public interface QueryConstraints {
 	 *     histogramStatistics(10, OPTIMIZED, entityFetch(attributeContent("code")), "ratingIndex", "weightIndex")
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
