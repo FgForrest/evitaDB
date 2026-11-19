@@ -1022,6 +1022,22 @@ you to access the attributes of the parent entities, etc. Not every parent is gu
 you ask for, though - the [hierarchy parents behaviour](#hierarchy-parents-behaviour) argument decides what the chain
 looks like when one of them can't.
 
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Which hierarchy is traversed for entities in different scopes?
+</NoteTitle>
+
+The direct parent is read from the entity itself, the parents above it from the hierarchy index of the
+[scope](../filtering/constant.md#scope) the entity lives in. An entity living in a scope that doesn't index
+the hierarchy therefore reports its direct parent only. A query that spans several scopes fetches the hierarchy
+placement of every entity in its own scope and needs no `inScope` container for it - only the filter of a `stopAt`
+`node` constraint is evaluated in every traversed scope, so an attribute filterable in one scope only must be
+wrapped in the [`inScope`](../filtering/behavioral.md#in-scope) container there.
+
+</Note>
+
 To fetch an entity with basic hierarchy information, use the following query:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -2156,7 +2172,14 @@ entities hold any reference to filter.
 The `entityHaving` and `groupHaving` constraints read the referenced entity and the group entity, so the entity types
 must be managed by evitaDB, otherwise the query is refused. A filter outside of any `inScope` container is applied to
 the references of the entities in all the queried scopes; wrap its part in [`inScope`](../filtering/behavioral.md#in-scope)
-to apply it to the references of the entities living in a single scope only.
+to apply it to the references of the entities living in a single scope only. Such a filter is evaluated on
+the fetched references themselves and doesn't need the references or their attributes to be indexed in the scope of
+their owner - but the referenced entities an `entityHaving` filters by are searched in every scope the owners are
+queried in. An `entityHaving` by an attribute filterable in one scope only is therefore refused, unless it names
+that scope in its own `scope` constraint, which searches the referenced entities in that scope for the owners of
+every scope, or it is wrapped in `inScope`, which applies it to the references of the owners in that scope only.
+An ordering of references that aren't indexed in every queried scope is accepted only inside
+an [`inScope`](../ordering/behavioral.md#in-scope) container of the ordering.
 
 The referenced entities fetched by `entityFetch` are fetched in the [`scope`](../filtering/constant.md#scope) named
 by an `entityHaving` of the filter that no `or`, `not` or `inScope` encloses, and the groups fetched by

@@ -60,11 +60,17 @@ other entities - such as `entityFetch`, `referenceContent`, `facetSummary` or `h
 
 <LS to="g">
 
-<Note type="warning">
+<Note type="info">
 
-The `inScope` constraint container has limited support in GraphQL API (only extra results can be requested in specific scopes
-for now).
-You can check the status of the following issue [#752](https://github.com/FgForrest/evitaDB/issues/1012).
+The GraphQL API doesn't express most of the require constraints directly but through the output fields, so the `inScope`
+container is available for the extra results only. The references and the parents of entities need no
+such container: they're fetched for the entities of every queried scope, because fetching them doesn't need any index
+of the scope the entity lives in (see [reference content](fetching.md#reference-content) and
+[hierarchy content](fetching.md#hierarchy-content)). Only the constraints nested in the reference or parents fields
+that do read an index are refused: an `entityHaving` or a `stopAt` node filter by an attribute filterable in one
+scope only, and an ordering of references that aren't indexed in every queried scope. Wrap such a filter in
+the `inScope` container of the nested `filterBy` argument (or name the scope in the `entityHaving` itself), and such
+an ordering in the `inScope` container of the nested `orderBy` argument.
 
 </Note>
 
