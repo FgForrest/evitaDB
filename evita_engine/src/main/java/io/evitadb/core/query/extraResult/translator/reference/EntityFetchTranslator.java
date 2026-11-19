@@ -153,9 +153,21 @@ public class EntityFetchTranslator implements RequireConstraintTranslator<Entity
 		}
 	}
 
+	/**
+	 * Plans the content of the fetch in the frame of {@link ExtraResultPlanningVisitor#executeEntityFetchInContext}:
+	 * the main fetch is checked in every scope searched by the query, even when a require-level `inScope` wraps it,
+	 * and other fetches inherit their enclosing processing scopes.
+	 *
+	 * @param entityFetch the fetch whose content requirements are being planned
+	 * @param extraResultPlanningVisitor the visitor supplying the current schema and scope
+	 * @return always null - an entity fetch produces no extra result, it only plans the content it requests
+	 */
 	@Nullable
 	@Override
-	public ExtraResultProducer createProducer(@Nonnull EntityFetch entityFetch, @Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer createProducer(
+		@Nonnull EntityFetch entityFetch,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor
+	) {
 		if (extraResultPlanningVisitor.isRootScope()) {
 			extraResultPlanningVisitor.addRequirementToPrefetch(entityFetch.getRequirements());
 		}
@@ -164,14 +176,15 @@ public class EntityFetchTranslator implements RequireConstraintTranslator<Entity
 				extraResultPlanningVisitor.getSchema() :
 				getReferencedSchema(extraResultPlanningVisitor)
 					.orElseGet(() -> extraResultPlanningVisitor.getCurrentEntitySchema()
-						.orElseThrow(() -> new EvitaInvalidUsageException("EntityFetch constraint is probably incorrectly nested in require part of the query.")));
+						.orElseThrow(() -> new EvitaInvalidUsageException(
+							"EntityFetch constraint is probably incorrectly nested in require part of the query."
+						)));
 
-			extraResultPlanningVisitor.executeInContext(
+			extraResultPlanningVisitor.executeEntityFetchInContext(
 				entityFetch,
-				() -> null,
 				() -> schema,
 				() -> {
-					for (RequireConstraint innerConstraint : entityFetch.getChildren()) {
+					for (final RequireConstraint innerConstraint : entityFetch.getChildren()) {
 						innerConstraint.accept(extraResultPlanningVisitor);
 					}
 					return null;

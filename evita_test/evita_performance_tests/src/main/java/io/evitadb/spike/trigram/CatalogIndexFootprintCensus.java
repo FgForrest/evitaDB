@@ -43,6 +43,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
@@ -543,8 +544,11 @@ public class CatalogIndexFootprintCensus {
 			return 5L;
 		} else if (index instanceof ReducedGroupEntityIndex) {
 			// the reduced base's priceIndex slot, plus cardinalityDirty / pkCardinalities
-			// / referencedPrimaryKeysIndex / cardinalityIndexes / histogramIndexes / histogramComponent
-			return 7L;
+			// / referencedPrimaryKeysIndex / cardinalityIndexes
+			return 5L;
+		} else if (index instanceof GroupHistogramEntityIndex) {
+			// the priceIndex, histogramIndexes and histogramComponent slots
+			return 3L;
 		} else if (index instanceof ReducedEntityIndex) {
 			// the reduced base's priceIndex slot alone
 			return 1L;

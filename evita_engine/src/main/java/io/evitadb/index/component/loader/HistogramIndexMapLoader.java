@@ -61,8 +61,8 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * Reloads the histogram index map carried by `ReferencedTypeEntityIndex` and
- * `ReducedGroupEntityIndex`, including the per-name grouping that decides whether to materialize
+ * Reloads the histogram index map carried by `ReferencedTypeEntityIndex` and `GroupHistogramEntityIndex`,
+ * including the per-name grouping that decides whether to materialize
  * a `SimpleHistogramIndex` (single locale=null part) or a `LocalizedHistogramIndex` (any
  * non-null locale part).
  *

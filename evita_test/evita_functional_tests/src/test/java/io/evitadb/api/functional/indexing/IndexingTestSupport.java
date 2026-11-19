@@ -34,6 +34,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReducedEntityIndex;
@@ -384,6 +385,36 @@ public interface IndexingTestSupport {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
 			new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName)
+		);
+	}
+
+	/**
+	 * Retrieves the histogram store of one group - the index holding the reference histograms of the group as a
+	 * whole - for the given collection, scope, reference name and group primary key.
+	 *
+	 * @param collection    the entity collection to query
+	 * @param scope         the scope to search in
+	 * @param referenceName the reference schema name
+	 * @param groupPk       the primary key of the group entity
+	 * @return the histogram store of the group, or null if the collection holds none
+	 */
+	@Nullable
+	static GroupHistogramEntityIndex getGroupHistogramStore(
+		@Nonnull EntityCollectionContract collection,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		int groupPk
+	) {
+		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
+		final EntityIndex index = ((EntityCollection) collection).getIndexByKeyIfExists(
+			GroupHistogramEntityIndex.keyOf(referenceName, groupPk, scope)
+		);
+		if (index == null) {
+			return null;
+		}
+		return assertInstanceOf(
+			GroupHistogramEntityIndex.class, index,
+			"Expected GroupHistogramEntityIndex but got " + index.getClass().getSimpleName()
 		);
 	}
 

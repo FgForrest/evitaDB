@@ -151,7 +151,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Drives the REAL v6→v7 upgrade over a catalog in which evitaDB 2026.2 stored a temporal value outside the window
+ * Drives the REAL v6→v9 upgrade over a catalog in which evitaDB 2026.2 stored a temporal value outside the window
  * this version represents - the epoch milliseconds a `long` holds, roughly ±292 million years around 1970.
  *
  * # Why 2026.2 holds such values
@@ -195,7 +195,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Migration_2026_3 — temporal values outside the supported window that 2026.2 stored (v6→v7)")
+@DisplayName("Migration_2026_3 — temporal values outside the supported window that 2026.2 stored (v6→v9)")
 @Tag(STORAGE)
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)

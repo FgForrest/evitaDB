@@ -68,11 +68,23 @@ public record EntityIndexKey(
 		if (discriminator instanceof RepresentativeReferenceKey rrk) {
 			Assert.isPremiseValid(
 				type == EntityIndexType.REFERENCED_ENTITY ||
-					type == EntityIndexType.REFERENCED_GROUP_ENTITY,
+					type == EntityIndexType.REFERENCED_GROUP_ENTITY ||
+					type == EntityIndexType.REFERENCED_GROUP_HISTOGRAM,
 				() -> "When using `" + rrk + "` (RepresentativeReferenceKey) as discriminator, " +
 					"the index type must be " + EntityIndexType.REFERENCED_ENTITY +
-					" or " + EntityIndexType.REFERENCED_GROUP_ENTITY + "!"
+					", " + EntityIndexType.REFERENCED_GROUP_ENTITY +
+					" or " + EntityIndexType.REFERENCED_GROUP_HISTOGRAM + "!"
 			);
+			// a group histogram store is one per group, never one per representative attribute tuple - a tuple here
+			// would split the group's histograms over several stores that no reader could find again; checked only for
+			// that kind, so the keys of the other kinds build no message supplier for it
+			if (type == EntityIndexType.REFERENCED_GROUP_HISTOGRAM) {
+				Assert.isPremiseValid(
+					rrk.representativeAttributeValues().length == 0,
+					() -> "The " + EntityIndexType.REFERENCED_GROUP_HISTOGRAM + " index of `" + rrk +
+						"` must not carry representative attribute values!"
+				);
+			}
 			this.discriminator = rrk;
 		} else if (discriminator instanceof String str) {
 			Assert.isPremiseValid(
@@ -94,7 +106,8 @@ public record EntityIndexKey(
 				"Discriminator must be either String (for " + EntityIndexType.REFERENCED_ENTITY_TYPE +
 					" or " + EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE + ") " +
 					"or RepresentativeReferenceKey (for " + EntityIndexType.REFERENCED_ENTITY +
-					" or " + EntityIndexType.REFERENCED_GROUP_ENTITY + ")!"
+					", " + EntityIndexType.REFERENCED_GROUP_ENTITY +
+					" or " + EntityIndexType.REFERENCED_GROUP_HISTOGRAM + ")!"
 			);
 		}
 	}
@@ -110,8 +123,8 @@ public record EntityIndexKey(
 	 *
 	 * - `GLOBAL` → `null` (the index holds entity-level attributes),
 	 * - `REFERENCED_ENTITY_TYPE` / `REFERENCED_GROUP_ENTITY_TYPE` → the `String` discriminator IS the reference name,
-	 * - `REFERENCED_ENTITY` / `REFERENCED_GROUP_ENTITY` → the {@link RepresentativeReferenceKey} discriminator's
-	 *   {@link RepresentativeReferenceKey#referenceName()}.
+	 * - `REFERENCED_ENTITY` / `REFERENCED_GROUP_ENTITY` / `REFERENCED_GROUP_HISTOGRAM` → the
+	 *   {@link RepresentativeReferenceKey} discriminator's {@link RepresentativeReferenceKey#referenceName()}.
 	 *
 	 * This is the single source of truth for the reference scope of indexed attributes: a persisted per-attribute
 	 * `AttributeIndexKey` may carry a `null` reference name (legacy `AttributeKey` rehydration drops it), so the scope
@@ -124,7 +137,7 @@ public record EntityIndexKey(
 		return switch (this.type) {
 			case GLOBAL -> null;
 			case REFERENCED_ENTITY_TYPE, REFERENCED_GROUP_ENTITY_TYPE -> (String) Objects.requireNonNull(this.discriminator);
-			case REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY ->
+			case REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY, REFERENCED_GROUP_HISTOGRAM ->
 				((RepresentativeReferenceKey) Objects.requireNonNull(this.discriminator)).referenceName();
 		};
 	}
@@ -144,7 +157,7 @@ public record EntityIndexKey(
 					final String thatDis = (String) Objects.requireNonNull(o.discriminator);
 					yield thisDis.compareTo(thatDis);
 				}
-				case REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY -> {
+				case REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY, REFERENCED_GROUP_HISTOGRAM -> {
 					final RepresentativeReferenceKey thisDis = (RepresentativeReferenceKey) Objects.requireNonNull(this.discriminator);
 					final RepresentativeReferenceKey thatDis = (RepresentativeReferenceKey) Objects.requireNonNull(o.discriminator);
 					yield thisDis.compareTo(thatDis);

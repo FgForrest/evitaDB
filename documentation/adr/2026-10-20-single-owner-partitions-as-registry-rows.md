@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
 date: 2026-10-20
-updated: 2026-10-29 10:16
+updated: 2026-11-17 01:20
 status: accepted
 kind: optimization
 issues: [1615]
@@ -28,7 +28,14 @@ areas:
   - documentation/developer/indexes
 supersedes: []
 superseded-by: []
-relates: [2026-11-03-release-catalog-upgrade-from-surviving-index-parts, 2026-10-20-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
+relates: [2026-11-03-release-catalog-upgrade-from-surviving-index-parts,
+  2026-10-20-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection,
+  2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership,
+  2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having,
+  2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys,
+  2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision,
+  2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics,
+  2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-11-19-one-histogram-store-per-group]
 ---
 
 # A single-owner partition of a filtering-only reference is a registry row, not an index object
@@ -278,6 +285,12 @@ the mutator computed and what the row holds into a failed mutation, not a silent
 - **Declined — the full hybrid without a foreign read at promotion.** See fork 2.
 
 ### One storage protocol, every 2026.3 storage change in one migration from 6 to 7
+
+**Update 2026-11-17 (Europe/Prague):**
+[One histogram store per group](2026-11-19-one-histogram-store-per-group.md) keeps this record's single
+publication from protocol 6 and folds grouped histogram cleanup into it, targeting protocol 9. Every development
+catalog at 7 or 8 is explicitly refused; cleanup alone cannot make all protocol-7 representations compatible.
+The protocol-7 decision and development-format behavior below describe the original implementation.
 
 **Chosen** (maintainer, 2026-10-07; built in the cleanup; the protocol number settled on 2026-10-19):
 
@@ -1053,6 +1066,10 @@ Limits to carry into any re-run:
 
 ## Consequences & open follow-ups
 
+- **2026-11-17 update:** [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) folds
+  grouped histogram cleanup into the single publication from 6 to 9 and refuses development protocols 7 and 8.
+  The protocol-7 behavior described below is historical.
+
 - **2026-10-29 update:** Release sort blocks and equal-current representative manifests now receive lossless reading
   or pre-publication refusal. Shared-border companions are rebuilt before conversion; folded values still require
   republishing, now identified by one conditional upgrade warning. See
@@ -1226,6 +1243,9 @@ Found later in the cleanup and accepted by the maintainer on 2026-10-12:
   trunk replays the WAL and on crash recovery. T4 compares crash recovery modulo the keys it re-mints.
 
 ## Related work
+
+- [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) — retains one publication from
+  protocol 6, changes the target to 9 and explicitly refuses development protocols 7 and 8.
 
 -
   [2026-11-03-release-catalog-upgrade-from-surviving-index-parts](2026-11-03-release-catalog-upgrade-from-surviving-index-parts.md)

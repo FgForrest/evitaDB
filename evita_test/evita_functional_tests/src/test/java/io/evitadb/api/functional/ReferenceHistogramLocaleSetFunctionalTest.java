@@ -52,6 +52,7 @@ import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
@@ -101,7 +102,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - {@link ValueWrittenByUpsertGivingItsLocale}: a localized value written by the very upsert that gives the product
  *   its locale, with controls that give the locale in an earlier upsert;
  * - {@link OwnerLocaleSetChange}: a defaulted value whose owner gains or loses a locale without the reference being
- *   touched, read in the type index of the reference and in the reference summary;
+ *   touched, read in the type index or group histogram store, and in the ungrouped reference summary;
  * - {@link EnumeratedLocaleSet}: the owner's locale set changed by every kind of mutation that can change it - an
  *   entity attribute, a reference attribute, associated data, a reference removal, a scope change, a mutation
  *   propagated from a reflected reference - on one reference, on a sibling of it and on a reference not indexed at
@@ -110,8 +111,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   which changes a value and no locale.
  *
  * Every scenario runs with the catalog in warm-up and alive, checks the histograms after a restart too, and ends
- * with a follow-up change of the same references, so a value left behind or missing shows as a wrong histogram or as
- * a refused withdrawal.
+ * with a follow-up change of the same references. Assertions on the histogram contents detect missing or stale values.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -401,7 +401,8 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 				)
 			)
 		));
-		return inBothCatalogStates(scenarios);
+		return scenarios.stream().flatMap(scenario -> Stream.of(CatalogState.WARMING_UP, CatalogState.ALIVE)
+			.flatMap(state -> Stream.of(false, true).map(grouped -> Arguments.of(state, scenario, grouped))));
 	}
 
 	/**
@@ -885,36 +886,40 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 		 *
 		 * @param state    the state the catalog is in when the steps are applied
 		 * @param scenario the scenario
+		 * @param grouped whether the reference contributes to a group store
 		 */
-		@ParameterizedTest(name = "{0} {1}")
+		@ParameterizedTest(name = "{0} {1} grouped={2}")
 		@MethodSource("io.evitadb.api.functional.ReferenceHistogramLocaleSetFunctionalTest#ownerLocaleScenarios")
 		@DisplayName("every locale of the histogram holds the values of a freshly stored product after every step")
 		void shouldHoldTheValuesOfAFreshlyStoredProduct(
 			@Nonnull CatalogState state,
-			@Nonnull OwnerScenario scenario
+			@Nonnull OwnerScenario scenario,
+			boolean grouped
 		) {
-			final TestPaths paths = createTestPaths("ReferenceHistogramLocaleSet_Owner_" + state + "_" + scenario);
+			final TestPaths paths = createTestPaths(
+				"ReferenceHistogramLocaleSet_Owner_" + state + "_" + scenario + "_" + grouped
+			);
 			final EvitaConfiguration configuration = newTestEvitaConfigurationBuilder(paths).build();
 			final List<Executable> checks = new ArrayList<>(32);
 			Evita evita = new Evita(configuration);
 			try {
 				evita.defineCatalog(TEST_CATALOG);
 				evita.updateCatalog(TEST_CATALOG, session -> {
-					ownerSetUpCatalog(session);
+					ownerSetUpCatalog(session, grouped);
 					scenario.preparation().accept(session);
 					if (state == CatalogState.ALIVE) {
 						session.goLiveAndClose();
 					}
 				});
-				recordOwnerState(evita, scenario + " before the first step", scenario.before(), checks);
+				recordOwnerState(evita, scenario + " before the first step", scenario.before(), checks, grouped);
 				int stepNumber = 0;
 				for (OwnerStep step : scenario.steps()) {
 					stepNumber++;
 					final String stage = scenario + " after step " + stepNumber + " " + step.name();
 					applyUpdate(evita, stage, checks, step.update());
-					recordOwnerState(evita, stage, step.expected(), checks);
+					recordOwnerState(evita, stage, step.expected(), checks, grouped);
 					evita = restart(evita, configuration);
-					recordOwnerState(evita, stage + " and a restart", step.expected(), checks);
+					recordOwnerState(evita, stage + " and a restart", step.expected(), checks, grouped);
 				}
 			} catch (RuntimeException ex) {
 				checks.add(() -> fail(scenario + ": the scenario threw " + ex.getClass().getSimpleName() + ": " +
@@ -980,7 +985,7 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 				recordLocaleSetState(evita, "after the upsert and restart", scenario.afterUpsert(), checks);
 				recordGermanLabels(evita, "after the upsert and restart", scenario.germanLabels(), checks);
 
-				// the follow-up withdraws what the upsert left: a missing value is refused, a stale one stays
+				// the follow-up withdraws what the upsert left for the current locales
 				applyUpdate(evita, "the follow-up", checks, scenario.followUp());
 				recordLocaleSetState(evita, "after the follow-up", scenario.afterFollowUp(), checks);
 				evita = restart(evita, configuration);
@@ -1213,7 +1218,13 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 			.orElseThrow()
 			.openForWrite()
 			.setReference(
-				REFERENCE_BRAND, BRAND_PK, whichIs -> whichIs.setAttribute(ATTRIBUTE_SHARE, Locale.ENGLISH, share)
+				REFERENCE_BRAND, BRAND_PK, whichIs -> {
+					if (session.getEntitySchema(ENTITY_PRODUCT).orElseThrow()
+						.getReferenceOrThrowException(REFERENCE_BRAND).getReferencedGroupType() != null) {
+						whichIs.setGroup("brandGroup", 1);
+					}
+					whichIs.setAttribute(ATTRIBUTE_SHARE, Locale.ENGLISH, share);
+				}
 			)
 			.upsertVia(session);
 	}
@@ -1502,11 +1513,34 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 		@Nonnull Locale locale,
 		@Nonnull String histogramName
 	) {
+		return describeTypeIndex(evita, scope, locale, histogramName, false);
+	}
+
+	/**
+	 * Describes histogram values and owners in the selected type index or group store.
+	 *
+	 * @param evita the engine
+	 * @param scope the scope
+	 * @param locale the locale
+	 * @param histogramName the histogram
+	 * @param grouped whether to read the group store
+	 * @return the values and owners
+	 */
+	@Nonnull
+	private static String describeTypeIndex(
+		@Nonnull Evita evita,
+		@Nonnull Scope scope,
+		@Nonnull Locale locale,
+		@Nonnull String histogramName,
+		boolean grouped
+	) {
 		final EntityCollectionContract collection = evita.getCatalogInstance(TEST_CATALOG)
 			.orElseThrow()
 			.getCollectionForEntity(ENTITY_PRODUCT)
 			.orElseThrow();
-		final EntityIndex index = IndexingTestSupport.getReferencedEntityTypeIndex(collection, scope, REFERENCE_BRAND);
+		final EntityIndex index = grouped ?
+			IndexingTestSupport.getGroupHistogramStore(collection, scope, REFERENCE_BRAND, 1) :
+			IndexingTestSupport.getReferencedEntityTypeIndex(collection, scope, REFERENCE_BRAND);
 		if (!(index instanceof HistogramCapableEntityIndex histogramIndex)) {
 			return "{}";
 		}
@@ -1684,16 +1718,19 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 	 * @param stage    names the moment of the check
 	 * @param expected the expected state
 	 * @param checks   the collected checks
+	 * @param grouped whether to read the group store
 	 */
 	private static void recordOwnerState(
 		@Nonnull Evita evita,
 		@Nonnull String stage,
 		@Nonnull String expected,
-		@Nonnull List<Executable> checks
+		@Nonnull List<Executable> checks,
+		boolean grouped
 	) {
 		try {
-			final String actual = describeOwnerState(evita);
-			checks.add(() -> assertEquals(expected, actual, stage));
+			final String actual = describeOwnerState(evita, grouped);
+			final String expectedState = grouped ? expected.replaceAll(" summary (?:none|[0-9.]+)", "") : expected;
+			checks.add(() -> assertEquals(expectedState, actual, stage));
 		} catch (RuntimeException ex) {
 			checks.add(() -> fail(stage + ": reading the state threw " + ex, ex));
 		}
@@ -1704,25 +1741,28 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 	 * with their owners, and the range the reference summary computes among the live products having that locale.
 	 *
 	 * @param evita the engine
+	 * @param grouped whether to read the group store
 	 * @return the description
 	 */
 	@Nonnull
-	private static String describeOwnerState(@Nonnull Evita evita) {
+	private static String describeOwnerState(@Nonnull Evita evita, boolean grouped) {
 		final StringBuilder result = new StringBuilder(256);
 		for (Locale locale : LOCALES) {
 			if (result.length() > 0) {
 				result.append(" | ");
 			}
-			final HistogramContract histogram = evita.queryCatalog(
+			final HistogramContract histogram = grouped ? null : evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					return readSummaryHistogram(session, Scope.LIVE, locale, OWNER_HISTOGRAM);
 				}
 			);
 			result.append(locale.getLanguage())
-				.append(" index ").append(describeTypeIndex(evita, Scope.LIVE, locale, OWNER_HISTOGRAM))
-				.append(" summary ")
-				.append(histogram == null ? "none" : plain(histogram.getMin()) + ".." + plain(histogram.getMax()));
+				.append(" index ").append(describeTypeIndex(evita, Scope.LIVE, locale, OWNER_HISTOGRAM, grouped));
+			if (!grouped) {
+				result.append(" summary ")
+					.append(histogram == null ? "none" : plain(histogram.getMin()) + ".." + plain(histogram.getMax()));
+			}
 		}
 		return result.toString();
 	}
@@ -1736,8 +1776,13 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 	 * 10 and 20 in both locales - stored by a second upsert.
 	 *
 	 * @param session the session of the catalog in warm-up
+	 * @param grouped whether the reference has a group
 	 */
-	private static void ownerSetUpCatalog(@Nonnull EvitaSessionContract session) {
+	private static void ownerSetUpCatalog(@Nonnull EvitaSessionContract session, boolean grouped) {
+		if (grouped) {
+			session.defineEntitySchema("brandGroup").withoutGeneratedPrimaryKey().updateVia(session);
+			session.createNewEntity("brandGroup", 1).upsertVia(session);
+		}
 		session.defineEntitySchema(ENTITY_BRAND).withoutGeneratedPrimaryKey().updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
 			.withoutGeneratedPrimaryKey()
@@ -1746,15 +1791,26 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 			.withReferenceToEntity(
 				REFERENCE_BRAND, ENTITY_BRAND,
 				Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.indexedForFiltering().faceted()
-					.withAttribute(
-						ATTRIBUTE_SHARE, Integer.class,
-						thatIs -> thatIs.localized().filterable().nullable()
-					)
-					.bucketed(
-						OWNER_HISTOGRAM,
-						ExpressionFactory.parse("$reference.localizedAttributes['" + ATTRIBUTE_SHARE + "'] ?? 7")
-					)
+				whichIs -> {
+					if (grouped) {
+						whichIs.withGroupTypeRelatedToEntity("brandGroup");
+					}
+					whichIs.indexedForFiltering().faceted()
+						.withAttribute(
+							ATTRIBUTE_SHARE, Integer.class,
+							thatIs -> thatIs.localized().filterable().nullable()
+						)
+						.bucketed(
+							OWNER_HISTOGRAM,
+							ExpressionFactory.parse("$reference.localizedAttributes['" + ATTRIBUTE_SHARE + "'] ?? 7")
+						);
+					if (grouped) {
+						whichIs.indexedWithComponentsInScope(
+							Scope.LIVE, ReferenceIndexedComponents.REFERENCED_ENTITY,
+							ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+						);
+					}
+				}
 			)
 			.updateVia(session);
 
@@ -1777,6 +1833,9 @@ class ReferenceHistogramLocaleSetFunctionalTest implements EvitaTestSupport {
 			anchorReferences.setReference(
 				REFERENCE_BRAND, brandPk++,
 				whichIs -> {
+					if (grouped) {
+						whichIs.setGroup("brandGroup", 1);
+					}
 					for (Locale locale : LOCALES) {
 						whichIs.setAttribute(ATTRIBUTE_SHARE, locale, anchorValue);
 					}

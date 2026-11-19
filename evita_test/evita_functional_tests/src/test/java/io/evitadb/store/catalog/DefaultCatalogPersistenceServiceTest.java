@@ -80,6 +80,7 @@ import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.export.file.ExportFileService;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.mutation.local.MissingHistogramValueBehavior;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
@@ -217,6 +218,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final Catalog mockCatalog = mock(Catalog.class);
 		when(mockCatalog.getSchema()).thenReturn(catalogSchema);
 		when(mockCatalog.getEntitySchema(schema.getName())).thenReturn(of(schema));
+		// every session write reads the configured policy when it starts; this is the engine's default
+		when(mockCatalog.getMissingHistogramValueBehavior()).thenReturn(MissingHistogramValueBehavior.REFUSE);
 		when(mockCatalog.getEntityIndexIfExists(ArgumentMatchers.eq(schema.getName()), any(EntityIndexKey.class), any(Class.class))).thenReturn(empty());
 		return mockCatalog;
 	}

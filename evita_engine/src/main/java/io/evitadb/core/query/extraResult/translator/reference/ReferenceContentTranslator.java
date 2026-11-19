@@ -85,6 +85,8 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 			final EntitySchemaContract schema = entitySchema.get();
 			final OwnerLevel owner = resolveOwnerLevel(referenceContent, extraResultPlanningVisitor);
 			final QueryUtils.ReferenceBodyScopes ownerScope = owner.scope();
+			// without an explicit pair the owners take the processing scopes - below the main fetch, those are all
+			// scopes searched by the query
 			final Set<Scope> ownerScopes = ownerScope == null ?
 				extraResultPlanningVisitor.getProcessingScope().getScopes() : ownerScope.scopes();
 
@@ -165,8 +167,8 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 	/**
 	 * Resolves searched and admitted scopes of the entity owning a requirement, outermost body level first.
 	 * Each entity or group fetch materializes its own matching alternatives against the immediate owner's pair.
-	 * A deeper inheriting level retains any outer explicit pair. Plain inheritance uses processing scopes for search
-	 * and the query's requested scopes for admission, preserving the planning context's existing inheritance base.
+	 * A deeper inheriting level retains any outer explicit pair. Plain inheritance searches the processing scopes,
+	 * which below the main fetch are the query's searched scopes, and admits the query's requested scopes.
 	 *
 	 * @param requirement the requirement being planned
 	 * @param extraResultPlanningVisitor the visitor planning it

@@ -65,8 +65,8 @@ import java.util.Map;
  *                               sibling-or-legacy-fallback rule as {@code entityIds}
  * @param storagePartService     the storage-part persistence service used to fetch raw parts
  * @param referenceKey           the discriminator for `REFERENCED_ENTITY` /
- *                               `REFERENCED_GROUP_ENTITY` indexes; `null` for `GLOBAL` and
- *                               `REFERENCED_*_TYPE` indexes
+ *                               `REFERENCED_GROUP_ENTITY` / `REFERENCED_GROUP_HISTOGRAM` indexes;
+ *                               `null` for `GLOBAL` and `REFERENCED_*_TYPE` indexes
  * @param usageStatisticsTracking whether the reloaded index allocates an
  *                               {@link io.evitadb.index.IndexActivity} holder — carried through the reload
  *                               because an index restored from disk starts a fresh observation window, and
@@ -114,7 +114,7 @@ public record LoadContext(
 	 * statistics — the counters start over, which is what *"since catalog load"* means — and none at all when it does
 	 * not.
 	 *
-	 * Resolved here rather than at each of the four reload plans so that all of them cannot drift apart on it.
+	 * Resolved here rather than at each of the five reload plans so that all of them cannot drift apart on it.
 	 *
 	 * @return the holder to hand to the index constructor, or null when usage statistics are not tracked
 	 */

@@ -977,18 +977,20 @@ Within one deferred run, `withdrawHistogramValuesAndScheduleFinalAdd` removes th
 histogram values and records it in `referencesAwaitingFinalHistogramAdd`. Later mutations of that reference
 do nothing for histograms until the run ends. Each trigger evaluates its condition against current storage
 and removes its values only when the condition holds. `removeHistogramValuesAssertingPresence` asserts that
-all values are present for the owner in the locale bucket: in the referenced-type index when ungrouped, or in
-every reduced index listed for the group. A grouped reference requires the group-type index and at least one
-listed index. Missing indexes, histograms, locale buckets or value-owner pairs fail loudly, unless the engine
-was started with the hidden system property `evitadb.referenceHistogram.missingValueBehavior=REPORT` (a temporary
-safety valve read once by the `Evita` constructor; see `MissingHistogramValueBehavior`). Then a value missing from
-an index that exists is logged at error level and skipped, and the rest of the withdrawal goes on. Where the index
-itself is missing - the type index, the group-type index or its listing for the group, or a listed reduced index
-the executor answers as missing - its values are reported the same way, and the write then fails only if the run
-adds a value into that index, on the final add's own check. A reduced index the group still lists but the
-collection no longer holds fails the write in either mode: the collection's accessor behind
-`getGroupIndexByPrimaryKeyForModification` refuses its primary key with its own error, and nothing is reported for
-it. The values must have the shape the histogram descriptor declares: `resolveHistogramValues` fails on an array
+all values are present for the owner in the locale bucket: in the reference's `REFERENCED_ENTITY_TYPE` index
+when no group is assigned, or in the group's `GroupHistogramEntityIndex`. The grouped store is addressed by
+reference name, scope and group primary key through `GroupHistogramEntityIndex#keyOf`, independently of the
+representative attribute tuples that split the group's reduced indexes. Withdrawal looks up the destination
+without creating it, checks each value-owner pair and registers an existing destination for modification.
+The `Evita` constructor reads the hidden system property `evitadb.referenceHistogram.missingValueBehavior` once to
+select the session policy. An absent or blank property selects `REPORT`. Missing stores, histograms, locale buckets
+or value-owner pairs cause session writes to fail when the property explicitly selects `REFUSE`. The session-less
+entry point always uses `REPORT` for committed WAL replay during catalog loading and live trunk incorporation.
+Each missing value is logged at error level and skipped under `REPORT`, and the remaining withdrawal proceeds.
+The root collector supplies the effective policy to the executors of implicit and reflected mutations. The policy
+governs only the withdrawals that assert presence: cross-entity expression re-evaluation removes a contribution
+only when it is present and skips an absent one silently, in a session and in a replay alike.
+The values must have the shape the histogram descriptor declares: `resolveHistogramValues` fails on an array
 where a single value is declared or vice versa, and on a value or element of the wrong number or range kind, rather than
 resolving to fewer values and skipping their presence check.
 
@@ -1001,8 +1003,13 @@ reference's condition on every such removal, and entity deletion drops the paren
 reading the parent would see a state the values were never added under. Entity removal schedules no final add, so both
 paths first assert that no reference awaits one.
 
-**Open: #1924.** A group split into several reduced indexes now fails loudly at withdrawal when a reduced
-index created later lacks the group's values. Group histogram replication remains an open follow-up.
+The grouped store holds histogram data only: entity membership, language bitmaps, attributes, facets,
+hierarchy and prices stay empty. An admitted value creates the store; its histogram map determines emptiness.
+The local `applyChanges` sweep removes accessed empty stores. Cross-entity dispatch uses a call-confined
+`EntityCollection.DispatchMaintainer` to record touched stores and remove those left empty after dispatch.
+The group-type index tracks group membership and advertises reduced group indexes; stores are addressed by key.
+The histogram reader takes its values from that store and resolves boundary entities across the group's reduced
+indexes. A contribution without an assigned group uses the referenced-type histogram destination.
 
 Withdrawal runs at the top of `updateReferences`, before representative-key migration or index removal.
 `canMutationChangeHistogramValues` selects group changes, reference removals and attribute changes used as
@@ -1027,8 +1034,9 @@ that it was not already recorded. Removal cancels the final add for the exact id
 
 `executeDeferredReEvaluations` calls `addFinalHistogramValuesOfAwaitingReferences`, which asserts that each
 recorded identity resolves to an existing reference and adds all its histogram values once, reading the final
-condition, values and group from storage. A grouped value requires the group-type index to list at least one
-reduced index for the group, as the withdrawal does. The identities are cleared in `finally` after every run. Storage
+condition, values and group from storage. A grouped value requires the group-type index to track the group by
+listing at least one reduced index, because the reader discovers groups through that index. The value is added
+once to the group's histogram store. The identities are cleared in `finally` after every run. Storage
 assigns missing internal primary keys only after this drain, so an inserted reference recorded with key `0`
 still has key `0` when the add resolves it.
 

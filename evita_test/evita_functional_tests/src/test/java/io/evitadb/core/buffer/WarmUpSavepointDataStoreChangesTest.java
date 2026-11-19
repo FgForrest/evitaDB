@@ -32,14 +32,21 @@ import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexActivity;
 import io.evitadb.index.IndexKey;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.core.buffer.InMemoryStoragePartPersistenceService.SimulatedWriteFailure;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramCardinalityStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramCardinalityStoragePartRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramRootRemoval;
+import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,11 +57,14 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -640,6 +650,19 @@ class WarmUpSavepointDataStoreChangesTest {
 	class DroppedIndexes {
 		private static final int INDEX_PRIMARY_KEY = 7;
 		private static final EntityIndexKey INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE);
+		/**
+		 * The primary key of the histogram store the store-drop cell drops.
+		 */
+		private static final int HISTOGRAM_STORE_PRIMARY_KEY = 8;
+		/**
+		 * The key of the histogram store the store-drop cell drops.
+		 */
+		private static final EntityIndexKey HISTOGRAM_STORE_KEY =
+			GroupHistogramEntityIndex.keyOf("parameterValues", 100, Scope.LIVE);
+		/**
+		 * The one histogram the store-drop cell writes into the store.
+		 */
+		private static final String HISTOGRAM_NAME = "price";
 
 		@Test
 		@DisplayName("A rollback of a drop restores both dirty maps and discards the staged footprint removals")
@@ -694,6 +717,160 @@ class WarmUpSavepointDataStoreChangesTest {
 				List.of(), pendingIndexRemovalParts(),
 				"Rollback must discard the staged deferred removals - the index is alive again."
 			);
+		}
+
+		/**
+		 * Verifies, through nothing but what the buffer hands to persistence, that rolling back the drop of a
+		 * histogram store undoes the drop completely. A control drop that is kept shows what a drop stages for the
+		 * next flush: the removal of the store's manifest and the deferred reclaim of its histogram root and
+		 * cardinality - and no removal of an entity-id part, which a store never writes. The same drop rolled back must
+		 * leave none of that in the next flush, which writes the reinstated store instead, and a value written into the
+		 * store afterwards must reach the flush after that.
+		 */
+		@Test
+		@DisplayName("A rolled-back drop of a histogram store reinstates it, and nothing of the drop is persisted")
+		void shouldReinstateADroppedHistogramStoreOnRollback() {
+			final DroppedHistogramStore kept = dropAFlushedHistogramStore(false);
+			assertNull(
+				kept.changes().getIndexIfExists(HISTOGRAM_STORE_KEY, key -> null),
+				"The test would be vacuous unless a kept drop really removed the store."
+			);
+			assertEquals(
+				List.of("histogram cardinality removal", "histogram root removal", "manifest removal"),
+				rolesOf(kept.changes().popTrappedUpdates()),
+				"The test would be vacuous unless a kept drop really staged the store's removals."
+			);
+
+			final DroppedHistogramStore rolledBack = dropAFlushedHistogramStore(true);
+			final DataStoreChanges changes = rolledBack.changes();
+			final GroupHistogramEntityIndex store = rolledBack.store();
+			assertSame(
+				store, changes.getIndexIfExists(HISTOGRAM_STORE_KEY, key -> null),
+				"Rollback must reinstate the dropped store under its key."
+			);
+			assertSame(
+				store, changes.getIndexIfExists(HISTOGRAM_STORE_PRIMARY_KEY, pk -> null),
+				"Rollback must reinstate the dropped store under its primary key."
+			);
+			// no removal of the drop reaches persistence - the store is alive again and flushes as the dirty warm-up
+			// instance it is: its manifest, the no-op entity-id removal, its root and its cardinality
+			assertEquals(
+				List.of("histogram cardinality", "histogram root", "manifest", "membership removal"),
+				rolesOf(changes.popTrappedUpdates()),
+				"The flush after a rolled-back drop must carry the store and nothing of its drop."
+			);
+
+			// and the reinstated store is the live one: a value written into it reaches the following flush
+			store.insertHistogramValue(HISTOGRAM_NAME, null, 43, 1_002, Integer.class, 0);
+			changes.getOrCreateIndexForModification(HISTOGRAM_STORE_KEY, key -> store);
+			final Iterator<StoragePart> laterFlush = changes.popTrappedUpdates().getTrappedChangesIterator();
+			final Set<Serializable> flushedValues = CollectionUtils.createHashSet(4);
+			while (laterFlush.hasNext()) {
+				if (laterFlush.next() instanceof HistogramIndexStoragePart root) {
+					for (final ValueToRecordBitmap bucket : root.getHistogramPoints()) {
+						flushedValues.add(bucket.getValue());
+					}
+				}
+			}
+			assertEquals(
+				Set.of(42, 43), flushedValues,
+				"A value written into the reinstated store must reach the next flush beside the one it held."
+			);
+		}
+
+		/**
+		 * Builds a buffer over its own in-memory store holding a flushed histogram store, drops the store inside a
+		 * warm-up savepoint, then rolls the savepoint back or keeps it. The next flush is left to the caller, because
+		 * collecting it resets the buffer's registry of dirty indexes the caller inspects first.
+		 *
+		 * @param rollBack whether the savepoint holding the drop is rolled back rather than kept
+		 * @return the buffer and the store
+		 */
+		@Nonnull
+		private DroppedHistogramStore dropAFlushedHistogramStore(boolean rollBack) {
+			final InMemoryStoragePartPersistenceService persistence = new InMemoryStoragePartPersistenceService();
+			final DataStoreChanges changes = new DataStoreChanges(persistence);
+			final GroupHistogramEntityIndex store =
+				new GroupHistogramEntityIndex(HISTOGRAM_STORE_PRIMARY_KEY, "product", HISTOGRAM_STORE_KEY, true);
+			store.insertHistogramValue(HISTOGRAM_NAME, null, 42, 1_001, Integer.class, 0);
+			changes.getOrCreateIndexForModification(HISTOGRAM_STORE_KEY, key -> store);
+			final Iterator<StoragePart> firstFlush = changes.popTrappedUpdates().getTrappedChangesIterator();
+			int persistedManifests = 0;
+			while (firstFlush.hasNext()) {
+				final StoragePart part = firstFlush.next();
+				// the manifest is the only part of a store addressed by the index primary key alone and the one whose
+				// presence decides whether a drop removes it; the histogram parts are keyed through a key compressor
+				// this in-memory store does not have
+				if (part instanceof EntityIndexStoragePart) {
+					persistence.seed(part);
+					persistedManifests++;
+				}
+			}
+			assertEquals(1, persistedManifests, "The test would be vacuous unless the flush wrote the manifest.");
+			// the next entity mutation touches the store again before the one that drops it
+			changes.getOrCreateIndexForModification(HISTOGRAM_STORE_KEY, key -> store);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			changes.removeIndex(CATALOG_VERSION, HISTOGRAM_STORE_KEY, key -> null);
+			if (rollBack) {
+				savepoint.rollback();
+			} else {
+				savepoint.commit();
+			}
+			return new DroppedHistogramStore(changes, store);
+		}
+
+		/**
+		 * Names every part a flush hands to persistence by its role, sorted, so that a whole flush is compared as one
+		 * list. A removal is named for the store only when it targets the store's own primary key.
+		 *
+		 * @param flush the parts of one flush
+		 * @return the sorted role names
+		 */
+		@Nonnull
+		private static List<String> rolesOf(@Nonnull TrappedChanges flush) {
+			final List<String> roles = new ArrayList<>(8);
+			final Iterator<StoragePart> iterator = flush.getTrappedChangesIterator();
+			while (iterator.hasNext()) {
+				final StoragePart part = iterator.next();
+				if (part instanceof EntityIndexStoragePart) {
+					roles.add("manifest");
+				} else if (part instanceof DataStoreChanges.RemovedStoragePart removal) {
+					if (removal.storagePartPK() != HISTOGRAM_STORE_PRIMARY_KEY) {
+						roles.add("removal of a foreign " + removal.containerType().getSimpleName());
+					} else if (removal.containerType() == EntityIndexStoragePart.class) {
+						roles.add("manifest removal");
+					} else if (removal.containerType() == EntityIdsStoragePart.class) {
+						roles.add("membership removal");
+					} else {
+						roles.add("removal of " + removal.containerType().getSimpleName());
+					}
+				} else if (part instanceof HistogramIndexStoragePart) {
+					roles.add("histogram root");
+				} else if (part instanceof HistogramCardinalityStoragePart) {
+					roles.add("histogram cardinality");
+				} else if (part instanceof HistogramRootRemoval) {
+					roles.add("histogram root removal");
+				} else if (part instanceof HistogramCardinalityStoragePartRemoval) {
+					roles.add("histogram cardinality removal");
+				} else {
+					roles.add(part.getClass().getSimpleName());
+				}
+			}
+			Collections.sort(roles);
+			return roles;
+		}
+
+		/**
+		 * One dropped histogram store and the buffer it was dropped from.
+		 *
+		 * @param changes the buffer the store was dropped from
+		 * @param store   the dropped store
+		 */
+		private record DroppedHistogramStore(
+			@Nonnull DataStoreChanges changes,
+			@Nonnull GroupHistogramEntityIndex store
+		) {
 		}
 
 		/**

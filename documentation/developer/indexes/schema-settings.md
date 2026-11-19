@@ -55,6 +55,10 @@ static boolean isIndexedReferenceFor(
 | Locales in ReducedEntityIndex                        | --     | yes                  | yes                              |
 | Sortable attribute compounds in ReducedEntityIndex   | --     | --                   | **yes**                          |
 
+A bucketed reference with an assigned group also creates a `GroupHistogramEntityIndex` when its first value is
+admitted in a scope. It requires `REFERENCED_GROUP_ENTITY` in that scope's components and follows the histogram
+contributions, independently of the reduced-index population. It contains no entity rows or replicated entity data.
+
 At `FOR_FILTERING` (with the `REFERENCED_ENTITY` component) a partition with a single owner has no
 `ReducedEntityIndex`: it is a row of the registry of single-owner partitions carried by the
 `ReferencedTypeEntityIndex`, holding its owner, its referenced entity, its representative attribute
@@ -154,6 +158,10 @@ Each component creates a parallel set of index structures:
 |---------------------------|--------------------------------|---------------------------------|------------------------------|
 | `REFERENCED_ENTITY`       | `REFERENCED_ENTITY_TYPE`       | `REFERENCED_ENTITY`             | `ReducedEntityIndex`         |
 | `REFERENCED_GROUP_ENTITY` | `REFERENCED_GROUP_ENTITY_TYPE` | `REFERENCED_GROUP_ENTITY`       | `ReducedGroupEntityIndex`    |
+
+Bucketed definitions with an assigned group use an additional `REFERENCED_GROUP_HISTOGRAM` store. Its key contains
+the reference name, scope and group PK with no representative values. This kind follows histogram admission;
+it is not a selectable `ReferenceIndexedComponents` value.
 
 Both components share the same `ReferenceIndexType` level -- the type level applies uniformly to
 all enabled components within a scope.
@@ -353,8 +361,11 @@ Histogram indexing is configured per reference schema with two expressions:
 
 | Path | Example | Stored In |
 |------|---------|-----------|
-| Referenced entity attribute | `$reference.referencedEntity?.attributes['basicUnitValue']` | `ReducedGroupEntityIndex` (grouped) or `ReferencedTypeEntityIndex` (ungrouped) |
-| Reference attribute | `$reference.attributes['someValue']` | Same as above |
+| Referenced entity attribute | `$reference.referencedEntity?.attributes['value']` | See below |
+| Reference attribute | `$reference.attributes['someValue']` | See below |
+
+Both paths store grouped values in `GroupHistogramEntityIndex`, addressed per reference name, scope and assigned
+group PK. A contribution without an assigned group uses `ReferencedTypeEntityIndex`.
 
 **Rejected paths:** Entity-level attributes (`$entity.attributes[...]`), parent entity attributes,
 group entity attributes (as value source), arithmetic expressions, multi-attribute expressions.
@@ -373,9 +384,11 @@ excluded for histograms per specification.
 
 ### Interaction with Reference Indexed Components
 
-Histogram data lives in `ReducedGroupEntityIndex` (when the reference has a group assigned) or
-`ReferencedTypeEntityIndex` (when ungrouped). The `REFERENCED_GROUP_ENTITY` component must be
-enabled for histogram data to appear in group-level indexes.
+Histogram data lives in `GroupHistogramEntityIndex` when the reference has an assigned group, or in the
+`REFERENCED_ENTITY_TYPE` index when it has none. The `REFERENCED_GROUP_ENTITY` component must be enabled in a
+bucketed grouped reference's scope. The group-type index tracks groups and lists reduced group indexes for
+filtering and boundary resolution; the histogram store is addressed separately and holds each contribution once.
+An admitted value creates the store, and an empty histogram map permits its removal by a lifecycle sweep.
 
 When a reference schema declares both `facetedPartially` and `bucketedPartially`, the two
 conditions are expected to be **mutually exclusive per group** — the engine does not enforce this
