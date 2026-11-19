@@ -75,7 +75,7 @@ For each subscriber, we maintain its own subscription with an internal queue con
 2. there is no new event in the shared publisher ring buffer—we stop reading and wait for new events to arrive
 3. the subscriber is lagging too much, and the shared publisher ring buffer has already overwritten events that the subscriber hasn't yet read
 
-In the second case, we "wake up" all dormant subscriptions when new events arrive in the shared publisher ring buffer. This ensures all fast subscribers get their events as soon as possible (of course, in the case of remote clients, there's a short delay for events to be picked up by the thread pool handling event propagation over the web APIs).
+In the second case, we "wake up" all dormant subscriptions when new events arrive in the shared publisher ring buffer. This ensures all fast subscribers get their events as soon as possible (of course, in the case of remote clients, there's a short delay for events to be picked up by the thread pool handling event propagation over the web APIs). A periodic task also wakes every dormant subscription with outstanding demand once a minute, so when the server's thread pool is too busy to accept a wake-up, the subscription keeps its demand and is woken again by the next event or by the next run of that task.
 
 In the third case, we switch the subscription to "resync mode," where we start reading mutations from the WAL file directly, skipping the shared publisher ring buffer until we reach the state where the subscriber can be safely switched back to reading from the shared publisher ring buffer (when the subscriber catches up). This way, we ensure that slow subscribers don't block the entire CDC system but can always resync to the latest state.
 

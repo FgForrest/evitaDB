@@ -59,10 +59,13 @@ import io.evitadb.api.statistics.StoragePartKind;
 import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.api.statistics.VolatileStateStatistics;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -116,6 +119,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -144,6 +148,7 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_REFERENCE;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -1678,6 +1683,91 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertEquals(Entities.PRODUCT, enrichedEntity.getType());
 		assertEquals(7, enrichedEntity.getPrimaryKey());
 		assertExactlyEquals(products.get(7), enrichedEntity);
+	}
+
+	/**
+	 * Both enrichment RPCs serialize the inherited locale selection, including empty meaning all locales, for an
+	 * entity and for a proxy. The product has several locales, so one locale and all of them tell apart.
+	 *
+	 * @param oneLocale `@ValueSource` flag selecting one inherited locale when `true`, or all locales otherwise
+	 * @param evitaClient gRPC client supplied by the `EVITA_CLIENT_DATA_SET` data carrier
+	 * @param products complete product snapshots keyed by primary key from the `EVITA_CLIENT_DATA_SET` data carrier
+	 */
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("propagate entity locales in enrichment RPC requirements")
+	@Tag(DRIVER)
+	@Tag(ATTRIBUTE)
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldPropagateLocalesInEnrichmentRequests(
+		boolean oneLocale, @Nonnull EvitaClient evitaClient, @Nonnull Map<Integer, SealedEntity> products
+	) {
+		final SealedEntity original = products.values().stream()
+			.filter(entity -> entity.getLocales().size() > 1)
+			.filter(entity -> !entity.getAttributeValues(ATTRIBUTE_NAME).isEmpty())
+			.filter(entity -> entity.getAttributeValues(ATTRIBUTE_NAME).stream()
+				.anyMatch(value -> value.key().localized()))
+			.findFirst().orElseThrow();
+		final Locale locale = original.getAttributeValues(ATTRIBUTE_NAME).stream()
+			.filter(value -> value.key().localized()).findFirst().orElseThrow().key().locale();
+		evitaClient.queryCatalog(TEST_CATALOG, session -> {
+			final SealedEntity partial = session.getEntity(Entities.PRODUCT, original.getPrimaryKey(), oneLocale ?
+				new EntityContentRequire[]{dataInLocales(locale)} : new EntityContentRequire[0]).orElseThrow();
+			final SealedEntity enriched = session.enrichEntity(partial, attributeContent(ATTRIBUTE_NAME));
+			final SealedEntity limited = session.enrichOrLimitEntity(partial, attributeContent(ATTRIBUTE_NAME));
+			assertEquals(oneLocale ? Set.of(locale) : original.getLocales(), enriched.getLocales());
+			assertEquals(oneLocale ? Set.of(locale) : original.getLocales(), limited.getLocales());
+			final String expected = original.getAttribute(ATTRIBUTE_NAME, locale);
+			assertEquals(expected, enriched.getAttribute(ATTRIBUTE_NAME, locale));
+			assertEquals(expected, limited.getAttribute(ATTRIBUTE_NAME, locale));
+			assertEquals(expected, session.enrichEntity(partial,
+				attributeContent(ATTRIBUTE_NAME), dataInLocales(locale)).getAttribute(ATTRIBUTE_NAME, locale));
+			assertEquals(expected, session.enrichOrLimitEntity(partial,
+				attributeContent(ATTRIBUTE_NAME), dataInLocales(locale)).getAttribute(ATTRIBUTE_NAME, locale));
+
+			final ProductInterface proxy = session.getEntity(
+				ProductInterface.class, original.getPrimaryKey(),
+				oneLocale ? new EntityContentRequire[]{dataInLocales(locale)} : new EntityContentRequire[0]
+			).orElseThrow();
+			final EntityContract enrichedProxy = session.enrichEntity(proxy, attributeContent(ATTRIBUTE_NAME)).entity();
+			assertEquals(oneLocale ? Set.of(locale) : original.getLocales(), enrichedProxy.getLocales());
+			assertEquals(original.<String>getAttribute(ATTRIBUTE_NAME, locale),
+				enrichedProxy.getAttribute(ATTRIBUTE_NAME, locale));
+		});
+	}
+
+	/**
+	 * An array typed narrower than `EntityContentRequire[]` is a legal varargs argument of both enrichment RPCs.
+	 *
+	 * @param evitaClient gRPC client supplied by the `EVITA_CLIENT_DATA_SET` data carrier
+	 * @param products complete product snapshots keyed by primary key from the `EVITA_CLIENT_DATA_SET` data carrier
+	 */
+	@Test
+	@DisplayName("enrich with a requirement array of a narrower type")
+	@Tag(DRIVER)
+	@Tag(ATTRIBUTE)
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldEnrichWithRequirementArrayOfNarrowerType(
+		@Nonnull EvitaClient evitaClient, @Nonnull Map<Integer, SealedEntity> products
+	) {
+		final SealedEntity original = products.values().stream()
+			.filter(entity -> entity.getAttributeValues(ATTRIBUTE_NAME).stream()
+				.anyMatch(value -> value.key().localized()))
+			.findFirst().orElseThrow();
+		final Locale locale = original.getAttributeValues(ATTRIBUTE_NAME).stream()
+			.filter(value -> value.key().localized()).findFirst().orElseThrow().key().locale();
+		final String expected = original.getAttribute(ATTRIBUTE_NAME, locale);
+		final AttributeContent[] requirements = {attributeContent(ATTRIBUTE_NAME)};
+		evitaClient.queryCatalog(TEST_CATALOG, session -> {
+			final SealedEntity partial = session.getEntity(Entities.PRODUCT, original.getPrimaryKey()).orElseThrow();
+
+			assertAll(
+				() -> assertEquals(expected,
+					session.enrichEntity(partial, requirements).getAttribute(ATTRIBUTE_NAME, locale)),
+				() -> assertEquals(expected,
+					session.enrichOrLimitEntity(partial, requirements).getAttribute(ATTRIBUTE_NAME, locale))
+			);
+		});
 	}
 
 	/**

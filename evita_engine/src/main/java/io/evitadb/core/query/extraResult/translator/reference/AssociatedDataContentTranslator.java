@@ -39,8 +39,8 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.LinkedList;
-import java.util.List;
+import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Optional;
 
 /**
@@ -69,84 +69,68 @@ public class AssociatedDataContentTranslator implements RequireConstraintTransla
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor
 	) {
-		verifyAssociatedData(associatedDataContent, entitySchema, extraResultPlanningVisitor,
-			extraResultPlanningVisitor.getEntityFetchRequest(associatedDataContent));
+		verifyAssociatedData(
+			associatedDataContent, entitySchema, extraResultPlanningVisitor.getEntityFetchRequest(associatedDataContent)
+		);
 	}
 
 	/**
 	 * Validates named associated data against the given request - used by callers that derive the request of the body
 	 * themselves, such as the summary translators, whose bodies take their locale from the summary filter.
 	 *
-	 * @param associatedDataContent      the requirement naming the associated data
-	 * @param entitySchema               the schema of the entity whose associated data is named
-	 * @param extraResultPlanningVisitor the extra result planning visitor
-	 * @param evitaRequest               the request fetching the body, whose required or implicit locales decide
-	 *                                   whether localized names are accepted
+	 * @param associatedDataContent the requirement naming the associated data
+	 * @param entitySchema          the schema of the entity whose associated data is named
+	 * @param evitaRequest          the request fetching the body, whose required or implicit locales decide whether
+	 *                              localized names are accepted
 	 * @throws AssociatedDataNotFoundException when named associated data is not in the schema
 	 * @throws EntityLocaleMissingException    when named associated data is localized and the request has no locale
 	 */
 	public static void verifyAssociatedData(
 		@Nonnull AssociatedDataContent associatedDataContent,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
 		@Nonnull EvitaRequest evitaRequest
 	) {
-		final String[] associatedDataNames = associatedDataContent.getAssociatedDataNames();
-		if (!ArrayUtils.isEmpty(associatedDataNames)) {
-			if (evitaRequest.getRequiredLocales() == null && evitaRequest.getImplicitLocale() == null) {
-				verifyAssociatedDataKnownAndNotLocalized(associatedDataNames, entitySchema);
-			} else {
-				verifyAssociatedDataKnown(associatedDataNames, entitySchema);
-			}
-		}
+		verifyAssociatedData(
+			associatedDataContent, entitySchema,
+			evitaRequest.getRequiredLocales() != null || evitaRequest.getImplicitLocale() != null
+		);
 	}
 
 	/**
-	 * Verifies that the given associated data names are known and not localized in the provided entity schema.
+	 * Checks named associated data without deriving a request or allocating on a successful lookup.
 	 *
-	 * @param associatedDataNames an array of associated data names
-	 * @param entitySchema        the entity schema contract to check against
+	 * @param associatedDataContent the client content requirement as written
+	 * @param entitySchema the schema of the body being checked
+	 * @param localeAvailable whether a locale is available at this level - the body's own, one inherited from an
+	 *                        enclosing fetch, or one resolved from the reference filter
+	 * @throws AssociatedDataNotFoundException when a named value is unknown
+	 * @throws EntityLocaleMissingException when named localized values require a locale
 	 */
-	private static void verifyAssociatedDataKnownAndNotLocalized(
-		@Nonnull String[] associatedDataNames,
-		@Nonnull EntitySchemaContract entitySchema
+	public static void verifyAssociatedData(
+		@Nonnull AssociatedDataContent associatedDataContent,
+		@Nonnull EntitySchemaContract entitySchema,
+		boolean localeAvailable
 	) {
-		final List<String> missingLocalizedAssociatedData = new LinkedList<>();
-		for (String associatedDataName : associatedDataNames) {
-			final Optional<AssociatedDataSchemaContract> associatedDataSchema = entitySchema.getAssociatedData(associatedDataName);
-			Assert.isTrue(
-				associatedDataSchema.isPresent(),
-				() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema)
-			);
-			// unique attributes could provide implicit locale
-			if (associatedDataSchema.get().isLocalized()) {
-				missingLocalizedAssociatedData.add(associatedDataName);
+		final Serializable[] names = associatedDataContent.getArguments();
+		String[] missing = null;
+		int missingCount = 0;
+		for (int i = 0; i < names.length; i++) {
+			final String name = (String) names[i];
+			final AssociatedDataSchemaContract data = entitySchema.getAssociatedData().get(name);
+			if (data == null) {
+				throw new AssociatedDataNotFoundException(name, entitySchema);
+			}
+			if (!localeAvailable && data.isLocalized()) {
+				if (missing == null) {
+					missing = new String[names.length];
+				}
+				if (!ArrayUtils.contains(missing, name)) {
+					missing[missingCount++] = name;
+				}
 			}
 		}
-
-		if (!missingLocalizedAssociatedData.isEmpty()) {
-			throw new EntityLocaleMissingException(
-				new String[0], missingLocalizedAssociatedData.toArray(new String[0])
-			);
-		}
-	}
-
-	/**
-	 * Verifies that all the given associated data names are present in the entity schema.
-	 *
-	 * @param associatedDataNames an array of associated data names to be verified
-	 * @param entitySchema        the entity schema to check for the associated data
-	 * @throws AssociatedDataNotFoundException if any of the associated data names is not found in the entity schema
-	 */
-	private static void verifyAssociatedDataKnown(
-		@Nonnull String[] associatedDataNames,
-		@Nonnull EntitySchemaContract entitySchema
-	) {
-		for (String associatedDataName : associatedDataNames) {
-			Assert.isTrue(
-				entitySchema.getAssociatedData(associatedDataName).isPresent(),
-				() -> new AssociatedDataNotFoundException(associatedDataName, entitySchema)
-			);
+		if (missing != null) {
+			throw new EntityLocaleMissingException(new String[0], Arrays.copyOf(missing, missingCount));
 		}
 	}
 

@@ -29,8 +29,13 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.core.read.ListAppender;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -374,6 +379,79 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 		assertEquals(1, brandCount(), "a session must be admitted again through the freshly installed registry");
 	}
 
+	@Test
+	@DisplayName("a forced close that meets the session's own close still flushing waits for that flush")
+	void shouldWaitForTheRunningFlushWhenASecondCloseArrives() throws Exception {
+		// The drain hands a forced close to every session that still answers `isActive()`, pass after pass, and a
+		// warm-up session answers it until its own close has assigned the closed future. A pass landing while that
+		// close runs therefore issues a second one, which meets the first one's flush still in flight. Were that close
+		// to report the session closed at once and take it out of the registry, the drain would read the empty
+		// registry as quiescence, the go-live would publish beside the flush, and the flush - refused by the instance
+		// the go-live superseded - would deactivate the catalog that had just gone live, leaving its registry
+		// suspended.
+		//
+		// The window is a race inside `EvitaSession#closeInternal` with nothing to hold it by, so the second close is
+		// issued here directly, exactly as the drain's forced close issues it, against a flush held back by taking
+		// the only transaction thread the engine has.
+		reopenEvita(
+			newTestEvitaConfigurationBuilder(this.paths)
+				.server(
+					ServerOptions.builder()
+						.transactionThreadPool(
+							ThreadPoolOptions.transactionThreadPoolBuilder()
+								.minThreadCount(1)
+								.maxThreadCount(1)
+								.build()
+						)
+						.build()
+				)
+				.build()
+		);
+		final EvitaSessionContract session = this.evita.createReadWriteSession(CATALOG);
+		session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
+		final SessionRegistry registry = this.evita.getCatalogSessionRegistry(CATALOG).orElseThrow();
+
+		final CountDownLatch transactionThreadTaken = new CountDownLatch(1);
+		final CountDownLatch releaseTransactionThread = new CountDownLatch(1);
+		this.evita.getTransactionExecutor().execute(
+			() -> {
+				transactionThreadTaken.countDown();
+				try {
+					// bounded, so that a test failing before the release below cannot keep the thread for ever
+					releaseTransactionThread.await(POSITIVE_WAIT_SECONDS, SECONDS);
+				} catch (InterruptedException ex) {
+					Thread.currentThread().interrupt();
+				}
+			}
+		);
+		final CompletableFuture<CommitVersions> ownClose;
+		final CompletableFuture<CommitVersions> forcedClose;
+		try {
+			assertTrue(
+				transactionThreadTaken.await(POSITIVE_WAIT_SECONDS, SECONDS), "the transaction thread was never taken"
+			);
+			ownClose = session.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE).toCompletableFuture();
+			forcedClose = session.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE).toCompletableFuture();
+
+			// the flush is queued behind the taken thread, so it cannot have run, and no close may claim otherwise
+			assertFalse(forcedClose.isDone(), "the second close must wait for the flush the first one started");
+			assertFalse(ownClose.isDone(), "the second close must not complete the first one's close either");
+			assertEquals(
+				1, registry.countActiveSessions().activeSessions(),
+				"the session must stay registered until its flush has run - the drain reads an empty registry as " +
+					"proof that nobody can write to the catalog any more"
+			);
+		} finally {
+			releaseTransactionThread.countDown();
+		}
+
+		final CommitVersions flushedVersions = ownClose.get(POSITIVE_WAIT_SECONDS, SECONDS);
+		assertNotNull(flushedVersions, "the close must complete with the versions its flush published");
+		assertEquals(flushedVersions, forcedClose.get(POSITIVE_WAIT_SECONDS, SECONDS));
+		assertEquals(0, registry.countActiveSessions().activeSessions());
+		assertEquals(1, brandCount(), "the write the flush carried must be in the catalog");
+	}
+
 	/**
 	 * An upsert whose schema verification parks on a latch. {@code EntityCollection#upsertEntity} calls
 	 * {@link EntityUpsertMutation#verifyOrEvolveSchema(SealedCatalogSchema, SealedEntitySchema, boolean)} before it
@@ -533,8 +611,19 @@ class CatalogGoLiveSessionDrainTest implements EvitaTestSupport {
 	 * is a compare-and-set.
 	 */
 	private void reopenEvita() {
+		reopenEvita(newTestEvitaConfigurationBuilder(this.paths).build());
+	}
+
+	/**
+	 * Closes the running engine and opens a new one with the given configuration - see {@link #reopenEvita()} for
+	 * the restart idiom and why the reassignment and the wait are needed.
+	 *
+	 * @param configuration configuration of the new engine; it must point at this fixture's storage directory for
+	 *                      the catalog defined in {@link #setUp()} to be found
+	 */
+	private void reopenEvita(@Nonnull EvitaConfiguration configuration) {
 		this.evita.close();
-		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+		this.evita = new Evita(configuration);
 		this.evita.waitUntilFullyInitialized();
 	}
 

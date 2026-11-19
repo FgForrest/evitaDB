@@ -46,8 +46,15 @@ public class ParserExecutor {
 
 	/**
 	 * Executes the given parsing supplier within a thread-local parse context. The context is set before execution
-	 * and cleaned up in the finally block. Syntax errors are rethrown directly, while other exceptions are wrapped
-	 * in {@link GenericEvitaInternalError}.
+	 * and cleaned up in the finally block. Once the supplier has parsed the whole input, positional arguments that no
+	 * placeholder took are refused (see {@link ParseContext#assertAllPositionalArgumentsUsed()}). Syntax errors are
+	 * rethrown directly, while other exceptions are wrapped in {@link GenericEvitaInternalError}.
+	 *
+	 * @param context the parse context holding the bound arguments
+	 * @param executable the parsing logic to run within the context
+	 * @param <T> the type of the parse result
+	 * @return the non-null parse result
+	 * @throws EvitaSyntaxException when the input is invalid, the result is null or a positional argument was not used
 	 */
 	@Nonnull
 	public static <T> T execute(@Nonnull ParseContext context, @Nonnull Supplier<T> executable) {
@@ -58,6 +65,7 @@ public class ParserExecutor {
 				result,
 				() -> new EvitaSyntaxException(0, 0, "Result of parse execution is null.")
 			);
+			context.assertAllPositionalArgumentsUsed();
 			return result;
 		} catch (EvitaSyntaxException e) {
 			throw e;

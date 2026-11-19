@@ -49,6 +49,7 @@ import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.head.Head;
+import io.evitadb.api.query.require.DataInLocales;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
@@ -318,6 +319,40 @@ public class EvitaClientSession implements EvitaSessionContract {
 		} else {
 			return query.normalizeQuery();
 		}
+	}
+
+	/**
+	 * Adds the locales the enriched entity reports when the requirements select none, as the embedded session does:
+	 * the server then fetches the named localized data in those locales instead of refusing them. An entity that
+	 * reports no locale gets `dataInLocales()` with no locale, which selects all of them.
+	 *
+	 * @param entity       the entity or the proxy being enriched
+	 * @param requirements the content requirements of the caller
+	 * @return the requirements of the caller, with `dataInLocales` added when they hold none
+	 */
+	@Nonnull
+	private static EntityContentRequire[] propagateOriginalLocales(
+		@Nonnull Serializable entity,
+		@Nonnull EntityContentRequire[] requirements
+	) {
+		for (final EntityContentRequire requirement : requirements) {
+			if (requirement instanceof DataInLocales) {
+				return requirements;
+			}
+		}
+		final Set<Locale> locales;
+		if (entity instanceof EntityContract contract) {
+			locales = contract.getLocales();
+		} else if (entity instanceof SealedEntityProxy proxy) {
+			locales = proxy.entity().getLocales();
+		} else {
+			locales = Set.of();
+		}
+		// the caller's array may be typed narrower than `EntityContentRequire[]` and could not hold `dataInLocales`
+		final EntityContentRequire[] result =
+			Arrays.copyOf(requirements, requirements.length + 1, EntityContentRequire[].class);
+		result[requirements.length] = dataInLocales(locales.toArray(new Locale[0]));
+		return result;
 	}
 
 	/**
@@ -1219,6 +1254,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 
 		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
+		final EntityContentRequire[] requirements = propagateOriginalLocales(partiallyLoadedEntity, require);
 		final EntityReference entityReference = toEntityReference(partiallyLoadedEntity);
 		final Class<?> expectedType = partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
 			sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass();
@@ -1226,7 +1262,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			Query.query(
 				collection(entityReference.type()),
 				require(
-					entityFetch(require)
+					entityFetch(requirements)
 				)
 			),
 			OffsetDateTime.now(),
@@ -1236,8 +1272,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 		);
 
 		//noinspection unchecked
-		return (T) getEntityInternal(entityReference.type(), expectedType, this::createEntityProxy, entityReference.primaryKey(), evitaRequest, require)
-			.orElseThrow(() -> new EntityAlreadyRemovedException(entityReference.type(), entityReference.primaryKey()));
+		return (T) getEntityInternal(
+			entityReference.type(), expectedType, this::createEntityProxy, entityReference.primaryKey(), evitaRequest,
+			requirements
+		).orElseThrow(() -> new EntityAlreadyRemovedException(entityReference.type(), entityReference.primaryKey()));
 	}
 
 	@Nonnull
@@ -1246,6 +1284,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 
 		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
+		final EntityContentRequire[] requirements = propagateOriginalLocales(partiallyLoadedEntity, require);
 		final EntityReference entityReference = toEntityReference(partiallyLoadedEntity);
 		final Class<?> expectedType = partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
 			sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass();
@@ -1254,7 +1293,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			Query.query(
 				collection(entityReference.type()),
 				require(
-					entityFetch(require)
+					entityFetch(requirements)
 				)
 			),
 			OffsetDateTime.now(),
@@ -1264,8 +1303,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 		);
 
 		//noinspection unchecked
-		return (T) getEntityInternal(entityReference.type(), expectedType, this::createEntityProxy, entityReference.primaryKey(), evitaRequest, require)
-			.orElseThrow(() -> new EntityAlreadyRemovedException(entityReference.type(), entityReference.primaryKey()));
+		return (T) getEntityInternal(
+			entityReference.type(), expectedType, this::createEntityProxy, entityReference.primaryKey(), evitaRequest,
+			requirements
+		).orElseThrow(() -> new EntityAlreadyRemovedException(entityReference.type(), entityReference.primaryKey()));
 	}
 
 	@Override

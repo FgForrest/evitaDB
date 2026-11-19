@@ -422,7 +422,7 @@ public class ReferenceSummaryTranslator
 								         );
 							         } else if (require instanceof AssociatedDataContent associatedDataContent) {
 								         AssociatedDataContentTranslator.verifyAssociatedData(
-									         associatedDataContent, referencedSchema, extraResultPlanner, fetchRequest
+									         associatedDataContent, referencedSchema, fetchRequest
 								         );
 							         } else if (require instanceof ReferenceContent referenceContent) {
 								         // a `referenceContent` may address several references at once, and every name it
