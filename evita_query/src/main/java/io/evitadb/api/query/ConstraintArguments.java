@@ -23,15 +23,22 @@
 
 package io.evitadb.api.query;
 
+import io.evitadb.dataType.ChainableType;
+import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.lang.reflect.Array;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Shared null validation and normalization at query construction boundaries.
+ * Shared argument validation and normalization at query construction boundaries.
  *
  * The `QueryConstraints` factories apply these checks before they decide to omit a constraint, so a null or blank
  * name throws even when the value next to it is undefined. Names are set by the application and must be present;
@@ -79,6 +86,106 @@ public final class ConstraintArguments {
 			}
 		}
 		return values;
+	}
+
+	/**
+	 * Validates one attribute comparison value or one item of an attribute value list. Null represents an
+	 * undefined value and is handled by the calling factory.
+	 *
+	 * @param attributeName name of the filtered or ordered attribute
+	 * @param value the supplied value
+	 * @throws EvitaInvalidUsageException when the value is an array or a chain predecessor
+	 */
+	public static void requireScalarAttributeValue(@Nonnull String attributeName, @Nullable Serializable value) {
+		if (value == null) {
+			return;
+		}
+		if (value.getClass().isArray()) {
+			throw new EvitaInvalidUsageException(
+				"Attribute `" + attributeName + "` cannot use `" + value.getClass().getTypeName() + "` as one value. " +
+					"Pass scalar values, or pass the array by itself to an attribute value-list constraint."
+			);
+		}
+		if (value instanceof ChainableType) {
+			throw new EvitaInvalidUsageException(
+				"Attribute `" + attributeName + "` cannot use `" + value.getClass().getTypeName() + "` as a value. " +
+					"Pass a scalar attribute value, or use `attributeNatural` to order by a chain."
+			);
+		}
+	}
+
+	/**
+	 * Expands a sole array item by one level and validates the resulting scalar items before dropping nulls.
+	 * Checking before dropping nulls preserves the distinction between one array and an array among other items.
+	 *
+	 * @param attributeName name of the filtered or ordered attribute
+	 * @param values supplied list of values, or null if the list is missing
+	 * @return a flat list of defined values, or null if the list is missing
+	 * @throws EvitaInvalidUsageException when a list item is an array, a chain predecessor or not serializable
+	 */
+	@Nullable
+	public static Serializable[] normalizeAttributeValues(
+		@Nonnull String attributeName, @Nullable Serializable[] values
+	) {
+		if (values == null) {
+			return null;
+		}
+		final Serializable[] items;
+		if (values.length == 1 && values[0] != null && values[0].getClass().isArray()) {
+			items = toAttributeValueArray(attributeName, values[0]);
+		} else {
+			items = values;
+		}
+		for (final Serializable item : items) {
+			requireScalarAttributeValue(attributeName, item);
+		}
+		return withoutNullValues(items);
+	}
+
+	/**
+	 * Reuses an array of serializable items or reads its elements reflectively, boxing primitive elements.
+	 *
+	 * @param attributeName name of the filtered or ordered attribute
+	 * @param array the sole array supplied as the value list
+	 * @return the elements in their original order
+	 * @throws EvitaInvalidUsageException when an element is not serializable
+	 */
+	@Nonnull
+	private static Serializable[] toAttributeValueArray(@Nonnull String attributeName, @Nonnull Object array) {
+		if (array instanceof Serializable[] values) {
+			return values;
+		}
+		final Serializable[] values = new Serializable[Array.getLength(array)];
+		for (int i = 0; i < values.length; i++) {
+			final Object item = Array.get(array, i);
+			if (item != null && !(item instanceof Serializable)) {
+				throw new EvitaInvalidUsageException(
+					"Attribute `" + attributeName + "` cannot use `" + item.getClass().getTypeName() +
+						"` as a value. Pass an array of supported scalar values."
+				);
+			}
+			values[i] = (Serializable) item;
+		}
+		return values;
+	}
+
+	/**
+	 * Converts a histogram bound without losing the precision of its decimal representation. Floating-point
+	 * numbers use the same normalization and non-finite value checks as other numeric query arguments.
+	 *
+	 * @param value numeric bound, or null for an open bound
+	 * @return the decimal bound, or null for an open bound
+	 * @throws UnsupportedDataTypeException for a non-finite float or double
+	 */
+	@Nullable
+	public static BigDecimal toHistogramBound(@Nullable Number value) {
+		if (value == null) {
+			return null;
+		}
+		if (value instanceof Float || value instanceof Double) {
+			return (BigDecimal) EvitaDataTypes.toSupportedType(value);
+		}
+		return value instanceof BigDecimal decimal ? decimal : new BigDecimal(value.toString());
 	}
 
 	/**

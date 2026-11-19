@@ -33,10 +33,11 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-11-17 | [Direct entity calls check the requested content against the schema, as a planned query does](2026-11-17-direct-entity-calls-check-requested-content.md) | fix | accepted | #1949, PR #2004 |
 | 2026-11-16 | [Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure](2026-11-16-copy-on-write-path-routing.md) | refactor | accepted | #1956, #1959, #1967, #1968, PR #1957, PR #1974 |
 | 2026-11-16 | [A warm-up schema change refused when its expression triggers are built raises the unpublishable barrier, and the inline DDL flush waits until they build](2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier.md) | fix | accepted | #1922, PR #1970 |
-| 2026-11-13 | [Cache parsed and validated GraphQL documents per GraphQL instance in a Caffeine cache bounded by bytes](2026-11-13-graphql-parsed-document-cache.md) | optimization | proposed | #1191 |
-| 2026-11-12 | [Null arguments in query constraints follow one rule set in Java, EvitaQL and REST](2026-11-12-null-arguments-in-query-constraints.md) | fix | accepted | #1943 |
+| 2026-11-13 | [Cache parsed and validated GraphQL documents per GraphQL instance in a Caffeine cache bounded by bytes](2026-11-13-graphql-parsed-document-cache.md) | optimization | accepted | #1191, PR #1958 |
+| 2026-11-12 | [Null arguments in query constraints follow one rule set in Java, EvitaQL and REST](2026-11-12-null-arguments-in-query-constraints.md) | fix | accepted | #1943, #2013, PR #1965, PR #2016 |
 | 2026-11-11 | [A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue](2026-11-11-reference-histogram-net-change-per-run.md) | fix | accepted | #1911, #1916, #1918, #1923, #1948 |
 | 2026-11-06 | [A catalog rename or replace waits for the commit pipeline on the caller's thread, then acts on the instance that wait found](2026-11-06-catalog-handover-waits-for-commit-pipeline.md) | fix | accepted | #1889, PR #1890 |
 | 2026-11-05 | [An export that cannot fit the export storage stops at the limit and names the setting to raise](2026-11-05-backup-stops-at-the-export-limit.md) | fix | accepted | #1881, PR #1885 |
@@ -87,7 +88,7 @@ filename date that disagrees with `date:`.
 | 2026-09-09 | [Bound the cross-entity facet walk with a size-thresholded owner→partition index, not a blanket one](2026-09-09-sibling-resolver-partition-cardinality.md) | optimization | accepted | #1529, PR #1557 |
 | 2026-09-08 | [JDK 21 modernization is adopted only where it is provably behaviour-preserving](2026-09-08-jdk21-safe-modernization.md) | refactor | accepted | #1518, PR #1519 |
 | 2026-09-08 | [Conditional histogram triggers answer per contribution, and the mutated entity's PK is pinned inside the scope container](2026-09-08-conditional-histogram-per-contribution-verdicts.md) | fix | accepted | #1470, PR #1555 |
-| 2026-09-08 | [A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo](2026-09-08-warm-up-invalid-schema-refuses-to-publish.md) | fix | accepted | #1466, PR #1520 |
+| 2026-09-08 | [A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo](2026-09-08-warm-up-invalid-schema-refuses-to-publish.md) | fix | accepted | #1466, #2014, PR #1520, PR #2015 |
 | 2026-09-07 | [Equalized histograms bucket on the quantile function and report a kernel density, not a per-bucket ratio](2026-09-07-equalized-histogram-density-and-quantile-bucketing.md) | fix | accepted | #1501 |
 | 2026-09-07 | [A storage part declares which kind of data it holds, at registration, in a closed enum](2026-09-07-storage-part-classification.md) | feature | accepted | #1500 |
 | 2026-09-06 | [The engine-level go-live drains its catalog's sessions itself, and publishes the ALIVE bootstrap only behind that drain](2026-09-06-go-live-session-drain.md) | fix | accepted | #1495 |

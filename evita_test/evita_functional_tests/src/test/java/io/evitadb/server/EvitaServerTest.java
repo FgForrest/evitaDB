@@ -47,6 +47,7 @@ import io.evitadb.externalApi.certificate.LoadedCertificates;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
+import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.TlsMode;
@@ -75,6 +76,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -91,6 +93,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -98,6 +101,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static io.evitadb.utils.CollectionUtils.property;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.SERVER;
@@ -122,6 +126,18 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	 * single request is prone to spurious failures. Retrying within this window removes the flakiness.
 	 */
 	private static final long PROBE_POLL_BUDGET_MILLIS = 20_000L;
+	/**
+	 * Documented TLS default of every endpoint. The values are written out instead of being read from the options
+	 * classes, so a changed default fails the loader tests rather than moving the expectation.
+	 */
+	private static final Map<String, TlsMode> ENDPOINT_TLS_DEFAULTS = createLinkedHashMap(
+		property(GraphQLProvider.CODE, TlsMode.FORCE_TLS),
+		property(RestProvider.CODE, TlsMode.FORCE_TLS),
+		property(GrpcProvider.CODE, TlsMode.FORCE_TLS),
+		property(LabProvider.CODE, TlsMode.FORCE_TLS),
+		property(SystemProvider.CODE, TlsMode.FORCE_NO_TLS),
+		property(ObservabilityProvider.CODE, TlsMode.FORCE_NO_TLS)
+	);
 
 	/**
 	 * Serializes deliberate pauses made by tasks sharing this fixture.
@@ -1247,6 +1263,213 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * A `null` shared mode leaves the endpoints the user configuration does not mention on their bundled values:
+	 * `null` for GraphQL, REST, gRPC and lab, which therefore fall back to the default of their options, and the
+	 * explicit `FORCE_NO_TLS` of system and observability.
+	 */
+	@Test
+	@DisplayName("Should use endpoint TLS defaults when only the shared mode is null")
+	void shouldResolveEndpointTlsDefaultsWhenSharedModeIsNull() throws IOException {
+		runServerAndAssert(
+			writeUserConfiguration(
+				"""
+				api:
+				  endpointDefaults:
+				    tlsMode: null
+				"""
+			),
+			constructTestArguments(),
+			server -> assertTlsModes(server, ENDPOINT_TLS_DEFAULTS, "shared tlsMode null")
+		);
+	}
+
+	/**
+	 * When the shared mode and an endpoint's own mode are both `null`, the options are created without any mode, so
+	 * each endpoint must apply its own default instead of a single shared fallback.
+	 */
+	@Test
+	@DisplayName("Should use endpoint TLS defaults when the shared mode and every endpoint mode are null")
+	void shouldResolveEndpointTlsDefaultsWhenSharedAndEndpointModesAreNull() throws IOException {
+		runServerAndAssert(
+			writeUserConfiguration(
+				"""
+				api:
+				  endpointDefaults:
+				    tlsMode: null
+				  endpoints:
+				    graphQL:
+				      tlsMode: null
+				    rest:
+				      tlsMode: null
+				    gRPC:
+				      tlsMode: null
+				    lab:
+				      tlsMode: null
+				    system:
+				      tlsMode: null
+				    observability:
+				      tlsMode: null
+				"""
+			),
+			constructTestArguments(),
+			server -> assertTlsModes(server, ENDPOINT_TLS_DEFAULTS, "shared and endpoint tlsMode null")
+		);
+	}
+
+	/** Pins the loader's null inheritance rule for the endpoints whose own defaults allow plain HTTP. */
+	@Test
+	@DisplayName("Should inherit the shared TLS mode when only an endpoint mode is null")
+	void shouldInheritSharedTlsModeForNullEndpoint() throws IOException {
+		runServerAndAssert(
+			writeUserConfiguration(
+				"""
+				api:
+				  endpoints:
+				    system:
+				      tlsMode: null
+				    observability:
+				      tlsMode: null
+				"""
+			),
+			constructTestArguments(SystemProvider.CODE, ObservabilityProvider.CODE),
+			server -> assertTlsModes(
+				server,
+				Map.of(SystemProvider.CODE, TlsMode.FORCE_TLS, ObservabilityProvider.CODE, TlsMode.FORCE_TLS),
+				"endpoint tlsMode null inherits the shared FORCE_TLS"
+			)
+		);
+	}
+
+	/**
+	 * A quoted empty YAML scalar stays an empty string and a wrongly cased name matches no mode, so both must fail
+	 * options construction with a diagnostic naming the endpoint options, the rejected value and the accepted names.
+	 * The constructor fails before any port is reserved or bound.
+	 */
+	@ParameterizedTest(name = "tlsMode: {0}")
+	@DisplayName("Should reject a quoted empty or wrongly cased TLS mode from YAML")
+	@CsvSource({"'\"\"', ''", "force_tls, force_tls"})
+	void shouldRejectInvalidTlsNamesFromYaml(
+		@Nonnull String yamlValue, @Nonnull String rejectedValue
+	) throws IOException {
+		final Path configDirectory = writeUserConfiguration(
+			"""
+			api:
+			  endpoints:
+			    graphQL:
+			      tlsMode: %s
+			""".formatted(yamlValue)
+		);
+		final Map<String, String> arguments = createHashMap(0);
+
+		final IllegalArgumentException exception = assertThrows(
+			IllegalArgumentException.class, () -> new EvitaServer(configDirectory, arguments),
+			"YAML tlsMode " + yamlValue + " must fail options construction"
+		);
+
+		final String message = exception.getMessage();
+		assertTrue(message.contains("'" + rejectedValue + "' for GraphQLOptions"), message);
+		for (final TlsMode mode : TlsMode.values()) {
+			assertTrue(message.contains(mode.name()), message);
+		}
+	}
+
+	/** An unquoted empty YAML scalar is `null`, so the endpoint inherits the shared mode instead of failing. */
+	@Test
+	@DisplayName("Should treat an unquoted empty YAML TLS mode as null")
+	void shouldTreatEmptyYamlTlsModeAsNull() throws IOException {
+		runServerAndAssert(
+			writeUserConfiguration(
+				"""
+				api:
+				  endpointDefaults:
+				    tlsMode: FORCE_NO_TLS
+				  endpoints:
+				    graphQL:
+				      tlsMode:
+				"""
+			),
+			constructTestArguments(GraphQLProvider.CODE),
+			server -> assertTlsModes(
+				server, Map.of(GraphQLProvider.CODE, TlsMode.FORCE_NO_TLS), "unquoted empty YAML tlsMode"
+			)
+		);
+	}
+
+	/**
+	 * An empty override argument is substituted into the bundled unquoted placeholder before the YAML is parsed, so it
+	 * becomes a `null` scalar and the endpoint inherits the shared mode instead of failing.
+	 */
+	@Test
+	@DisplayName("Should treat an empty TLS mode override argument as null")
+	void shouldTreatEmptyTlsModeArgumentAsNull() {
+		final Map<String, String> arguments = constructTestArguments(GraphQLProvider.CODE);
+		arguments.put("api.endpoints.graphQL.tlsMode", "");
+		arguments.put("api.endpointDefaults.tlsMode", "FORCE_NO_TLS");
+
+		runServerAndAssert(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			arguments,
+			server -> assertTlsModes(
+				server, Map.of(GraphQLProvider.CODE, TlsMode.FORCE_NO_TLS), "empty tlsMode override argument"
+			)
+		);
+	}
+
+	/**
+	 * The system endpoint serves the server certificate over plain HTTP, so a user configuration that does not set its
+	 * `tlsMode` keeps the bundled `FORCE_NO_TLS` although the shared default is `FORCE_TLS`.
+	 */
+	@Test
+	@DisplayName("should keep the system endpoint on FORCE_NO_TLS when YAML does not set its TLS mode")
+	void shouldDefaultSystemTlsModeToForceNoTlsFromYaml() throws IOException {
+		runServerAndAssert(
+			writeUserConfiguration(
+				"""
+				api:
+				  endpoints:
+				    system:
+				      enabled: true
+				"""
+			),
+			constructTestArguments(SystemProvider.CODE),
+			server -> assertTlsModes(
+				server, Map.of(SystemProvider.CODE, TlsMode.FORCE_NO_TLS), "system tlsMode absent from YAML"
+			)
+		);
+	}
+
+	/**
+	 * The documented default of `api.certificate.generateAndUseSelfSigned` is `true`. A user configuration that leaves
+	 * the value absent or `null` (an empty value is the same YAML `null`) must keep that default, while an explicit
+	 * `false` still turns it off. Only the plain-HTTP system endpoint runs, so the server starts without any
+	 * certificate either way.
+	 */
+	@ParameterizedTest(name = "generateAndUseSelfSigned {0} -> {1}")
+	@DisplayName("should default self-signed certificate generation to true unless YAML sets it to false")
+	@CsvSource({"absent, true", "null, true", "false, false"})
+	void shouldDefaultGenerateAndUseSelfSignedToTrueFromYaml(
+		@Nonnull String value, boolean expected
+	) throws IOException {
+		final String certificateSettings = "absent".equals(value) ?
+			"folderPath: './evita-server-certificates/'" : "generateAndUseSelfSigned: " + value;
+		runServerAndAssert(
+			writeUserConfiguration(
+				"""
+				api:
+				  certificate:
+				    %s
+				""".formatted(certificateSettings)
+			),
+			constructTestArguments(SystemProvider.CODE),
+			server -> assertEquals(
+				expected,
+				server.getExternalApiServer().getApiOptions().certificate().generateAndUseSelfSigned(),
+				"YAML generateAndUseSelfSigned=" + value
+			)
+		);
+	}
+
 	@Test
 	void shouldLoadConfigurationWithUnknownProperties() {
 		EvitaTestSupport.bootstrapEvitaServerConfigurationFileFrom(
@@ -1286,8 +1509,76 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		} catch (Exception ex) {
 			// The constructor is expected to refuse the configuration before a server exists to close.
 		} finally {
+			// the constructor fails before anything is bound, so the reservation is returned at once - left behind, it
+			// would fail the next port allocation of this class
 			getPortManager().releasePorts(DIR_EVITA_SERVER_TEST);
 		}
+	}
+
+	/**
+	 * Writes the given YAML as the only user configuration file of the test configuration directory, which the server
+	 * merges over the bundled default configuration.
+	 *
+	 * @param content YAML content of the user configuration file
+	 * @return the configuration directory to start the server from
+	 */
+	@Nonnull
+	private Path writeUserConfiguration(@Nonnull String content) throws IOException {
+		final Path configDirectory = getPathInTargetDirectory(DIR_EVITA_SERVER_TEST);
+		Files.createDirectories(configDirectory);
+		Files.writeString(configDirectory.resolve("evita-configuration.yaml"), content);
+		return configDirectory;
+	}
+
+	/**
+	 * Starts a server from the given configuration, applies the assertions and always shuts the server down again.
+	 * A constructor failure happens before anything is bound, so the ports reserved for the arguments are released at
+	 * once; left reserved, they would make the next port allocation of this class fail.
+	 *
+	 * @param configDirectory configuration directory to start the server from
+	 * @param arguments       server arguments built from this class's shared port allocation
+	 * @param assertions      assertions run against the started server
+	 */
+	private void runServerAndAssert(
+		@Nonnull Path configDirectory,
+		@Nonnull Map<String, String> arguments,
+		@Nonnull Consumer<EvitaServer> assertions
+	) {
+		final EvitaServer server;
+		try {
+			server = new EvitaServer(configDirectory, arguments);
+		} catch (RuntimeException | Error ex) {
+			getPortManager().releasePorts(DIR_EVITA_SERVER_TEST);
+			throw ex;
+		}
+		try {
+			server.run();
+			assertions.accept(server);
+		} finally {
+			closeServerAndEvita(server);
+		}
+	}
+
+	/**
+	 * Asserts the TLS mode each listed endpoint of a running server resolved to, reporting every mismatch at once.
+	 *
+	 * @param server   the running server
+	 * @param expected expected TLS mode by endpoint code
+	 * @param scenario description of the configuration, added to each failure message
+	 */
+	private static void assertTlsModes(
+		@Nonnull EvitaServer server, @Nonnull Map<String, TlsMode> expected, @Nonnull String scenario
+	) {
+		final ApiOptions apiOptions = server.getExternalApiServer().getApiOptions();
+		assertAll(
+			expected.entrySet().stream().map(
+				endpoint -> (Executable) () -> assertEquals(
+					endpoint.getValue(),
+					apiOptions.getEndpointConfiguration(endpoint.getKey()).getTlsMode(),
+					endpoint.getKey() + ": " + scenario
+				)
+			)
+		);
 	}
 
 	@Nonnull

@@ -97,7 +97,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	 */
 	private final ConcurrentMap<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> uniquePublishers;
 	/**
-	 * Cleaning task that removes inactive publishers from the list of unique publishers once a while.
+	 * Periodic task that removes inactive publishers and retries idle subscriptions with outstanding demand.
 	 */
 	private final DelayedAsyncTask cleaner;
 	/**
@@ -188,25 +188,14 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		// Provide isolated publisher wrapping the shared one to the outside world.
 		// This way we can reuse predicate and caching logic for all subscribers with the same criteria.
 		// Specifics related to the start version and index, and provided content are handled in the isolated publisher.
-		final ChangeCatalogCapturePublisher changeCatalogCapturePublisher = new ChangeCatalogCapturePublisher(
+		// A publication racing this registration needs no handling here: it reaches a shared publisher already in
+		// the map through `notifyCatalogPresentInLiveView`, and one created after its walk through the catch-up in
+		// `getOrCreateSharedPublisher`. Pushing a catalog read here into the shared publisher would move it back
+		// whenever a newer version was published in the meantime.
+		return new ChangeCatalogCapturePublisher(
 			criteriaBundle -> getOrCreateSharedPublisher(criteriaBundle, catalogName),
 			request
 		);
-
-		// when the shared publisher internal catalog version differs from the current one,
-		// this may happen due to a race condition between this method and set current catalog call
-		final Catalog theCurrentCatalog = this.currentCatalog.get();
-		if (theCurrentCatalog == null) {
-			throw new InstanceTerminatedException("catalog change observer");
-		}
-		if (theCurrentCatalog.getVersion() != theCatalog.getVersion()) {
-			// notify the shared publisher about the current catalog state
-			changeCatalogCapturePublisher
-				.getSharedPublisher()
-				.notifyCatalogPresentInLiveView(theCurrentCatalog);
-		}
-
-		return changeCatalogCapturePublisher;
 	}
 
 	/**
@@ -356,9 +345,17 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	 * This runs on the scheduler, whose delay queue is unbounded, so it cannot be starved by the saturation that
 	 * causes the leak.
 	 *
-	 * Its position relative to `checkSubscribersLeft()` is convention rather than a requirement: every release
-	 * the sweep performs already ends in that call, through `unsubscribe`. The explicit one afterwards exists
-	 * for a publisher that released nothing this tick and would otherwise never be asked.
+	 * The sweep's position relative to `checkSubscribersLeft()` is convention rather than a requirement: every
+	 * release the sweep performs already ends in that call, through `unsubscribe`. The explicit one afterwards
+	 * exists for a publisher that released nothing this tick and would otherwise never be asked.
+	 *
+	 * The same tick re-wakes unfinished subscriptions with demand and an empty queue, so a refused or lost wake-up is
+	 * retried on the next tick even when no further catalog version is published. The tick cannot tell such a
+	 * subscription from one that is merely idle, so every idle subscription with outstanding demand gets one delivery
+	 * attempt on the capture executor per tick; an attempt that finds nothing new delivers nothing. A refused retry
+	 * stays eligible for the following tick, so a saturated capture executor can delay delivery by more than the
+	 * one-minute period of this cleaner. The wake goes through
+	 * {@link DefaultChangeCaptureSubscription#notifySubscriber()}, which hands delivery to the capture executor.
 	 *
 	 * @return the milliseconds deviation to the next scheduled run (always zero)
 	 */
@@ -366,6 +363,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		this.uniquePublishers.values().removeIf(
 			publisher -> {
 				publisher.cleanFinishedSubscriptions();
+				publisher.wakeIdleSubscribers();
 				publisher.checkSubscribersLeft();
 				return publisher.isClosed();
 			});

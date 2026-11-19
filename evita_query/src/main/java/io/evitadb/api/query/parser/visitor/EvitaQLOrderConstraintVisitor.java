@@ -55,7 +55,12 @@ import java.util.stream.Collectors;
 public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<OrderConstraint> {
 
 	protected final EvitaQLFilterConstraintVisitor filterConstraintVisitor = new EvitaQLFilterConstraintVisitor();
-	protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
+	/**
+	 * Parses serializable attribute values supplied in exact sort order.
+	 */
+	@Nonnull
+	protected final EvitaQLValueTokenVisitor attributeValueTokenVisitor =
+		EvitaQLValueTokenVisitor.withAttributeValueTypesAllowed();
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,
 		Byte.class,
@@ -140,13 +145,20 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		);
 	}
 
+	/**
+	 * Parses an ordering that uses the explicitly supplied sequence of attribute values.
+	 *
+	 * @param ctx attribute name and values in sort order
+	 * @return the exact ordering, or null when no defined values are supplied
+	 */
+	@Nullable
 	@Override
-	public OrderConstraint visitAttributeSetExactConstraint(AttributeSetExactConstraintContext ctx) {
+	public OrderConstraint visitAttributeSetExactConstraint(@Nonnull AttributeSetExactConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> QueryConstraints.attributeSetExact(
 				ctx.args.attributeName.accept(this.stringValueTokenVisitor).asString(),
-				ctx.args.attributeValues.accept(this.comparableValueTokenVisitor).asSerializableArray()
+				ctx.args.attributeValues.accept(this.attributeValueTokenVisitor).asSerializableArray()
 			)
 		);
 	}
@@ -179,8 +191,15 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		);
 	}
 
+	/**
+	 * Parses the optional discount direction and the remaining price list values.
+	 *
+	 * @param ctx discount order arguments
+	 * @return the discount ordering, or null when there are no defined price lists
+	 */
+	@Nullable
 	@Override
-	public OrderConstraint visitPriceDiscountConstraint(PriceDiscountConstraintContext ctx) {
+	public OrderConstraint visitPriceDiscountConstraint(@Nonnull PriceDiscountConstraintContext ctx) {
 		return parse(ctx, () -> {
 			final LinkedList<Serializable> settings = Arrays.stream(ctx.args.values
 					.accept(this.orderDirectionOrStringTokenVisitor).asSerializableArray())
@@ -202,7 +221,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 				settings.removeFirst();
 			}
 			return QueryConstraints.priceDiscount(direction, parseVariadicTail(ctx, settings,
-				EvitaQLValueTokenVisitor.withAllowedTypes(String.class), hasDirection).asStringArray());
+				EvitaQLValueTokenVisitor.withAllowedTypes(String.class)).asStringArray());
 		});
 	}
 

@@ -43,6 +43,8 @@ import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
@@ -58,12 +60,20 @@ import java.util.Locale;
  */
 public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor<FilterConstraint> {
 
-	protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
+	/**
+	 * Parses serializable attribute values for comparison and membership filters.
+	 */
+	@Nonnull
+	protected final EvitaQLValueTokenVisitor attributeValueTokenVisitor =
+		EvitaQLValueTokenVisitor.withAttributeValueTypesAllowed();
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
+	/**
+	 * Parses a list of strings. A bound array or collection is the whole list only when it is bound to a lone
+	 * parameter, so it is not an allowed item of a longer sequence.
+	 */
+	@Nonnull
 	protected final EvitaQLValueTokenVisitor stringValueListTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-		String.class,
-		String[].class,
-		Iterable.class
+		String.class
 	);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,
@@ -75,6 +85,10 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		long.class,
 		Long.class
 	);
+	/**
+	 * Parses range points as numbers or date-times. The Java factory normalizes finite floats and doubles to decimals.
+	 */
+	@Nonnull
 	protected final EvitaQLValueTokenVisitor inRangeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,
 		Byte.class,
@@ -84,6 +98,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		Integer.class,
 		long.class,
 		Long.class,
+		Float.class,
+		Double.class,
 		BigDecimal.class,
 		OffsetDateTime.class
 	);
@@ -98,6 +114,10 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		Long.class,
 		BigDecimal.class
 	);
+	/**
+	 * Parses numeric histogram bounds, including finite floats and doubles that convert to decimals.
+	 */
+	@Nonnull
 	protected final EvitaQLValueTokenVisitor numericValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,
 		Byte.class,
@@ -107,6 +127,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		Integer.class,
 		long.class,
 		Long.class,
+		Float.class,
+		Double.class,
 		BigDecimal.class
 	);
 	protected final EvitaQLValueTokenVisitor offsetDateTimeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(OffsetDateTime.class);
@@ -203,79 +225,136 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		);
 	}
 
+	/**
+	 * Parses a filter that matches an attribute equal to the supplied value.
+	 *
+	 * @param ctx attribute name and value to match
+	 * @return the equality filter, or null when the value is undefined
+	 */
+	@Nullable
 	@Override
-	public FilterConstraint visitAttributeEqualsConstraint(EvitaQLParser.AttributeEqualsConstraintContext ctx) {
+	public FilterConstraint visitAttributeEqualsConstraint(
+		@Nonnull EvitaQLParser.AttributeEqualsConstraintContext ctx
+	) {
 		return parse(
 			ctx,
 			() -> QueryConstraints.attributeEquals(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
+				ctx.args.value.accept(this.attributeValueTokenVisitor).asSerializable()
 			)
 		);
 	}
 
+	/**
+	 * Parses a filter that matches an attribute greater than a threshold.
+	 *
+	 * @param ctx attribute name and exclusive lower bound
+	 * @return the lower-bound filter, or null when the threshold is undefined
+	 */
+	@Nullable
 	@Override
-	public FilterConstraint visitAttributeGreaterThanConstraint(EvitaQLParser.AttributeGreaterThanConstraintContext ctx) {
+	public FilterConstraint visitAttributeGreaterThanConstraint(
+		@Nonnull EvitaQLParser.AttributeGreaterThanConstraintContext ctx
+	) {
 		return parse(
 			ctx,
 			() -> QueryConstraints.attributeGreaterThan(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
+				ctx.args.value.accept(this.attributeValueTokenVisitor).asSerializable()
 			)
 		);
 	}
 
+	/**
+	 * Parses a filter that matches an attribute greater than or equal to a threshold.
+	 *
+	 * @param ctx attribute name and inclusive lower bound
+	 * @return the lower-bound filter, or null when the threshold is undefined
+	 */
+	@Nullable
 	@Override
-	public FilterConstraint visitAttributeGreaterThanEqualsConstraint(EvitaQLParser.AttributeGreaterThanEqualsConstraintContext ctx) {
+	public FilterConstraint visitAttributeGreaterThanEqualsConstraint(
+		@Nonnull EvitaQLParser.AttributeGreaterThanEqualsConstraintContext ctx
+	) {
 		return parse(
 			ctx,
 			() -> QueryConstraints.attributeGreaterThanEquals(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
+				ctx.args.value.accept(this.attributeValueTokenVisitor).asSerializable()
 			)
 		);
 	}
 
+	/**
+	 * Parses a filter that matches an attribute less than a threshold.
+	 *
+	 * @param ctx attribute name and exclusive upper bound
+	 * @return the upper-bound filter, or null when the threshold is undefined
+	 */
+	@Nullable
 	@Override
-	public FilterConstraint visitAttributeLessThanConstraint(EvitaQLParser.AttributeLessThanConstraintContext ctx) {
+	public FilterConstraint visitAttributeLessThanConstraint(
+		@Nonnull EvitaQLParser.AttributeLessThanConstraintContext ctx
+	) {
 		return parse(
 			ctx,
 			() -> QueryConstraints.attributeLessThan(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
+				ctx.args.value.accept(this.attributeValueTokenVisitor).asSerializable()
 			)
 		);
 	}
 
+	/**
+	 * Parses a filter that matches an attribute less than or equal to a threshold.
+	 *
+	 * @param ctx attribute name and inclusive upper bound
+	 * @return the upper-bound filter, or null when the threshold is undefined
+	 */
+	@Nullable
 	@Override
-	public FilterConstraint visitAttributeLessThanEqualsConstraint(EvitaQLParser.AttributeLessThanEqualsConstraintContext ctx) {
+	public FilterConstraint visitAttributeLessThanEqualsConstraint(
+		@Nonnull EvitaQLParser.AttributeLessThanEqualsConstraintContext ctx
+	) {
 		return parse(
 			ctx,
 			() -> QueryConstraints.attributeLessThanEquals(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
+				ctx.args.value.accept(this.attributeValueTokenVisitor).asSerializable()
 			)
 		);
 	}
 
+	/**
+	 * Parses a filter that matches an attribute within the supplied bounds.
+	 *
+	 * @param ctx attribute name and inclusive bounds
+	 * @return the range filter, or null when both bounds are undefined
+	 */
+	@Nullable
 	@Override
-	public FilterConstraint visitAttributeBetweenConstraint(EvitaQLParser.AttributeBetweenConstraintContext ctx) {
+	public FilterConstraint visitAttributeBetweenConstraint(
+		@Nonnull EvitaQLParser.AttributeBetweenConstraintContext ctx
+	) {
 		return parse(
 			ctx,
 			() -> QueryConstraints.attributeBetween(
 				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
-				ctx.args.valueFrom
-					.accept(this.comparableValueTokenVisitor)
-					.asSerializableAndComparable(),
-				ctx.args.valueTo
-					.accept(this.comparableValueTokenVisitor)
-					.asSerializableAndComparable()
+				ctx.args.valueFrom.accept(this.attributeValueTokenVisitor).asSerializable(),
+				ctx.args.valueTo.accept(this.attributeValueTokenVisitor).asSerializable()
 			)
 		);
 	}
 
+	/**
+	 * Parses an attribute filter, selecting the factory according to the shape of the value arguments.
+	 *
+	 * @param ctx attribute name and optional list of values
+	 * @return the attribute filter, or null for an undefined single value
+	 */
+	@Nullable
 	@Override
-	public FilterConstraint visitAttributeInSetConstraint(EvitaQLParser.AttributeInSetConstraintContext ctx) {
+	public FilterConstraint visitAttributeInSetConstraint(@Nonnull EvitaQLParser.AttributeInSetConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -283,12 +362,11 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 				if (ctx.args.values == null) {
 					return QueryConstraints.attributeInSet(classifier);
 				}
-				return QueryConstraints.attributeInSet(
-					classifier,
-					ctx.args.values
-						.accept(this.comparableValueTokenVisitor)
-						.asSerializableArray()
-				);
+				final Value values = ctx.args.values.accept(this.attributeValueTokenVisitor);
+				final Serializable[] arguments = values.asSerializableArray();
+				return values.isSingleVariadicArgument() ?
+					QueryConstraints.attributeInSet(classifier, arguments[0]) :
+					QueryConstraints.attributeInSet(classifier, arguments);
 			}
 		);
 	}
@@ -417,17 +495,28 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		);
 	}
 
+	/**
+	 * Parses a primary key filter, preserving the distinction between one key and a key list.
+	 *
+	 * @param ctx optional primary key arguments
+	 * @return the primary key filter, or null for an undefined single key
+	 */
+	@Nullable
 	@Override
-	public FilterConstraint visitEntityPrimaryKeyInSetConstraint(EvitaQLParser.EntityPrimaryKeyInSetConstraintContext ctx) {
+	public FilterConstraint visitEntityPrimaryKeyInSetConstraint(
+		@Nonnull EvitaQLParser.EntityPrimaryKeyInSetConstraintContext ctx
+	) {
 		return parse(
 			ctx,
 			() -> {
 				if (ctx.args == null) {
 					return QueryConstraints.entityPrimaryKeyInSet();
 				}
-				return QueryConstraints.entityPrimaryKeyInSet(
-					ctx.args.values.accept(this.intValueTokenVisitor).asIntegerArray()
-				);
+				final Value values = ctx.args.values.accept(this.intValueTokenVisitor);
+				final Integer[] arguments = values.asIntegerArray();
+				return values.isSingleVariadicArgument() ?
+					QueryConstraints.entityPrimaryKeyInSet(arguments[0]) :
+					QueryConstraints.entityPrimaryKeyInSet(arguments);
 			}
 		);
 	}
@@ -517,17 +606,28 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		);
 	}
 
+	/**
+	 * Parses a price list filter, preserving the distinction between one price list name and a list of names.
+	 *
+	 * @param ctx optional price list arguments
+	 * @return the price list filter, or null for an undefined single price list
+	 */
+	@Nullable
 	@Override
-	public FilterConstraint visitPriceInPriceListsConstraints(EvitaQLParser.PriceInPriceListsConstraintsContext ctx) {
+	public FilterConstraint visitPriceInPriceListsConstraints(
+		@Nonnull EvitaQLParser.PriceInPriceListsConstraintsContext ctx
+	) {
 		return parse(
 			ctx,
 			() -> {
 				if (ctx.args == null) {
 					return QueryConstraints.priceInPriceLists();
 				}
-				return QueryConstraints.priceInPriceLists(
-					ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArray()
-				);
+				final Value values = ctx.args.classifiers.accept(this.stringValueListTokenVisitor);
+				final String[] arguments = values.asStringArray();
+				return values.isSingleVariadicArgument() ?
+					QueryConstraints.priceInPriceLists(arguments[0]) :
+					QueryConstraints.priceInPriceLists(arguments);
 			}
 		);
 	}

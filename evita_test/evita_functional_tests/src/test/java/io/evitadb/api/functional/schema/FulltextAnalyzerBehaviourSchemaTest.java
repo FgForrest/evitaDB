@@ -39,6 +39,7 @@ import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.FulltextAnalyzerSchemaEditor;
 import io.evitadb.api.requestResponse.schema.analysis.SynonymGroup;
@@ -94,6 +95,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -700,22 +703,22 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 		}
 
 		/**
-		 * Nothing serializes termination with the healthy writer it finds registered, so the writer may change the
-		 * schema on its own thread while termination waits right after its registry lookup has returned the writer's
-		 * checks. Waiting before the lookup is the same interleaving: the writer stays registered and validation reads
-		 * the schema only afterwards. Termination therefore validates the changed schema - it publishes a valid change
-		 * together with the writer's unpublished item, and refuses a failing one, publishing nothing.
+		 * Termination holds the warm-up call lock from before its decision until the collections are released, so a
+		 * call the registered writer starts while termination is at its registry lookup waits for the termination to
+		 * end.
+		 * Termination therefore validates and publishes the state before that call - the writer's unpublished item
+		 * included - and nothing of the change, whether the change would pass the behaviour check or fail it.
 		 * @param failing whether the writer's change declares an analyzer that fails the behaviour check
 		 * @throws IOException when the published storage cannot be copied
 		 */
 		@ParameterizedTest(name = "failing={0}")
 		@ValueSource(booleans = {false, true})
-		@DisplayName("A schema change at the termination's registry lookup is validated before it is published")
-		void shouldValidateSchemaChangedAtTerminationRegistryLookup(boolean failing) throws IOException {
+		@DisplayName("A schema change started at the termination's registry lookup waits and is not published")
+		void shouldNotPublishSchemaChangeStartedAtTerminationRegistryLookup(boolean failing) throws IOException {
 			final EvitaSessionContract session = openWriterWithUnpublishedItem();
 			final Catalog original = catalog();
-			final AtomicReference<Throwable> writerFailure = new AtomicReference<>();
-			final Runnable change = writerChange(session, failing, writerFailure);
+			final AtomicReference<CompletableFuture<Void>> writerCall = new AtomicReference<>();
+			final Runnable change = writerChange(session, original, failing, writerCall);
 			final AtomicInteger lookups = new AtomicInteger();
 			final Map<String, SessionRegistry> registries = getNonnullFieldValue(engine, "catalogSessionRegistries");
 			final SessionRegistry observed = spy(registries.get(TEST_CATALOG));
@@ -730,39 +733,28 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 			}).when(observed).getWarmUpAnalyzerChecks(original);
 			registries.put(TEST_CATALOG, observed);
 
-			final List<ILoggingEvent> warnings = captureCatalogWarnings(original::terminate);
+			original.terminate();
 
-			assertNull(writerFailure.get());
+			awaitWriterCall(writerCall);
 			assertTrue(lookups.get() >= 1);
 			assertTrue(original.isTerminated());
-			assertTrue(original.getSchema().getFulltextAnalyzer(failing ? "failing" : "second").isPresent());
-			final PublishedState published = readPublishedState();
-			assertEquals(CatalogState.WARMING_UP, published.state());
-			assertFalse(published.failing());
-			if (failing) {
-				assertEquals(new PublishedState(CatalogState.WARMING_UP, false, false, false, 0), published);
-				assertTrue(warnings.stream().anyMatch(event -> event.getFormattedMessage().contains(TEST_CATALOG) &&
-					event.getFormattedMessage().contains("rule 1")));
-			} else {
-				assertEquals(new PublishedState(CatalogState.WARMING_UP, false, true, true, 1), published);
-			}
+			assertEquals(new PublishedState(CatalogState.WARMING_UP, false, false, false, 1), readPublishedState());
 		}
 
 		/**
-		 * Termination validates first and publishes afterwards, and the writer it finds registered may change the
-		 * schema in between - here once the behaviour check has passed and before the collections are flushed and the
-		 * header stored. The registry lookup cannot pause there, because it precedes validation; the behaviour check
-		 * is the last call of validation on the terminating thread. Whatever termination publishes of a valid change
-		 * must load, keep the analyzer and the field using it together, and answer queries.
+		 * Termination validates first and publishes afterwards. A call the registered writer starts in between - here
+		 * once the behaviour check has passed and before the collections are flushed and the header stored - waits on
+		 * the warm-up call lock, so the schema termination validated is the schema it publishes: the state before the
+		 * call, with the writer's unpublished item, loads and answers queries.
 		 * @throws IOException when the published storage cannot be copied
 		 */
 		@Test
-		@DisplayName("A valid schema change after termination's validation is published whole or not at all")
-		void shouldPublishNothingTornWhenSchemaChangesAfterTerminationValidation() throws IOException {
+		@DisplayName("A schema change started after termination's validation waits and is not published")
+		void shouldNotPublishSchemaChangeStartedAfterTerminationValidation() throws IOException {
 			final EvitaSessionContract session = openWriterWithUnpublishedItem();
 			final Catalog original = catalog();
-			final AtomicReference<Throwable> writerFailure = new AtomicReference<>();
-			final Runnable change = writerChange(session, false, writerFailure);
+			final AtomicReference<CompletableFuture<Void>> writerCall = new AtomicReference<>();
+			final Runnable change = writerChange(session, original, false, writerCall);
 			final AtomicInteger checks = new AtomicInteger();
 			// a static mock observes only the thread that opened it - the terminating one, which is this one
 			try (final MockedStatic<FulltextAnalyzerBehaviourCheck> check =
@@ -777,15 +769,10 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 				original.terminate();
 			}
 
-			assertNull(writerFailure.get());
+			awaitWriterCall(writerCall);
 			assertEquals(1, checks.get());
 			assertTrue(original.isTerminated());
-			assertTrue(original.getSchema().getFulltextAnalyzer("second").isPresent());
-			final PublishedState published = readPublishedState();
-			assertEquals(CatalogState.WARMING_UP, published.state());
-			// either the state before the change or the one after it; the writer's item is published in both
-			assertEquals(1, published.items(), "the published catalog does not find the writer's item");
-			assertEquals(published.second(), published.title(), "the analyzer and its field were torn apart");
+			assertEquals(new PublishedState(CatalogState.WARMING_UP, false, false, false, 1), readPublishedState());
 		}
 
 		/**
@@ -1678,40 +1665,69 @@ class FulltextAnalyzerBehaviourSchemaTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Builds the writer's schema change, applied once on a thread of its own while the caller waits for it. The
-	 * failing change declares an analyzer whose mixed-case sample fails the behaviour check; the valid one declares an
-	 * analyzer and a field that uses it, so that the catalog schema part and a collection header change together.
+	 * Builds a schema change the registered warm-up writer starts on another thread while a termination is under way.
+	 * The failing change declares an analyzer whose mixed-case sample fails the behaviour check; the valid one declares
+	 * an analyzer and a field that uses it, so that the catalog schema part and a collection header would change
+	 * together. The returned action starts the call and returns once the call waits on the catalog's warm-up call lock,
+	 * which the terminating thread holds.
 	 * @param session the registered warm-up writer
+	 * @param catalog the catalog being terminated
 	 * @param failing whether the change fails the behaviour check
-	 * @param failure receives what the writer's change threw, if it threw
-	 * @return the change; every call after the first does nothing
+	 * @param writerCall receives the started call
+	 * @return the action; every run after the first does nothing
 	 */
 	@Nonnull
 	private static Runnable writerChange(
-		@Nonnull EvitaSessionContract session, boolean failing, @Nonnull AtomicReference<Throwable> failure
+		@Nonnull EvitaSessionContract session, @Nonnull Catalog catalog, boolean failing,
+		@Nonnull AtomicReference<CompletableFuture<Void>> writerCall
 	) {
+		final ReentrantLock callLock = Objects.requireNonNull(catalog.getWarmUpCallLock());
+		// the builders are prepared here, before the termination starts, so that the first call the writer makes
+		// while the termination runs is the schema mutation itself and not a schema read
+		final Runnable change;
+		if (failing) {
+			final CatalogSchemaBuilder catalogChange = session.getCatalogSchema().openForWrite()
+				.withFulltextAnalyzer("failing", a -> a.words().samples("Upper"));
+			change = () -> catalogChange.updateVia(session);
+		} else {
+			final CatalogSchemaBuilder catalogChange = session.getCatalogSchema().openForWrite()
+				.withFulltextAnalyzer("second", a -> a.words(lowercase()).samples("Second"));
+			final EntitySchemaBuilder itemChange = session.getEntitySchemaOrThrowException("Item").openForWrite()
+				.withAttribute("title", String.class, a -> a.localized().searchable().analyzer("second"));
+			change = () -> {
+				catalogChange.updateVia(session);
+				itemChange.updateVia(session);
+			};
+		}
 		final AtomicBoolean pending = new AtomicBoolean(true);
 		return () -> {
 			if (!pending.compareAndSet(true, false)) {
 				return;
 			}
-			final Runnable change = failing ?
-				() -> session.getCatalogSchema().openForWrite()
-					.withFulltextAnalyzer("failing", a -> a.words().samples("Upper")).updateVia(session) :
-				() -> {
-					session.getCatalogSchema().openForWrite()
-						.withFulltextAnalyzer("second", a -> a.words(lowercase()).samples("Second")).updateVia(session);
-					session.getEntitySchemaOrThrowException("Item").openForWrite()
-						.withAttribute("title", String.class, a -> a.localized().searchable().analyzer("second"))
-						.updateVia(session);
-				};
-			try {
-				// a positive wait: the change completes in milliseconds, the bound only stops a hang
-				CompletableFuture.runAsync(change).get(30, TimeUnit.SECONDS);
-			} catch (Exception ex) {
-				failure.set(ex);
+			writerCall.set(CompletableFuture.runAsync(change));
+			// a positive wait: the call reaches the lock in milliseconds, the bound only stops a hang. A lock offers
+			// no latch for "a thread has queued", so its queue is observed instead
+			final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+			while (!callLock.hasQueuedThreads() && System.nanoTime() < deadline) {
+				LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
 			}
+			assertTrue(callLock.hasQueuedThreads(), "the writer's call does not wait for the termination");
 		};
+	}
+
+	/**
+	 * Waits until the writer's call that waited for the termination has ended. The call resumes on a terminated
+	 * instance, so whether it returns or throws is not this test's subject - only that it ends.
+	 * @param writerCall the call started by {@link #writerChange}
+	 */
+	private static void awaitWriterCall(@Nonnull AtomicReference<CompletableFuture<Void>> writerCall) {
+		final CompletableFuture<Void> call =
+			Objects.requireNonNull(writerCall.get(), "the writer's call never started");
+		try {
+			call.handle((result, failure) -> null).get(30, TimeUnit.SECONDS);
+		} catch (Exception ex) {
+			throw new AssertionError("the writer's call did not end after the termination", ex);
+		}
 	}
 
 	/**

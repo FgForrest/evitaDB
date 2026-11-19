@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Locale;
@@ -44,6 +45,17 @@ import static io.evitadb.test.TestTags.REQUIRE;
 @Tag(CONTRACT)
 @Tag(REQUIRE)
 class DataInLocalesTest {
+
+	/**
+	 * Requests every locale when the only locale is undefined.
+	 */
+	@Test
+	@DisplayName("should request every locale for a null locale variable")
+	void shouldRequestAllLocalesWhenLocaleVariableIsNull() {
+		final Locale locale = null;
+
+		assertEquals(dataInLocalesAll(), dataInLocales(locale));
+	}
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {

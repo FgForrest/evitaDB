@@ -72,6 +72,7 @@ import static io.evitadb.test.utils.ReflectionUtils.getNonnullFieldValue;
 import static io.evitadb.test.utils.ReflectionUtils.setFieldValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -181,6 +182,91 @@ class SharedPublisherConcurrencyTest {
 			0, observer.getUniquePublishersCount(),
 			"The refused renewal left a shared publisher behind in the closed observer."
 		);
+	}
+
+	/**
+	 * Verifies that registering an observer never moves an existing shared publisher back to a catalog that a later
+	 * publication has already superseded. A version is published right after the registration has read the
+	 * observer's catalog. A second hook publishes one more version the first time anything asks that newly published
+	 * catalog for its version: a tripwire for a registration that reads the observer's catalog again and compares the
+	 * versions before pushing that catalog into the shared publisher - by the time of the push, the second
+	 * publication has superseded it. A registration that reads no catalog version never trips it. Either way the
+	 * shared publisher must stay on the newest catalog, where the observer's own publication left it.
+	 *
+	 * The catalog doubles are the interleaving hooks: each publication happens inline, on the registering thread,
+	 * from inside a call the registration makes on a catalog. A real catalog offers no seam in the registration.
+	 */
+	@Test
+	@DisplayName("keep the shared publisher on the newest catalog when versions are published during a registration")
+	void shouldKeepSharedPublisherOnNewestCatalogWhenVersionsArePublishedDuringRegistration() {
+		final Catalog initialCatalog = createCatalog(30L);
+		final Catalog firstPublishedCatalog = createCatalog(31L);
+		final Catalog secondPublishedCatalog = createCatalog(32L);
+		final CatalogChangeObserver observer = new CatalogChangeObserver(
+			ChangeDataCaptureOptions.builder().build(),
+			new ImmediateExecutorService(),
+			mock(Scheduler.class),
+			initialCatalog
+		);
+		try {
+			final ChangeCatalogCaptureRequest request =
+				new ChangeCatalogCaptureRequest(null, null, null, ChangeCaptureContent.BODY);
+			// the shared publisher every later registration with the same criteria finds in the observer's map
+			final ChangeCatalogCaptureSharedPublisher sharedPublisher =
+				((ChangeCatalogCapturePublisher) observer.registerObserver(request)).getSharedPublisher();
+
+			final AtomicReference<Catalog> lastPublished = new AtomicReference<>(initialCatalog);
+			final AtomicBoolean publishOnName = new AtomicBoolean(false);
+			final AtomicBoolean publishOnVersion = new AtomicBoolean(false);
+			final String catalogName = initialCatalog.getName();
+			// the registration asks the catalog it has just read for its name - publish the next version right then
+			when(initialCatalog.getName()).thenAnswer(
+				invocation -> {
+					if (publishOnName.compareAndSet(true, false)) {
+						observer.notifyCatalogPresentInLiveView(firstPublishedCatalog);
+						lastPublished.set(firstPublishedCatalog);
+						publishOnVersion.set(true);
+					}
+					return catalogName;
+				}
+			);
+			// whoever asks the newly published catalog for its version first triggers one more publication
+			when(firstPublishedCatalog.getVersion()).thenAnswer(
+				invocation -> {
+					if (publishOnVersion.compareAndSet(true, false)) {
+						observer.notifyCatalogPresentInLiveView(secondPublishedCatalog);
+						lastPublished.set(secondPublishedCatalog);
+					}
+					return 31L;
+				}
+			);
+			publishOnName.set(true);
+
+			final ChangeCatalogCapturePublisher facade =
+				(ChangeCatalogCapturePublisher) observer.registerObserver(request);
+			// nothing published after the registration returned - the assertions below must not publish either
+			publishOnName.set(false);
+			publishOnVersion.set(false);
+
+			final Catalog newestCatalog = lastPublished.get();
+			assertNotSame(
+				initialCatalog, newestCatalog,
+				"No version was published during the registration - the interleaving was not reached."
+			);
+			assertSame(
+				sharedPublisher, facade.getSharedPublisher(),
+				"The registration must reuse the shared publisher mapped under its criteria."
+			);
+			final Catalog heldCatalog = sharedPublisher.getCatalog();
+			assertSame(
+				newestCatalog, heldCatalog,
+				() -> "The registration moved the shared publisher from catalog version " +
+					newestCatalog.getVersion() + ", which the observer published last, back to version " +
+					heldCatalog.getVersion() + "."
+			);
+		} finally {
+			observer.close();
+		}
 	}
 
 	/**

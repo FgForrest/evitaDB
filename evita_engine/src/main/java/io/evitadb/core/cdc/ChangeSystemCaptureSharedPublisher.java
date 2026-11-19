@@ -236,11 +236,7 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 		this.lastCaptures.setEffectiveLastCatalogVersion(version);
 		// notify all subscriptions that the catalog is now present in the live view
 		// each active subscription is notified to pull new data asynchronously from this instance
-		for (DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription : this.subscribers.values()) {
-			if (!subscription.isFinished()) {
-				subscription.notifySubscriber();
-			}
-		}
+		wakeIdleSubscribers();
 	}
 
 	/**
@@ -250,6 +246,22 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 */
 	public long getVersion() {
 		return this.version.get();
+	}
+
+	/**
+	 * Wakes unfinished subscriptions that have outstanding demand and an empty delivery queue.
+	 *
+	 * Publications and the observer's periodic cleaner share this path, so even an idle stream retries a refused
+	 * or lost wake-up. {@link DefaultChangeCaptureSubscription#notifySubscriber()} checks eligibility and catches
+	 * executor refusals; the next cleaner tick retries them. Filling remains bounded by the published version,
+	 * and the subscription's existing lock serializes concurrent delivery attempts. No publisher lock is held here.
+	 */
+	public void wakeIdleSubscribers() {
+		for (final DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription : this.subscribers.values()) {
+			if (!subscription.isFinished()) {
+				subscription.notifySubscriber();
+			}
+		}
 	}
 
 	/**

@@ -66,6 +66,11 @@ import java.util.stream.Collectors;
  * regenerating summaries when the source JavaDoc or method signature has changed (tracked via
  * {@code @SourceHash} annotation).
  *
+ * The model also receives the factory method's source, because the class JavaDoc describes every factory method
+ * of the constraint, while a single method may accept only part of it (one value where the constraint takes
+ * several) or return null for some arguments. The hash covers only the class JavaDoc and the signature, so a change
+ * of the method body alone does not regenerate the summary: remove the method's {@code @SourceHash} to force it.
+ *
  * Invoked via: {@code mvn -pl evita_test/evita_documentation_tests test-compile exec:java -Pgenerate-javadoc}
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -99,10 +104,18 @@ public class JavaDocSummarizer implements EvitaTestSupport {
 		- Use Markdown syntax for formatting (never use HTML tags).
 		- Write a SINGLE paragraph (Twitter-length, ~280 chars) describing what the constraint
 		  does, its key semantics, and any critical behavioral notes.
+		- Describe THIS factory method, not the constraint in general. The class documentation
+		  covers every factory method of the constraint, and this method may accept only part
+		  of it, for example one value where the constraint accepts several. Read the factory
+		  method source to see what it accepts and what it returns.
+		- If the factory method returns null for some arguments, say in the paragraph for which
+		  ones, and that the constraint is then left out of the query.
 		- After the paragraph, if the constraint benefits from a short usage example, include
 		  ONE brief EvitaQL code block (3-5 lines max) showing the most common usage pattern.
 		  Use ```evitaql fenced code block syntax. Skip the example if the constraint is
 		  self-explanatory from the paragraph alone.
+		- The example must show a constraint this factory method can create: give each
+		  parameter as many values as it accepts, so a single-value parameter gets exactly one.
 		- End with a link to detailed docs in this exact Markdown format:
 		  [Visit detailed user documentation](https://evitadb.io{userDocsLink})
 		- Do NOT include @param, @return, @see, or @author tags.
@@ -112,6 +125,14 @@ public class JavaDocSummarizer implements EvitaTestSupport {
 	private static final String OPENAI_API_KEY_ENV = "OPENAI_API_KEY";
 	private static final String LIMIT_ARG_PREFIX = "--limit=";
 	private static final String SOURCE_HASH_ANNOTATION_NAME = "SourceHash";
+	/**
+	 * Label of the link to the user documentation, which every summary ends with.
+	 */
+	private static final String USER_DOCS_LINK_LABEL = "[Visit detailed user documentation]";
+	/**
+	 * An empty line of a generated JavaDoc block.
+	 */
+	private static final String EMPTY_JAVADOC_LINE = "\t *";
 
 	/**
 	 * Entry point invoked via exec-maven-plugin.
@@ -235,6 +256,7 @@ public class JavaDocSummarizer implements EvitaTestSupport {
 			result.add(new MethodInfo(
 				method.getLineNumber(),
 				methodSignature,
+				buildMethodSource(method),
 				constraintJavaDoc,
 				constraintClassName,
 				userDocsLink,
@@ -262,7 +284,11 @@ public class JavaDocSummarizer implements EvitaTestSupport {
 	}
 
 	/**
-	 * Builds a human-readable method signature string from a QDox method model.
+	 * Builds a human-readable method signature string from a QDox method model. The signature is part of the
+	 * {@code @SourceHash}, so its format must not change: every factory method summary would be regenerated.
+	 *
+	 * @param method the factory method
+	 * @return the return type, name and parameters of the method, without annotations
 	 */
 	@Nonnull
 	static String buildMethodSignature(@Nonnull JavaMethod method) {
@@ -276,16 +302,63 @@ public class JavaDocSummarizer implements EvitaTestSupport {
 			if (i > 0) {
 				sb.append(", ");
 			}
-			final JavaParameter param = params.get(i);
-			sb.append(param.getType().getValue());
-			if (param.isVarArgs()) {
-				sb.append("...");
-			}
-			sb.append(' ');
-			sb.append(param.getName());
+			appendParameter(sb, params.get(i));
 		}
 		sb.append(')');
 		return sb.toString();
+	}
+
+	/**
+	 * Builds the source of a factory method for the model: its annotations except {@code @SourceHash}, its
+	 * signature with the parameter annotations, and its body. The annotations and the body tell the model what the
+	 * method accepts and when it returns null, which the constraint class JavaDoc does not say.
+	 *
+	 * @param method the factory method
+	 * @return the annotated declaration and the body of the method, without its JavaDoc
+	 */
+	@Nonnull
+	static String buildMethodSource(@Nonnull JavaMethod method) {
+		final StringBuilder sb = new StringBuilder(256);
+		for (JavaAnnotation annotation : method.getAnnotations()) {
+			final String annotationName = annotation.getType().getName();
+			if (!SOURCE_HASH_ANNOTATION_NAME.equals(annotationName)) {
+				sb.append('@').append(annotationName).append('\n');
+			}
+		}
+		sb.append(method.getReturns().getName());
+		sb.append(' ');
+		sb.append(method.getName());
+		sb.append('(');
+		final List<JavaParameter> params = method.getParameters();
+		for (int i = 0; i < params.size(); i++) {
+			if (i > 0) {
+				sb.append(", ");
+			}
+			final JavaParameter param = params.get(i);
+			for (JavaAnnotation annotation : param.getAnnotations()) {
+				sb.append('@').append(annotation.getType().getName()).append(' ');
+			}
+			appendParameter(sb, param);
+		}
+		sb.append(") {");
+		sb.append(method.getSourceCode());
+		sb.append('}');
+		return sb.toString();
+	}
+
+	/**
+	 * Appends the type, the varargs marker and the name of a parameter.
+	 *
+	 * @param sb    the builder to append to
+	 * @param param the parameter
+	 */
+	private static void appendParameter(@Nonnull StringBuilder sb, @Nonnull JavaParameter param) {
+		sb.append(param.getType().getValue());
+		if (param.isVarArgs()) {
+			sb.append("...");
+		}
+		sb.append(' ');
+		sb.append(param.getName());
 	}
 
 	/**
@@ -398,9 +471,7 @@ public class JavaDocSummarizer implements EvitaTestSupport {
 		@Nonnull MethodInfo method
 	) {
 		try {
-			final String userMessage = "Constraint class JavaDoc:\n---\n" + method.constraintJavaDoc()
-				+ "\n---\n\nFactory method signature:\n" + method.methodSignature()
-				+ "\n\nUser documentation link path: " + method.userDocsLink();
+			final String userMessage = buildUserMessage(method);
 
 			final String requestBody = objectMapper.writeValueAsString(Map.of(
 				"model", OPENAI_MODEL,
@@ -435,6 +506,21 @@ public class JavaDocSummarizer implements EvitaTestSupport {
 		} catch (IOException | InterruptedException e) {
 			throw new RuntimeException("OpenAI API call failed for method: " + method.methodSignature(), e);
 		}
+	}
+
+	/**
+	 * Builds the user message of the request for one factory method: the constraint class JavaDoc, the factory
+	 * method signature and source, and the path of the user documentation link.
+	 *
+	 * @param method the factory method to summarize
+	 * @return the message text
+	 */
+	@Nonnull
+	static String buildUserMessage(@Nonnull MethodInfo method) {
+		return "Constraint class JavaDoc:\n---\n" + method.constraintJavaDoc()
+			+ "\n---\n\nFactory method signature:\n" + method.methodSignature()
+			+ "\n\nFactory method source:\n---\n" + method.methodSource()
+			+ "\n---\n\nUser documentation link path: " + method.userDocsLink();
 	}
 
 	/**
@@ -526,7 +612,12 @@ public class JavaDocSummarizer implements EvitaTestSupport {
 	}
 
 	/**
-	 * Formats a summary string into a JavaDoc block with tab-indented lines.
+	 * Formats a summary string into a JavaDoc block with tab-indented lines. The link to the user documentation is
+	 * always preceded by an empty line, whether or not the model wrote one.
+	 *
+	 * @param summary             the summary the model generated
+	 * @param constraintClassName fully-qualified name of the constraint class, for the {@code @see} tag
+	 * @return the lines of the JavaDoc block
 	 */
 	@Nonnull
 	static List<String> formatJavaDoc(@Nonnull String summary, @Nonnull String constraintClassName) {
@@ -534,12 +625,16 @@ public class JavaDocSummarizer implements EvitaTestSupport {
 		result.add("\t/**");
 		for (String line : summary.split("\\r?\\n")) {
 			if (line.isEmpty()) {
-				result.add("\t *");
+				result.add(EMPTY_JAVADOC_LINE);
 			} else {
+				if (line.startsWith(USER_DOCS_LINK_LABEL) && result.size() > 1
+					&& !EMPTY_JAVADOC_LINE.equals(result.get(result.size() - 1))) {
+					result.add(EMPTY_JAVADOC_LINE);
+				}
 				result.add("\t * " + line.replace("*/", "* /"));
 			}
 		}
-		result.add("\t *");
+		result.add(EMPTY_JAVADOC_LINE);
 		result.add("\t * @see " + constraintClassName);
 		result.add("\t */");
 		return result;
@@ -550,6 +645,8 @@ public class JavaDocSummarizer implements EvitaTestSupport {
 	 *
 	 * @param methodDeclLine      the 1-based line number where the method declaration starts
 	 * @param methodSignature     human-readable method signature (e.g. "And and(FilterConstraint... constraints)")
+	 * @param methodSource        annotated declaration and body of the factory method, see
+	 *                            {@link #buildMethodSource(JavaMethod)}
 	 * @param constraintJavaDoc   full JavaDoc text from the constraint class
 	 * @param constraintClassName fully-qualified name of the constraint class (used for {@code @see} tag)
 	 * @param userDocsLink        relative URL path from {@code @ConstraintDefinition}
@@ -558,6 +655,7 @@ public class JavaDocSummarizer implements EvitaTestSupport {
 	record MethodInfo(
 		int methodDeclLine,
 		@Nonnull String methodSignature,
+		@Nonnull String methodSource,
 		@Nonnull String constraintJavaDoc,
 		@Nonnull String constraintClassName,
 		@Nonnull String userDocsLink,

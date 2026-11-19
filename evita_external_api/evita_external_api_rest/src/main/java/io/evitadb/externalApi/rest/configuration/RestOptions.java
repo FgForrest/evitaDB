@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
+import io.evitadb.externalApi.configuration.TlsMode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -48,16 +49,28 @@ public class RestOptions extends AbstractApiOptions implements ApiWithSpecificPr
 	 */
 	@Getter private final String prefix;
 
+	/**
+	 * Creates enabled options listening on all network interfaces at {@link AbstractApiOptions#DEFAULT_PORT}, with
+	 * `tlsMode` {@link TlsMode#FORCE_TLS}.
+	 */
 	public RestOptions() {
-		super();
+		super(TlsMode.FORCE_TLS);
 		this.prefix = BASE_REST_PATH;
 	}
 
+	/**
+	 * Creates enabled options listening on `host` (comma-separated `hostname:port` definitions), with `tlsMode`
+	 * {@link TlsMode#FORCE_TLS}.
+	 */
 	public RestOptions(@Nonnull String host) {
-		super(true, host);
+		super(true, host, TlsMode.FORCE_TLS);
 		this.prefix = BASE_REST_PATH;
 	}
 
+	/**
+	 * Creates options from configuration; a missing `tlsMode` resolves to {@link TlsMode#FORCE_TLS} and an unknown name
+	 * fails.
+	 */
 	@JsonCreator
 	public RestOptions(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                   @Nonnull @JsonProperty("host") String host,
@@ -67,7 +80,7 @@ public class RestOptions extends AbstractApiOptions implements ApiWithSpecificPr
 	                   @Nullable @JsonProperty("prefix") String prefix,
 	                   @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
-		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
+		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration, TlsMode.FORCE_TLS);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_REST_PATH);
 	}
 }

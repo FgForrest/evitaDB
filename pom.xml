@@ -150,7 +150,7 @@
 			catalog reindex, not a dependency bump. Both lucene artifacts are pinned to this one
 			property so patch levels can never be mixed across them.
 		-->
-		<lucene.version>9.12.3</lucene.version>
+		<lucene.version>10.6.0</lucene.version>
 		<mockito.junit.version>5.23.0</mockito.junit.version>
 		<assertj.version>3.27.7</assertj.version>
 		<maven.compiler.version>3.16.0</maven.compiler.version>

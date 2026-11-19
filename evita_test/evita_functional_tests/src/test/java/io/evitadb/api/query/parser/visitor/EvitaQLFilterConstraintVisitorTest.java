@@ -31,16 +31,24 @@ import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
+import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -54,10 +62,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -80,6 +90,301 @@ import static io.evitadb.test.TestTags.FILTER;
 class EvitaQLFilterConstraintVisitorTest {
 
 	public static final Currency CZK = Currency.getInstance("CZK");
+
+	/**
+	 * Verifies Java factory parity and type validation for attribute filters.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Attribute value bindings")
+	class AttributeValueBindings {
+
+		/**
+		 * Provides a value for each attribute type.
+		 *
+		 * @return the accepted single comparison values
+		 */
+		@Nonnull
+		static Stream<Serializable> comparisonValues() {
+			return Stream.of(
+				CZK, Locale.ENGLISH, HistogramBehavior.OPTIMIZED, DayOfWeek.MONDAY, 1.5d, 1.5f
+			);
+		}
+
+		/**
+		 * Provides pairs of values for each attribute type.
+		 *
+		 * @return pairs of accepted range and membership values
+		 */
+		@Nonnull
+		static Stream<Arguments> attributeValues() {
+			return Stream.of(
+				Arguments.of(Currency.getInstance("EUR"), Currency.getInstance("USD")),
+				Arguments.of(Locale.ENGLISH, Locale.GERMAN),
+				Arguments.of(HistogramBehavior.OPTIMIZED, HistogramBehavior.EQUALIZED),
+				Arguments.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY),
+				Arguments.of(1.5d, 2.0d),
+				Arguments.of(1.5f, 2.5f)
+			);
+		}
+
+		/**
+		 * Checks each comparison with a single value in both binding modes.
+		 *
+		 * @param value bound attribute value
+		 */
+		@ParameterizedTest
+		@MethodSource("comparisonValues")
+		@DisplayName("Compare a single bound attribute value")
+		void shouldParseComparisonsWithBoundValue(@Nonnull Serializable value) {
+			assertAll(
+				() -> assertBoundComparison(attributeEquals("a", value), value),
+				() -> assertBoundComparison(attributeLessThan("a", value), value),
+				() -> assertBoundComparison(attributeLessThanEquals("a", value), value),
+				() -> assertBoundComparison(attributeGreaterThan("a", value), value),
+				() -> assertBoundComparison(attributeGreaterThanEquals("a", value), value)
+			);
+		}
+
+		/**
+		 * Checks a single-value comparison in both binding modes.
+		 *
+		 * @param expected constraint from the Java factory
+		 * @param value value passed to that factory
+		 */
+		private void assertBoundComparison(@Nonnull FilterConstraint expected, @Nonnull Serializable value) {
+			assertAll(
+				expected.getName(),
+				() -> assertEquals(expected, parseFilterConstraint(expected.getName() + "(?, ?)", "a", value)),
+				() -> assertEquals(
+					expected,
+					parseFilterConstraint(expected.getName() + "(@name, @value)", Map.of("name", "a", "value", value))
+				)
+			);
+		}
+
+		/**
+		 * Checks both bounds of a between filter in both binding modes.
+		 *
+		 * @param from lower bound
+		 * @param to upper bound
+		 */
+		@ParameterizedTest
+		@MethodSource("attributeValues")
+		@DisplayName("Compare two bound attribute range limits")
+		void shouldParseBetweenWithBoundValues(@Nonnull Serializable from, @Nonnull Serializable to) {
+			final FilterConstraint expected = attributeBetween("a", from, to);
+			assertAll(
+				() -> assertEquals(expected, parseFilterConstraint("attributeBetween(?, ?, ?)", "a", from, to)),
+				() -> assertEquals(
+					expected,
+					parseFilterConstraint(
+						"attributeBetween(@name, @from, @to)", Map.of("name", "a", "from", from, "to", to)
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks scalar, list and separately bound membership arguments in both binding modes.
+		 *
+		 * @param first first attribute value
+		 * @param second second attribute value
+		 */
+		@ParameterizedTest
+		@MethodSource("attributeValues")
+		@DisplayName("Match a bound scalar or a list of attribute values")
+		void shouldParseInSetWithBoundValues(@Nonnull Serializable first, @Nonnull Serializable second) {
+			final FilterConstraint single = attributeInSet("a", first);
+			final FilterConstraint multiple = attributeInSet("a", first, second);
+			final List<Serializable> values = List.of(first, second);
+			assertAll(
+				() -> assertEquals(single, parseFilterConstraint("attributeInSet(?, ?)", "a", first)),
+				() -> assertEquals(
+					single, parseFilterConstraint("attributeInSet(@name, @v)", Map.of("name", "a", "v", first))
+				),
+				() -> assertEquals(multiple, parseFilterConstraint("attributeInSet(?, ?)", "a", values)),
+				() -> assertEquals(
+					multiple, parseFilterConstraint("attributeInSet(@name, @v)", Map.of("name", "a", "v", values))
+				),
+				() -> assertEquals(multiple, parseFilterConstraint("attributeInSet(?, ?, ?)", "a", first, second)),
+				() -> assertEquals(
+					multiple,
+					parseFilterConstraint(
+						"attributeInSet(@name, @v1, @v2)", Map.of("name", "a", "v1", first, "v2", second)
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks an array of values in the list position in both binding modes.
+		 *
+		 * @param values the typed array to bind
+		 */
+		@ParameterizedTest
+		@MethodSource("attributeValueArrays")
+		@DisplayName("Expand a typed array in the membership list")
+		void shouldParseInSetWithArrayOfValues(@Nonnull Serializable[] values) {
+			final FilterConstraint expected = attributeInSet("a", values);
+			assertAll(
+				() -> assertEquals(expected, parseFilterConstraint("attributeInSet(?, ?)", "a", values)),
+				() -> assertEquals(
+					expected, parseFilterConstraint("attributeInSet(@name, @v)", Map.of("name", "a", "v", values))
+				)
+			);
+		}
+
+		/**
+		 * Supplies typed Java varargs arrays for membership.
+		 *
+		 * @return arrays to bind as the entire membership list
+		 */
+		@Nonnull
+		static Stream<Arguments> attributeValueArrays() {
+			return Stream.of(
+				Arguments.of((Object) new String[]{"a", "b"}),
+				Arguments.of((Object) new Double[]{1.5d, 2.0d}),
+				Arguments.of((Object) new Float[]{1.5f, 2.5f}),
+				Arguments.of((Object) new HistogramBehavior[]{HistogramBehavior.OPTIMIZED, HistogramBehavior.EQUALIZED})
+			);
+		}
+
+		/** Checks that unsafe untyped enum literals have the same values as ordinary Java enum arguments. */
+		@Test
+		@DisplayName("Use enum names in unsafe attribute literals")
+		void shouldParseEnumLiteralsAsAttributeValues() {
+			assertAll(
+				() -> assertEquals(attributeEquals("a", DayOfWeek.MONDAY),
+					parseFilterConstraintUnsafe("attributeEquals('a', MONDAY)")),
+				() -> assertEquals(attributeGreaterThan("a", DayOfWeek.MONDAY),
+					parseFilterConstraintUnsafe("attributeGreaterThan('a', MONDAY)")),
+				() -> assertEquals(attributeGreaterThanEquals("a", DayOfWeek.MONDAY),
+					parseFilterConstraintUnsafe("attributeGreaterThanEquals('a', MONDAY)")),
+				() -> assertEquals(attributeLessThan("a", DayOfWeek.TUESDAY),
+					parseFilterConstraintUnsafe("attributeLessThan('a', TUESDAY)")),
+				() -> assertEquals(attributeLessThanEquals("a", DayOfWeek.TUESDAY),
+					parseFilterConstraintUnsafe("attributeLessThanEquals('a', TUESDAY)")),
+				() -> assertEquals(attributeBetween("a", DayOfWeek.MONDAY, DayOfWeek.TUESDAY),
+					parseFilterConstraintUnsafe("attributeBetween('a', MONDAY, TUESDAY)")),
+				() -> assertEquals(attributeInSet("a", DayOfWeek.MONDAY, DayOfWeek.TUESDAY),
+					parseFilterConstraintUnsafe("attributeInSet('a', MONDAY, TUESDAY)")),
+				() -> assertThrows(
+					EvitaSyntaxException.class, () -> parseFilterConstraint("attributeEquals(?, MONDAY)", "a")
+				)
+			);
+		}
+
+
+		/** Checks direct and wrapped array bindings against the same flat Java membership values. */
+		@Test
+		@DisplayName("Expand sole array items in positional and named membership lists")
+		void shouldExpandWrappedAttributeInSetValues() {
+			final int[] numbers = {2, 1};
+			final String[] words = {"a", null, "b"};
+			assertAll(
+				() -> assertEquals(attributeInSet("code", 2, 1),
+					parseFilterConstraint("attributeInSet(?, ?)", "code", new Serializable[]{numbers})),
+				() -> assertEquals(attributeInSet("code", "a", "b"),
+					parseFilterConstraint("attributeInSet(@name, @values)",
+						Map.of("name", "code", "values", List.of((Object) words)))),
+				() -> assertEquals(attributeInSet("code"),
+					parseFilterConstraint("attributeInSet(?, ?)", "code", List.of((Object) new String[]{null}))),
+				() -> assertEquals(attributeInSet("code"),
+					parseFilterConstraint("attributeInSet(?, ?)", "code", List.of((Object) new String[0][]))),
+				() -> assertEquals(attributeInSet("code", 1.5d, 2.0d),
+					parseFilterConstraint("attributeInSet(?, ?)", "code", new double[]{1.5d, 2.0d}))
+			);
+		}
+
+		/** Checks the diagnostics for unsupported scalar values and list items. */
+		@Test
+		@DisplayName("Name unsupported filter value types in syntax errors")
+		void shouldRefuseUnsupportedAttributeFilterValues() {
+			final String[] array = {"a", "b"};
+			assertAll(
+				() -> assertUnsupportedType(Predecessor.class, "attributeEquals(?, ?)", "a", Predecessor.HEAD),
+				() -> assertUnsupportedType(Predecessor.class, "attributeInSet(?, ?)", "a", List.of(Predecessor.HEAD)),
+				() -> assertUnsupportedType(Predecessor.class, "attributeGreaterThan(?, ?)", "a", Predecessor.HEAD),
+				() -> assertUnsupportedType(Predecessor.class, "attributeBetween(?, ?, ?)",
+					"a", Predecessor.HEAD, Predecessor.HEAD),
+				() -> assertUnsupportedType(Double.class, "attributeEquals(?, ?)", "a", Double.NaN),
+				() -> assertUnsupportedType(
+					Double.class, "attributeInSet(?, ?)", "a", List.of(Double.POSITIVE_INFINITY)
+				),
+				() -> assertUnsupportedType(Double.class, "attributeInSet(?, ?)", "a",
+					new Double[]{1.5d, Double.NEGATIVE_INFINITY}),
+				() -> assertUnsupportedType(Float.class, "attributeEquals(?, ?)", "a", Float.NaN),
+				() -> assertUnsupportedType(Float.class, "attributeInSet(?, ?)", "a", List.of(1.5f, Float.NaN)),
+				() -> assertUnsupportedType(String[].class, "attributeEquals(?, ?)", "a", array),
+				() -> assertUnsupportedType(String[].class, "attributeGreaterThan(?, ?)", "a", array),
+				() -> assertUnsupportedType(String[].class, "attributeGreaterThanEquals(?, ?)", "a", array),
+				() -> assertUnsupportedType(String[].class, "attributeLessThan(?, ?)", "a", array),
+				() -> assertUnsupportedType(String[].class, "attributeLessThanEquals(?, ?)", "a", array),
+				() -> assertUnsupportedType(String[].class, "attributeBetween(?, ?, ?)", "a", array, array),
+				() -> assertUnsupportedType(String[].class, "attributeInSet(?, ?)", "a", List.of("a", array)),
+				() -> assertUnsupportedType(String[].class, "attributeInSet(?, ?)", "a",
+					new Serializable[]{null, array}),
+				() -> assertUnsupportedType(String[].class, "attributeInRange(?, ?)", "a", array),
+				() -> assertUnsupportedType(String[].class, "attributeStartsWith(?, ?)", "a", array),
+				() -> assertUnsupportedType(String[].class, "attributeEndsWith(?, ?)", "a", array),
+				() -> assertUnsupportedType(String[].class, "attributeContains(?, ?)", "a", array),
+				() -> assertUnsupportedType(int[].class, "attributeEquals(?, ?)", "a", new int[]{1}),
+				() -> assertUnsupportedType(ReferencedEntityPredecessor.class, "attributeInSet(?, ?)",
+					"a", List.of(ReferencedEntityPredecessor.HEAD)),
+				() -> assertUnsupportedType(String[].class, "attributeInSet(?, ?, ?)", "a", array, array),
+				() -> assertUnsupportedType(Double.class, "entityPrimaryKeyInSet(?)", 1.5d)
+			);
+		}
+
+		/**
+		 * Checks the diagnostic for a non-finite range point and for either histogram bound.
+		 *
+		 * @param value a non-finite floating-point parameter
+		 */
+		@ParameterizedTest
+		@MethodSource("nonFiniteFloatingPointValues")
+		@DisplayName("Name non-finite floating-point types in range and histogram syntax errors")
+		void shouldRejectNonFiniteRangeAndHistogramValues(@Nonnull Number value) {
+			final Class<?> type = value.getClass();
+			assertAll(
+				() -> assertUnsupportedType(type, "attributeInRange(?, ?)", "validity", value),
+				() -> assertUnsupportedType(type, "histogramHaving(?, ?, ?)", "parameterValues", value, 1),
+				() -> assertUnsupportedType(type, "histogramHaving(?, ?, ?)", "parameterValues", 0, value)
+			);
+		}
+
+		/**
+		 * Provides the non-finite values of each floating-point type.
+		 *
+		 * @return the NaNs and infinities
+		 */
+		@Nonnull
+		static Stream<Number> nonFiniteFloatingPointValues() {
+			return Stream.of(
+				Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY,
+				Float.NaN, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY
+			);
+		}
+
+		/**
+		 * Checks that a positional filter binding fails with a syntax error naming its unsupported type.
+		 *
+		 * @param type the class expected in the error
+		 * @param filter the EvitaQL filter
+		 * @param arguments the positional bindings
+		 */
+		private void assertUnsupportedType(
+			@Nonnull Class<?> type, @Nonnull String filter, @Nonnull Object... arguments
+		) {
+			final EvitaSyntaxException error = assertThrows(
+				EvitaSyntaxException.class, () -> parseFilterConstraint(filter, arguments)
+			);
+			assertTrue(error.getMessage().contains(type.getTypeName()), error::getMessage);
+		}
+
+	}
 
 	@Nested
 	@DisplayName("Logical constraints")
@@ -327,6 +632,7 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertEquals(attributeGreaterThan("a", "c"), constraint5);
 		}
 
+		/** Checks that malformed or unsafe arguments are refused. */
 		@Test
 		@DisplayName("Should not parse invalid attributeGreaterThan constraint")
 		void shouldNotParseAttributeGreaterThanConstraint() {
@@ -339,7 +645,6 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan('a')"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan(1,2)"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan('a',2,3)"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThan('a',SOME_ENUM)"));
 		}
 
 		@Test
@@ -361,6 +666,7 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertEquals(attributeGreaterThanEquals("a", "c"), constraint5);
 		}
 
+		/** Checks that malformed or unsafe arguments are refused. */
 		@Test
 		@DisplayName("Should not parse invalid attributeGreaterThanEquals constraint")
 		void shouldNotParseAttributeGreaterThanEqualsConstraint() {
@@ -373,7 +679,6 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals('a')"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals(1,2)"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals('a',2,3)"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeGreaterThanEquals('a',SOME_ENUM)"));
 		}
 
 		@Test
@@ -395,6 +700,7 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertEquals(attributeLessThan("a", "c"), constraint5);
 		}
 
+		/** Checks that malformed or unsafe arguments are refused. */
 		@Test
 		@DisplayName("Should not parse invalid attributeLessThan constraint")
 		void shouldNotParseAttributeLessThanConstraint() {
@@ -407,7 +713,6 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThan('a')"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThan(1,2)"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThan('a',2,3)"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThan('a',SOME_ENUM)"));
 		}
 
 		@Test
@@ -429,6 +734,7 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertEquals(attributeLessThanEquals("a", "c"), constraint5);
 		}
 
+		/** Checks that malformed or unsafe arguments are refused. */
 		@Test
 		@DisplayName("Should not parse invalid attributeLessThanEquals constraint")
 		void shouldNotParseAttributeLessThanEqualsConstraint() {
@@ -441,7 +747,6 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals('a')"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals(1,2)"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals('a',2,3)"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeLessThanEquals('a',SOME_ENUM)"));
 		}
 
 		@Test
@@ -519,6 +824,7 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertEquals(attributeInSet("a"), constraint8);
 		}
 
+		/** Checks that malformed or unsafe arguments are refused. */
 		@Test
 		@DisplayName("Should not parse invalid attributeInSet constraint")
 		void shouldNotParseAttributeInSetConstraint() {
@@ -529,7 +835,6 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInSet"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInSet()"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInSet(1,2)"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("attributeInSet('a',SOME_ENUM)"));
 		}
 
 		@Test
@@ -796,6 +1101,34 @@ class EvitaQLFilterConstraintVisitorTest {
 
 			final FilterConstraint constraint7 = parseFilterConstraint("attributeInRange(@name,@value)", Map.of("name", "a", "value", 500L));
 			assertEquals(attributeInRange("a", 500L), constraint7);
+		}
+
+		/**
+		 * Compares the parsed range point with the Java factory in both binding modes.
+		 *
+		 * @param point the finite floating-point range point
+		 */
+		@ParameterizedTest
+		@MethodSource("floatingPointRangePoints")
+		@DisplayName("Parse finite floating-point range points in both binding modes")
+		void shouldParseFloatingPointRangePoint(@Nonnull Number point) {
+			final FilterConstraint expected = attributeInRange("validity", point);
+			assertAll(
+				() -> assertEquals(expected, parseFilterConstraint("attributeInRange(?, ?)", "validity", point)),
+				() -> assertEquals(expected, parseFilterConstraint(
+					"attributeInRange(@name, @point)", Map.of("name", "validity", "point", point)
+				))
+			);
+		}
+
+		/**
+		 * Provides a range point for each floating-point type.
+		 *
+		 * @return the finite points to bind
+		 */
+		@Nonnull
+		static Stream<Number> floatingPointRangePoints() {
+			return Stream.of(2.1d, 2.1f);
 		}
 
 		@Test
@@ -1174,6 +1507,43 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("priceInPriceLists"));
 		}
 
+		/**
+		 * A list is the whole list only when it is bound to a lone parameter; as one of several separate values it is
+		 * an item of the wrong type, which is a syntax error rather than an internal error.
+		 */
+		@Test
+		@DisplayName("Should refuse a list bound as one of several price lists")
+		void shouldRefuseListBoundAsOneOfSeveralPriceLists() {
+			final List<String> list = List.of("vip");
+			final String[] array = {"vip"};
+			assertAll(
+				() -> assertRefusedType(
+					list, () -> parseFilterConstraint("priceInPriceLists(?, ?)", list, "basic")
+				),
+				() -> assertRefusedType(
+					array, () -> parseFilterConstraint("priceInPriceLists(?, ?)", "basic", array)
+				),
+				() -> assertRefusedType(
+					list,
+					() -> parseFilterConstraint(
+						"priceInPriceLists(@first, @second)", Map.of("first", list, "second", "basic")
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks that parsing fails with a syntax error naming the runtime type of the value its position refuses,
+		 * which a grammar or arity error would not name.
+		 *
+		 * @param refusedValue the bound value whose type the position does not allow
+		 * @param parsing the parser call that binds the value
+		 */
+		private void assertRefusedType(@Nonnull Object refusedValue, @Nonnull Executable parsing) {
+			final EvitaSyntaxException error = assertThrows(EvitaSyntaxException.class, parsing);
+			assertTrue(error.getMessage().contains(refusedValue.getClass().getTypeName()), error::getMessage);
+		}
+
 		@Test
 		@DisplayName("Should parse priceValidInNow constraint")
 		void shouldParsePriceValidInNowConstraint() {
@@ -1454,6 +1824,38 @@ class EvitaQLFilterConstraintVisitorTest {
 	@Nested
 	@DisplayName("histogramHaving constraint")
 	class HistogramHavingConstraint {
+
+		/**
+		 * Compares parsed histogram bounds with the Java factory in both binding modes.
+		 *
+		 * @param from the lower bound
+		 * @param to the upper bound
+		 */
+		@ParameterizedTest
+		@MethodSource("floatingPointHistogramBounds")
+		@DisplayName("Parse finite floating-point histogram bounds in both binding modes")
+		void shouldParseFloatingPointHistogramBounds(@Nonnull Number from, @Nonnull Number to) {
+			final FilterConstraint expected = histogramHaving("parameterValues", "amountBucket", from, to);
+			assertAll(
+				() -> assertEquals(expected, parseFilterConstraint(
+					"histogramHaving(?, ?, ?, ?)", "parameterValues", "amountBucket", from, to
+				)),
+				() -> assertEquals(expected, parseFilterConstraint(
+					"histogramHaving(@ref, @histogram, @from, @to)",
+					Map.of("ref", "parameterValues", "histogram", "amountBucket", "from", from, "to", to)
+				))
+			);
+		}
+
+		/**
+		 * Provides a pair of decimal bounds for each floating-point type.
+		 *
+		 * @return the finite bound pairs
+		 */
+		@Nonnull
+		static Stream<Arguments> floatingPointHistogramBounds() {
+			return Stream.of(Arguments.of(50.1d, 120.3d), Arguments.of(50.1f, 120.3f));
+		}
 
 		@Test
 		@DisplayName("Should parse the three-argument histogramHaving form (classifier plus from/to bounds)")

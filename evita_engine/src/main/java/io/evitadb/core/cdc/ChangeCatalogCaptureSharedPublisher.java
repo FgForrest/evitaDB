@@ -219,7 +219,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		}
 		// notify all subscriptions that the catalog is now present in the live view
 		// each active subscription is notified to pull new data asynchronously from this instance
-		notifyUnfinishedSubscribers();
+		wakeIdleSubscribers();
 	}
 
 	/**
@@ -249,14 +249,19 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		);
 		// a same-version instance, such as a rename, brings no new version to deliver
 		if (previous.getVersion() < catalog.getVersion()) {
-			notifyUnfinishedSubscribers();
+			wakeIdleSubscribers();
 		}
 	}
 
 	/**
-	 * Wakes every unfinished subscription so it pulls the captures owed up to the current catalog version.
+	 * Wakes unfinished subscriptions that have outstanding demand and an empty delivery queue.
+	 *
+	 * Publications and the observer's periodic cleaner share this path, so even an idle stream retries a refused
+	 * or lost wake-up. {@link DefaultChangeCaptureSubscription#notifySubscriber()} checks eligibility and catches
+	 * executor refusals; the next cleaner tick retries them. Filling remains bounded by the published version,
+	 * and the subscription's existing lock serializes concurrent delivery attempts. No publisher lock is held here.
 	 */
-	private void notifyUnfinishedSubscribers() {
+	public void wakeIdleSubscribers() {
 		for (final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription : this.subscribers.values()) {
 			if (!subscription.isFinished()) {
 				subscription.notifySubscriber();

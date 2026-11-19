@@ -127,7 +127,9 @@ class BuiltInFulltextSamplesTest implements EvitaTestSupport {
 							}
 						}
 					}
-					assertEquals(847, count, name);
+					// the total over the six languages; the Romanian list of Lucene 10 has 24 more entries than the one
+					// of Lucene 9 (the comma-below spellings), 254 instead of 230
+					assertEquals(871, count, name);
 				}
 			});
 		} finally {

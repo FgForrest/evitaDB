@@ -110,6 +110,7 @@ import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.extraResult.translator.reference.EntityFetchContentVerifier;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.response.ServerEntityDecorator;
@@ -887,9 +888,11 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public Optional<SealedEntity> getEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		// a fetch is not planned, so the structural rules `QueryPlanner#planQuery` checks for a query are checked here
-		// - the reference content filters of the requirements are evaluated directly by the reference fetcher
+		// a fetch is not planned, so the structural rules `QueryPlanner#planQuery` checks for a query are checked here,
+		// and so are the names and the locales of the content it asks for - the reference content filters of the
+		// requirements are evaluated directly by the reference fetcher
 		assertScopeUsageValid(evitaRequest);
+		EntityFetchContentVerifier.verifyEntityFetchContent(evitaRequest, getSchema(), this.catalog.getSchema());
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 
 		// record query information
@@ -905,6 +908,7 @@ public final class EntityCollection implements
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		// see `getEntity` - an enrichment is not planned either
 		assertScopeUsageValid(evitaRequest);
+		EntityFetchContentVerifier.verifyEntityFetchContent(evitaRequest, getSchema(), this.catalog.getSchema());
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		// enrichment adds and never subtracts, so the named sets this entity already carries have to survive a
 		// request that does not mention them. They are fetched again rather than carried over: this read may land on
@@ -1008,7 +1012,8 @@ public final class EntityCollection implements
 		@Nonnull EntityMutation entityMutation,
 		@Nonnull EvitaRequest evitaRequest
 	) {
-		// refused before the mutation - the reference fetcher evaluating the requirements runs only after it
+		// refused before the mutation - the reference fetcher evaluating the requirements runs only after it; the
+		// content it asks for is checked in `upsertEntityInternal`, against the schema the mutation may evolve
 		assertScopeUsageValid(evitaRequest);
 		final ServerEntityDecorator internalEntity =
 			wrapToDecorator(
@@ -1049,6 +1054,7 @@ public final class EntityCollection implements
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		// see `upsertAndFetchEntity` - refused before the entity is removed
 		assertScopeUsageValid(evitaRequest);
+		EntityFetchContentVerifier.verifyEntityFetchContent(evitaRequest, getSchema(), this.catalog.getSchema());
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -1097,6 +1103,7 @@ public final class EntityCollection implements
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		// see `upsertAndFetchEntity` - refused before any entity of the hierarchy is removed
 		assertScopeUsageValid(evitaRequest);
+		EntityFetchContentVerifier.verifyEntityFetchContent(evitaRequest, getSchema(), this.catalog.getSchema());
 		final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 		if (globalIndex != null) {
 			final int[] primaryKeys = evitaRequest.getPrimaryKeys();
@@ -1175,6 +1182,7 @@ public final class EntityCollection implements
 	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		// see `upsertAndFetchEntity` - refused before the entity changes its scope
 		assertScopeUsageValid(evitaRequest);
+		EntityFetchContentVerifier.verifyEntityFetchContent(evitaRequest, getSchema(), this.catalog.getSchema());
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -1209,6 +1217,7 @@ public final class EntityCollection implements
 	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		// see `upsertAndFetchEntity` - refused before the entity changes its scope
 		assertScopeUsageValid(evitaRequest);
+		EntityFetchContentVerifier.verifyEntityFetchContent(evitaRequest, getSchema(), this.catalog.getSchema());
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalArchiveIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -2480,8 +2489,8 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Applies limit and enrich logic on provided collection of entities fetched in unknown richness so that they conform
-	 * to passed fetch request. For deep fetching of references, the reference fetcher is used.
+	 * Applies limit and enrich logic on provided collection of entities fetched in unknown richness so that they
+	 * conform to passed fetch request. For deep fetching of references, the reference fetcher is used.
 	 *
 	 * @param entities The collection of sealed entities to be processed.
 	 * @param fetchRequest The request containing the parameters for fetching and limiting the entities.
@@ -4112,6 +4121,19 @@ public final class EntityCollection implements
 
 	/**
 	 * Creates or updates entity and returns its primary key.
+	 *
+	 * The content an `upsertAndFetchEntity` asks for is checked against the schema after the mutation evolved it and
+	 * before the mutation is applied, as a planned query checks it: a refused call writes no entity. The refusal does
+	 * not revert the evolved schema, or a collection created for the entity - they share the fate of the session's
+	 * transaction, which the session marks rollback-only when the refusal escapes its outermost call, and they stay
+	 * in a catalog in warm-up. A plain upsert and the transactional replay fetch nothing, so they check nothing.
+	 *
+	 * @param <T> requested mutation result: a fetched body with I/O counts, an entity reference, or `Void`
+	 * @param session active caller used for schema evolution and mutation processing; `null` during WAL replay
+	 * @param entityMutation changes to validate against the current schema and apply to the entity
+	 * @param returnUpdatedEntity fetch requirements for the updated body; `null` when no body is requested
+	 * @param returnType selects a fetched body with I/O counts, an entity reference, or `Void` for no result
+	 * @return the requested mutation result, or an empty optional when `returnType` is `Void`
 	 */
 	@Nonnull
 	private <T> Optional<T> upsertEntityInternal(
@@ -4166,6 +4188,13 @@ public final class EntityCollection implements
 
 		// check the existence of the primary key and report error when unexpectedly (not) provided
 		final SealedEntitySchema currentSchema = getSchema();
+		// the content a fetching upsert asks for is checked here - against the schema evolved above, and before the
+		// mutation is applied
+		if (returnType == EntityWithFetchCount.class && returnUpdatedEntity != null) {
+			EntityFetchContentVerifier.verifyEntityFetchContent(
+				returnUpdatedEntity, currentSchema, this.catalog.getSchema()
+			);
+		}
 
 		final EntityMutation entityMutationToUpsert;
 		if (entityMutation instanceof ServerEntityUpsertMutation veum) {

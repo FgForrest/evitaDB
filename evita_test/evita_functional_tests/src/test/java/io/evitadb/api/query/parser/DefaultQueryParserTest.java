@@ -33,7 +33,12 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
@@ -99,6 +104,69 @@ class DefaultQueryParserTest {
 					List.of("a", "b")
 				)
 			);
+		}
+
+		/**
+		 * Each positional argument belongs to exactly one placeholder, so a value no placeholder takes is refused
+		 * rather than ignored: it usually means a placeholder was never visited and a later one took its value.
+		 */
+		@Test
+		@DisplayName("should refuse positional arguments that the query does not use")
+		void shouldRefuseUnusedPositionalArguments() {
+			final EvitaSyntaxException exception = assertThrows(
+				EvitaSyntaxException.class,
+				() -> parser.parseQuery("query(collection(?),filterBy(entityPrimaryKeyInSet(?)))", "a", 1, 2)
+			);
+			assertTrue(exception.getMessage().contains("3 positional arguments"), exception.getMessage());
+			assertTrue(exception.getMessage().contains("only 2 positional parameters"), exception.getMessage());
+			assertAll(
+				() -> assertUnusedPositionalArgumentRefused(
+					() -> parser.parseFilterConstraintList("entityPrimaryKeyInSet(?)", 1, 2)
+				),
+				() -> assertUnusedPositionalArgumentRefused(
+					() -> parser.parseHeadConstraintList("collection(?)", "product", "brand")
+				),
+				() -> assertUnusedPositionalArgumentRefused(
+					() -> parser.parseOrderConstraintList("attributeNatural(?)", "code", "name")
+				),
+				() -> assertUnusedPositionalArgumentRefused(
+					() -> parser.parseRequireConstraintList("attributeContent(?)", "code", "name")
+				),
+				() -> assertUnusedPositionalArgumentRefused(
+					() -> parser.parseQueryUnsafe("query(collection(?))", "product", "brand")
+				),
+				() -> assertUnusedPositionalArgumentRefused(() -> parser.parseValue("123", "unused"))
+			);
+		}
+
+		/**
+		 * Checks that parsing fails because a positional argument was not used by any placeholder.
+		 *
+		 * @param parsing a parser call passing one positional argument more than its input uses
+		 */
+		private void assertUnusedPositionalArgumentRefused(@Nonnull Executable parsing) {
+			final EvitaSyntaxException exception = assertThrows(EvitaSyntaxException.class, parsing);
+			assertTrue(
+				exception.getMessage().contains("positional arguments were passed"), exception.getMessage()
+			);
+		}
+
+		/**
+		 * An iterable that can be read only once must be refused rather than reach the filter empty, where it would
+		 * silently match nothing.
+		 */
+		@Test
+		@DisplayName("should refuse a bound iterable that is not a collection")
+		void shouldRefuseBoundIterableThatIsNotCollection() {
+			final Iterator<Integer> once = new ArrayList<>(List.of(7)).iterator();
+			// serializable, so that it passes the type check and would otherwise reach the filter already read
+			final Iterable<Integer> readOnce = (Iterable<Integer> & Serializable) () -> once;
+
+			final EvitaSyntaxException exception = assertThrows(
+				EvitaSyntaxException.class,
+				() -> parser.parseQuery("query(collection(?),filterBy(entityPrimaryKeyInSet(?)))", "a", readOnce)
+			);
+			assertTrue(exception.getMessage().contains("Bind a list or an array"), exception.getMessage());
 		}
 
 		@Test
@@ -1163,7 +1231,8 @@ class DefaultQueryParserTest {
 		@Test
 		@DisplayName("should parse value with named and positional arguments")
 		void shouldParseValueWithNamedAndPositionalArgs() {
-			assertEquals("a", DefaultQueryParserTest.this.parser.parseValue("@name", Map.of("name", "a"), "unused"));
+			// a named argument may stay unused, a positional one may not
+			assertEquals("b", DefaultQueryParserTest.this.parser.parseValue("?", Map.of("name", "a"), "b"));
 		}
 
 		@Test

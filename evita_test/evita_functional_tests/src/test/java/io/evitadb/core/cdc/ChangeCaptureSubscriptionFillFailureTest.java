@@ -477,6 +477,73 @@ class ChangeCaptureSubscriptionFillFailureTest {
 		}
 	}
 
+	/**
+	 * Every caller of {@link DefaultChangeCaptureSubscription#notifySubscriber()} runs on a path that must not fail:
+	 * the publication of a catalog or engine version, the catch-up of a new shared publisher, the tail of a
+	 * subscription and the observer's periodic cleaner. A wake-up the capture executor refuses therefore may neither
+	 * escape nor end the subscription - the subscriber is healthy, only the executor is busy - and the subscription
+	 * keeps waiting with its demand outstanding, so the next notification or cleaner tick wakes it.
+	 */
+	@DisplayName("a wake-up the capture executor refuses must not escape and the next notification must deliver")
+	@Test
+	void shouldKeepTheSubscriptionWaitingWhenTheCaptureExecutorRefusesItsWakeUp() throws InterruptedException {
+		final AtomicBoolean published = new AtomicBoolean(false);
+		final AwaitableCaptureSubscriber<ChangeCatalogCapture> subscriber = new AwaitableCaptureSubscriber<>(1L);
+
+		try (SaturatedCaptureExecutor saturated = new SaturatedCaptureExecutor()) {
+			final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription =
+				new DefaultChangeCaptureSubscription<>(
+					UUID.randomUUID(),
+					16,
+					new WalPointerWithContent(1L, 0, ChangeCaptureContent.HEADER),
+					subscriber,
+					saturated.executor(),
+					// the fill finds the capture only once its version has been published
+					(walPointer, theSubscription, queue) -> {
+						if (published.get()) {
+							queue.offer(createCapture(1L));
+						}
+					},
+					capture -> {
+					},
+					subscriptionId -> {
+					}
+				);
+			// onSubscribe raises the demand and the activation fills the queue once, finding nothing yet
+			subscription.activate();
+			assertTrue(subscriber.getItems().isEmpty(), "A capture was delivered before its version was published.");
+
+			published.set(true);
+			assertDoesNotThrow(
+				subscription::notifySubscriber,
+				"A wake-up the saturated capture executor refused escaped notifySubscriber(). Its callers walk " +
+					"every subscription of every shared publisher while a catalog version is published, so the " +
+					"throw skips the rest of the walk and reaches the publication of a version that is already " +
+					"durable and visible."
+			);
+			assertFalse(
+				subscription.isFinished(),
+				"A refused wake-up ended the subscription. The subscriber did nothing wrong - the executor was busy."
+			);
+			assertNull(subscriber.getError(), "A refused wake-up was reported to the subscriber as an error.");
+			assertTrue(subscriber.getItems().isEmpty(), "A refused wake-up delivered a capture anyway.");
+
+			saturated.release();
+			subscription.notifySubscriber();
+
+			assertTrue(
+				subscriber.awaitUntil(items -> !items.isEmpty(), AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+				"The next notification did not deliver the capture whose wake-up had been refused within " +
+					AWAIT_TIMEOUT_SECONDS + " s. The subscription has to keep waiting with its demand outstanding."
+			);
+			assertEquals(
+				List.of(1L),
+				subscriber.getItems().stream().map(ChangeCatalogCapture::version).toList(),
+				"The next notification delivered something other than the capture that was waiting."
+			);
+		}
+	}
+
 	@DisplayName("the sweep must leave a subscription that is still live exactly as it found it")
 	@Test
 	void shouldLeaveALiveSubscriptionUntouchedBySweep() throws InterruptedException {
@@ -683,8 +750,9 @@ class ChangeCaptureSubscriptionFillFailureTest {
 	}
 
 	/**
-	 * A capture executor in the state that makes the deferred release fail: one worker, occupied, and its single
-	 * queue slot taken, behind the production {@link EvitaRejectingExecutorHandler}.
+	 * A capture executor that refuses every submission until it is released: one worker, occupied, and its single
+	 * queue slot taken, behind the production {@link EvitaRejectingExecutorHandler}. Both the deferred release and
+	 * a wake-up of a subscription fail against it.
 	 *
 	 * The handler is the real one on purpose. The behaviour under test is not "an executor that throws" - it is
 	 * that evitaDB's own rejection policy raises {@link RejectedExecutionException} on a full queue and not only
@@ -694,6 +762,11 @@ class ChangeCaptureSubscriptionFillFailureTest {
 	private static final class SaturatedCaptureExecutor implements AutoCloseable {
 		private final ThreadPoolExecutor executor;
 		private final CountDownLatch releaseWorker = new CountDownLatch(1);
+		/**
+		 * Counts down when the worker takes the task that occupies the single queue slot - from then on the slot is
+		 * free again.
+		 */
+		private final CountDownLatch queueSlotTaken = new CountDownLatch(1);
 
 		SaturatedCaptureExecutor() throws InterruptedException {
 			this.executor = new ThreadPoolExecutor(
@@ -725,13 +798,26 @@ class ChangeCaptureSubscriptionFillFailureTest {
 				"The capture executor never started its only worker, so the fixture is not saturated."
 			);
 			// take the one free queue slot behind the occupied worker
-			this.executor.execute(() -> {
-			});
+			this.executor.execute(this.queueSlotTaken::countDown);
 		}
 
 		@Nonnull
 		ExecutorService executor() {
 			return this.executor;
+		}
+
+		/**
+		 * Lets the occupied worker finish and waits until it has taken the task from the queue slot, so the executor
+		 * accepts the next submission.
+		 *
+		 * @throws InterruptedException when the waiting thread is interrupted
+		 */
+		void release() throws InterruptedException {
+			this.releaseWorker.countDown();
+			assertTrue(
+				this.queueSlotTaken.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+				"The capture executor never took the task from its queue slot, so it is still saturated."
+			);
 		}
 
 		@Override

@@ -27,6 +27,8 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.UnsynchronizedAppenderBase;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.configuration.ChangeDataCaptureOptions;
+import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
@@ -34,6 +36,8 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.executor.ImmediateExecutorService;
+import io.evitadb.core.executor.ObservableThreadExecutor;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -50,6 +54,8 @@ import java.nio.file.Files;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -59,8 +65,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -74,9 +82,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Direct tests verify that catch-up wakes an existing subscriber and never moves the catalog backwards, even
  * between different instances of the same version.
  *
+ * A publication must also reach every shared publisher when the capture executor refuses to wake their subscribers.
+ * That executor is the bounded request pool, which refuses work when it is saturated, and the publication runs in the
+ * commit pipeline after the version is already durable and visible.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Catalog change observer publication during shared publisher creation")
+@DisplayName("Catalog change observer publication to its shared publishers")
 @Tag(ENGINE)
 @Tag(CDC)
 class CatalogChangeObserverPublicationRaceTest implements EvitaTestSupport {
@@ -421,6 +433,174 @@ class CatalogChangeObserverPublicationRaceTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Publishes a version to two shared publishers while the capture executor is saturated, as the request pool
+	 * backing it is under load. Each publisher has a subscriber waiting for that version, so the publication tries to
+	 * wake both and the executor refuses both wake-ups. The publication must still reach every publisher and return
+	 * normally. Once the executor has room again, the next published version must deliver the waiting capture to both
+	 * subscribers.
+	 */
+	@Test
+	@DisplayName("should reach every publisher and return normally when the capture executor refuses the wake-ups")
+	void shouldPublishToEveryPublisherWhenCaptureExecutorRefusesWakeUps() throws Exception {
+		final Catalog stale = liveCatalog();
+		final long expectedVersion = stale.getVersion() + 1;
+		// one worker and a backlog of two, so the two wake-ups of the next publication fit once it is drained
+		final int backlogSize = 2;
+		final ObservableThreadExecutor captureExecutor = new ObservableThreadExecutor(
+			"cdc-refused-wake-test", new ThreadPoolOptions(1, 1, Thread.NORM_PRIORITY, backlogSize), false
+		);
+		final ScheduledThreadPoolExecutor cleanerPool = new ScheduledThreadPoolExecutor(
+			1,
+			runnable -> {
+				final Thread thread = new Thread(runnable, "cdc-refused-wake-cleaner");
+				thread.setDaemon(true);
+				return thread;
+			}
+		);
+		final CountDownLatch workerBusy = new CountDownLatch(1);
+		final CountDownLatch releaseWorker = new CountDownLatch(1);
+		final CountDownLatch backlogDrained = new CountDownLatch(1);
+		final CatalogChangeObserver observer = new CatalogChangeObserver(
+			ChangeDataCaptureOptions.builder().build(), captureExecutor, new Scheduler(cleanerPool), stale
+		);
+		try {
+			final AwaitableCaptureSubscriber<ChangeCatalogCapture> productSubscriber =
+				new AwaitableCaptureSubscriber<>(1L);
+			final AwaitableCaptureSubscriber<ChangeCatalogCapture> entitySubscriber =
+				new AwaitableCaptureSubscriber<>(1L);
+			final ChangeCatalogCapturePublisher productFacade =
+				registerCapture(observer, productCriteria(), expectedVersion);
+			final ChangeCatalogCapturePublisher entityFacade =
+				registerCapture(observer, entityCriteria(), expectedVersion);
+			productFacade.subscribe(productSubscriber);
+			entityFacade.subscribe(entitySubscriber);
+			final ChangeCatalogCaptureSharedPublisher productPublisher = productFacade.getSharedPublisher();
+			final ChangeCatalogCaptureSharedPublisher entityPublisher = entityFacade.getSharedPublisher();
+			assertNotSame(
+				productPublisher, entityPublisher, "Different criteria must be served by different shared publishers."
+			);
+
+			commitProduct(1);
+			final Catalog fresh = liveCatalog();
+			assertEquals(expectedVersion, fresh.getVersion());
+
+			// occupy the only worker, then fill the backlog behind it - its last task frees the backlog when it runs
+			captureExecutor.execute(
+				captureExecutor.createTask(
+					"busy-worker",
+					() -> {
+						workerBusy.countDown();
+						try {
+							releaseWorker.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+						} catch (InterruptedException ex) {
+							Thread.currentThread().interrupt();
+						}
+					}
+				)
+			);
+			assertTrue(
+				workerBusy.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+				"The capture executor never started its only worker, so it is not saturated."
+			);
+			captureExecutor.execute(captureExecutor.createTask("queued", () -> { }));
+			captureExecutor.execute(captureExecutor.createTask("last-queued", backlogDrained::countDown));
+			assertThrows(
+				RejectedExecutionException.class,
+				() -> captureExecutor.execute(captureExecutor.createTask("probe", () -> { })),
+				"The capture executor accepted a task although its worker is busy and its backlog full."
+			);
+			final long rejectedBefore = captureExecutor.getRejectedTaskCount();
+
+			final AtomicReference<Throwable> escaped = new AtomicReference<>();
+			try {
+				observer.notifyCatalogPresentInLiveView(fresh);
+			} catch (Throwable ex) {
+				escaped.set(ex);
+			}
+
+			final String unreachedPublisher = "The publication never reached this shared publisher: the refused " +
+				"wake-up of the other publisher's subscriber aborted the observer's walk over its publishers. Every " +
+				"later read of this publisher stops at the previous version until another commit is published.";
+			assertSame(fresh, productPublisher.getCatalog(), unreachedPublisher);
+			assertSame(fresh, entityPublisher.getCatalog(), unreachedPublisher);
+			assertNull(
+				escaped.get(),
+				"A refused wake-up escaped the publication. TransactionManager#notifyCatalogPresentInLiveView " +
+					"calls the observer in the commit pipeline after the version is durable and visible, so the " +
+					"throw reports a successful commit as failed."
+			);
+			assertEquals(
+				rejectedBefore + 2, captureExecutor.getRejectedTaskCount(),
+				"The publication did not try to wake both waiting subscribers."
+			);
+			assertTrue(productSubscriber.getItems().isEmpty(), "A capture arrived although its wake-up was refused.");
+			assertTrue(entitySubscriber.getItems().isEmpty(), "A capture arrived although its wake-up was refused.");
+
+			releaseWorker.countDown();
+			assertTrue(
+				backlogDrained.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+				"The capture executor never drained its backlog, so it still refuses work."
+			);
+			commitProduct(2);
+			observer.notifyCatalogPresentInLiveView(liveCatalog());
+
+			assertWaitingCaptureDelivered(productSubscriber, expectedVersion);
+			assertWaitingCaptureDelivered(entitySubscriber, expectedVersion);
+		} finally {
+			releaseWorker.countDown();
+			observer.close();
+			captureExecutor.shutdownNow();
+			cleanerPool.shutdownNow();
+		}
+	}
+
+	/**
+	 * Registers a facade for captures matching the criteria from the given version in the observer.
+	 *
+	 * @param observer     the observer to register the facade in
+	 * @param criteria     the criteria the captures must match
+	 * @param sinceVersion the version of the first capture
+	 * @return the registered facade
+	 */
+	@Nonnull
+	private static ChangeCatalogCapturePublisher registerCapture(
+		@Nonnull CatalogChangeObserver observer,
+		@Nonnull ChangeCatalogCaptureCriteria criteria,
+		long sinceVersion
+	) {
+		return (ChangeCatalogCapturePublisher) observer.registerObserver(
+			ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(sinceVersion)
+				.content(ChangeCaptureContent.BODY)
+				.criteria(criteria)
+				.build()
+		);
+	}
+
+	/**
+	 * Asserts that the subscriber receives the capture of the given version, which it has been waiting for.
+	 *
+	 * @param subscriber      the subscriber waiting for the capture
+	 * @param expectedVersion the version of the capture
+	 * @throws InterruptedException when the waiting thread is interrupted
+	 */
+	private static void assertWaitingCaptureDelivered(
+		@Nonnull AwaitableCaptureSubscriber<ChangeCatalogCapture> subscriber,
+		long expectedVersion
+	) throws InterruptedException {
+		final boolean arrived = subscriber.awaitUntil(
+			items -> !items.isEmpty(), AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS
+		);
+		assertNull(subscriber.getError(), "The subscriber failed while waiting for the capture.");
+		assertTrue(
+			arrived,
+			"The next publication did not deliver the capture whose wake-up had been refused within " +
+				AWAIT_TIMEOUT_SECONDS + " seconds."
+		);
+		assertEquals(expectedVersion, subscriber.getItems().get(0).version());
+	}
+
+	/**
 	 * Returns the catalog instance currently present in the live view.
 	 */
 	@Nonnull
@@ -440,10 +620,19 @@ class CatalogChangeObserverPublicationRaceTest implements EvitaTestSupport {
 	 * Commits one matching product and returns once the new catalog version is visible.
 	 */
 	private void commitProduct() {
+		commitProduct(1);
+	}
+
+	/**
+	 * Commits one matching product with the given primary key and returns once the new catalog version is visible.
+	 *
+	 * @param primaryKey the primary key of the product
+	 */
+	private void commitProduct(int primaryKey) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.upsertEntity(session.createNewEntity(Entities.PRODUCT, 1));
+				session.upsertEntity(session.createNewEntity(Entities.PRODUCT, primaryKey));
 			},
 			CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
 		);
@@ -474,6 +663,17 @@ class CatalogChangeObserverPublicationRaceTest implements EvitaTestSupport {
 	private static ChangeCatalogCaptureCriteria productCriteria() {
 		return ChangeCatalogCaptureCriteria.builder()
 			.dataArea(site -> site.entityType(Entities.PRODUCT).containerType(ContainerType.ENTITY))
+			.build();
+	}
+
+	/**
+	 * Returns criteria matching every data capture of the product entity, whatever its container. They differ from
+	 * {@link #productCriteria()}, so the observer serves them by a shared publisher of their own.
+	 */
+	@Nonnull
+	private static ChangeCatalogCaptureCriteria entityCriteria() {
+		return ChangeCatalogCaptureCriteria.builder()
+			.dataArea(site -> site.entityType(Entities.PRODUCT))
 			.build();
 	}
 

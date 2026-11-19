@@ -108,7 +108,7 @@ public class EntityFetchTranslator implements RequireConstraintTranslator<Entity
 					);
 				} else if (require instanceof AssociatedDataContent associatedDataContent) {
 					AssociatedDataContentTranslator.verifyAssociatedData(
-						associatedDataContent, entitySchema, extraResultPlanner, fetchRequest
+						associatedDataContent, entitySchema, fetchRequest
 					);
 				} else if (require instanceof ReferenceContent referenceContent) {
 					final Collection<ReferenceSchemaContract> referencedEntityReferenceSchemas = referenceContent.isAllRequested() ?

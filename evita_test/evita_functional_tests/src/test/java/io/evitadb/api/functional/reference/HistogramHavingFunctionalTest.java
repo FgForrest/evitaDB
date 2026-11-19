@@ -24,9 +24,11 @@
 package io.evitadb.api.functional.reference;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.HistogramHaving;
 import io.evitadb.api.query.filter.UserFilter;
+import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -58,12 +60,16 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeBetween;
@@ -395,6 +401,56 @@ public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 	@Nested
 	@DisplayName("Two sliders on the same reference, no contraction")
 	class ReferenceHistogramTwoSlidersNoContraction {
+
+		/**
+		 * Checks that both query forms select the same products through the grouped histogram index.
+		 *
+		 * @param from the floating-point lower bound
+		 * @param to the floating-point upper bound
+		 * @param expectedKeys the expected product primary keys
+		 * @param evita the embedded database containing the reference histogram
+		 */
+		@ParameterizedTest
+		@MethodSource("floatingPointHistogramBounds")
+		@UseDataSet(HISTOGRAM_HAVING_DATA_SET)
+		@DisplayName("Return the same primary keys for Java and EvitaQL floating-point histogram bounds")
+		void shouldReturnSamePrimaryKeysForFloatingPointHistogramBounds(
+			@Nonnull Number from, @Nonnull Number to, @Nonnull int[] expectedKeys, @Nonnull Evita evita
+		) {
+			final Query javaQuery = query(
+				collection(ENTITY_PRODUCT),
+				filterBy(userFilter(histogramHaving(
+					REF_PARAM_VALUES, HISTOGRAM_PARAM_VALUES, from, to,
+					groupHaving(attributeEquals(ATTR_CODE, GROUP_HEIGHT_CODE))
+				)))
+			);
+			final Query evitaQlQuery = DefaultQueryParser.getInstance().parseQuery(
+				"""
+					query(collection(?), filterBy(userFilter(
+						histogramHaving(?, ?, ?, ?, groupHaving(attributeEquals(?, ?)))
+					)))
+					""",
+				ENTITY_PRODUCT, REF_PARAM_VALUES, HISTOGRAM_PARAM_VALUES, from, to, ATTR_CODE, GROUP_HEIGHT_CODE
+			);
+			assertEquals(javaQuery, evitaQlQuery);
+			try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+				assertArrayEquals(expectedKeys, session.queryEntityReference(javaQuery).getPrimaryKeys());
+				assertArrayEquals(expectedKeys, session.queryEntityReference(evitaQlQuery).getPrimaryKeys());
+			}
+		}
+
+		/**
+		 * Supplies decimal slider bounds for each floating-point type.
+		 *
+		 * @return pairs of bounds and the product primary keys they select
+		 */
+		@Nonnull
+		static Stream<Arguments> floatingPointHistogramBounds() {
+			return Stream.of(
+				Arguments.of(10.1d, 100.1d, new int[]{2, 3}),
+				Arguments.of(49.9f, 50.1f, new int[]{2})
+			);
+		}
 
 		@Test
 		@UseDataSet(HISTOGRAM_HAVING_DATA_SET)

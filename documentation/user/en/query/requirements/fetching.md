@@ -423,7 +423,13 @@ of the reference filter encloses it, followed by the reference filter's locale a
 A `dataInLocales` requirement also supplies a locale context: the one in the body's own fetch, or, when that fetch
 names none, the one of the enclosing fetch. Entity and group bodies are separate levels: `entityHaving` does not
 supply the group's locale. Named localized attributes and associated data require a resolved locale or a
-`dataInLocales` that reaches their fetch level.
+`dataInLocales` that reaches their fetch level. Otherwise, fetching a named localized attribute or associated data
+throws `EntityLocaleMissingException` (attributes unique in any requested scope retain the implicit-locale exemption).
+This rule also applies to direct `getEntity` calls, fetching mutations, reference attributes at the owner's level,
+and hierarchy parent bodies. Unknown attribute, associated data and reference names are rejected even when no entity
+or reference row exists. Bulk `attributeContentAll()` and `associatedDataContentAll()` without a locale are accepted
+and return only non-localized data. A named localized leaf beside bulk content still requires a locale; validation
+checks the requirements as written.
 
 <Note type="info">
 

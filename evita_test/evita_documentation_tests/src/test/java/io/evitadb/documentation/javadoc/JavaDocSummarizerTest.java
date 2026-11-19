@@ -219,7 +219,9 @@ class JavaDocSummarizerTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should strip carriage return from Windows-style line endings")
 		void shouldStripCarriageReturnFromWindowsLineEndings() {
-			final List<String> result = JavaDocSummarizer.formatJavaDoc("Line one.\r\nLine two.", TEST_CONSTRAINT_CLASS);
+			final List<String> result = JavaDocSummarizer.formatJavaDoc(
+				"Line one.\r\nLine two.", TEST_CONSTRAINT_CLASS
+			);
 
 			assertEquals("\t * Line one.", result.get(1));
 			assertEquals("\t * Line two.", result.get(2));
@@ -239,6 +241,53 @@ class JavaDocSummarizerTest implements EvitaTestSupport {
 				"Body lines must not contain unescaped */ — it breaks JavaDoc structure"
 			);
 			assertEquals("\t * Use pattern a/b * / end.", result.get(1));
+		}
+
+		@Test
+		@DisplayName("should insert an empty line before the user documentation link when the summary has none")
+		void shouldInsertEmptyLineBeforeUserDocsLink() {
+			final List<String> result = JavaDocSummarizer.formatJavaDoc(
+				"Summary.\n```evitaql\nfoo(1)\n```\n[Visit detailed user documentation](https://evitadb.io/docs/foo)",
+				TEST_CONSTRAINT_CLASS
+			);
+
+			assertEquals(
+				List.of(
+					"\t/**",
+					"\t * Summary.",
+					"\t * ```evitaql",
+					"\t * foo(1)",
+					"\t * ```",
+					"\t *",
+					"\t * [Visit detailed user documentation](https://evitadb.io/docs/foo)",
+					"\t *",
+					"\t * @see " + TEST_CONSTRAINT_CLASS,
+					"\t */"
+				),
+				result
+			);
+		}
+
+		@Test
+		@DisplayName("should keep a single empty line before the user documentation link")
+		void shouldKeepSingleEmptyLineBeforeUserDocsLink() {
+			final List<String> result = JavaDocSummarizer.formatJavaDoc(
+				"Summary.\n\n[Visit detailed user documentation](https://evitadb.io/docs/foo)",
+				TEST_CONSTRAINT_CLASS
+			);
+
+			assertEquals(
+				List.of(
+					"\t/**",
+					"\t * Summary.",
+					"\t *",
+					"\t * [Visit detailed user documentation](https://evitadb.io/docs/foo)",
+					"\t *",
+					"\t * @see " + TEST_CONSTRAINT_CLASS,
+					"\t */"
+				),
+				result
+			);
 		}
 	}
 
@@ -292,6 +341,93 @@ class JavaDocSummarizerTest implements EvitaTestSupport {
 			final String signature = JavaDocSummarizer.buildMethodSignature(method);
 
 			assertEquals("void process(String... items)", signature);
+		}
+
+		@Test
+		@DisplayName("should leave annotations out of the signature, which the source hash covers")
+		void shouldLeaveAnnotationsOutOfSignature() {
+			final JavaMethod method = parseMethod(
+				"public class Foo {\n" +
+					"  @SourceHash(\"abc123def456abc123def456abc12345\")\n" +
+					"  @Nullable\n" +
+					"  public static Bar of(@Nullable Integer key) { return null; }\n" +
+					"}"
+			);
+
+			final String signature = JavaDocSummarizer.buildMethodSignature(method);
+
+			assertEquals("Bar of(Integer key)", signature);
+		}
+	}
+
+	@Nested
+	@DisplayName("Method source building")
+	class MethodSourceBuildingTest {
+
+		@Test
+		@DisplayName("should include the method and parameter annotations and the body")
+		void shouldIncludeAnnotationsAndBody() {
+			final JavaMethod method = parseMethod(
+				"public class Foo {\n" +
+					"  @Nullable\n" +
+					"  public static Bar of(@Nonnull String name, @Nullable Integer... keys) {\n" +
+					"    return keys == null ? null : new Bar(name, keys);\n" +
+					"  }\n" +
+					"}"
+			);
+
+			final String source = JavaDocSummarizer.buildMethodSource(method);
+
+			assertTrue(
+				source.startsWith("@Nullable\nBar of(@Nonnull String name, @Nullable Integer... keys) {"),
+				"The source should start with the annotated declaration, but was: " + source
+			);
+			assertTrue(
+				source.contains("return keys == null ? null : new Bar(name, keys);"),
+				"The source should contain the method body, but was: " + source
+			);
+			assertTrue(source.endsWith("}"), "The source should end with the closing brace, but was: " + source);
+		}
+
+		@Test
+		@DisplayName("should leave out the @SourceHash annotation")
+		void shouldLeaveOutSourceHashAnnotation() {
+			final JavaMethod method = parseMethod(
+				"public class Foo {\n" +
+					"  @SourceHash(\"abc123def456abc123def456abc12345\")\n" +
+					"  @Nullable\n" +
+					"  public static Bar of(Integer key) { return null; }\n" +
+					"}"
+			);
+
+			final String source = JavaDocSummarizer.buildMethodSource(method);
+
+			assertFalse(source.contains("SourceHash"), "The source should not name @SourceHash, but was: " + source);
+			assertTrue(source.startsWith("@Nullable\nBar of(Integer key) {"), "Unexpected source: " + source);
+		}
+	}
+
+	@Nested
+	@DisplayName("User message building")
+	class UserMessageBuildingTest {
+
+		@Test
+		@DisplayName("should pass the class JavaDoc, the signature, the method source and the docs link")
+		void shouldPassAllInputsToModel() {
+			final MethodInfo method = new MethodInfo(
+				8, "Bar of(Integer key)", "@Nullable\nBar of(@Nullable Integer key) { return null; }",
+				"Class doc.", TEST_CONSTRAINT_CLASS, "/docs/bar", null
+			);
+
+			final String message = JavaDocSummarizer.buildUserMessage(method);
+
+			assertEquals(
+				"Constraint class JavaDoc:\n---\nClass doc.\n---\n\n" +
+					"Factory method signature:\nBar of(Integer key)\n\n" +
+					"Factory method source:\n---\n@Nullable\nBar of(@Nullable Integer key) { return null; }\n---\n\n" +
+					"User documentation link path: /docs/bar",
+				message
+			);
 		}
 	}
 
@@ -394,7 +530,7 @@ class JavaDocSummarizerTest implements EvitaTestSupport {
 
 			final Map<MethodInfo, String> summaries = new LinkedHashMap<>(1);
 			summaries.put(
-				new MethodInfo(8, "Foo foo()", "constraint doc", TEST_CONSTRAINT_CLASS, "/docs/foo", null),
+				new MethodInfo(8, "Foo foo()", "", "constraint doc", TEST_CONSTRAINT_CLASS, "/docs/foo", null),
 				"New summary."
 			);
 
@@ -424,7 +560,7 @@ class JavaDocSummarizerTest implements EvitaTestSupport {
 			final String methodSig = "Foo foo()";
 			final Map<MethodInfo, String> summaries = new LinkedHashMap<>(1);
 			summaries.put(
-				new MethodInfo(8, methodSig, constraintDoc, TEST_CONSTRAINT_CLASS, "/docs/foo", null),
+				new MethodInfo(8, methodSig, "", constraintDoc, TEST_CONSTRAINT_CLASS, "/docs/foo", null),
 				"Summary."
 			);
 
@@ -458,7 +594,10 @@ class JavaDocSummarizerTest implements EvitaTestSupport {
 			final String methodSig = "Foo foo()";
 			final Map<MethodInfo, String> summaries = new LinkedHashMap<>(1);
 			summaries.put(
-				new MethodInfo(9, methodSig, constraintDoc, TEST_CONSTRAINT_CLASS, "/docs/foo", "oldhash1234567890oldhash12345678"),
+				new MethodInfo(
+					9, methodSig, "", constraintDoc, TEST_CONSTRAINT_CLASS, "/docs/foo",
+					"oldhash1234567890oldhash12345678"
+				),
 				"Updated summary."
 			);
 
@@ -488,7 +627,7 @@ class JavaDocSummarizerTest implements EvitaTestSupport {
 
 			final Map<MethodInfo, String> summaries = new LinkedHashMap<>(1);
 			summaries.put(
-				new MethodInfo(9, "Foo foo()", "constraint doc", TEST_CONSTRAINT_CLASS, "/docs/foo", null),
+				new MethodInfo(9, "Foo foo()", "", "constraint doc", TEST_CONSTRAINT_CLASS, "/docs/foo", null),
 				"New summary."
 			);
 
@@ -521,11 +660,11 @@ class JavaDocSummarizerTest implements EvitaTestSupport {
 
 			final Map<MethodInfo, String> summaries = new LinkedHashMap<>(2);
 			summaries.put(
-				new MethodInfo(8, "Foo foo()", "doc1", TEST_CONSTRAINT_CLASS, "/docs/foo", null),
+				new MethodInfo(8, "Foo foo()", "", "doc1", TEST_CONSTRAINT_CLASS, "/docs/foo", null),
 				"First new."
 			);
 			summaries.put(
-				new MethodInfo(13, "Bar bar()", "doc2", TEST_CONSTRAINT_CLASS, "/docs/bar", null),
+				new MethodInfo(13, "Bar bar()", "", "doc2", TEST_CONSTRAINT_CLASS, "/docs/bar", null),
 				"Second new."
 			);
 
@@ -563,7 +702,10 @@ class JavaDocSummarizerTest implements EvitaTestSupport {
 
 			final Map<MethodInfo, String> summaries = new LinkedHashMap<>(1);
 			summaries.put(
-				new MethodInfo(10, "Foo foo()", "doc", TEST_CONSTRAINT_CLASS, "/docs/foo", "oldhash1234567890oldhash12345678"),
+				new MethodInfo(
+					10, "Foo foo()", "", "doc", TEST_CONSTRAINT_CLASS, "/docs/foo",
+					"oldhash1234567890oldhash12345678"
+				),
 				"New summary."
 			);
 

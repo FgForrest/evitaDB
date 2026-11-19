@@ -72,7 +72,12 @@ import static java.util.Optional.ofNullable;
  * - **Null Handling**: A null value omits its constraint unless the constraint gives null a meaning (an open bound,
  *   the default page). A null or blank name throws `EvitaInvalidUsageException`. A null enum selects its documented
  *   default and throws only where there is none (`inScope`, the special value of `attributeIs`, the mode of
- *   `priceContent`).
+ *   `priceContent`). A single nullable variable in `entityPrimaryKeyInSet(id)`, `attributeInSet("code", value)` or
+ *   `priceInPriceLists(priceList)` binds to the single-value overload and leaves the filter out if it is null.
+ * - **Attribute Values**: Comparisons take scalar values. An attribute value list can be supplied as scalar items
+ *   or as a single array, with primitive elements boxed; an array among other items is refused. Chain predecessors
+ *   (`Predecessor`, `ReferencedEntityPredecessor`) are refused as query values: order by a chain with
+ *   `attributeNatural`.
  * - **Consistency**: Provides a uniform API across all constraint types (head, filter, order, require).
  *
  * **Usage Pattern:**
@@ -125,8 +130,10 @@ import static java.util.Optional.ofNullable;
  * - **Immutability**: All constraint objects returned by these factory methods are immutable. Modifying a query
  *   requires constructing a new constraint tree.
  * - **Null Tolerance**: Nullable values allow conditional query building. Null items of a value list are ignored,
- *   and so are blank price-list names: a null filter value list omits the filter, one with only null items matches
- *   nothing, and elsewhere a null list means an empty one. A null or blank item of a name or enum list throws.
+ *   and so are blank price-list names. A null filter value list omits the filter. An explicit filter value list
+ *   of only nulls, such as `f(null, null)` or an array containing only nulls, matches nothing. EvitaQL treats a lone
+ *   parameter bound to a scalar or null as one value. Elsewhere a null list means an empty one.
+ *   A null or blank item of a name or enum list throws.
  *   A container that means nothing without children is omitted when all its children were omitted.
  * - **Validation**: Factory methods perform basic validation (e.g., non-null checks for mandatory parameters) but
  *   do not validate against schema — schema validation occurs at query execution time.
@@ -413,6 +420,8 @@ public interface QueryConstraints {
 	static <T extends Serializable> AttributeBetween attributeBetween(@Nonnull String attributeName, @Nullable T from,
 		@Nullable T to) {
 		requireName(attributeName, "attributeName");
+		requireScalarAttributeValue(attributeName, from);
+		requireScalarAttributeValue(attributeName, to);
 		if (from == null && to == null) {
 			return null;
 		} else {
@@ -498,6 +507,7 @@ public interface QueryConstraints {
 	static <T extends Serializable> AttributeEquals attributeEquals(@Nonnull String attributeName,
 		@Nullable T attributeValue) {
 		requireName(attributeName, "attributeName");
+		requireScalarAttributeValue(attributeName, attributeValue);
 		return attributeValue == null ? null : new AttributeEquals(attributeName, attributeValue);
 	}
 
@@ -519,6 +529,7 @@ public interface QueryConstraints {
 	static <T extends Serializable> AttributeLessThan attributeLessThan(@Nonnull String attributeName,
 		@Nullable T attributeValue) {
 		requireName(attributeName, "attributeName");
+		requireScalarAttributeValue(attributeName, attributeValue);
 		return attributeValue == null ? null : new AttributeLessThan(attributeName, attributeValue);
 	}
 
@@ -540,6 +551,7 @@ public interface QueryConstraints {
 	static <T extends Serializable> AttributeLessThanEquals attributeLessThanEquals(@Nonnull String attributeName,
 		@Nullable T attributeValue) {
 		requireName(attributeName, "attributeName");
+		requireScalarAttributeValue(attributeName, attributeValue);
 		return attributeValue == null ? null : new AttributeLessThanEquals(attributeName, attributeValue);
 	}
 
@@ -561,6 +573,7 @@ public interface QueryConstraints {
 	static <T extends Serializable> AttributeGreaterThan attributeGreaterThan(@Nonnull String attributeName,
 		@Nullable T attributeValue) {
 		requireName(attributeName, "attributeName");
+		requireScalarAttributeValue(attributeName, attributeValue);
 		return attributeValue == null ? null : new AttributeGreaterThan(attributeName, attributeValue);
 	}
 
@@ -582,6 +595,7 @@ public interface QueryConstraints {
 	static <T extends Serializable> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nonnull String attributeName,
 		@Nullable T attributeValue) {
 		requireName(attributeName, "attributeName");
+		requireScalarAttributeValue(attributeName, attributeValue);
 		return attributeValue == null ? null : new AttributeGreaterThanEquals(attributeName, attributeValue);
 	}
 
@@ -613,6 +627,29 @@ public interface QueryConstraints {
 			return new PriceInPriceLists();
 		}
 		return new PriceInPriceLists(normalizedPriceList);
+	}
+
+	/**
+	 * Filters entities to those with at least one price in the given price list. It is the single price list form of
+	 * `priceInPriceLists`: only one such constraint is allowed per query, and it cannot be nested in user filters.
+	 * A null or blank price list returns null, and the constraint is then left out of the query.
+	 *
+	 * ```evitaql
+	 * filterBy(
+	 *   priceInPriceLists("basic")
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/price#price-in-price-lists)
+	 *
+	 * @param priceList the price list to match
+	 * @return the price list filter, or null when the price list is null or blank
+	 * @see io.evitadb.api.query.filter.PriceInPriceLists
+	 */
+	@SourceHash("28bb219ae6dc8bc77cb5a144fb6de65a")
+	@Nullable
+	static PriceInPriceLists priceInPriceLists(@Nullable String priceList) {
+		return priceList == null || priceList.isBlank() ? null : new PriceInPriceLists(priceList);
 	}
 
 	/**
@@ -1003,8 +1040,41 @@ public interface QueryConstraints {
 	@Nullable
 	static <T extends Serializable> AttributeInSet attributeInSet(@Nonnull String attributeName, @Nullable T... set) {
 		requireName(attributeName, "attributeName");
-		final T[] normalizedSet = withoutNullValues(set);
+		final Serializable[] normalizedSet = normalizeAttributeValues(attributeName, set);
 		return normalizedSet == null ? null : new AttributeInSet(attributeName, normalizedSet);
+	}
+
+	/**
+	 * Filters entities whose attribute equals the given value; an array attribute matches when any of its items does.
+	 * It is the single value form of `attributeInSet`: an array passed as the value is the list of values, as if its
+	 * items were passed one by one. A null value returns null, and the constraint is then left out of the query.
+	 *
+	 * ```evitaql
+	 * filterBy(
+	 *   attributeInSet("status", "PUBLISHED")
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#attribute-in-set)
+	 *
+	 * @param attributeName  name of the attribute to match
+	 * @param attributeValue the value to match, or an array of the values to match
+	 * @param <T>            type of the attribute value
+	 * @return the attribute filter, or null when the value is null
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the attribute name is null or blank, or when the
+	 *                                                         value is of a type the engine cannot compare
+	 * @see io.evitadb.api.query.filter.AttributeInSet
+	 */
+	@SourceHash("dbf823e37c7cfe250efd7abdaf3b5e67")
+	@Nullable
+	static <T extends Serializable> AttributeInSet attributeInSet(
+		@Nonnull String attributeName, @Nullable T attributeValue
+	) {
+		requireName(attributeName, "attributeName");
+		return attributeValue == null ? null :
+			new AttributeInSet(
+				attributeName, normalizeAttributeValues(attributeName, new Serializable[]{attributeValue})
+			);
 	}
 
 	/**
@@ -1214,7 +1284,7 @@ public interface QueryConstraints {
 		if (from == null && to == null) {
 			return null;
 		}
-		return new HistogramHaving(referenceName, null, toBigDecimal(from), toBigDecimal(to), null);
+		return new HistogramHaving(referenceName, null, toHistogramBound(from), toHistogramBound(to), null);
 	}
 
 	/**
@@ -1242,7 +1312,7 @@ public interface QueryConstraints {
 		if (from == null && to == null) {
 			return null;
 		}
-		return new HistogramHaving(referenceName, histogramName, toBigDecimal(from), toBigDecimal(to), null);
+		return new HistogramHaving(referenceName, histogramName, toHistogramBound(from), toHistogramBound(to), null);
 	}
 
 	/**
@@ -1272,7 +1342,7 @@ public interface QueryConstraints {
 		if (from == null && to == null) {
 			return null;
 		}
-		return new HistogramHaving(referenceName, null, toBigDecimal(from), toBigDecimal(to), groupHaving);
+		return new HistogramHaving(referenceName, null, toHistogramBound(from), toHistogramBound(to), groupHaving);
 	}
 
 	/**
@@ -1305,22 +1375,9 @@ public interface QueryConstraints {
 		if (from == null && to == null) {
 			return null;
 		}
-		return new HistogramHaving(referenceName, histogramName, toBigDecimal(from), toBigDecimal(to), groupHaving);
-	}
-
-	/**
-	 * Converts an arbitrary {@link Number} to {@link BigDecimal} losslessly for the histogram-bound
-	 * factories above. {@code BigDecimal} round-trips through {@code Number#toString()} preserves the
-	 * exact decimal representation for every Evita-supported numeric type (Byte/Short/Integer/Long via
-	 * their integral string form, BigDecimal via its own string form), avoiding the precision loss that
-	 * {@code BigDecimal.valueOf(double)} would introduce for non-trivial decimals.
-	 */
-	@Nullable
-	private static BigDecimal toBigDecimal(@Nullable Number value) {
-		if (value == null) {
-			return null;
-		}
-		return value instanceof BigDecimal bd ? bd : new BigDecimal(value.toString());
+		return new HistogramHaving(
+			referenceName, histogramName, toHistogramBound(from), toHistogramBound(to), groupHaving
+		);
 	}
 
 	/**
@@ -1403,6 +1460,29 @@ public interface QueryConstraints {
 	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable Integer... primaryKey) {
 		final Integer[] normalizedPrimaryKey = withoutNullValues(primaryKey);
 		return normalizedPrimaryKey == null ? null : new EntityPrimaryKeyInSet(normalizedPrimaryKey);
+	}
+
+	/**
+	 * Filters entities by an exact match on the given primary key, the fastest lookup evitaDB offers. It is the single
+	 * key form of `entityPrimaryKeyInSet`. A null primary key returns null, and the constraint is then left out of
+	 * the query.
+	 *
+	 * ```evitaql
+	 * filterBy(
+	 *     entityPrimaryKeyInSet(1)
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/constant#entity-primary-key-in-set)
+	 *
+	 * @param primaryKey the primary key to match
+	 * @return the primary key filter, or null when the primary key is null
+	 * @see io.evitadb.api.query.filter.EntityPrimaryKeyInSet
+	 */
+	@SourceHash("e05a3fa43cc07b963525ab56e544dc4b")
+	@Nullable
+	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable Integer primaryKey) {
+		return primaryKey == null ? null : new EntityPrimaryKeyInSet(primaryKey);
 	}
 
 	/**
@@ -2237,7 +2317,7 @@ public interface QueryConstraints {
 	static AttributeSetExact attributeSetExact(@Nonnull String attributeName,
 		@Nullable Serializable... attributeValues) {
 		requireName(attributeName, "attributeName");
-		final Serializable[] normalizedAttributeValues = withoutNullValues(attributeValues);
+		final Serializable[] normalizedAttributeValues = normalizeAttributeValues(attributeName, attributeValues);
 		return ArrayUtils.isEmpty(normalizedAttributeValues) ? null :
 			new AttributeSetExact(attributeName, normalizedAttributeValues);
 	}
@@ -2863,19 +2943,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Requests computation of histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of equal-width buckets (including empty ones) for each index. Use as a child of `referenceSummary` or `referenceSummaryOfReference` to retrieve histogram data alongside facet statistics. At least one index name must be provided; otherwise, the constraint is ignored.
+	 * Requests histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of equal-width buckets (default `STANDARD` behavior). At least one index name must be provided; otherwise, the constraint is ignored.
 	 *
-	 * ```evitaql
-	 * referenceSummary(
-	 *     COUNTS,
-	 *     histogramStatistics(20, "priceIndex")
-	 * )
-	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
 	 */
-	@SourceHash("11258c3be38da1e54865fa8e3aed91fc")
+	@SourceHash("0a2318057d9d08468eeb91e4cff100b4")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable String... indexNames) {
 		requireNonNullItems(indexNames, "indexNames");
@@ -2886,7 +2960,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Requests computation of histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of buckets per index. The `behavior` argument controls bucket boundaries and handling of empty buckets, supporting modes like `STANDARD`, `OPTIMIZED`, and `EQUALIZED`. At least one index name must be provided; otherwise, the constraint is ignored.
+	 * Requests computation of histogram statistics for one or more named histogram indexes within a reference summary, producing up to the specified number of buckets. The `behavior` parameter controls bucket distribution and handling of empty buckets. At least one index name must be provided; otherwise, the constraint is ignored.
 	 *
 	 * ```evitaql
 	 * histogramStatistics(10, OPTIMIZED, "ratingIndex", "weightIndex")
@@ -2896,7 +2970,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
 	 */
-	@SourceHash("577fe34dd045212340f8bd33bc379431")
+	@SourceHash("b7baed5e1ead2cedbf050004e4f9b609")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount,
 		@Nullable HistogramBehavior behavior, @Nullable String... indexNames) {
@@ -2908,13 +2982,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Requests computation of histogram statistics for specified histogram indexes within a reference summary, producing the given number of buckets per index and optionally fetching referenced entities with the provided `EntityFetch` constraint. At least one index name must be supplied; otherwise, the constraint is ignored. The default bucket behavior is `STANDARD`, generating equal-width buckets, including empty ones.
+	 * Requests histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of buckets for each index. Optionally fetches referenced entity data alongside histograms. At least one index name must be provided.
+	 *
+	 * ```evitaql
+	 * referenceSummary(
+	 *     histogramStatistics(20, entityFetch(attributeContent("code")), "priceIndex")
+	 * )
+	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
 	 */
-	@SourceHash("d177ff7205a36c2c27835c74872e4ff4")
+	@SourceHash("e7a5193607544e82ded54186c9a3083e")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable EntityFetch entityFetch,
 		@Nullable String... indexNames) {
@@ -2926,17 +3006,19 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Requests computation of histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of buckets using the chosen behavior (e.g., `STANDARD`, `OPTIMIZED`, `EQUALIZED`). Optionally fetches referenced entities alongside histogram data. At least one index name must be provided; otherwise, the constraint is ignored.
+	 * Requests histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of buckets using the given behavior. Optionally enriches results with referenced entity data via an `EntityFetch` child. Ignored if no index names are provided.
 	 *
 	 * ```evitaql
-	 * histogramStatistics(20, STANDARD, entityFetch(attributeContent()), "priceIndex")
+	 * referenceSummary(
+	 *     histogramStatistics(10, OPTIMIZED, entityFetch(attributeContent("code")), "ratingIndex", "weightIndex")
+	 * )
 	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
 	 */
-	@SourceHash("42dc234624b7f42ff8f2bc1215edf955")
+	@SourceHash("96b13be83b01b4f68b88fd9a59bbeb46")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(
 		int requestedBucketCount,

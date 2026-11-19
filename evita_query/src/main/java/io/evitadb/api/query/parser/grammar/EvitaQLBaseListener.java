@@ -3914,6 +3914,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitEnumValueToken(EvitaQLParser.EnumValueTokenContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSingleRefReferenceContentWithAttributeNamesArgs(EvitaQLParser.SingleRefReferenceContentWithAttributeNamesArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSingleRefReferenceContentWithAttributeNamesArgs(EvitaQLParser.SingleRefReferenceContentWithAttributeNamesArgsContext ctx) { }
 
 	/**
 	 * {@inheritDoc}

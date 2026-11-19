@@ -71,7 +71,11 @@ class NullArgumentsInventoryTest {
 		.filter(method -> Constraint.class.isAssignableFrom(method.getReturnType()))
 		.sorted(Comparator.comparing(Method::toGenericString)).toList();
 	private static final Map<Class<?>, Constraint<?>> CONSTRAINT_DUMMIES = createHashMap(32);
-	private static final Set<String> VALUE_STRINGS = Set.of("textToSearch", "text", "currency", "expression");
+	/**
+	 * Scalar `String` parameters that carry a value rather than a name, so null or blank leaves the constraint out
+	 * instead of being refused.
+	 */
+	private static final Set<String> VALUE_STRINGS = Set.of("textToSearch", "text", "currency", "expression", "priceList");
 	private static final Set<String> REQUIRED_ENUMS = Set.of("inScope", "attributeIs", "priceContent");
 	private static final List<Map.Entry<String, String>> BLANK_NAMES = List.of(
 		Map.entry("empty", ""), Map.entry("space", " "), Map.entry("tab and newline", "\t\n")
@@ -228,6 +232,49 @@ class NullArgumentsInventoryTest {
 					}
 				}
 				return tests.stream();
+			});
+		}
+	}
+
+	/**
+	 * Checks that each filter value list with a reference component has a single-value overload.
+	 */
+	@Nested
+	@DisplayName("Single filter values")
+	class SingleFilterValues {
+		/**
+		 * Checks the sibling signature, omission for null and equivalence for a defined value.
+		 *
+		 * @return one case per filter factory with a reference array in the final position
+		 */
+		@Nonnull
+		@TestFactory
+		@DisplayName("Reference arrays have a matching overload for one value")
+		Stream<DynamicTest> shouldHaveSingleValueOverloadForFilterValueList() {
+			return factories().filter(method -> FILTER_VALUE_LISTS.contains(method.getName())).flatMap(method -> {
+				final Class<?>[] parameterTypes = method.getParameterTypes();
+				final int last = parameterTypes.length - 1;
+				final Class<?> component = last < 0 ? null : parameterTypes[last].getComponentType();
+				if (component == null || component.isPrimitive()) {
+					return Stream.empty();
+				}
+
+				return Stream.of(DynamicTest.dynamicTest(method.toGenericString(), () -> {
+					parameterTypes[last] = component;
+					final Method singleValue = assertDoesNotThrow(
+						() -> QueryConstraints.class.getMethod(method.getName(), parameterTypes),
+						"A filter value list must have a single-value overload"
+					);
+					final Object[] listArguments = arguments(method, 0);
+					final Object[] singleArguments = listArguments.clone();
+					singleArguments[last] = null;
+					assertNull(invoke(singleValue, singleArguments), "A single null value must omit the filter");
+
+					final Object value = dummy(component, method.getParameters()[last].getName(), 0);
+					listArguments[last] = array(component, value);
+					singleArguments[last] = value;
+					assertEquals(invoke(method, listArguments), invoke(singleValue, singleArguments));
+				}));
 			});
 		}
 	}

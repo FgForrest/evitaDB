@@ -1569,35 +1569,25 @@ public class NestedInScopeFilterFunctionalTest {
 		}
 
 		/**
-		 * `getEntity` plans no fetch, so the check of named localized attributes does not run there, with or without
-		 * the locale branch. This pins parity of the two shapes, not that entry point's leniency.
+		 * Direct fetches enforce the same body locale requirement as planned queries.
+		 *
+		 * @param group `@ValueSource` flag selecting group bodies when `true`, or referenced entity bodies otherwise
+		 * @param evita engine supplied by `EvitaParameterResolver` with `GROUP_BODY_DATA_SET` loaded
 		 */
 		@ParameterizedTest
 		@ValueSource(booleans = {false, true})
-		@DisplayName("Keep direct fetch parity with and without a locale branch when the fetch locale is missing")
+		@DisplayName("Refuse direct fetch when neither shape supplies a body locale")
 		@UseDataSet(GROUP_BODY_DATA_SET)
-		void shouldKeepDirectFetchParityWhenNeitherShapeSuppliesBodyLocale(boolean group, @Nonnull Evita evita) {
+		void shouldRefuseDirectFetchWhenNeitherShapeSuppliesBodyLocale(boolean group, @Nonnull Evita evita) {
 			final List<Executable> assertions = new ArrayList<>();
 			for (final MissingLocaleShape shape : missingLocaleShapes(group)) {
 				final ReferenceContent content = referenceContent("values", shape.filter(),
 					group ? null : entityFetch(attributeContent("label")),
 					group ? entityGroupFetch(attributeContent("label")) : null);
 				for (final int owner : new int[]{1, 2}) {
-					assertions.add(() -> {
-						final SealedEntity product = fetchProduct(evita, owner, BOTH, content, false);
-						assertAll(
-							() -> assertEquals(owner == 1 ? expectedBodies(group, shape.rows()) : Map.of(),
-								rowBodies(product, group), "owner " + owner + ", filter " + shape.filter()),
-							() -> assertAll(product.getReferences("values").stream().map(row -> () -> {
-								final SealedEntity body =
-									(group ? row.getGroupEntity() : row.getReferencedEntity()).orElseThrow();
-								assertAll(
-									() -> assertEquals(Set.of(), body.getLocales()),
-									() -> assertEquals(List.of(), List.copyOf(body.getAttributeValues()))
-								);
-							}))
-						);
-					});
+					assertions.add(() -> assertThrows(EntityLocaleMissingException.class,
+						() -> fetchProduct(evita, owner, BOTH, content, false),
+						"owner " + owner + ", filter " + shape.filter()));
 				}
 			}
 			assertAll(assertions);

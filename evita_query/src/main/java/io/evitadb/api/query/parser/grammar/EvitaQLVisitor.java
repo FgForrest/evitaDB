@@ -2173,4 +2173,10 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitEnumValueToken(EvitaQLParser.EnumValueTokenContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributeNamesArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSingleRefReferenceContentWithAttributeNamesArgs(EvitaQLParser.SingleRefReferenceContentWithAttributeNamesArgsContext ctx);
 }

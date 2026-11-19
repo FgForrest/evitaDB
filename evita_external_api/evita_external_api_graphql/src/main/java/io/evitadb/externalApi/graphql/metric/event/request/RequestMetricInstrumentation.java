@@ -93,7 +93,7 @@ public class RequestMetricInstrumentation extends SimplePerformantInstrumentatio
 	                                                                     InstrumentationState state) {
 		final ExecutedEvent requestExecutedEvent = parameters.getExecutionContext().getGraphQLContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 		if (requestExecutedEvent != null) {
-			if (requestExecutedEvent.getParseStarted() == 0) {
+			if (requestExecutedEvent.isDocumentCached()) {
 				// the document was served from the document cache - `beginParse` and `beginValidation` are invoked
 				// by graphql-java only when the document is actually parsed and validated
 				requestExecutedEvent.skipParseAndValidation();

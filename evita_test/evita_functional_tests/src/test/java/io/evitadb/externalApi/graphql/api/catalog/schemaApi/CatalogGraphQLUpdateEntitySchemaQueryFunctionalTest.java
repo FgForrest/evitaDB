@@ -37,11 +37,13 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.StringUtils;
+import io.restassured.path.json.JsonPath;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -49,8 +51,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ENTITY_EMPTY;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
@@ -63,7 +68,9 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Tests for GraphQL updating entity schema.
@@ -78,11 +85,46 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 
 	private static final String EMPTY_SCHEMA_PATH = "data.getEmptySchema";
 	private static final String UPDATE_EMPTY_SCHEMA_PATH = "data.updateEmptySchema";
+	private static final String UPDATE_PRODUCT_SCHEMA_PATH = "data.updateProductSchema";
 	private static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE = GRAPHQL_THOUSAND_PRODUCTS + "forEntitySchemaChange";
+	/**
+	 * Data set served on real (asynchronous) thread pools, so that the GraphQL read fetchers run on request-pool
+	 * workers exactly as in production instead of inline on the submitting thread.
+	 */
+	private static final String GRAPHQL_PRODUCTS_ON_REAL_THREAD_POOLS = GRAPHQL_THOUSAND_PRODUCTS + "onRealThreadPools";
+	/**
+	 * Number of aliases of each name-variant field selected per reference schema in one mutation response - every
+	 * alias is one more fetcher call resolving the referenced schema through the mutation's session.
+	 */
+	private static final int NAME_VARIANT_ALIAS_COUNT = 16;
+	/**
+	 * Number of identical schema mutations sent in a row; each one resolves all the aliased name variants.
+	 */
+	private static final int MUTATION_REQUEST_COUNT = 20;
+	/**
+	 * Upper bound for the GraphQL API to serve the product schema after the data set was built - the API is rebuilt
+	 * asynchronously on real thread pools.
+	 */
+	private static final long API_READY_TIMEOUT_SECONDS = 30;
 
 	@Override
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita) {
+		return super.setUpData(evita, 20, false);
+	}
+
+	/**
+	 * Builds the same catalog as {@link #setUp(Evita)}, but serves it on real thread pools.
+	 */
+	@DataSet(
+		value = GRAPHQL_PRODUCTS_ON_REAL_THREAD_POOLS,
+		openWebApi = GraphQLProvider.CODE,
+		readOnly = false,
+		destroyAfterClass = true,
+		useRealThreadPools = true
+	)
+	@Nullable
+	protected DataCarrier setUpOnRealThreadPools(@Nonnull Evita evita) {
 		return super.setUpData(evita, 20, false);
 	}
 
@@ -1307,6 +1349,50 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			);
 	}
 
+	@Test
+	@UseDataSet(GRAPHQL_PRODUCTS_ON_REAL_THREAD_POOLS)
+	@DisplayName("Should resolve managed reference type names in the response of an entity schema mutation")
+	void shouldResolveManagedReferenceTypeNamesInResponseOfEntitySchemaMutation(@Nonnull GraphQLTester tester) {
+		final JsonPath response = executeProductSchemaMutationRepeatedly(
+			tester,
+			"""
+			allReferences {
+				name
+				%s
+			}
+			""".formatted(buildAliasedNameVariantFields())
+		);
+
+		assertParameterTypeNamesResolved(
+			findReference(response.getList(UPDATE_PRODUCT_SCHEMA_PATH + ".allReferences"), Entities.PARAMETER)
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_PRODUCTS_ON_REAL_THREAD_POOLS)
+	@DisplayName("Should resolve managed type names of named references in the response of an entity schema mutation")
+	void shouldResolveManagedTypeNamesOfNamedReferencesInResponseOfEntitySchemaMutation(@Nonnull GraphQLTester tester) {
+		final String aliasedFields = buildAliasedNameVariantFields();
+		final List<String> referenceFields = List.of("category", "brand", "store", "brandWithGroup", "parameter");
+		final StringBuilder referenceSelection = new StringBuilder(
+			referenceFields.size() * (aliasedFields.length() + 32) + 32
+		);
+		referenceSelection.append("references {\n");
+		for (final String referenceField : referenceFields) {
+			referenceSelection.append(referenceField).append(" {\n").append(aliasedFields).append("}\n");
+		}
+		referenceSelection.append("}\n");
+
+		final JsonPath response = executeProductSchemaMutationRepeatedly(tester, referenceSelection.toString());
+
+		final String referencesPath = UPDATE_PRODUCT_SCHEMA_PATH + ".references.";
+		assertEntityTypeNamesResolved(response.getMap(referencesPath + "category"), "category");
+		assertEntityTypeNamesResolved(response.getMap(referencesPath + "brand"), "brand");
+		assertEntityTypeNamesResolved(response.getMap(referencesPath + "store"), "store");
+		assertEntityTypeNamesResolved(response.getMap(referencesPath + "brandWithGroup"), "brand");
+		assertParameterTypeNamesResolved(response.getMap(referencesPath + "parameter"));
+	}
+
 	/**
 	 * Creates a reference "myBucketedRef" to "tag" with a numeric filterable attribute "quantity"
 	 * so that bucketed histogram expressions can reference it.
@@ -1453,6 +1539,164 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.executeAndExpectOkAndThen()
 			.body(EMPTY_SCHEMA_PATH + "." + path + ".find { it.name == '" + attribute + "' }.normalized",
 				equalTo(expected));
+	}
+
+	/**
+	 * Sends the same no-op product schema mutation {@link #MUTATION_REQUEST_COUNT} times in a row and asserts that
+	 * none of the responses reports an error. The mutation list is empty, so the product schema - and the GraphQL
+	 * schema the requests run against - stays the same across the requests, yet every request still runs in its own
+	 * read-write session.
+	 *
+	 * @param tester            the GraphQL tester of the data set
+	 * @param responseSelection the selection set of the mutated product schema to return
+	 * @return the last response
+	 */
+	@Nonnull
+	private static JsonPath executeProductSchemaMutationRepeatedly(
+		@Nonnull GraphQLTester tester,
+		@Nonnull String responseSelection
+	) {
+		awaitProductSchemaServed(tester);
+
+		final String document = """
+			mutation {
+				updateProductSchema(mutations: []) {
+					%s
+				}
+			}
+			""".formatted(responseSelection);
+
+		int failedRequests = 0;
+		String firstError = null;
+		JsonPath lastResponse = null;
+		for (int i = 0; i < MUTATION_REQUEST_COUNT; i++) {
+			lastResponse = tester.test(TEST_CATALOG)
+				.urlPathSuffix("/schema")
+				.document(document)
+				.executeAndThen()
+				.statusCode(200)
+				.extract()
+				.jsonPath();
+			final List<Map<String, Object>> errors = lastResponse.getList(ERRORS_PATH);
+			if (errors != null && !errors.isEmpty()) {
+				failedRequests++;
+				if (firstError == null) {
+					firstError = String.valueOf(errors.get(0).get("message"));
+				}
+			}
+		}
+
+		assertEquals(
+			0,
+			failedRequests,
+			failedRequests + " of " + MUTATION_REQUEST_COUNT + " entity schema mutations failed, first error: " +
+				firstError
+		);
+		return Objects.requireNonNull(lastResponse);
+	}
+
+	/**
+	 * Builds {@link #NAME_VARIANT_ALIAS_COUNT} aliases of both the entity type and the group type name variants of
+	 * a reference schema. In the response of a schema mutation every alias of a managed type is one more read of the
+	 * referenced entity schema through the read-write session of the mutation.
+	 *
+	 * @return the aliased fields to place into the selection set of a reference schema
+	 */
+	@Nonnull
+	private static String buildAliasedNameVariantFields() {
+		final StringBuilder aliasedFields = new StringBuilder(NAME_VARIANT_ALIAS_COUNT * 128);
+		for (int i = 0; i < NAME_VARIANT_ALIAS_COUNT; i++) {
+			aliasedFields.append("entity").append(i).append(": entityTypeNameVariants { camelCase }\n");
+			aliasedFields.append("group").append(i).append(": groupTypeNameVariants { camelCase }\n");
+		}
+		return aliasedFields.toString();
+	}
+
+	/**
+	 * Asserts that every entity type alias built by {@link #buildAliasedNameVariantFields()} resolved the managed
+	 * entity type the reference points to.
+	 *
+	 * @param reference                   the reference schema DTO
+	 * @param expectedEntityTypeCamelCase the camel case name of the referenced entity type
+	 */
+	private static void assertEntityTypeNamesResolved(
+		@Nonnull Map<String, Object> reference,
+		@Nonnull String expectedEntityTypeCamelCase
+	) {
+		for (int i = 0; i < NAME_VARIANT_ALIAS_COUNT; i++) {
+			assertEquals(Map.of("camelCase", expectedEntityTypeCamelCase), reference.get("entity" + i));
+		}
+	}
+
+	/**
+	 * Asserts that every alias built by {@link #buildAliasedNameVariantFields()} resolved the managed referenced
+	 * entity type and the managed group type of the parameter reference.
+	 *
+	 * @param parameterReference the reference schema DTO of the parameter reference
+	 */
+	private static void assertParameterTypeNamesResolved(@Nonnull Map<String, Object> parameterReference) {
+		for (int i = 0; i < NAME_VARIANT_ALIAS_COUNT; i++) {
+			assertEquals(Map.of("camelCase", "parameter"), parameterReference.get("entity" + i));
+			assertEquals(Map.of("camelCase", "parameterGroup"), parameterReference.get("group" + i));
+		}
+	}
+
+	/**
+	 * Waits until the GraphQL schema API serves the product schema with its named `parameter` reference field - on
+	 * real thread pools the API is registered and rebuilt asynchronously after the data set was built. The probe
+	 * selects the same generated named field the tests select, so a schema API generated before that reference
+	 * existed fails the probe's validation. Any response without the field counts as not ready yet, so a permanent
+	 * defect surfaces only once the wait times out.
+	 *
+	 * @param tester the GraphQL tester of the data set
+	 */
+	private static void awaitProductSchemaServed(@Nonnull GraphQLTester tester) {
+		await()
+			.atMost(API_READY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+			.ignoreExceptions()
+			.until(() -> {
+				final String parameterReferenceName = tester.test(TEST_CATALOG)
+					.urlPathSuffix("/schema")
+					.document(
+						"""
+						query {
+							getProductSchema {
+								references {
+									parameter {
+										name
+									}
+								}
+							}
+						}
+						"""
+					)
+					.executeAndThen()
+					.extract()
+					.jsonPath()
+					.getString("data.getProductSchema.references.parameter.name");
+				return Entities.PARAMETER.equals(parameterReferenceName);
+			});
+	}
+
+	/**
+	 * Finds the reference schema DTO of the given name in the list of reference schema DTOs.
+	 *
+	 * @param references the reference schema DTOs
+	 * @param name       the name of the reference schema to find
+	 * @return the reference schema DTO
+	 * @throws AssertionError when no reference schema of the name is present
+	 */
+	@Nonnull
+	private static Map<String, Object> findReference(
+		@Nonnull List<Map<String, Object>> references,
+		@Nonnull String name
+	) {
+		for (final Map<String, Object> reference : references) {
+			if (name.equals(reference.get(NamedSchemaDescriptor.NAME.name()))) {
+				return reference;
+			}
+		}
+		throw new AssertionError("Reference schema `" + name + "` is missing in " + references);
 	}
 
 	private static int getEntitySchemaVersion(@Nonnull GraphQLTester tester, @Nonnull String entityType) {

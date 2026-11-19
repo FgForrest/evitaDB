@@ -193,7 +193,7 @@ api:                                              # [see API configuration](#api
       enabled: null
       host: null
       exposeOn: null
-      tlsMode: null
+      tlsMode: FORCE_NO_TLS
       keepAlive: null
       tracing:
         serviceName: evitaDB
@@ -1390,7 +1390,15 @@ provide an unsecured connection for security reasons.
 ### Default endpoint configuration
 
 Default endpoint settings are used as the basis for all endpoints unless overridden in the specific endpoint.
-This allows you to set common settings for all endpoints in one place.
+This allows you to set common settings for all endpoints in one place. The server merges user configuration over
+its bundled configuration, then fills every missing or `null` endpoint key from `api.endpointDefaults`. An unquoted
+empty YAML value (for example, `tlsMode:`) is also `null` and follows this rule. Setting only
+`api.endpoints.system.tlsMode: null` therefore inherits the shared `FORCE_TLS` value; use `FORCE_NO_TLS` to keep
+that endpoint on plain HTTP.
+
+When both the shared and endpoint `tlsMode` are `null`, the options use the endpoint's own default: `FORCE_TLS`
+for GraphQL, REST, gRPC and evitaLab, and `FORCE_NO_TLS` for system and observability. These defaults also apply
+when constructing endpoint options programmatically without a TLS mode.
 
 <dl>
     <dt>enabled</dt>
@@ -1427,6 +1435,12 @@ This allows you to set common settings for all endpoints in one place.
             <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
             <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
         </ol>
+        <p>Names are case-sensitive and must exactly match `FORCE_TLS`, `FORCE_NO_TLS` or `RELAXED`.
+        Any other non-null value an endpoint ends up with, whether set on the endpoint or inherited from
+        `api.endpointDefaults`, fails server startup with a configuration error identifying the invalid value and
+        accepted names. This includes a quoted empty string (`""`). A shared value that no endpoint inherits, because
+        every endpoint sets its own, is never used and therefore not checked. A `null` value follows the inheritance
+        rule above.</p>
     </dd>
     <dt>keepAlive</dt>
     <dd>
@@ -1466,6 +1480,7 @@ This allows you to set common settings for all endpoints in one place.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
+        <p>Accepted values: `FORCE_TLS`, `FORCE_NO_TLS`, `RELAXED`; unknown names fail startup.</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>parallelize</dt>
@@ -1525,6 +1540,7 @@ This allows you to set common settings for all endpoints in one place.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
+        <p>Accepted values: `FORCE_TLS`, `FORCE_NO_TLS`, `RELAXED`; unknown names fail startup.</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>mTls.enabled</dt>
@@ -1560,6 +1576,7 @@ This allows you to set common settings for all endpoints in one place.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
+        <p>Accepted values: `FORCE_TLS`, `FORCE_NO_TLS`, `RELAXED`; unknown names fail startup.</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>exposeDocsService</dt>
@@ -1629,6 +1646,7 @@ more information. Client certificates and private keys are not distributed in cu
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_NO_TLS`</p>
+        <p>Accepted values: `FORCE_TLS`, `FORCE_NO_TLS`, `RELAXED`; unknown names fail startup.</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>mTls.enabled</dt>
@@ -1669,6 +1687,7 @@ of other APIs.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
+        <p>Accepted values: `FORCE_TLS`, `FORCE_NO_TLS`, `RELAXED`; unknown names fail startup.</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>gui</dt>
@@ -1730,6 +1749,7 @@ for scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_NO_TLS`</p>
+        <p>Accepted values: `FORCE_TLS`, `FORCE_NO_TLS`, `RELAXED`; unknown names fail startup.</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>tracing.serviceName</dt>

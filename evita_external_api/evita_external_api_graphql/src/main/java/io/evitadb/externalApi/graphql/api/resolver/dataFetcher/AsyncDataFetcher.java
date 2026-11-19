@@ -49,6 +49,10 @@ import java.util.concurrent.CompletableFuture;
  * when the request is cancelled. When the `parallelize` option of {@link GraphQLOptions} is disabled, the delegate
  * runs synchronously on the calling thread instead. Any other delegate type is rejected at construction.
  *
+ * Wrap only fetchers of root fields. The fields nested in a mutation's response are completed by the query strategy,
+ * so wrapped nested fetchers would run in parallel, but they read through the mutation's read-write session, which
+ * rejects a second thread calling it concurrently.
+ *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j

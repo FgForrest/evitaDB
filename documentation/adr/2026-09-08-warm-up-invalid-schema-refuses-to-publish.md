@@ -1,11 +1,11 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-11-15 13:25
+updated: 2026-11-18 22:52
 status: accepted
 kind: fix
-issues: [1466]
-prs: [1520]
+issues: [1466, 2014]
+prs: [1520, 2015]
 areas: [evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/core/transaction/engine, evita_api/src/main/java/io/evitadb/api]
 supersedes: []
 superseded-by: []
@@ -239,6 +239,43 @@ forbids partial replay.
   returned `Progress` is now observed too — a deactivation accepted and then failing while being applied used to
   leave the catalog refusing with nothing in the log to say why.
 
+### Termination racing a running warm-up call (#2014)
+
+Termination is a publisher upstream of the session close too. `Catalog#terminateInternally` decided
+`WARMING_UP && isPublishable()`, flushed every collection and stored the header, and nothing serialized that with a
+warm-up call. Engine shutdown reaches it with a call still running whenever the session drain gives up after its 5 s
+budget - `Evita#closeInternal` terminates the catalogs anyway - and published changes that only the session close,
+which had not run, would have validated, possibly while the call was still making them. Measured before the change: a
+schema evolved by an `upsertEntity` still running, and one evolved by a call starting after termination's decision,
+both reached the disk.
+
+- **The rule: termination publishes a warm-up catalog only when no call of its read-write session is running.**
+  `Catalog#warmUpCallLock` is held by the outermost business invocation of a read-write session bound to a
+  `WARMING_UP` instance (`EvitaSessionProxy`), including the forced close a drain defers to that thread, and taken by
+  termination with a no-wait `tryLock()` before its decision and until the collections are released. When the lock is
+  not free, termination publishes nothing and logs a WARN naming the catalog. It also sets the unpublishable cause
+  directly, without scheduling a deactivation because the instance is being terminated anyway, so the running call's
+  own close cannot flush the half-terminated instance once the call returns. A termination that holds the lock
+  publishes as before, an idle registered writer's work included, and sets the same cause just before it releases the
+  lock: a call queued behind it resumes before `terminate()` closes the persistence service, on released collections,
+  and a collection it creates would otherwise publish a header naming that collection alone.
+- **The engine executor must never take that lock.** An explicit warm-up schema change runs there while the session
+  thread holds the lock and waits for it, and the lock is owned by a thread.
+- **Declined: re-reading the schema version before the header write.** It only narrows the window, and it misses a
+  call that was already running when termination decided: that call's changes predate the decision, so the version
+  does not move before the header write (argued from the code, not run as a counterfactual).
+- **Declined: never publishing while a session is registered.** Every shutdown that finds an idle healthy writer would
+  lose its unflushed work.
+- **Declined: reading the proxy's `insideInvocation` from `Evita#closeCatalogs`.** That is a check-then-act with no
+  fence. `Evita#closeAllSessions` stops at the first registry whose drain throws, so the sessions of every later
+  registry stay usable, and one of them can start a call right after the read.
+- **Declined: taking the lock in the catalog's write paths.** Entity writes and schema changes enter through many
+  methods on two threads, and the hop from the session thread to the engine executor turns a second level of locking
+  into a deadlock.
+- **Not waiting is an open decision.** A bounded wait would also have to exclude the flush that the returning call's
+  deferred close starts on the transaction executor once the lock is released, or validate under the lock. Without
+  that, it would publish beside that flush.
+
 ## Verification
 
 The full functional suite runs green: **23,717 tests, 0 failures**, the only error being `ExportS3ServiceTest`,
@@ -311,6 +348,15 @@ it fail, all on `Catalog 'testCatalog' was never reported as having settled into
 controls pass. That is the assertion carrying its own weight rather than riding on the persistence assertions
 beside it.
 
+`CatalogWarmUpTerminationTest` (4 tests) covers termination with the writer still registered, reading every published
+state from a fresh engine over a copy of the storage. Before the change both running-call tests failed
+(`expected: <false> but was: <true>` on the published reference) and both idle-writer controls passed. With the proxy
+taking no lock, both fail again. Without the cause set on a skipped publication, the first fails on "a termination that
+skipped its publication must leave the instance unable to publish"; without the cause set before a publishing
+termination releases the lock, the idle-writer control fails on its own `isPublishable()` assertion. The gap that cause
+closes - a queued call resuming between the unlock and the close of the persistence service - has no deterministic
+reproduction.
+
 ## Consequences & open follow-ups
 
 - **Catalogs already poisoned on disk are not covered, and deliberately will not be.** After a reload the version
@@ -340,6 +386,10 @@ beside it.
   without any test noticing — only
   `InterlinkedCollectionRemoval#shouldNotPublishTheHalfTornPairWhenTheSameSessionThenDefinesAnotherCollection`
   covers the schema gate itself on this path.
+- **What the termination lock does not cover (#2014).** Termination never validates, so an idle registered writer's
+  unvalidated schema is still published. A session close's flush that is already running on the transaction executor
+  is not serialized with termination. And `Evita#closeAllSessions` leaves every registry after the first failing drain
+  undrained, so their sessions stay usable while their catalogs terminate.
 
 ## Related work
 
@@ -371,3 +421,6 @@ beside it.
   had a test. `InterlinkedCollectionRemoval` added (5 tests), including the folder assertions for the parked
   data-file retirements and the calibration note recording which of them the `isSchemaValid()` guard actually
   holds up.
+- **2026-11-18** — termination found publishing while a warm-up call was still running (#2014). A lock shared by the
+  warm-up writer's calls and termination was chosen over re-reading the schema version and over never publishing while
+  a session is registered, and termination does not wait for the call

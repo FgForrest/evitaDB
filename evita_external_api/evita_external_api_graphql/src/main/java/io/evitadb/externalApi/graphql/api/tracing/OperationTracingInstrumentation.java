@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,9 +41,18 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import static graphql.execution.instrumentation.SimpleInstrumentationContext.noOp;
+import static graphql.execution.instrumentation.SimpleInstrumentationContext.whenDispatched;
 
 /**
- * Handles tracing the GraphQL operations.
+ * Traces every GraphQL operation in a span of its own, nested in the span of the request that executes it. The span
+ * is recorded only when tracing is switched on and the thread starting the operation carries a parent tracing
+ * context.
+ *
+ * The operation's {@link TracingBlockReference}, if the tracing context provides one, is stored in the GraphQL context
+ * under {@link GraphQLContextKey#OPERATION_TRACING_BLOCK}. Its thread-bound scope is released as soon as the operation
+ * is dispatched, but the span stays open: whoever executes the operation must close the stored block once the
+ * execution completes, on whichever thread that happens - as
+ * {@link io.evitadb.externalApi.graphql.io.web.GraphQLWebHandler} does.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
@@ -65,17 +74,25 @@ public class OperationTracingInstrumentation extends SimplePerformantInstrumenta
         final OperationDefinition.Operation operation = executionContext.getOperationDefinition().getOperation();
         final String operationName = GraphQLOperationNameResolver.resolve(executionContext.getOperationDefinition());
 
-        // this block is closed in GraphQLHandler because instrumentation doesn't provide way of executing code
-        // in same thread as this callback (if parallel query execution is used), which is needed by the tracing tooling
         final TracingBlockReference blockReference = this.tracingContext.createAndActivateBlockIfParentContextAvailable(
             "GraphQL " + operation.name().toLowerCase() + " - " + operationName,
             new SpanAttribute("operation", operation.name()),
             new SpanAttribute("operationName", operationName)
         );
-        if (blockReference != null) {
-            executionContext.getGraphQLContext().put(GraphQLContextKey.OPERATION_TRACING_BLOCK, blockReference);
+        if (blockReference == null) {
+            return noOp();
         }
+        executionContext.getGraphQLContext().put(GraphQLContextKey.OPERATION_TRACING_BLOCK, blockReference);
 
-        return noOp();
+        // The block's scope is bound to this thread, but the operation usually completes on another one - the thread
+        // finishing its last asynchronous data fetcher. graphql-java reports the dispatch on this very thread, right
+        // after the execution strategy has started the operation. Every data fetcher the strategy invoked while
+        // starting - for a query, those of all non-deferred root fields - was called on this thread, so each
+        // AsyncDataFetcher among them has already captured the span as its parent, and the scope is released there.
+        // Closed on another thread, the scope would not be restored here - OpenTelemetry's default thread-local
+        // storage ignores a close on a thread where the scope's context is not current - and this thread would keep
+        // the span current for every request it serves next. The span itself is ended by GraphQLWebHandler when the
+        // operation completes.
+        return whenDispatched(blockReference::detachScope);
     }
 }

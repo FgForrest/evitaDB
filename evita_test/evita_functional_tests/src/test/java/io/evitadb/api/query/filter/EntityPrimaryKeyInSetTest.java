@@ -71,16 +71,33 @@ class EntityPrimaryKeyInSetTest {
 		}
 
 		/**
-		 * A null item is an undefined value and is dropped; the filter stays and matches nothing instead of widening
-		 * the result.
+		 * Omits the filter when a single value is undefined.
 		 */
 		@Test
-		@DisplayName("should match nothing for a null value item")
-		void shouldMatchNothingWhenValueItemIsNull() {
-			final Integer nullInteger = null;
-			final EntityPrimaryKeyInSet constraint = entityPrimaryKeyInSet(nullInteger);
+		@DisplayName("should leave the constraint out for a null variable")
+		void shouldReturnNullForNullVariable() {
+			final Integer value = null;
 
-			assertArrayEquals(new int[0], constraint.getPrimaryKeys());
+			assertNull(entityPrimaryKeyInSet(value));
+		}
+
+		/**
+		 * Keeps the filter applicable with no matches when an explicit list contains only nulls.
+		 */
+		@Test
+		@DisplayName("should match nothing for a list of only nulls")
+		void shouldMatchNothingWhenValueItemIsNull() {
+			assertArrayEquals(new int[0], entityPrimaryKeyInSet(new Integer[]{null}).getPrimaryKeys());
+			assertArrayEquals(new int[0], entityPrimaryKeyInSet(null, null).getPrimaryKeys());
+		}
+
+		/**
+		 * Compares a defined single value with a one-item list of the same value.
+		 */
+		@Test
+		@DisplayName("should produce equal constraints for a single value and a one-item list")
+		void shouldMatchOneItemListForSingleValue() {
+			assertEquals(entityPrimaryKeyInSet(new Integer[]{1}), entityPrimaryKeyInSet(1));
 		}
 
 		@Test

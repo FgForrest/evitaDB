@@ -2289,4 +2289,11 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitEnumValueToken(EvitaQLParser.EnumValueTokenContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitSingleRefReferenceContentWithAttributeNamesArgs(EvitaQLParser.SingleRefReferenceContentWithAttributeNamesArgsContext ctx) { return visitChildren(ctx); }
 }
