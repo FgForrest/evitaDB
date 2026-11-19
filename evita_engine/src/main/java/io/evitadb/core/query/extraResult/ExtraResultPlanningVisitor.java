@@ -217,6 +217,12 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	private final Deque<ProcessingScope> scope = new ArrayDeque<>(32);
 	/**
+	 * The first separate content container on the active path through the require tree. It is set while that
+	 * container is visited and null outside it, so that {@link #executeEntityFetchInContext} can tell the main
+	 * fetch, which is the container itself, from a fetch nested in it or in another container.
+	 */
+	@Nullable private SeparateEntityContentRequireContainer outermostSeparateEntityContent;
+	/**
 	 * Performance shortcut: caches the last producer returned by {@link #findExistingProducer(Class, java.util.function.Predicate)}.
 	 * Avoids a full linear scan of {@link #extraResultProducers} when multiple translators ask for the same producer
 	 * during a single planning pass (the common case: reference-summary translator registers the producer, then histogram
@@ -836,7 +842,26 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	@Override
 	public void visit(@Nonnull Constraint<?> constraint) {
 		final RequireConstraint requireConstraint = (RequireConstraint) constraint;
+		if (this.outermostSeparateEntityContent != null
+			|| !(requireConstraint instanceof final SeparateEntityContentRequireContainer separateContent)) {
+			visitRequirement(requireConstraint);
+			return;
+		}
 
+		this.outermostSeparateEntityContent = separateContent;
+		try {
+			visitRequirement(requireConstraint);
+		} finally {
+			this.outermostSeparateEntityContent = null;
+		}
+	}
+
+	/**
+	 * Dispatches a requirement and traverses any children that its translator leaves to the visitor.
+	 *
+	 * @param requireConstraint the requirement after entering any separate content boundary
+	 */
+	private void visitRequirement(@Nonnull RequireConstraint requireConstraint) {
 		if (requireConstraint instanceof ExtraResultRequireConstraint) {
 			@SuppressWarnings("unchecked") final RequireConstraintTranslator<RequireConstraint> translator =
 				(RequireConstraintTranslator<RequireConstraint>) TRANSLATORS.get(requireConstraint.getClass());
@@ -905,6 +930,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * child constraints, so that the child translators (e.g. `ReferenceHistogramStatisticsTranslator`) can retrieve
 	 * the active reference schema via {@link ProcessingScope#getReferenceSchema()}.
 	 *
+	 * @param <T> the result type of the planning callback
 	 * @param requirement             the require constraint being processed — recorded in the scope and surfaced via
 	 *                                {@link #getEntityContentRequireChain(EntityContentRequire)}
 	 * @param referenceSchemaSupplier supplier that returns the reference schema for the current context, or `null`
@@ -914,15 +940,66 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * @param lambda                  code to execute within the new scope; its return value is forwarded to the caller
 	 * @return the value returned by `lambda`
 	 */
+	@Nullable
 	public final <T> T executeInContext(
 		@Nonnull RequireConstraint requirement,
 		@Nonnull Supplier<ReferenceSchemaContract> referenceSchemaSupplier,
 		@Nonnull Supplier<EntitySchemaContract> entitySchemaSupplier,
 		@Nonnull Supplier<T> lambda
 	) {
+		return executeInContext(
+			requirement, getProcessingScope().getScopes(), referenceSchemaSupplier, entitySchemaSupplier, lambda
+		);
+	}
+
+	/**
+	 * Plans the content of an `entityFetch` in a fresh frame. The main fetch - the outermost separate content
+	 * container on the active path - is applied to every returned entity, so its frame starts with the query's
+	 * searched scopes even below a require-level `inScope`. Any other fetch inherits the enclosing processing scopes.
+	 *
+	 * @param <T> the result type of the planning callback
+	 * @param entityFetch the fetch whose content is planned
+	 * @param entitySchemaSupplier supplier of the schema of the fetched entities
+	 * @param lambda code that plans the children of the fetch
+	 * @return the value returned by `lambda`
+	 */
+	@Nullable
+	public final <T> T executeEntityFetchInContext(
+		@Nonnull EntityFetch entityFetch,
+		@Nonnull Supplier<EntitySchemaContract> entitySchemaSupplier,
+		@Nonnull Supplier<T> lambda
+	) {
+		final Set<Scope> processingScopes = getProcessingScope().getScopes();
+		final Set<Scope> queryScopes = this.queryContext.getScopes();
+		// only a require-level `inScope` makes the two differ, so a query without one takes the inherited scopes
+		final boolean isMainFetchBelowNarrowedScope = this.outermostSeparateEntityContent == entityFetch
+			&& !processingScopes.equals(queryScopes);
+		final Set<Scope> fetchScopes = isMainFetchBelowNarrowedScope ? queryScopes : processingScopes;
+		return executeInContext(entityFetch, fetchScopes, () -> null, entitySchemaSupplier, lambda);
+	}
+
+	/**
+	 * Enters a fresh processing frame and restores the enclosing frame when planning leaves it.
+	 *
+	 * @param <T> the result type of the planning callback
+	 * @param requirement the container recorded in the fetch chain
+	 * @param activeScopes the initial scopes for the frame
+	 * @param referenceSchemaSupplier supplier of the reference schema, or of null outside a reference
+	 * @param entitySchemaSupplier supplier of the entity schema, or of null at the query level
+	 * @param lambda code that runs inside the frame
+	 * @return the value returned by `lambda`
+	 */
+	@Nullable
+	private <T> T executeInContext(
+		@Nonnull RequireConstraint requirement,
+		@Nonnull Set<Scope> activeScopes,
+		@Nonnull Supplier<ReferenceSchemaContract> referenceSchemaSupplier,
+		@Nonnull Supplier<EntitySchemaContract> entitySchemaSupplier,
+		@Nonnull Supplier<T> lambda
+	) {
 		try {
 			final LinkedList<Set<Scope>> scopes = new LinkedList<>();
-			scopes.add(getProcessingScope().getScopes());
+			scopes.add(activeScopes);
 			this.scope.push(
 				new ProcessingScope(
 					requirement,

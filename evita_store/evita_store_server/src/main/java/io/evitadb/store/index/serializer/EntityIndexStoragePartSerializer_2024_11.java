@@ -86,7 +86,7 @@ public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityI
 			case GLOBAL -> new EntityIndexKey(entityIndexType);
 			case REFERENCED_ENTITY_TYPE -> new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, discriminator);
 			case REFERENCED_ENTITY -> new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, new RepresentativeReferenceKey((ReferenceKey)discriminator));
-			case REFERENCED_GROUP_ENTITY_TYPE, REFERENCED_GROUP_ENTITY ->
+			case REFERENCED_GROUP_ENTITY_TYPE, REFERENCED_GROUP_ENTITY, REFERENCED_GROUP_HISTOGRAM ->
 				throw new GenericEvitaInternalError("Unexpected index type `" + entityIndexType + "` in 2024.11 storage format!");
 		};
 

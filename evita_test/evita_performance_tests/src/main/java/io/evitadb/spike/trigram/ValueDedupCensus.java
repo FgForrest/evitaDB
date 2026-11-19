@@ -706,8 +706,9 @@ public class ValueDedupCensus {
 				final IndexRole role = roleOf(indexTypeOf(collection, row));
 				switch (role) {
 					case GLOBAL_OWNER, REFERENCE_TYPE_OWNER -> registerOwner(index, row, role, registry, totals);
-					// reduced indexes are the second pass's business; nothing is measured here
-					case REDUCED -> {
+					// reduced indexes are the second pass's business, and a histogram store holds no attribute tree
+					// at all; nothing is measured here
+					case REDUCED, HISTOGRAM_STORE -> {
 					}
 				}
 			}
@@ -805,8 +806,8 @@ public class ValueDedupCensus {
 				final IndexRole role = roleOf(indexTypeOf(collection, row));
 				switch (role) {
 					case REDUCED -> measureReducedIndex(collection, index, row, owners, domains, totals);
-					// owner candidates were measured by the first pass
-					case GLOBAL_OWNER, REFERENCE_TYPE_OWNER -> {
+					// owner candidates were measured by the first pass, and a histogram store holds no attribute tree
+					case GLOBAL_OWNER, REFERENCE_TYPE_OWNER, HISTOGRAM_STORE -> {
 					}
 				}
 			}
@@ -1011,6 +1012,7 @@ public class ValueDedupCensus {
 			case GLOBAL -> IndexRole.GLOBAL_OWNER;
 			case REFERENCED_ENTITY_TYPE, REFERENCED_GROUP_ENTITY_TYPE -> IndexRole.REFERENCE_TYPE_OWNER;
 			case REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY -> IndexRole.REDUCED;
+			case REFERENCED_GROUP_HISTOGRAM -> IndexRole.HISTOGRAM_STORE;
 		};
 	}
 
@@ -2653,7 +2655,9 @@ public class ValueDedupCensus {
 		/** A reference-type index - the canonical-owner candidate for reference-level attributes. */
 		REFERENCE_TYPE_OWNER,
 		/** A per-referenced-entity index - the fan-out the dedup line targets. */
-		REDUCED
+		REDUCED,
+		/** The histogram-only store of one group - it holds no attribute tree, so neither pass measures it. */
+		HISTOGRAM_STORE
 	}
 
 	/**

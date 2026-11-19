@@ -39,9 +39,10 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The `inScope` require container restricts a set of {@link RequireConstraint} children so that they are applied
- * only when the query is processing entities in a specific {@link Scope} (either {@link Scope#LIVE} or
- * {@link Scope#ARCHIVED}). Its filter-side counterpart is
+ * The `inScope` require container plans the extra results it wraps in one {@link Scope} requested by the query and
+ * checks them against the indexes of that scope only. The main {@link EntityFetch} fetches content for every returned
+ * entity, and its content is checked in the scopes it is fetched in - all scopes searched by the query, unless
+ * a reference filter selects the scopes of the referenced entities. The filter-side counterpart of this container is
  * {@link io.evitadb.api.query.filter.FilterInScope}.
  *
  * ## Purpose and design intent
@@ -52,11 +53,11 @@ import java.io.Serializable;
  * searches across multiple scopes via `scope(LIVE, ARCHIVED)`, applying a requirement that is unsupported in the
  * archived scope would ordinarily cause a query execution failure.
  *
- * `inScope` solves this by scoping each requirement to only the scope(s) where it is valid:
+ * Use `inScope` to plan such an extra result in the scope with the required indexes.
  *
  * ```evitaql
  * filterBy(
- *    entityScope(LIVE, ARCHIVED)
+ *    scope(LIVE, ARCHIVED)
  * ),
  * require(
  *    inScope(LIVE, facetSummary())
@@ -68,7 +69,7 @@ import java.io.Serializable;
  *
  * ## Constraints
  *
- * - The `scope` argument is mandatory and must not be `null`.
+ * - The mandatory `scope` argument must name one of the scopes requested by the query.
  * - At least one child {@link RequireConstraint} must be provided; an empty `inScope` is rejected at construction.
  * - Additional children of different constraint types are not accepted — all children must be
  *   `RequireConstraint` instances.
@@ -89,7 +90,8 @@ import java.io.Serializable;
  *
  * ```evitaql
  * require(
- *    inScope(ARCHIVED, entityFetch(attributeContentAll()))
+ *    entityFetch(attributeContentAll()),
+ *    inScope(LIVE, priceHistogram(5))
  * )
  * ```
  *
@@ -101,7 +103,8 @@ import java.io.Serializable;
  */
 @ConstraintDefinition(
 	name = "inScope",
-	shortDescription = "The constraint limits enclosed require constraints to apply only when processing entities in a specific scope (LIVE or ARCHIVED).",
+	shortDescription = "The constraint plans the extra results it wraps in one scope requested by the query " +
+		"(LIVE or ARCHIVED) and checks them against the indexes of that scope only.",
 	userDocsLink = "/documentation/query/require/behavioral#in-scope"
 )
 public class RequireInScope extends AbstractRequireConstraintContainer

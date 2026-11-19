@@ -2412,16 +2412,21 @@ public final class Catalog
 	}
 
 	/**
-	 * Applies a given {@link Mutation} to the appropriate target within the system.
-	 * The method determines the type of the mutation and performs the required action,
-	 * such as applying a schema mutation to the catalog or applying an entity mutation
-	 * to the relevant entity collection.
+	 * Applies an internal mutation: a catalog schema mutation to this catalog, an entity mutation to the collection of
+	 * its entity type.
 	 *
-	 * @param mutation the mutation instance to be applied; must not be null
-	 * @throws InvalidMutationException if the mutation type is not recognized or supported
+	 * This is the entry of mutations replayed from the write-ahead log, which belong to no session; session writes use
+	 * {@link #applyMutation(EvitaSessionContract, CatalogBoundMutation)}. An entity mutation is applied through
+	 * {@link EntityCollection#applyMutation(EntityMutation)} as an already committed one: a reference-histogram value
+	 * its withdrawal misses is not refused, whatever {@link MissingHistogramValueBehavior} the engine started with.
+	 *
+	 * @param evita the engine applying the mutation
+	 * @param mutation the mutation to apply
+	 * @throws InvalidMutationException when the mutation is neither a catalog schema nor an entity mutation
 	 */
 	public void applyMutation(
-		@Nonnull EvitaContract evita, @Nonnull Mutation mutation) throws InvalidMutationException {
+		@Nonnull EvitaContract evita, @Nonnull Mutation mutation
+	) throws InvalidMutationException {
 		if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
 			// apply schema mutation to the catalog
 			updateSchema(evita, null, schemaMutation);
@@ -2501,10 +2506,8 @@ public final class Catalog
 	}
 
 	/**
-	 * What a write in this catalog does when it must withdraw a reference-histogram value the index does not hold for
-	 * the entity - fixed when the engine started (see {@link MissingHistogramValueBehavior#fromSystemProperty()}) and
-	 * answered here so that every site withdrawing a histogram value reads the one value. It cannot change under a
-	 * running catalog.
+	 * Returns the session write policy for a missing reference-histogram value, fixed at engine start by
+	 * {@link MissingHistogramValueBehavior#fromSystemProperty()}.
 	 *
 	 * @return the behavior on a missing histogram value
 	 */

@@ -1,7 +1,7 @@
 ---
 title: Conditionally index per-reference attribute histograms via a dedicated HistogramIndex family
 date: 2026-04-23
-updated: 2026-11-11 02:30
+updated: 2026-11-17 01:20
 status: accepted
 kind: feature
 issues: [8]
@@ -9,8 +9,9 @@ prs: [1136]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema, evita_engine/src/main/java/io/evitadb/index, evita_engine/src/main/java/io/evitadb/core/expression/trigger, evita_engine/src/main/java/io/evitadb/core/catalog]
 supersedes: []
 superseded-by: []
-relates: [2026-05-06-reference-histogram-statistics, 2026-05-27-range-and-multi-histogram-schema, 2026-04-23-conditional-facet-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass,
-  2026-11-11-reference-histogram-net-change-per-run]
+relates: [2026-05-06-reference-histogram-statistics, 2026-05-27-range-and-multi-histogram-schema,
+  2026-04-23-conditional-facet-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass,
+  2026-11-11-reference-histogram-net-change-per-run, 2026-11-19-one-histogram-store-per-group]
 ---
 
 # Conditionally index per-reference attribute histograms via a dedicated HistogramIndex family
@@ -206,6 +207,9 @@ this session):
   and `HistogramRangeIndexLeafPagePart` reflect that later work, not this record's decision.
 
 ## Related work
+
+- [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) — places grouped histograms in a
+  histogram-only index per group and scope, retaining this record's histogram family and contribution counters.
 
 - [[faceted-partially-indexing]] (folder slug, not yet converted; issue #18) — the conditional
   facet-indexing architecture this record extends rather than reinvents.

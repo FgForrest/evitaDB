@@ -126,8 +126,8 @@ import static java.util.Optional.ofNullable;
  *
  * - After the facet statistics map is assembled, {@link ReferenceHistogramAccumulator#injectHistograms} rebuilds
  *   each reference's group-statistics collection to attach computed histogram DTOs.
- * - For grouped references, one histogram is computed per {@link io.evitadb.index.ReducedGroupEntityIndex};
- *   for non-grouped references, one histogram is computed from the
+ * - For grouped references, one histogram is computed per group, read from the group's
+ *   {@link io.evitadb.index.GroupHistogramEntityIndex}; for non-grouped references, one histogram is computed from the
  *   {@link io.evitadb.index.ReferencedTypeEntityIndex}.
  * - Groups that have histogram data but no facets receive a synthetic {@link io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics}
  *   entry so they appear in the response.

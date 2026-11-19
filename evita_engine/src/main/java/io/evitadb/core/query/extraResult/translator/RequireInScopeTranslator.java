@@ -37,7 +37,9 @@ import javax.annotation.Nullable;
 import java.util.Set;
 
 /**
- * This implementation of {@link RequireConstraintTranslator} simply traverses contents of {@link RequireInScope} query.
+ * Narrows extra-result planning to the scope named by {@link RequireInScope}. The frame of the main entity fetch
+ * starts with every scope searched by the query instead (see
+ * {@link ExtraResultPlanningVisitor#executeEntityFetchInContext}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

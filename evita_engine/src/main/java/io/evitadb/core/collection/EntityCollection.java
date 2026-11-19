@@ -671,11 +671,30 @@ public final class EntityCollection implements
 	 * Creates the collector of a new root entity mutation applied to this collection. The collector is then shared by
 	 * every implicit and reflected mutation the root mutation spawns, in this collection or in another one.
 	 *
+	 * The collector carries the catalog's configured {@link MissingHistogramValueBehavior}, which is the behavior of
+	 * session writes; the replay of a committed mutation through {@link #applyMutation(EntityMutation)} uses
+	 * {@link MissingHistogramValueBehavior#REPORT} instead.
+	 *
 	 * @return a fresh collector for one root entity mutation
 	 */
 	@Nonnull
 	LocalMutationExecutorCollector createLocalMutationExecutorCollector() {
-		return new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader);
+		return createLocalMutationExecutorCollector(this.catalog.getMissingHistogramValueBehavior());
+	}
+
+	/**
+	 * Creates the root collector, which supplies the effective policy to every nested executor.
+	 *
+	 * @param missingHistogramValueBehavior the effective policy for missing histogram values
+	 * @return a fresh collector for this root mutation
+	 */
+	@Nonnull
+	private LocalMutationExecutorCollector createLocalMutationExecutorCollector(
+		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior
+	) {
+		return new LocalMutationExecutorCollector(
+			this.catalog, this.persistenceService, this.dataStoreReader, missingHistogramValueBehavior
+		);
 	}
 
 	/**
@@ -780,28 +799,6 @@ public final class EntityCollection implements
 	@Override
 	public EntityBuilder createNewEntity(int primaryKey) {
 		return new InitialEntityBuilder(getSchema(), primaryKey);
-	}
-
-	/**
-	 * Same method as {@link #upsertEntity(EvitaSessionContract, EntityMutation)}, but in internal API that doesn't
-	 * require session in the input. This method is used from transactional replayer that doesn't have session available.
-	 */
-	@Nonnull
-	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		return upsertEntityInternal(
-			null,
-			entityMutation,
-			entityMutation.getEntityPrimaryKey() == null ? this.defaultMinimalQuery : null,
-			EntityReference.class
-		).orElseThrow(
-			() -> new EntityMissingException(
-				getEntityType(),
-				entityMutation.getEntityPrimaryKey() == null ?
-					ArrayUtils.EMPTY_INT_ARRAY :
-					new int[]{entityMutation.getEntityPrimaryKey()},
-				null
-			)
-		);
 	}
 
 	@Override
@@ -1078,16 +1075,22 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Same method as {@link #applyMutation(EvitaSessionContract, EntityMutation)}, but in internal API that doesn't
-	 * require session in the input. This method is used from transactional replayer that doesn't have session available.
+	 * Replays a committed entity mutation. Missing histogram values are reported so WAL incorporation can proceed.
+	 *
+	 * @param entityMutation the entity mutation to apply
+	 * @throws InvalidMutationException when the mutation type is unsupported
 	 */
 	public void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		applyMutationInternal(null, entityMutation);
+		applyMutationInternal(
+			null, entityMutation, createLocalMutationExecutorCollector(MissingHistogramValueBehavior.REPORT)
+		);
 	}
 
 	@Override
-	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		applyMutationInternal(session, entityMutation);
+	public void applyMutation(
+		@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation
+	) throws InvalidMutationException {
+		applyMutationInternal(session, entityMutation, createLocalMutationExecutorCollector());
 	}
 
 	@Nonnull
@@ -2186,16 +2189,20 @@ public final class EntityCollection implements
 
 
 	/**
-	 * Dispatches {@link IndexMutation} instances to their registered {@link IndexMutationExecutor}. Passes the
-	 * {@link EntityIndexMaintainer} (which implements {@link IndexMutationTarget}) so executors can access indexes,
+	 * Dispatches {@link IndexMutation} instances to their registered {@link IndexMutationExecutor}. Passes a
+	 * {@link DispatchMaintainer} (which implements {@link IndexMutationTarget}) so executors can access indexes,
 	 * schema, triggers, and query evaluation without seeing the full {@link EntityCollection} API surface.
-	 *
-	 * Zero allocations — `entityIndexCreator` is the target (already exists as a field).
 	 * No switch/case or orchestration logic in the collection.
 	 *
-	 * The session is temporarily set on the `entityIndexCreator` for the duration of the dispatch so that
-	 * `evaluateFilter()` can create a `QueryPlanningContext`. The session reference is cleared in a `finally`
-	 * block to prevent leaking beyond the dispatch scope.
+	 * Each call creates its own maintainer, see {@link #createDispatchMaintainer}: it carries the session, which
+	 * `evaluateFilter()` needs to create a `QueryPlanningContext`, and records the histogram stores of groups the
+	 * dispatch writes to. Once every mutation of the envelope is dispatched, the stores the dispatch left empty are
+	 * dropped. A failed dispatch drops nothing, because its exception leaves before the drop: in a root mutation
+	 * bracketed by a savepoint, the rollback of the savepoint then reverts what the dispatch changed, while WAL replay
+	 * opens no savepoint and discards the whole transaction instead (see `LocalMutationExecutorCollector#rollback`).
+	 * Nothing of the dispatch is kept on the shared maintainer of the collection, so concurrent dispatches into this
+	 * collection never see each other's state. The cost is one small object per envelope, plus a set when the
+	 * dispatch writes into a store.
 	 *
 	 * @param entityIndexMutation transport envelope containing mutations to dispatch
 	 * @param session             active session for query evaluation during dispatch, may be null during WAL replay
@@ -2205,14 +2212,22 @@ public final class EntityCollection implements
 		@Nonnull EntityIndexMutation entityIndexMutation,
 		@Nullable EvitaSessionContract session
 	) {
-		this.entityIndexCreator.setSession(session);
-		try {
-			for (final IndexMutation mutation : entityIndexMutation.mutations()) {
-				IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, this.entityIndexCreator);
-			}
-		} finally {
-			this.entityIndexCreator.setSession(null);
+		final DispatchMaintainer target = createDispatchMaintainer(session);
+		for (final IndexMutation mutation : entityIndexMutation.mutations()) {
+			IndexMutationExecutorRegistry.INSTANCE.dispatch(mutation, target);
 		}
+		target.dropEmptiedGroupHistogramStores();
+	}
+
+	/**
+	 * Creates the target of one dispatch of index mutations, see {@link #applyIndexMutations}.
+	 *
+	 * @param session the session of the dispatch, or `null` during WAL replay
+	 * @return a maintainer used by this one dispatch only
+	 */
+	@Nonnull
+	DispatchMaintainer createDispatchMaintainer(@Nullable EvitaSessionContract session) {
+		return new DispatchMaintainer(session);
 	}
 
 	/**
@@ -2224,8 +2239,9 @@ public final class EntityCollection implements
 	 * {@link io.evitadb.index.mutation.ReevaluateExpressionExecutor#evaluateHistogramConditionState} for why the
 	 * executor cannot derive it itself.
 	 *
-	 * The session is set for the duration of the evaluation exactly as in {@link #applyIndexMutations}, because
-	 * condition evaluation goes through `evaluateFilter()` and needs a `QueryPlanningContext`.
+	 * The session is set on the shared maintainer of the collection for the duration of the evaluation and cleared
+	 * in a `finally` block, because condition evaluation goes through `evaluateFilter()` and needs a
+	 * `QueryPlanningContext`.
 	 *
 	 * @param mutation the cross-entity re-evaluation signal about to be applied
 	 * @param session  active session for query evaluation, may be null during WAL replay
@@ -2714,17 +2730,21 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Applies an entity mutation internally by assessing the type of mutation
-	 * and performing the appropriate operation.
+	 * Applies the root mutation using its collector, also shared by its implicit and reflected mutations.
 	 *
-	 * @param session the Evita session that may be involved in the transaction; can be null.
-	 * @param entityMutation the mutation operation to be applied to an entity; must not be null.
-	 * @throws InvalidMutationException if an unsupported mutation type is encountered.
+	 * @param session the session, or null for internal replay
+	 * @param entityMutation the mutation to apply
+	 * @param collector the root collector carrying the effective histogram policy
+	 * @throws InvalidMutationException if the mutation type is unsupported
 	 */
-	private void applyMutationInternal(@Nullable EvitaSessionContract session, @Nonnull EntityMutation entityMutation) {
+	private void applyMutationInternal(
+		@Nullable EvitaSessionContract session,
+		@Nonnull EntityMutation entityMutation,
+		@Nonnull LocalMutationExecutorCollector collector
+	) {
 		switch (entityMutation) {
 			case EntityUpsertMutation upsertMutation ->
-				upsertEntityInternal(session, upsertMutation, null, Void.class);
+				upsertEntityInternal(session, upsertMutation, null, Void.class, collector);
 			case ServerEntityRemoveMutation removeMutation -> applyMutations(
 				session,
 				removeMutation,
@@ -2732,7 +2752,7 @@ public final class EntityCollection implements
 				removeMutation.shouldVerifyConsistency(),
 				null,
 				removeMutation.getImplicitMutationsBehavior(),
-				createLocalMutationExecutorCollector(),
+				collector,
 				Void.class
 			);
 			case EntityRemoveMutation entityRemoveMutation -> applyMutations(
@@ -2742,7 +2762,7 @@ public final class EntityCollection implements
 				true,
 				null,
 				EnumSet.noneOf(ImplicitMutationBehavior.class),
-				createLocalMutationExecutorCollector(),
+				collector,
 				Void.class
 			);
 			default -> throw new InvalidMutationException(
@@ -3992,6 +4012,30 @@ public final class EntityCollection implements
 		@Nullable EvitaRequest returnUpdatedEntity,
 		@Nonnull Class<T> returnType
 	) {
+		return upsertEntityInternal(
+			session, entityMutation, returnUpdatedEntity, returnType, createLocalMutationExecutorCollector()
+		);
+	}
+
+	/**
+	 * Validates and applies an upsert with the collector of its root mutation.
+	 *
+	 * @param session the session, or null for internal replay
+	 * @param entityMutation the entity upsert
+	 * @param returnUpdatedEntity the requested returned content, or null
+	 * @param returnType the result type
+	 * @param collector the root collector carrying the effective histogram policy
+	 * @param <T> the returned result type
+	 * @return the requested result when present
+	 */
+	@Nonnull
+	private <T> Optional<T> upsertEntityInternal(
+		@Nullable EvitaSessionContract session,
+		@Nonnull EntityMutation entityMutation,
+		@Nullable EvitaRequest returnUpdatedEntity,
+		@Nonnull Class<T> returnType,
+		@Nonnull LocalMutationExecutorCollector collector
+	) {
 		// verify mutation against schema
 		// it was already executed when mutation was created, but there are two reasons to do it again
 		// - we don't trust clients - in future it may be some external JS application
@@ -4056,7 +4100,7 @@ public final class EntityCollection implements
 				veum.shouldVerifyConsistency(),
 				returnUpdatedEntity,
 				veum.getImplicitMutationsBehavior(),
-				createLocalMutationExecutorCollector(),
+				collector,
 				returnType
 			);
 		} else {
@@ -4068,7 +4112,7 @@ public final class EntityCollection implements
 				true,
 				returnUpdatedEntity,
 				EnumSet.allOf(ImplicitMutationBehavior.class),
-				createLocalMutationExecutorCollector(),
+				collector,
 				returnType
 			);
 		}
@@ -4188,7 +4232,7 @@ public final class EntityCollection implements
 			// their counters belong to the catalog rather than to whichever collection happened to write one
 			this.catalog.getUsageRegistry(),
 			this.catalog.isUsageStatisticsTracked(),
-			this.entityIndexCreator.getMissingHistogramValueBehavior(),
+			localMutationExecutorCollector.getMissingHistogramValueBehavior(),
 			// the collector is shared by the whole root mutation, so its executors share the reservations too
 			localMutationExecutorCollector.getPartitionReservations()
 		);
@@ -4683,16 +4727,15 @@ public final class EntityCollection implements
 	private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex>, IndexMutationTarget {
 
 		/**
-		 * Active session for query evaluation during cross-entity trigger dispatch. Set temporarily by
-		 * `applyIndexMutations()` for the duration of the dispatch and cleared in a `finally` block.
-		 * May be null during WAL replay when no session context is available.
+		 * Active session for query evaluation. The shared maintainer of the collection gets it temporarily from
+		 * `evaluateHistogramConditionState()` and clears it in a `finally` block; a {@link DispatchMaintainer} carries
+		 * the session of its one dispatch. May be null during WAL replay when no session context is available.
 		 */
 		@Nullable
 		private EvitaSessionContract session;
 
 		/**
-		 * Sets the active session for query evaluation. Called by `applyIndexMutations()` before dispatch
-		 * and cleared after dispatch completes.
+		 * Sets the active session for query evaluation.
 		 *
 		 * @param session the active session, or null to clear
 		 */
@@ -4760,6 +4803,19 @@ public final class EntityCollection implements
 										.referenceName()
 								);
 								entityIndex = new ReducedGroupEntityIndex(
+									EntityCollection.this.getNextIndexPrimaryKey(),
+									EntityCollection.this.getEntityType(),
+									eikAgain,
+									tracked
+								);
+							} else if (eikAgain.type() == EntityIndexType.REFERENCED_GROUP_HISTOGRAM) {
+								assertReferenceIndexPrerequisites(
+									((RepresentativeReferenceKey) Objects.requireNonNull(eikAgain.discriminator()))
+										.referenceName()
+								);
+								// the histogram-only store of one group: no partition object, never advertised in the
+								// group-type index, so no prerequisite beyond the reference itself
+								entityIndex = new GroupHistogramEntityIndex(
 									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
@@ -5097,15 +5153,6 @@ public final class EntityCollection implements
 		}
 
 		/**
-		 * Answers the catalog's behavior, so every executor of the collection reads the one value.
-		 */
-		@Nonnull
-		@Override
-		public MissingHistogramValueBehavior getMissingHistogramValueBehavior() {
-			return EntityCollection.this.catalog.getMissingHistogramValueBehavior();
-		}
-
-		/**
 		 * Refuses to create the index object of a partition of a reference whose partitions may be virtual in the key's
 		 * scope. Such a partition with a single owner is a registry row and nothing else, and one gaining its second
 		 * owner receives its index object under the primary key its row carries (see
@@ -5151,6 +5198,66 @@ public final class EntityCollection implements
 			EntityCollection.this
 				.getSchema()
 				.getReferenceOrThrowException(referenceName);
+		}
+
+	}
+
+	/**
+	 * The {@link IndexMutationTarget} of one dispatch of index mutations, see {@link #applyIndexMutations}. It is an
+	 * {@link EntityIndexMaintainer} carrying the session of the dispatch, which also records the key of every histogram
+	 * store of a group ({@link GroupHistogramEntityIndex}) the dispatch registers for modification, and drops the
+	 * stores the dispatch left empty once it ends - the local executor drops the indexes a local mutation empties the
+	 * same way, but a dispatch never reaches it.
+	 *
+	 * A new instance serves each dispatch: the collection, and with it its shared maintainer, is one object for every
+	 * session writing into it, so a record kept there would be shared by concurrent dispatches.
+	 */
+	final class DispatchMaintainer extends EntityIndexMaintainer {
+		/**
+		 * The keys of the histogram stores the dispatch registered for modification, created with the first one.
+		 */
+		@Nullable private Set<EntityIndexKey> touchedGroupHistogramStores;
+
+		/**
+		 * Creates the maintainer of one dispatch.
+		 *
+		 * @param session the session of the dispatch, or `null` during WAL replay
+		 */
+		DispatchMaintainer(@Nullable EvitaSessionContract session) {
+			setSession(session);
+		}
+
+		/**
+		 * Also records the key when it names the histogram store of a group, so that
+		 * {@link #dropEmptiedGroupHistogramStores} drops the store if the dispatch leaves it empty.
+		 */
+		@Nonnull
+		@Override
+		public EntityIndex getOrCreateIndex(@Nonnull EntityIndexKey entityIndexKey) {
+			final EntityIndex index = super.getOrCreateIndex(entityIndexKey);
+			if (entityIndexKey.type() == EntityIndexType.REFERENCED_GROUP_HISTOGRAM) {
+				if (this.touchedGroupHistogramStores == null) {
+					this.touchedGroupHistogramStores = CollectionUtils.createHashSet(4);
+				}
+				this.touchedGroupHistogramStores.add(entityIndexKey);
+			}
+			return index;
+		}
+
+		/**
+		 * Drops every recorded histogram store that holds no value any more and forgets the records. A store the
+		 * dispatch filled again after emptying it is kept.
+		 */
+		void dropEmptiedGroupHistogramStores() {
+			if (this.touchedGroupHistogramStores != null) {
+				for (final EntityIndexKey storeKey : this.touchedGroupHistogramStores) {
+					final EntityIndex store = getIndexIfExists(storeKey);
+					if (store != null && store.isEmpty()) {
+						removeIndex(storeKey);
+					}
+				}
+				this.touchedGroupHistogramStores = null;
+			}
 		}
 
 	}

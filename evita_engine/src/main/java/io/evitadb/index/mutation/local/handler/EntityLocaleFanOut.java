@@ -72,7 +72,7 @@ import java.util.Set;
  * entity withdraws nothing: it schedules no final add, and removes the values present for the owner instead.
  *
  * **A new writer of the entity's locale set must call this class before it is applied.** Otherwise the next
- * withdrawal of a defaulted value reads a locale set the last add did not use, and is refused.
+ * withdrawal of a defaulted value reads a locale set the last add did not use and can encounter a missing value.
  *
  * Cost: for an owner type without such a histogram, a localized mutation or a reference removal pays one registry map
  * probe, a non-localized one nothing. For an owner type with one, an upsert in a locale the entity has already adds a

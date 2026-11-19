@@ -40,6 +40,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
@@ -65,8 +67,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Verifies that a catalog header carrying a storage protocol no migration starts from - one newer than the protocol
- * this version writes - is refused when the storage format is verified, rather than read again and again, and that the
- * refused open keeps every byte of the catalog and leaves nothing open or scheduled.
+ * this version writes, or the development protocol 7 or 8 of 2026.3 - is refused when the storage format is verified,
+ * rather than read again and again, and that the refused open keeps every byte of the catalog and leaves nothing open
+ * or scheduled.
  *
  * **The image.** Each image is written by the engine - a catalog holding no reference, so no migration can fail on
  * anything but the protocol - and its catalog header and bootstrap record are then stamped with the protocols of the
@@ -135,6 +138,19 @@ class StorageProtocolRefusalTest implements EvitaTestSupport {
 		assertEquals(before, storedFiles(catalogFolder(configuration, CATALOG)), "every byte must be kept");
 	}
 
+	/** Refuses the two unsupported development formats before any write or publication. */
+	@ParameterizedTest(name = "protocol {0}")
+	@ValueSource(ints = {7, 8})
+	@DisplayName("development protocols are refused without changing any byte")
+	void shouldRefuseDevelopmentProtocolsWithoutWriting(int protocol) {
+		final EvitaConfiguration configuration = writeImage("development" + protocol);
+		stamp(configuration, CATALOG, protocol, protocol);
+		final SortedMap<String, StoredFile> before = storedFiles(catalogFolder(configuration, CATALOG));
+		final ObsoleteStorageProtocolException refusal = assertRefused(configuration, "development build of 2026.3");
+		assertTrue(refusal.getPrivateMessage().contains("recreate"), refusal.getPrivateMessage());
+		assertEquals(before, storedFiles(catalogFolder(configuration, CATALOG)), "every byte must be kept");
+	}
+
 	/**
 	 * Opens the catalog with the engine stopped, through the persistence service the engine loads it with, and asserts
 	 * that the open is refused promptly as an unknown protocol and leaves nothing behind: no task scheduled on the
@@ -146,6 +162,20 @@ class StorageProtocolRefusalTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private static ObsoleteStorageProtocolException assertRefused(@Nonnull EvitaConfiguration configuration) {
+		return assertRefused(configuration, UNKNOWN_DIAGNOSIS);
+	}
+
+	/**
+	 * Asserts a prompt refusal with the expected diagnosis and no leaked tasks or open catalog files.
+	 *
+	 * @param configuration the engine configuration
+	 * @param diagnosis the diagnosis the refusal must give
+	 * @return the refusal
+	 */
+	@Nonnull
+	private static ObsoleteStorageProtocolException assertRefused(
+		@Nonnull EvitaConfiguration configuration, @Nonnull String diagnosis
+	) {
 		final Path folder = catalogFolder(configuration, CATALOG);
 		final CatalogFolderId folderId = new CatalogFolderId(folder.getFileName().toString());
 		final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
@@ -178,7 +208,7 @@ class StorageProtocolRefusalTest implements EvitaTestSupport {
 				),
 				"the open of the catalog must end - a verification that reads one header again and again never does"
 			);
-			assertTrue(refusal.getPrivateMessage().contains(UNKNOWN_DIAGNOSIS), refusal.getPrivateMessage());
+			assertTrue(refusal.getPrivateMessage().contains(diagnosis), refusal.getPrivateMessage());
 			assertEquals(
 				tasksBefore, scheduler.getSubmittedTaskCount(), "the refused open must leave no task scheduled"
 			);
