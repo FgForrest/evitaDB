@@ -25,9 +25,12 @@ package io.evitadb.core.catalog;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
@@ -56,6 +59,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntConsumer;
 import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
@@ -91,8 +96,9 @@ import static org.mockito.Mockito.spy;
  * right before it writes, which a spy pauses, and the rename reports its progress once its relabel is published,
  * which the progress consumer of its future pauses. Where the termination itself must be held, a spy pauses it once it
  * has begun, at the point where it asks whether it may publish - the spy shares every mutable holder of the catalog.
- * Every assertion about what was published reads a fresh engine opened over a copy of the storage taken right after
- * the termination.
+ * Where engine shutdown itself has to meet a running go-live, the go-live goes through the engine and its client
+ * progress observer pauses it once it runs. Every assertion about what was published reads a fresh engine opened over
+ * a copy of the storage taken right after the termination.
  */
 @DisplayName("Termination of a warming-up catalog beside its go-live or rename")
 @Tag(ENGINE)
@@ -232,6 +238,53 @@ class CatalogWarmUpTerminationBesideHandoverTest implements EvitaTestSupport {
 			assertEquals(
 				Optional.of(CatalogState.WARMING_UP), test.readSnapshotCatalogState(TEST_CATALOG),
 				"the refused go-live must leave the catalog at its last published, warming-up state"
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("when engine shutdown clears the engine state under a running go-live")
+	class GoLiveOutlivedByEngineState {
+
+		@Test
+		@DisplayName("should release the catalog the go-live cannot put back behind its name")
+		void shouldReleaseCatalogGoLiveCannotPutBackWhenShutdownClearedEngineState() {
+			final CatalogWarmUpTerminationBesideHandoverTest test = CatalogWarmUpTerminationBesideHandoverTest.this;
+			final Catalog catalog = test.catalog();
+			// the go-live reports its progress from the engine executor once it runs - by then its placeholder stands
+			// behind the catalog's name - and the observer pauses that report
+			final AtomicReference<Thread> submitting = new AtomicReference<>();
+			final AtomicBoolean reported = new AtomicBoolean();
+			final CountDownLatch goLiveRunning = new CountDownLatch(1);
+			final IntConsumer observer = percentage -> {
+				if (Thread.currentThread() != submitting.get() && reported.compareAndSet(false, true)) {
+					goLiveRunning.countDown();
+					awaitLatch(test.releaseParked, "the go-live was never released");
+				}
+			};
+			final Future<Progress<CommitVersions>> goLive = test.fixtureThreads.submit(
+				() -> {
+					submitting.set(Thread.currentThread());
+					return test.evita.applyMutation(new MakeCatalogAliveMutation(TEST_CATALOG), observer);
+				}
+			);
+			awaitLatch(goLiveRunning, "the go-live never started running");
+
+			// the shutdown terminates the placeholder it finds behind the name, clears the engine state and then waits
+			// for the go-live, which can neither record its transition nor put a catalog back behind the name
+			final Future<?> shutdown = test.fixtureThreads.submit(test.evita::close);
+			awaitEngineStateCleared(test.evita);
+			test.releaseParked.countDown();
+			awaitCompletion(shutdown);
+
+			final Throwable goLiveFailure = failureOf(futureOf(goLive));
+			assertInstanceOf(
+				InstanceTerminatedException.class, rootCause(goLiveFailure),
+				"the go-live must fail on the engine state the shutdown cleared, but it ended with: " + goLiveFailure
+			);
+			assertTrue(
+				catalog.isTerminated(),
+				"the catalog a go-live could not put back behind its name must be released, not left open"
 			);
 		}
 	}
@@ -382,6 +435,39 @@ class CatalogWarmUpTerminationBesideHandoverTest implements EvitaTestSupport {
 			return (ReentrantLock) field.get(catalog);
 		} catch (ReflectiveOperationException ex) {
 			throw new IllegalStateException("The warm-up publication lock of the catalog is not readable.", ex);
+		}
+	}
+
+	/**
+	 * Waits, within the positive bound, until the engine has cleared its state - the step of its close that comes
+	 * after it terminated the catalogs it found and before it waits for the engine mutations still running. Nothing
+	 * signals that step, so the engine is asked.
+	 *
+	 * @param evita the engine being closed
+	 */
+	private static void awaitEngineStateCleared(@Nonnull Evita evita) {
+		final long deadline = System.nanoTime() + SECONDS.toNanos(POSITIVE_WAIT_SECONDS);
+		while (evita.getEngineState() != null) {
+			assertTrue(System.nanoTime() < deadline, "the engine never cleared its state");
+			LockSupport.parkNanos(MILLISECONDS.toNanos(1L));
+		}
+	}
+
+	/**
+	 * Returns the completion of the progress a completed future returned.
+	 *
+	 * @param progressFuture the completed future returning the progress of an engine mutation
+	 * @return the completion of that progress, as a future
+	 */
+	@Nonnull
+	private static Future<?> futureOf(@Nonnull Future<? extends Progress<?>> progressFuture) {
+		try {
+			return progressFuture.get(POSITIVE_WAIT_SECONDS, SECONDS).onCompletion().toCompletableFuture();
+		} catch (ExecutionException | TimeoutException ex) {
+			return fail("the engine mutation was not accepted", ex);
+		} catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
+			throw new IllegalStateException(ex);
 		}
 	}
 

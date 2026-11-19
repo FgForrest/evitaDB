@@ -83,6 +83,12 @@ import java.util.function.Consumer;
 @Slf4j
 @RequiredArgsConstructor
 public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<CommitVersions, MakeCatalogAliveMutation> {
+	/**
+	 * Warned when the catalog a failed go-live could not put back behind its name cannot be released either.
+	 */
+	private static final String RELEASE_FAILURE = "Failed to terminate catalog `{}` after a go-live that could not " +
+		"put it back behind its name - the handles its persistence service holds into the storage folder stay open " +
+		"until the server is restarted.";
 	private final CatalogFolderContext folderContext;
 
 	@Nonnull
@@ -223,6 +229,17 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 								"refusing sessions as GOING_ALIVE until the server is restarted.",
 							catalogName, declarationFailure
 						);
+						// Nothing else will ever release the real catalog now: the engine state names the placeholder
+						// - or nothing, when engine shutdown cleared it, having terminated the placeholder in the
+						// catalog's place - so its storage would stay open for the life of the process. Releasing it
+						// costs nothing it still serves, and a restart reloads it from disk. A warm-up instance whose
+						// go-live finished is barred and publishes nothing on termination.
+						if (catalogToRestore != null) {
+							CatalogTerminationHelper.terminateQuietly(
+								log, catalogToRestore, catalogName, RELEASE_FAILURE
+							);
+						}
+						CatalogTerminationHelper.terminateQuietly(log, theCatalog, catalogName, RELEASE_FAILURE);
 					}
 				}
 				// Unconditional: `resumeOperations` lifts a suspension if one is standing and does nothing otherwise,
