@@ -100,8 +100,8 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 		return Stream.of(
 			"d1a", "d1b", "d1b2", "d1c", "d2", "d3", "d3p", "d4", "d4c", "d4t", "d4f", "d4cp", "d5f", "d5s", "dF1p",
 			"dS1p", "dX", "dv", "dN1h", "d14", "d2p", "dDel", "d6", "d7", "d8", "d16", "d16n", "d17", "d17a", "d5r",
-			"dK1h", "dGrp", "dUw", "drf", "dRR", "dRng", "d9", "d9o", "d10", "d10s", "d11", "d11t", "dU", "d6c", "d12",
-			"d12b", "d13", "d15"
+			"dK1h", "dGrp", "groupedHistogram", "dUw", "drf", "dRR", "dRng", "d9", "d9o", "d10", "d10s", "d11", "d11t",
+			"dU", "d6c", "d12", "d12b", "d13", "d15"
 		);
 	}
 
@@ -115,14 +115,17 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 	static Stream<String> loadingFixtures() {
 		return Stream.of(
 			"d1a", "d1c", "d2", "d3", "d3p", "d4", "d4c", "d4t", "d4f", "d5f", "d5s", "dF1p", "dS1p", "dX", "dv",
-			"dN1h", "d14", "d2p", "dDel", "d16", "d16n", "d5r", "dK1h", "dGrp", "dUw", "drf", "dRR", "dRng", "dU",
+			"dN1h", "d14", "d2p", "dDel", "d16", "d16n", "d5r", "dK1h", "dGrp", "groupedHistogram", "dUw", "drf",
+			"dRR", "dRng", "dU",
 			"d12", "d12b", "d15", "d4cp", "d7", "d17", "d17a", "d10s"
 		);
 	}
 
 	/**
 	 * Returns the fixtures whose upgraded catalog already answers every probe of its recipe as a fresh current engine
-	 * fed the same recipe does.
+	 * fed the same recipe does. The comparison checks only primary keys and discards histogram extra results, so the
+	 * grouped-histogram fixture stays excluded: its upgraded catalog answers the grouped histogram with none where a
+	 * fresh engine has one, which {@link Release2026_2GroupedHistogramUpgradeTest} asserts.
 	 *
 	 * @return the fixture names
 	 */
@@ -150,10 +153,10 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("loadingFixtures")
-	@DisplayName("the fixture loads after the upgrade with its header at storage protocol 7")
+	@DisplayName("the fixture loads after the upgrade with its header at storage protocol 9")
 	void shouldLoadWhenFixtureIsUpgraded(@Nonnull String fixture) {
 		this.harness.withUpgradedCatalog(
-			fixture, evita -> assertEquals(7, ReleaseFixtureHarness.headerStorageProtocol(evita, fixture))
+			fixture, evita -> assertEquals(9, ReleaseFixtureHarness.headerStorageProtocol(evita, fixture))
 		);
 	}
 
@@ -176,7 +179,7 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 		@ValueSource(strings = {"d1b", "d1b2", "d9", "d9o", "d13"})
 		void shouldLoadWhenFixtureIsUpgraded(@Nonnull String fixture) {
 			Release2026_2UpgradeDefectsTest.this.harness.withUpgradedCatalog(
-				fixture, evita -> assertEquals(7, ReleaseFixtureHarness.headerStorageProtocol(evita, fixture))
+				fixture, evita -> assertEquals(9, ReleaseFixtureHarness.headerStorageProtocol(evita, fixture))
 			);
 		}
 
@@ -199,20 +202,20 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 	class StorageProtocol {
 
 		@Test
-		@DisplayName("a native 2026.2 catalog is republished at protocol 7 on top of its release bootstrap records")
-		void shouldStampProtocolSevenWhenNativeCatalogIsUpgraded() {
+		@DisplayName("a native 2026.2 catalog is republished at protocol 9 on top of its release bootstrap records")
+		void shouldStampProtocolNineWhenNativeCatalogIsUpgraded() {
 			final ReleaseFixtureHarness harness = Release2026_2UpgradeDefectsTest.this.harness;
 			final TestPaths paths = harness.copy("dU");
 			try {
 				final List<CatalogBootstrap> before = harness.bootstrapRecords(paths, "dU");
 				try (Evita evita = harness.boot(paths)) {
 					ReleaseFixtureHarness.requireAlive(evita, "dU");
-					assertEquals(7, ReleaseFixtureHarness.headerStorageProtocol(evita, "dU"));
+					assertEquals(9, ReleaseFixtureHarness.headerStorageProtocol(evita, "dU"));
 				}
 				final List<CatalogBootstrap> after = harness.bootstrapRecords(paths, "dU");
 				assertTrue(after.size() > before.size(), "the upgrade must publish a new bootstrap record");
 				assertEquals(before, after.subList(0, before.size()), "release bootstrap records stay as they were");
-				assertEquals(7, harness.lastBootstrapStorageProtocol(paths, "dU"));
+				assertEquals(9, harness.lastBootstrapStorageProtocol(paths, "dU"));
 			} finally {
 				harness.cleanup(paths);
 			}

@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
-import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
@@ -57,9 +56,9 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.index.HistogramCapableEntityIndex;
 import io.evitadb.index.HistogramIndex;
-import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
@@ -91,6 +90,7 @@ import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -139,6 +139,15 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 	 */
 	private static final HistogramValueDescriptor DEFAULTED_SHARE = shareDescriptor(Integer.class, false, 1, null);
 	/**
+	 * The primary key of the histogram store of group 100 in the grouped fixtures.
+	 */
+	private static final int STORE_PRIMARY_KEY = 22;
+	/**
+	 * The primary key of the reduced index through which the group-type index tracks group 100 in the grouped
+	 * fixtures. No index is registered under it: a histogram write never looks for one.
+	 */
+	private static final int REDUCED_GROUP_INDEX_PRIMARY_KEY = 23;
+	/**
 	 * In-memory storage parts, which the test deliberately leaves inconsistent with the queued index operations.
 	 */
 	private final MockStorageContainerAccessor storage = new MockStorageContainerAccessor();
@@ -179,7 +188,7 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 		 * Removes a qualifying reference's contribution through the executor's public index API, then mutates it.
 		 * The default value makes the real unconditional trigger contribute even without a stored source attribute.
 		 *
-		 * @param grouped whether the contribution belongs to a reduced group index
+		 * @param grouped whether the contribution belongs to the histogram store of a group
 		 */
 		@ParameterizedTest
 		@ValueSource(booleans = {false, true})
@@ -205,7 +214,39 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 					() -> assertTrue(message.contains("shareHistogram"), message),
 					() -> assertTrue(message.contains("locale null"), message),
 					() -> assertTrue(message.contains("value 1"), message),
-					() -> assertTrue(!grouped || message.contains("reduced index primary key 22"), message)
+					() -> assertTrue(
+						message.contains("histogram index primary key " + (grouped ? STORE_PRIMARY_KEY : 21)), message
+					)
+				);
+			} finally {
+				cleanupTestPaths(paths);
+			}
+		}
+
+		/**
+		 * A grouped withdrawal whose condition holds must find the histogram store of the group: the group-type index
+		 * tracks the group, so a value was added to the store, and a store that is gone has lost it.
+		 */
+		@Test
+		@DisplayName("Fail when withdrawal finds no histogram store of the group")
+		void shouldThrowExceptionWhenWithdrawalFindsNoStoreOfGroup() {
+			final TestPaths paths = createTestPaths("withdrawalStoreMissing");
+			try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
+				final HistogramFixture fixture = createHistogramFixture(evita, true, true, false, DEFAULTED_SHARE);
+				final ReferenceKey key = new ReferenceKey("brand", 10, 7);
+				fixture.storeReference(key, null, false);
+
+				final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class,
+					() -> fixture.executor().updateReferences(new ReferenceAttributeMutation(
+						key, new UpsertAttributeMutation("share", 5)
+					), EntityIndexLocalMutationExecutorHistogramProtocolTest.this.globalIndex));
+
+				assertProtocolMessage(error, "withdraw histogram value", 7);
+				final String message = error.getMessage();
+				assertAll(
+					() -> assertTrue(message.contains("group 100"), message),
+					() -> assertTrue(message.contains("value 1"), message),
+					() -> assertTrue(message.contains("histogram index primary key -1"), message)
 				);
 			} finally {
 				cleanupTestPaths(paths);
@@ -376,14 +417,14 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 		}
 
 		/**
-		 * The final add of a grouped reference must find a reduced index listed for the group, as the withdrawal
-		 * must. The group-type index exists but lists nothing for the group, so an add that looped over the listing
-		 * would write nothing and report nothing.
+		 * The final add of a grouped reference must find the group tracked by the group-type index, the only way the
+		 * reader finds the groups whose histograms it reads: a value added to the store of an untracked group could
+		 * never be read. The group-type index exists but does not track the group.
 		 */
 		@Test
-		@DisplayName("Fail when the final add finds no reduced index listed for the group")
-		void shouldThrowExceptionWhenFinalGroupedAddFindsNoListedReducedIndex() {
-			final TestPaths paths = createTestPaths("finalAddWithoutListedGroupIndex");
+		@DisplayName("Fail when the final add finds the group untracked by the group-type index")
+		void shouldThrowExceptionWhenFinalGroupedAddFindsGroupUntracked() {
+			final TestPaths paths = createTestPaths("finalAddWithUntrackedGroup");
 			try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
 				final HistogramFixture fixture = createHistogramFixture(evita, true, false, DEFAULTED_SHARE);
 				final ReferenceKey key = new ReferenceKey("brand", 10, 7);
@@ -399,10 +440,80 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 
 				final String message = error.getMessage();
 				assertAll(
-					() -> assertTrue(message.contains("lists no reduced index for group `100`"), message),
+					() -> assertTrue(message.contains("does not track group `100`"), message),
 					() -> assertTrue(message.contains("reference `brand`"), message),
 					() -> assertTrue(message.contains("histogram `shareHistogram`"), message),
-					() -> assertTrue(message.contains("owner primary key 1,"), message)
+					() -> assertTrue(message.contains("owner primary key 1,"), message),
+					() -> assertFalse(fixture.holdsShareOfProduct(1), "nothing was added to the store")
+				);
+			} finally {
+				cleanupTestPaths(paths);
+			}
+		}
+
+		/**
+		 * The final add of a grouped reference writes its value into the histogram store of the group - the index under
+		 * the store's key - and into no other index the executor reaches, which in this fixture answers every other
+		 * lookup with the referenced-type index.
+		 */
+		@Test
+		@DisplayName("Write the value of a grouped final add into the histogram store of the group")
+		void shouldWriteStoreOfGroupWhenGroupedFinalAddRuns() {
+			final TestPaths paths = createTestPaths("finalAddIntoStore");
+			try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
+				final HistogramFixture fixture = createHistogramFixture(evita, true, true, DEFAULTED_SHARE);
+				final ReferenceKey key = new ReferenceKey("brand", 10, 7);
+				fixture.executor().updateReferences(
+					new InsertReferenceMutation(key),
+					EntityIndexLocalMutationExecutorHistogramProtocolTest.this.globalIndex
+				);
+				fixture.storeReference(key, null, false);
+
+				fixture.executor().executeDeferredReEvaluations();
+
+				assertAll(
+					() -> assertTrue(fixture.holdsShareOfProduct(1), "the store holds the value"),
+					() -> assertNull(
+						fixture.typeIndex().getHistogramIndex("shareHistogram"),
+						"the referenced-type index answering every other lookup holds no share histogram"
+					)
+				);
+			} finally {
+				cleanupTestPaths(paths);
+			}
+		}
+
+		/**
+		 * The final add of a grouped reference must refuse an index of any other type than the histogram store found
+		 * under the store's key, even one that can hold histograms: a value written there would be lost to the reader,
+		 * which reads the store only. The collection holds no store, so the lookup creating it answers the
+		 * referenced-type index the fixture answers every other lookup with.
+		 */
+		@Test
+		@DisplayName("Fail when the final add finds an index of another type under the key of the store")
+		void shouldThrowExceptionWhenFinalGroupedAddFindsOtherIndexTypeUnderStoreKey() {
+			final TestPaths paths = createTestPaths("finalAddIntoOtherIndexType");
+			try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
+				final HistogramFixture fixture = createHistogramFixture(evita, true, true, false, DEFAULTED_SHARE);
+				final ReferenceKey key = new ReferenceKey("brand", 10, 7);
+				fixture.executor().updateReferences(
+					new InsertReferenceMutation(key),
+					EntityIndexLocalMutationExecutorHistogramProtocolTest.this.globalIndex
+				);
+				fixture.storeReference(key, null, false);
+
+				final GenericEvitaInternalError error = assertThrows(
+					GenericEvitaInternalError.class, fixture.executor()::executeDeferredReEvaluations
+				);
+
+				final String message = error.getMessage();
+				assertAll(
+					() -> assertTrue(message.contains("Expected GroupHistogramEntityIndex"), message),
+					() -> assertTrue(message.contains(ReferencedTypeEntityIndex.class.getName()), message),
+					() -> assertNull(
+						fixture.typeIndex().getHistogramIndex("shareHistogram"),
+						"the index of the other type holds no share histogram"
+					)
 				);
 			} finally {
 				cleanupTestPaths(paths);
@@ -631,12 +742,12 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 
 	/**
 	 * Builds an executor over a real storage executor of a stored product 1 and real histogram indexes: the ungrouped
-	 * referenced-type index, or the group-type index and the reduced index of group 100. The single trigger has no
+	 * referenced-type index, or the group-type index and the histogram store of group 100. The single trigger has no
 	 * condition, so every stored reference qualifies.
 	 *
 	 * @param evita       the instance to create the catalog in
-	 * @param grouped     TRUE when the histogram values belong to the reduced index of group 100
-	 * @param groupListed TRUE when the group-type index lists that reduced index for group 100
+	 * @param grouped     TRUE when the histogram values belong to the histogram store of group 100
+	 * @param groupListed TRUE when the group-type index tracks group 100, by listing a reduced index for it
 	 * @param descriptor  the value descriptor of the trigger
 	 * @return the fixture
 	 */
@@ -645,6 +756,32 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 		@Nonnull Evita evita,
 		boolean grouped,
 		boolean groupListed,
+		@Nonnull HistogramValueDescriptor descriptor
+	) {
+		return createHistogramFixture(evita, grouped, groupListed, true, descriptor);
+	}
+
+	/**
+	 * Builds an executor over a real storage executor of a stored product 1 and real histogram indexes: the ungrouped
+	 * referenced-type index, or the group-type index and - where `storePresent` says so - the histogram store of group
+	 * 100. The single trigger has no condition, so every stored reference qualifies.
+	 *
+	 * Any other key, and any lookup by primary key, answers the referenced-type index, which holds histograms of its
+	 * own: a write that reached it instead of the store of the group is told apart by reading the store.
+	 *
+	 * @param evita        the instance to create the catalog in
+	 * @param grouped      TRUE when the histogram values belong to the histogram store of group 100
+	 * @param groupListed  TRUE when the group-type index tracks group 100, by listing a reduced index for it
+	 * @param storePresent TRUE when the collection holds the histogram store of group 100
+	 * @param descriptor   the value descriptor of the trigger
+	 * @return the fixture
+	 */
+	@Nonnull
+	private HistogramFixture createHistogramFixture(
+		@Nonnull Evita evita,
+		boolean grouped,
+		boolean groupListed,
+		boolean storePresent,
 		@Nonnull HistogramValueDescriptor descriptor
 	) {
 		evita.defineCatalog(TEST_CATALOG);
@@ -671,16 +808,17 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 			Scope.LIVE, "brand"
 		);
 		final ReferencedTypeEntityIndex typeIndex = new ReferencedTypeEntityIndex(21, "product", typeKey);
-		final EntityIndex target = grouped ? new ReducedGroupEntityIndex(
-			22, "product", new EntityIndexKey(
-				EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE,
-				new RepresentativeReferenceKey(new ReferenceKey("brand", 100))
-			)
-		) : typeIndex;
-		final MockEntityIndexCreator<EntityIndexKey, EntityIndex> indexes = new MockEntityIndexCreator<>(target);
+		final EntityIndexKey storeKey = GroupHistogramEntityIndex.keyOf("brand", 100, Scope.LIVE);
+		final HistogramCapableEntityIndex target = grouped ?
+			new GroupHistogramEntityIndex(STORE_PRIMARY_KEY, "product", storeKey, false) : typeIndex;
+		final MockEntityIndexCreator<EntityIndexKey, EntityIndex> indexes = new MockEntityIndexCreator<>(typeIndex);
 		indexes.register(typeKey, typeIndex);
+		if (grouped) {
+			indexes.register(storeKey, storePresent ? (EntityIndex) target : null);
+		}
 		if (grouped && groupListed) {
-			typeIndex.insertPrimaryKeyIfMissing(22, 100);
+			// the group is tracked by a reduced index of its own, which a histogram never reaches
+			typeIndex.insertPrimaryKeyIfMissing(REDUCED_GROUP_INDEX_PRIMARY_KEY, 100);
 		}
 		final CatalogExpressionTriggerRegistry registry = CatalogExpressionTriggerRegistry.EMPTY
 			.rebuildForEntityType("product", List.of(new DefaultHistogramExpressionTrigger(
@@ -688,7 +826,7 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 			)));
 		return new HistogramFixture(
 			createExecutor(indexes, registry, storageExecutor, valueSchema), storageExecutor, valueSchema,
-			grouped, (HistogramCapableEntityIndex) target
+			grouped, target, typeIndex
 		);
 	}
 
@@ -750,13 +888,16 @@ class EntityIndexLocalMutationExecutorHistogramProtocolTest implements EvitaTest
 	 * @param schema         the product schema whose reference carries the `share` attribute
 	 * @param grouped        TRUE when the references are stored in group 100
 	 * @param histogramIndex the index holding the share histogram values
+	 * @param typeIndex      the referenced-type index - the group-type one when grouped - which answers every lookup
+	 *                       the fixture registers nothing else for; it is `histogramIndex` itself when ungrouped
 	 */
 	private record HistogramFixture(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ContainerizedLocalMutationExecutor storage,
 		@Nonnull EntitySchema schema,
 		boolean grouped,
-		@Nonnull HistogramCapableEntityIndex histogramIndex
+		@Nonnull HistogramCapableEntityIndex histogramIndex,
+		@Nonnull ReferencedTypeEntityIndex typeIndex
 	) {
 
 		/**

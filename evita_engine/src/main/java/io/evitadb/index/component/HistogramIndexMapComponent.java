@@ -44,7 +44,7 @@ import java.util.Map.Entry;
 
 /**
  * {@link IndexComponent} adapter for the per-histogram-name {@link HistogramIndex} map carried by
- * {@link io.evitadb.index.ReducedGroupEntityIndex} and {@link io.evitadb.index.ReferencedTypeEntityIndex}.
+ * {@link io.evitadb.index.ReferencedTypeEntityIndex} and {@link io.evitadb.index.GroupHistogramEntityIndex}.
  * Each entry stores bucketed histogram data (filter indexes + cardinality tracking) for all locale
  * variants of a single histogram definition.
  *

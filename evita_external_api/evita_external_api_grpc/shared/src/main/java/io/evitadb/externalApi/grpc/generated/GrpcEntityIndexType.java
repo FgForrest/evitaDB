@@ -86,6 +86,16 @@ public enum GrpcEntityIndexType
    * <code>INDEX_TYPE_REFERENCED_GROUP_ENTITY = 5;</code>
    */
   INDEX_TYPE_REFERENCED_GROUP_ENTITY(5),
+  /**
+   * <pre>
+   * Index holding nothing but the bucketed reference histograms of one particular group entity, for one reference and
+   * scope. It covers no entities directly: its entity count is always zero and it has no attributes, prices, facets or
+   * hierarchy - its histograms count the owner entities of the group's references.
+   * </pre>
+   *
+   * <code>INDEX_TYPE_REFERENCED_GROUP_HISTOGRAM = 6;</code>
+   */
+  INDEX_TYPE_REFERENCED_GROUP_HISTOGRAM(6),
   UNRECOGNIZED(-1),
   ;
 
@@ -137,6 +147,16 @@ public enum GrpcEntityIndexType
    * <code>INDEX_TYPE_REFERENCED_GROUP_ENTITY = 5;</code>
    */
   public static final int INDEX_TYPE_REFERENCED_GROUP_ENTITY_VALUE = 5;
+  /**
+   * <pre>
+   * Index holding nothing but the bucketed reference histograms of one particular group entity, for one reference and
+   * scope. It covers no entities directly: its entity count is always zero and it has no attributes, prices, facets or
+   * hierarchy - its histograms count the owner entities of the group's references.
+   * </pre>
+   *
+   * <code>INDEX_TYPE_REFERENCED_GROUP_HISTOGRAM = 6;</code>
+   */
+  public static final int INDEX_TYPE_REFERENCED_GROUP_HISTOGRAM_VALUE = 6;
 
 
   public final int getNumber() {
@@ -169,6 +189,7 @@ public enum GrpcEntityIndexType
       case 3: return INDEX_TYPE_REFERENCED_ENTITY;
       case 4: return INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE;
       case 5: return INDEX_TYPE_REFERENCED_GROUP_ENTITY;
+      case 6: return INDEX_TYPE_REFERENCED_GROUP_HISTOGRAM;
       default: return null;
     }
   }

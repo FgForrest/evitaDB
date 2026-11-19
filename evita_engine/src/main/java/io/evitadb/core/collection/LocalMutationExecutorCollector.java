@@ -60,6 +60,7 @@ import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.MissingHistogramValueBehavior;
 import io.evitadb.index.mutation.local.PartitionReservations;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ForeignEntityStorageParts;
@@ -136,6 +137,10 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	 * The data store reader used to fetch entity data from the I/O storage.
 	 */
 	private final DataStoreReader dataStoreReader;
+	/**
+	 * The policy chosen at the root mutation entry point and shared by all its nested mutations.
+	 */
+	@Nonnull private final MissingHistogramValueBehavior missingHistogramValueBehavior;
 	/**
 	 * The list of all involved local mutation executors.
 	 */
@@ -970,6 +975,16 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 			// they are discarded with the transaction anyway)
 			rollbackOpenSavepoint();
 		}
+	}
+
+	/**
+	 * Returns the effective policy for missing histogram values throughout this root mutation.
+	 *
+	 * @return the behavior on a missing histogram value
+	 */
+	@Nonnull
+	MissingHistogramValueBehavior getMissingHistogramValueBehavior() {
+		return this.missingHistogramValueBehavior;
 	}
 
 }

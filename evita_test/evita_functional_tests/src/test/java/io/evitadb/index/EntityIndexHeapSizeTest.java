@@ -63,6 +63,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static io.evitadb.index.IndexHeapSizeAssertions.AUTOBOX_CACHE_CEILING;
@@ -82,8 +83,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Measures the heap arithmetic of the entity indexes, the histogram indexes beneath them, and the attribute
  * cardinality index they both build on, against what JOL actually finds on the heap.
  *
- * An entity index is the top of the tree - it owns an attribute, facet, hierarchy and price index, and the reduced
- * variants add cardinality and histogram maps on top. Two of its rulings are the ones worth pinning, because getting
+ * An entity index is the top of the tree - it owns an attribute, facet, hierarchy and price index, the reduced group
+ * variant adds cardinality maps on top, and the referenced-type index and the group histogram store add histogram
+ * maps. Two of its rulings are the ones worth pinning, because getting
  * either wrong doubles a figure rather than shifting it by a constant:
  *
  * - the `components` list holds **the very sub-indexes charged above it**, so only its spine is charged;
@@ -625,6 +627,80 @@ class EntityIndexHeapSizeTest {
 			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, reducedGroupExclusions());
 		}
 
+		/**
+		 * Verifies that the heap an empty group histogram store reports matches what a JOL walk of it measures.
+		 */
+		@Test
+		@DisplayName("an empty group histogram store is measured exactly")
+		void shouldMatchAnEmptyGroupHistogramStore() {
+			final GroupHistogramEntityIndex index = new GroupHistogramEntityIndex(
+				INDEX_PK, ENTITY_TYPE, GroupHistogramEntityIndex.keyOf(REFERENCE_NAME, 1, Scope.LIVE), true
+			);
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, groupHistogramStoreExclusions());
+		}
+
+		/**
+		 * Verifies that a group histogram store charges the histograms it holds: what its arithmetic diverges by from
+		 * the walk, beyond the shared counter boxes, stays bounded and does not move when the values grow eightfold.
+		 * The empty store pins the store's own fields exactly; a histogram the store left uncharged shows only here,
+		 * as a shortfall growing with the data.
+		 */
+		@Test
+		@DisplayName("a seeded group histogram store charges its histograms, by a divergence that does not grow")
+		void shouldKeepTheDivergenceOfASeededGroupHistogramStoreFlat() {
+			final long small = residualOfGroupHistogramStore(64);
+			final long large = residualOfGroupHistogramStore(512);
+			assertTrue(
+				Math.abs(small) < 4_096,
+				"A seeded store inherits the divergences of the histograms beneath it; " + small +
+					" bytes is outside the range those explain"
+			);
+			assertTrue(
+				Math.abs(large - small) < 1_024,
+				"The divergence must not move with the value count - an uncharged histogram would be tens of " +
+					"kilobytes at eight times the data, measured " + small + " then " + large
+			);
+		}
+
+		/**
+		 * Builds a store holding a non-localized and a localized histogram over `values` distinct values each, and
+		 * returns what its arithmetic diverges by **beyond** the shared counter boxes rule 1 charges per holder.
+		 *
+		 * @param values how many distinct values each histogram holds
+		 * @return the reported figure minus the shared boxes minus the measured one
+		 */
+		private long residualOfGroupHistogramStore(int values) {
+			final GroupHistogramEntityIndex index = new GroupHistogramEntityIndex(
+				INDEX_PK, ENTITY_TYPE, GroupHistogramEntityIndex.keyOf(REFERENCE_NAME, 1, Scope.LIVE), true
+			);
+			for (int i = 0; i < values; i++) {
+				final int recordId = AUTOBOX_CACHE_CEILING + i;
+				final int value = HistogramIndexes.histogramValue(recordId);
+				index.insertHistogramValue("price", null, value, recordId, Integer.class, 0);
+				index.insertHistogramValue("weight", Locale.ENGLISH, value, recordId, Integer.class, 0);
+			}
+			final List<Object> roots = new ArrayList<>(32);
+			java.util.Collections.addAll(roots, excluded(index, groupHistogramStoreExclusions()));
+			// each histogram reaches scaffolding it does not own (trap 4), resolved by a plain map lookup (trap 6)
+			final HistogramIndex price = Objects.requireNonNull(index.getHistogramIndex("price"));
+			java.util.Collections.addAll(roots, excluded(price, HISTOGRAM_BASE_EXCLUSIONS));
+			java.util.Collections.addAll(
+				roots, excluded(Objects.requireNonNull(price.getFilterIndex(null)), OWNER_FILTER_EXCLUSIONS)
+			);
+			final HistogramIndex weight = Objects.requireNonNull(index.getHistogramIndex("weight"));
+			java.util.Collections.addAll(
+				roots, excluded(weight, concat(HISTOGRAM_BASE_EXCLUSIONS, HistogramIndexes.LOCALIZED_OWN_EXCLUSIONS))
+			);
+			java.util.Collections.addAll(
+				roots, excluded(Objects.requireNonNull(weight.getFilterIndex(Locale.ENGLISH)), OWNER_FILTER_EXCLUSIONS)
+			);
+			// the interned locale the localized histogram keys on, reached from inside a charged map
+			roots.add(Locale.ENGLISH);
+			// both histograms track every value once, so all their counters are the same cached `Integer.valueOf(1)`
+			final long sharedBoxes = (2L * values - 1) * VMLayout.current().sizeOfObject(Integer.BYTES);
+			return index.getHeapSizeInBytes() - sharedBoxes - measuredHeapOf(index, roots.toArray(), new String[0]);
+		}
+
 		@Test
 		@DisplayName("the histogram component's on-disk leaf-page baseline is charged what it weighs")
 		void shouldChargeTheHistogramLeafPageBaseline() {
@@ -761,8 +837,21 @@ class EntityIndexHeapSizeTest {
 				SHARED_EXCLUSIONS,
 				"priceIndex.priceIndexes.transactionalLayerWrapper",
 				"cardinalityIndexes.transactionalLayerWrapper",
-				"histogramIndexes.transactionalLayerWrapper",
 				"referencedPrimaryKeysIndex.transactionalLayerWrapper"
+			);
+		}
+
+		/**
+		 * Lists what a group histogram store reaches but does not charge: the shared exclusions and the transactional
+		 * wrapper of its histogram map.
+		 *
+		 * @return the field paths to exclude from the measurement
+		 */
+		@Nonnull
+		private String[] groupHistogramStoreExclusions() {
+			return concat(
+				SHARED_EXCLUSIONS,
+				"histogramIndexes.transactionalLayerWrapper"
 			);
 		}
 

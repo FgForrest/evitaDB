@@ -510,7 +510,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 				assertThrows(GenericEvitaInternalError.class, () -> otherOwner.getOrCreateIndex(globalKey)),
 				assertThrows(GenericEvitaInternalError.class, () -> otherOwner.getIndexIfExists(globalKey)),
 				assertThrows(
-					GenericEvitaInternalError.class, () -> otherOwner.getEntityIndexByPrimaryKeyForModification(1)
+					GenericEvitaInternalError.class, () -> otherOwner.getIndexByPrimaryKey(1)
 				),
 				assertThrows(GenericEvitaInternalError.class, () -> otherOwner.getCatalogIndex(Scope.LIVE))
 			);

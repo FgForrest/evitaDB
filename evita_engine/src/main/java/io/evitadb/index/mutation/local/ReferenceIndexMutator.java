@@ -54,6 +54,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.index.HistogramCapableEntityIndex;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.IndexWriteTarget;
@@ -489,7 +490,8 @@ public interface ReferenceIndexMutator {
 						referenceKey, referencePresenceExpected
 					);
 
-					// use entity RRK (with referenced entity PK) as group index discriminator
+					// the entity RRK supplies the reference name and representative values of the group index key;
+					// getOrCreateReferencedGroupEntityIndex replaces its referenced entity PK with the group PK
 					final RepresentativeReferenceKey entityRRK = referenceKey.isKnownInternalPrimaryKey() ?
 						bothKeys.stored() : bothKeys.current();
 
@@ -2425,13 +2427,13 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Evaluates all local histogram triggers of a reference once and adds their contributions to the current group
-	 * or type index. Called for every reference awaiting its final add at the end of a deferred run, after storage
-	 * has received all its mutations, and for every reference the scope change re-indexes into the new scope, from
-	 * the full entity body.
+	 * Evaluates all local histogram triggers of a reference once and adds their contributions to the histogram store
+	 * of its group or to the type index. Called for every reference awaiting its final add at the end of a deferred
+	 * run, after storage has received all its mutations, and for every reference the scope change re-indexes into the
+	 * new scope, from the full entity body.
 	 *
-	 * For each histogram trigger whose condition evaluates to `true`, reads the source attribute value
-	 * and inserts it into the group or type index using the attribute's original numeric type. Handles both
+	 * For each histogram trigger whose condition evaluates to `true`, reads the source attribute value and inserts it
+	 * into the histogram store of the group or the type index using the attribute's original numeric type. Handles both
 	 * `REFERENCE_ATTRIBUTE` (read from reference storage) and `REFERENCED_ENTITY_ATTRIBUTE` (read from the
 	 * referenced entity's global attribute storage) value sources.
 	 *
@@ -2546,7 +2548,7 @@ public interface ReferenceIndexMutator {
 	 * Removes histogram entries contributed by a single trigger for the given reference. Reads the
 	 * current attribute value, resolves to the histogram-value array (typed to the descriptor's
 	 * `plainType`), and checks that each value is present for the owner before removing it - a missing value fails
-	 * the write or is logged and skipped, as the executor's {@link MissingHistogramValueBehavior} decides.
+	 * the write or is logged and skipped according to the executor's {@link MissingHistogramValueBehavior}.
 	 *
 	 * Extracted as a separate method so that callers needing per-trigger condition evaluation (the withdrawal
 	 * before a storage change) can iterate triggers themselves, evaluate conditions, and call this method only for
@@ -4055,22 +4057,19 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Withdraws values of a trigger whose condition holds against current storage. Every value must be present
-	 * for the owner in the locale bucket of the ungrouped type index or every reduced index listed for the group.
-	 * A grouped reference must have a group-type index listing at least one reduced index.
+	 * Withdraws values of a trigger whose condition holds against current storage. Every value must be present for the
+	 * owner in the locale bucket of the index holding the histograms of the reference: the referenced-type index of an
+	 * ungrouped reference, or the histogram store of the group of a grouped one (see
+	 * {@link GroupHistogramEntityIndex}). The condition held, so the value was added there and the index exists.
 	 *
 	 * What happens when something is missing follows the executor's {@link MissingHistogramValueBehavior}:
 	 *
 	 * - `REFUSE` fails at the first absent value or index; the values checked before it have already been removed by
 	 *   this call.
-	 * - `REPORT` logs every value it cannot withdraw and skips only that value: a missing value skips the value, a
-	 *   listed reduced index the executor answers as missing skips that index, and a missing type index or an empty
-	 *   listing skips every value. Everything else is withdrawn as under `REFUSE`.
+	 * - `REPORT` logs every value it cannot withdraw and skips only that value: a missing value skips the value, and a
+	 *   missing index skips every value. Everything else is withdrawn as under `REFUSE`.
 	 *
-	 * A listed reduced index the collection does not hold never reaches the branch that skips it: the collection's
-	 * accessor behind `EntityIndexLocalMutationExecutor#getGroupIndexByPrimaryKeyForModification` refuses the primary
-	 * key with a premise error instead of answering `null`, so such a write fails under either behavior and nothing is
-	 * reported for that index.
+	 * Session writes use the configured behavior. Committed WAL replay uses `REPORT`.
 	 *
 	 * Diagnostic messages are constructed only when something is missing.
 	 *
@@ -4095,89 +4094,38 @@ public interface ReferenceIndexMutator {
 		@Nonnull Scope scope,
 		int indexedDecimalPlaces
 	) {
-		if (groupId != null) {
-			final EntityIndex index = executor.getIndexIfExists(new EntityIndexKey(
-				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceKey.referenceName()
-			));
-			if (!(index instanceof ReferencedTypeEntityIndex groupTypeIndex)) {
-				// no group-type index - nothing of the reference can be withdrawn
-				for (final Serializable value : values) {
-					refuseOrReportMissingHistogramValue(
-						executor, referenceKey, histogramName, locale, value, ownerPK, groupId, -1, 0, scope
-					);
-				}
-				return;
-			}
-			final int[] storagePKs = groupTypeIndex.getAllReferenceIndexes(groupId);
-			if (storagePKs.length == 0) {
-				// no reduced index listed for the group - nothing of the reference can be withdrawn
-				for (final Serializable value : values) {
-					refuseOrReportMissingHistogramValue(
-						executor, referenceKey, histogramName, locale, value, ownerPK, groupId, -1, 0, scope
-					);
-				}
-				return;
-			}
-			for (final int storagePK : storagePKs) {
-				final EntityIndex reducedIndex = executor.getGroupIndexByPrimaryKeyForModification(
-					scope, referenceKey.referenceName(), storagePK
-				);
-				if (!(reducedIndex instanceof HistogramCapableEntityIndex histogramIndex)) {
-					// this listed reduced index is missing - the other listed indexes are still withdrawn from
-					for (final Serializable value : values) {
-						refuseOrReportMissingHistogramValue(
-							executor, referenceKey, histogramName, locale, value, ownerPK, groupId,
-							storagePK, storagePKs.length, scope
-						);
-					}
-					continue;
-				}
-				for (final Serializable value : values) {
-					if (isValueInHistogram(histogramIndex, histogramName, locale, value, ownerPK)) {
-						histogramIndex.removeHistogramValue(
-							histogramName, locale, value, ownerPK, indexedDecimalPlaces
-						);
-					} else {
-						refuseOrReportMissingHistogramValue(
-							executor, referenceKey, histogramName, locale, value, ownerPK, groupId,
-							storagePK, storagePKs.length, scope
-						);
-					}
-				}
-			}
-		} else {
-			final EntityIndexKey typeKey = new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceKey.referenceName()
-			);
-			final EntityIndex index = executor.getIndexIfExists(typeKey);
-			if (!(index instanceof HistogramCapableEntityIndex histogramIndex)) {
-				// no referenced-type index - nothing of the reference can be withdrawn
-				for (final Serializable value : values) {
-					refuseOrReportMissingHistogramValue(
-						executor, referenceKey, histogramName, locale, value, ownerPK, null, -1, 0, scope
-					);
-				}
-				return;
-			}
+		final EntityIndexKey histogramIndexKey = histogramIndexKey(referenceKey.referenceName(), groupId, scope);
+		final EntityIndex index = executor.getIndexIfExists(histogramIndexKey);
+		final HistogramCapableEntityIndex histogramIndex = asHistogramCapableIndexIfPresent(
+			index, histogramIndexKey.type(), referenceKey.referenceName(), histogramName, scope
+		);
+		if (histogramIndex == null) {
+			// no index holding the histograms of the reference - nothing of it can be withdrawn
 			for (final Serializable value : values) {
-				if (isValueInHistogram(histogramIndex, histogramName, locale, value, ownerPK)) {
-					executor.getOrCreateIndex(typeKey);
-					histogramIndex.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
-				} else {
-					refuseOrReportMissingHistogramValue(
-						executor, referenceKey, histogramName, locale, value, ownerPK, null, -1, 0, scope
-					);
-				}
+				refuseOrReportMissingHistogramValue(
+					executor, referenceKey, histogramName, locale, value, ownerPK, groupId, -1, scope
+				);
+			}
+			return;
+		}
+		for (final Serializable value : values) {
+			if (isValueInHistogram(histogramIndex, histogramName, locale, value, ownerPK)) {
+				// registered for modification, so the change is persisted and an index it empties is dropped
+				executor.getOrCreateIndex(histogramIndexKey);
+				histogramIndex.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
+			} else {
+				refuseOrReportMissingHistogramValue(
+					executor, referenceKey, histogramName, locale, value, ownerPK, groupId,
+					Objects.requireNonNull(index).getPrimaryKey(), scope
+				);
 			}
 		}
 	}
 
 	/**
-	 * Refuses or reports one value the withdrawal cannot find, by the behavior the executor carries. Any behavior
-	 * other than `REPORT` throws the error - the withdrawal stops there. `REPORT` logs the same identification at
-	 * error level with a sentence saying the write continues, and returns, so the caller skips that value. No stack
-	 * trace is logged: the line carries everything the error would, and an operator alerts on its prefix
-	 * `Cannot withdraw histogram value`.
+	 * Handles one missing value using the executor's effective {@link MissingHistogramValueBehavior}. `REPORT` logs
+	 * the diagnostic at error level and returns so the caller can skip the value. Other behaviors throw the error.
+	 * The log line starts with `Cannot withdraw histogram value` and carries the same diagnostic as the error.
 	 *
 	 * @param executor the mutation executor, which carries the behavior on a missing histogram value
 	 * @param referenceKey the reference including its internal primary key
@@ -4186,10 +4134,10 @@ public interface ReferenceIndexMutator {
 	 * @param value the missing value
 	 * @param ownerPK the owner primary key
 	 * @param groupId the group primary key, or `null`
-	 * @param reducedIndexPrimaryKey the listed reduced index primary key, or `-1`
-	 * @param listedIndexCount the number of reduced indexes listed for the group
+	 * @param histogramIndexPrimaryKey the primary key of the index the value is missing from, or `-1` when the index
+	 *                                 itself is missing
 	 * @param scope the current scope
-	 * @throws GenericEvitaInternalError unless the behavior is `REPORT`
+	 * @throws GenericEvitaInternalError when the effective behavior requires refusal
 	 */
 	private static void refuseOrReportMissingHistogramValue(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -4199,13 +4147,11 @@ public interface ReferenceIndexMutator {
 		@Nonnull Serializable value,
 		int ownerPK,
 		@Nullable Integer groupId,
-		int reducedIndexPrimaryKey,
-		int listedIndexCount,
+		int histogramIndexPrimaryKey,
 		@Nonnull Scope scope
 	) {
 		final String description = describeMissingHistogramValue(
-			executor, referenceKey, histogramName, locale, value, ownerPK, groupId, reducedIndexPrimaryKey,
-			listedIndexCount, scope
+			executor, referenceKey, histogramName, locale, value, ownerPK, groupId, histogramIndexPrimaryKey, scope
 		);
 		if (executor.getMissingHistogramValueBehavior() != MissingHistogramValueBehavior.REPORT) {
 			throw new GenericEvitaInternalError(description);
@@ -4217,8 +4163,9 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Describes a value the withdrawal cannot find, only after a presence check fails. A reduced primary key of `-1`
-	 * means that the group-type index is missing or lists no reduced index, or that the reference is ungrouped.
+	 * Describes a value the withdrawal cannot find, only after a presence check fails. A histogram index primary key
+	 * of `-1` means that the index holding the histograms of the reference - the histogram store of the group, or the
+	 * referenced-type index of an ungrouped reference - is missing.
 	 *
 	 * @param executor the mutation executor
 	 * @param referenceKey the reference including its internal primary key
@@ -4227,8 +4174,8 @@ public interface ReferenceIndexMutator {
 	 * @param value the missing value
 	 * @param ownerPK the owner primary key
 	 * @param groupId the group primary key, or `null`
-	 * @param reducedIndexPrimaryKey the listed reduced index primary key, or `-1`
-	 * @param listedIndexCount the number of reduced indexes listed for the group
+	 * @param histogramIndexPrimaryKey the primary key of the index the value is missing from, or `-1` when the index
+	 *                                 itself is missing
 	 * @param scope the current scope
 	 * @return the description of the missing contribution
 	 */
@@ -4241,20 +4188,20 @@ public interface ReferenceIndexMutator {
 		@Nonnull Serializable value,
 		int ownerPK,
 		@Nullable Integer groupId,
-		int reducedIndexPrimaryKey,
-		int listedIndexCount,
+		int histogramIndexPrimaryKey,
 		@Nonnull Scope scope
 	) {
 		return "Cannot withdraw histogram value: entity type `" + executor.getEntitySchema().getName() +
 			"`, owner primary key " + ownerPK + ", reference " + referenceKey + " (internal primary key " +
 			referenceKey.internalPrimaryKey() + "), group " + groupId + ", histogram `" + histogramName +
-			"`, locale " + locale + ", value " + value + ", reduced index primary key " + reducedIndexPrimaryKey +
-			", listed group indexes " + listedIndexCount + ", scope " + scope +
+			"`, locale " + locale + ", value " + value + ", histogram index primary key " + histogramIndexPrimaryKey +
+			", scope " + scope +
 			". The index, histogram, locale bucket and value-owner pair must exist for withdrawal.";
 	}
 
 	/**
-	 * Removes histogram values present for the owner from the grouped or ungrouped indexes when the whole entity
+	 * Removes histogram values present for the owner from the index holding the histograms of the reference - the
+	 * histogram store of the group, or the referenced-type index of an ungrouped reference - when the whole entity
 	 * leaves the scope's indexes - by its removal or by unindexing from the scope - because every reference of the
 	 * owner leaves together. Presence is not asserted: asserting would require evaluating each reference's condition
 	 * on every such removal.
@@ -4284,41 +4231,40 @@ public interface ReferenceIndexMutator {
 		@Nonnull Scope scope,
 		int indexedDecimalPlaces
 	) {
-		for (final Serializable value : values) {
-			if (groupId != null) {
-				final EntityIndexKey groupTypeKey = new EntityIndexKey(
-					EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
-				);
-				final ReferencedTypeEntityIndex rtei = asReferencedTypeIndexIfPresent(
-					executor.getIndexIfExists(groupTypeKey),
-					EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, referenceName, scope
-				);
-				if (rtei != null) {
-					final int[] storagePKs = rtei.getAllReferenceIndexes(groupId);
-					for (final int storagePK : storagePKs) {
-						final HistogramCapableEntityIndex hcei = asAdvertisedHistogramCapableIndex(
-							executor.getGroupIndexByPrimaryKeyForModification(scope, referenceName, storagePK),
-							referenceName, histogramName, storagePK, scope
-						);
-						if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
-							hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
-						}
-					}
-				}
-			} else {
-				final EntityIndexKey typeKey = new EntityIndexKey(
-					EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
-				);
-				final HistogramCapableEntityIndex hcei = asHistogramCapableIndexIfPresent(
-					executor.getIndexIfExists(typeKey),
-					EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName, histogramName, scope
-				);
-				if (hcei != null && isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
-					executor.getOrCreateIndex(typeKey);
-					hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
+		final EntityIndexKey histogramIndexKey = histogramIndexKey(referenceName, groupId, scope);
+		final HistogramCapableEntityIndex histogramIndex = asHistogramCapableIndexIfPresent(
+			executor.getIndexIfExists(histogramIndexKey), histogramIndexKey.type(), referenceName, histogramName, scope
+		);
+		if (histogramIndex != null) {
+			for (final Serializable value : values) {
+				if (isValueInHistogram(histogramIndex, histogramName, locale, value, ownerPK)) {
+					// registered for modification, so the change is persisted and an index it empties is dropped
+					executor.getOrCreateIndex(histogramIndexKey);
+					histogramIndex.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 				}
 			}
 		}
+	}
+
+	/**
+	 * Returns the key of the index holding the histograms of a reference: the histogram store of the group for a
+	 * grouped reference - one per reference, group and scope, whatever reduced indexes the group spans - and the
+	 * referenced-type index of the reference for an ungrouped one.
+	 *
+	 * @param referenceName the reference name
+	 * @param groupId       the group primary key, or `null` when ungrouped
+	 * @param scope         the current scope
+	 * @return the key of the index holding the histograms
+	 */
+	@Nonnull
+	private static EntityIndexKey histogramIndexKey(
+		@Nonnull String referenceName,
+		@Nullable Integer groupId,
+		@Nonnull Scope scope
+	) {
+		return groupId == null ?
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName) :
+			GroupHistogramEntityIndex.keyOf(referenceName, groupId, scope);
 	}
 
 	/**
@@ -4460,9 +4406,9 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Inserts a single value into the histogram index in the appropriate index (grouped or ungrouped).
-	 * The value is in the attribute's original numeric type. A grouped value requires the group-type index to list
-	 * at least one reduced index for the group, as the withdrawal does.
+	 * Inserts a single value into the index holding the histograms of the reference: the histogram store of the group
+	 * for a grouped reference, created by its first value, or the referenced-type index for an ungrouped one. The value
+	 * is in the attribute's original numeric type. A grouped value requires the group-type index to track the group.
 	 *
 	 * @param executor      the mutation executor
 	 * @param referenceName the reference name
@@ -4490,7 +4436,8 @@ public interface ReferenceIndexMutator {
 		int indexedDecimalPlaces
 	) {
 		if (groupId != null) {
-			// grouped reference: find the ReducedGroupEntityIndex via the group type index
+			// grouped reference: the value goes to the histogram store of the group, which the group-type index must
+			// track - the reader finds the groups whose histograms it reads only through that index
 			final EntityIndexKey groupTypeKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
 			);
@@ -4514,41 +4461,29 @@ public interface ReferenceIndexMutator {
 						groupTypeIndex.getClass().getName() + "."
 				);
 			}
-			final int[] storagePKs = rtei.getAllReferenceIndexes(groupId);
-			// the withdrawal requires the same listing - a value added through an empty one would be lost silently
-			if (storagePKs.length == 0) {
+			// the group-type index tracks a group as long as it lists a reduced index of it - a value added to the
+			// store of a group it does not track could never be read
+			if (rtei.getAllReferenceIndexes(groupId).length == 0) {
 				throw new GenericEvitaInternalError(
-					"Cannot insert histogram value: the group-type index lists no reduced index for group `" +
-						groupId + "` of reference `" + referenceName + "`, histogram `" + histogramName +
+					"Cannot insert histogram value: the group-type index does not track group `" + groupId +
+						"` of reference `" + referenceName + "`, histogram `" + histogramName +
 						"`, owner primary key " + ownerPK + ", scope `" + scope + "`. The group's reduced index " +
 						"must be registered before its histogram values are added."
 				);
 			}
-			for (final int storagePK : storagePKs) {
-				final EntityIndex reducedIndex = executor.getGroupIndexByPrimaryKeyForModification(scope, referenceName, storagePK);
-				// the type-level index advertises this storage PK, so the per-group reduced index
-				// must exist — a missing entry signals a corrupted index linkage
-				if (reducedIndex == null) {
-					throw new GenericEvitaInternalError(
-						"Cannot insert histogram value: per-group reduced index is missing for " +
-							"reference `" + referenceName + "`, histogram `" + histogramName +
-							"`, storage PK `" + storagePK + "`, group `" + groupId +
-							"`, scope `" + scope + "` — `ReferencedTypeEntityIndex` advertised " +
-							"this PK but no index is registered under it."
-					);
-				}
-				// every reduced group index must implement HistogramCapableEntityIndex —
-				// ReducedGroupEntityIndex is the only concrete type stored under these PKs
-				if (!(reducedIndex instanceof HistogramCapableEntityIndex hcei)) {
-					throw new GenericEvitaInternalError(
-						"Expected HistogramCapableEntityIndex for grouped reduced index of " +
-							"reference `" + referenceName + "`, histogram `" + histogramName +
-							"`, storage PK `" + storagePK + "`, scope `" + scope + "`, got " +
-							reducedIndex.getClass().getName() + "."
-					);
-				}
-				hcei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
+			final EntityIndexKey storeKey = GroupHistogramEntityIndex.keyOf(referenceName, groupId, scope);
+			final EntityIndex store = executor.getOrCreateIndex(storeKey);
+			// the store key always resolves to a GroupHistogramEntityIndex by construction — any other type is a
+			// programming error
+			if (!(store instanceof GroupHistogramEntityIndex groupHistogramStore)) {
+				throw new GenericEvitaInternalError(
+					"Expected GroupHistogramEntityIndex for " + storeKey + " of reference `" + referenceName +
+						"`, histogram `" + histogramName + "`, got " + store.getClass().getName() + "."
+				);
 			}
+			groupHistogramStore.insertHistogramValue(
+				histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces
+			);
 		} else {
 			// ungrouped reference: insert into ReferencedTypeEntityIndex
 			final EntityIndexKey typeKey = new EntityIndexKey(
@@ -4620,43 +4555,10 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Casts an index registered under a `REFERENCED_*_TYPE` key to {@link ReferencedTypeEntityIndex}.
-	 *
-	 * Absence is legitimate - a reference need not have any partitions of that kind yet - and yields `null`.
-	 * A present index of any other type is a programming error: these keys resolve to a
-	 * {@link ReferencedTypeEntityIndex} by construction, so skipping it silently would drop the whole
-	 * maintenance pass for that reference and leave the index stale with no diagnostic.
-	 *
-	 * @param index         index found under the key, may be `null`
-	 * @param indexType     the key's index type, for the error message
-	 * @param referenceName the reference the key belongs to
-	 * @param scope         the scope the key belongs to
-	 * @return the cast index, or `null` when there is none
-	 */
-	@Nullable
-	private static ReferencedTypeEntityIndex asReferencedTypeIndexIfPresent(
-		@Nullable EntityIndex index,
-		@Nonnull EntityIndexType indexType,
-		@Nonnull String referenceName,
-		@Nonnull Scope scope
-	) {
-		if (index == null) {
-			return null;
-		}
-		if (!(index instanceof ReferencedTypeEntityIndex rtei)) {
-			throw new GenericEvitaInternalError(
-				"Expected ReferencedTypeEntityIndex for " + indexType + " key on reference `" +
-					referenceName + "`, scope `" + scope + "`, got " + index.getClass().getName() + "."
-			);
-		}
-		return rtei;
-	}
-
-	/**
-	 * Casts an index registered under a `REFERENCED_*_TYPE` key to {@link HistogramCapableEntityIndex}.
-	 * Absence is legitimate and yields `null`; a present index that cannot carry histograms is a
-	 * programming error, since these keys resolve to a {@link ReferencedTypeEntityIndex} which implements
-	 * the interface.
+	 * Casts an index registered under the key of an index holding histograms - a `REFERENCED_ENTITY_TYPE` key or the
+	 * key of the histogram store of a group - to {@link HistogramCapableEntityIndex}. Absence is legitimate and yields
+	 * `null`; a present index that cannot carry histograms is a programming error, since these keys resolve to a
+	 * {@link ReferencedTypeEntityIndex} or a {@link GroupHistogramEntityIndex}, which both implement the interface.
 	 *
 	 * @param index         index found under the key, may be `null`
 	 * @param indexType     the key's index type, for the error message
@@ -4681,47 +4583,6 @@ public interface ReferenceIndexMutator {
 				"Expected HistogramCapableEntityIndex for " + indexType + " key on reference `" +
 					referenceName + "`, histogram `" + histogramName + "`, scope `" + scope + "`, got " +
 					index.getClass().getName() + "."
-			);
-		}
-		return hcei;
-	}
-
-	/**
-	 * Resolves a reduced index that a {@link ReferencedTypeEntityIndex} advertises by storage primary key.
-	 *
-	 * Neither failure mode is tolerable here, and both mirror the insert path: the type-level index
-	 * advertised this storage PK, so a missing index is a corrupted linkage, and a present index that
-	 * cannot carry histograms is a programming error. Skipping either silently would leave a stale
-	 * histogram value behind - the removal-side twin of the staleness this class exists to prevent.
-	 *
-	 * @param index         index registered under `storagePK`, may be `null`
-	 * @param referenceName the reference being maintained
-	 * @param histogramName the histogram being maintained
-	 * @param storagePK     the advertised storage primary key
-	 * @param scope         the scope being maintained
-	 * @return the cast index; never `null`
-	 */
-	@Nonnull
-	private static HistogramCapableEntityIndex asAdvertisedHistogramCapableIndex(
-		@Nullable EntityIndex index,
-		@Nonnull String referenceName,
-		@Nonnull String histogramName,
-		int storagePK,
-		@Nonnull Scope scope
-	) {
-		if (index == null) {
-			throw new GenericEvitaInternalError(
-				"Cannot remove histogram value: per-group reduced index is missing for reference `" +
-					referenceName + "`, histogram `" + histogramName + "`, storage PK `" + storagePK +
-					"`, scope `" + scope + "` - `ReferencedTypeEntityIndex` advertised this PK but no " +
-					"index is registered under it."
-			);
-		}
-		if (!(index instanceof HistogramCapableEntityIndex hcei)) {
-			throw new GenericEvitaInternalError(
-				"Expected HistogramCapableEntityIndex for grouped reduced index of reference `" +
-					referenceName + "`, histogram `" + histogramName + "`, storage PK `" + storagePK +
-					"`, scope `" + scope + "`, got " + index.getClass().getName() + "."
 			);
 		}
 		return hcei;

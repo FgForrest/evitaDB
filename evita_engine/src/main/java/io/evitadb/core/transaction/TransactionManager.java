@@ -560,9 +560,13 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Processes the write-ahead log and returns the catalog instance that is the result of the processing.
+	 * Processes the write-ahead log and returns the result of the processing, which carries the resulting catalog.
 	 *
-	 * @return the catalog instance after processing the write-ahead log
+	 * @param nextCatalogVersion the catalog version of the first transaction the catalog has not applied yet, which
+	 *                           is the version to be processed at minimum
+	 * @param progressCallback   receives the catalog version of every transaction once it is replayed
+	 * @return the replayed range with the resulting catalog, or empty when the finalized version has already reached
+	 * `nextCatalogVersion`
 	 */
 	@Nonnull
 	public Optional<ProcessResult> processEntireWriteAheadLog(
@@ -2303,10 +2307,14 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Replays mutations in the given transaction on the current catalog.
 	 *
+	 * @param evita               The engine the replayed mutations are applied by.
 	 * @param transactionMutation The transaction mutation containing the catalog version and mutation details.
 	 * @param transaction         The transaction object to execute the mutations in.
 	 * @param mutationIterator    The iterator containing the mutations to replay.
+	 * @return a two-element array: the number of replayed atomic mutations, not counting the transaction mutation
+	 * itself, and the number of local mutations they contain, where a catalog schema mutation counts as one
 	 */
+	@Nonnull
 	private int[] replayMutationsOnCatalog(
 		@Nonnull Evita evita,
 		@Nonnull TransactionMutation transactionMutation,

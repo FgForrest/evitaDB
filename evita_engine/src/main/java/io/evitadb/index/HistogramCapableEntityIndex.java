@@ -31,9 +31,10 @@ import java.io.Serializable;
 import java.util.Locale;
 
 /**
- * Contract for entity indexes that support histogram value storage. Both {@link ReferencedTypeEntityIndex}
- * and {@link ReducedGroupEntityIndex} maintain histogram indexes and share identical method signatures
- * for histogram operations — this interface allows callers to work with either type polymorphically.
+ * Contract for entity indexes that support histogram value storage. {@link ReferencedTypeEntityIndex} (the histograms
+ * of an ungrouped reference) and {@link GroupHistogramEntityIndex} (the histograms of one group of a grouped
+ * reference) maintain histogram indexes and share identical method signatures for histogram operations — this
+ * interface allows callers to work with either of them polymorphically.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

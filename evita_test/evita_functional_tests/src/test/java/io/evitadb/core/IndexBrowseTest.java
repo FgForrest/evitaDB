@@ -28,9 +28,11 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.IndexNotFoundException;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionIndexSummary;
@@ -56,6 +58,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -97,6 +100,13 @@ class IndexBrowseTest implements EvitaTestSupport {
 	/** How many products reference each category - the size every one of the tied indexes reports. */
 	private static final int PRODUCTS_PER_CATEGORY = 5;
 	private static final int PRODUCT_COUNT = CATEGORY_COUNT * PRODUCTS_PER_CATEGORY;
+	/** The catalog of the case browsing the histogram store of a group, which the shared fixture has none of. */
+	private static final String STORE_CATALOG = "indexBrowseStoreTest";
+	private static final String ENTITY_BRAND = "brand";
+	private static final String ENTITY_BRAND_GROUP = "brandGroup";
+	private static final String REFERENCE_BRAND = "brand";
+	private static final String ATTRIBUTE_WEIGHT = "weight";
+	private static final int BRAND_GROUP_PK = 7;
 
 	private TestPaths paths;
 	private Evita evita;
@@ -579,28 +589,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 			final Set<EntityIndexType> kindsSeen = EnumSet.noneOf(EntityIndexType.class);
 			for (final BrowsedIndex index : result.indexes()) {
 				kindsSeen.add(index.indexType());
-				switch (index.indexType()) {
-					case GLOBAL -> {
-						assertNull(index.discriminator(), "A global index has no discriminator: " + index);
-						assertNull(index.referenceName(), "A global index is bound to no reference: " + index);
-						assertNull(index.discriminatorPrimaryKey(), "A global index has no target: " + index);
-					}
-					// one index covers the whole reference, so it names the reference but no single target
-					case REFERENCED_ENTITY_TYPE, REFERENCED_GROUP_ENTITY_TYPE -> {
-						assertNotNull(index.discriminator(), "A reference-type index is discriminated: " + index);
-						assertNotNull(index.referenceName(), "A reference-type index names its reference: " + index);
-						assertNull(
-							index.discriminatorPrimaryKey(),
-							"A reference-type index covers every target, so it names none: " + index
-						);
-					}
-					// the index covers exactly one target entity of that reference, so it names both
-					case REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY -> {
-						assertNotNull(index.discriminator(), "A per-target index is discriminated: " + index);
-						assertNotNull(index.referenceName(), "A per-target index names its reference: " + index);
-						assertNotNull(index.discriminatorPrimaryKey(), "A per-target index names its target: " + index);
-					}
-				}
+				assertDiscriminatorParts(index);
 			}
 
 			// without this the loop above would pass vacuously on a fixture that happened to hold only one kind
@@ -609,6 +598,121 @@ class IndexBrowseTest implements EvitaTestSupport {
 					kindsSeen.contains(EntityIndexType.REFERENCED_ENTITY_TYPE) &&
 					kindsSeen.contains(EntityIndexType.REFERENCED_ENTITY),
 				"The fixture must produce all three kinds for this to assert anything, but saw only " + kindsSeen
+			);
+		}
+
+		/**
+		 * The histogram store of a group is listed like the per-target index of that group: it names its reference
+		 * and the group, and it covers no entity, because it holds histograms only. Its own catalog holds a grouped
+		 * reference with a histogram, which the shared fixture does not.
+		 */
+		@Test
+		@DisplayName("The histogram store of a group names its reference and its group and covers no entity")
+		void shouldDescribeTheHistogramStoreOfAGroup() {
+			buildCatalogWithGroupHistogram();
+			final IndexBrowseResult result = IndexBrowseTest.this.evita.management().browseIndexes(
+				STORE_CATALOG, ENTITY_PRODUCT,
+				criteria(1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER)
+			);
+
+			final List<BrowsedIndex> stores = new ArrayList<>(1);
+			for (final BrowsedIndex index : result.indexes()) {
+				assertDiscriminatorParts(index);
+				if (index.indexType() == EntityIndexType.REFERENCED_GROUP_HISTOGRAM) {
+					stores.add(index);
+				}
+			}
+
+			assertEquals(1, stores.size(), "The one group with a histogram value has one store: " + stores);
+			final BrowsedIndex store = stores.get(0);
+			assertNotNull(store.discriminator(), "A store is discriminated: " + store);
+			assertEquals(REFERENCE_BRAND, store.referenceName(), "A store names its reference: " + store);
+			assertEquals(BRAND_GROUP_PK, store.discriminatorPrimaryKey(), "A store names its group: " + store);
+			assertEquals(0, store.entityCount(), "A store covers no entity: " + store);
+		}
+
+		/**
+		 * Asserts that the discriminator parts of one browsed index are populated as its kind requires.
+		 *
+		 * @param index the browsed index
+		 */
+		private void assertDiscriminatorParts(@Nonnull BrowsedIndex index) {
+			switch (Objects.requireNonNull(index.indexType())) {
+				case GLOBAL -> {
+					assertNull(index.discriminator(), "A global index has no discriminator: " + index);
+					assertNull(index.referenceName(), "A global index is bound to no reference: " + index);
+					assertNull(index.discriminatorPrimaryKey(), "A global index has no target: " + index);
+				}
+				// one index covers the whole reference, so it names the reference but no single target
+				case REFERENCED_ENTITY_TYPE, REFERENCED_GROUP_ENTITY_TYPE -> {
+					assertNotNull(index.discriminator(), "A reference-type index is discriminated: " + index);
+					assertNotNull(index.referenceName(), "A reference-type index names its reference: " + index);
+					assertNull(
+						index.discriminatorPrimaryKey(),
+						"A reference-type index covers every target, so it names none: " + index
+					);
+				}
+				// the index covers exactly one target entity of that reference, so it names both
+				case REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY -> {
+					assertNotNull(index.discriminator(), "A per-target index is discriminated: " + index);
+					assertNotNull(index.referenceName(), "A per-target index names its reference: " + index);
+					assertNotNull(index.discriminatorPrimaryKey(), "A per-target index names its target: " + index);
+				}
+				// the histogram store of one group names the reference and the group, and holds no entity
+				case REFERENCED_GROUP_HISTOGRAM -> {
+					assertNotNull(index.discriminator(), "A group histogram store is discriminated: " + index);
+					assertNotNull(index.referenceName(), "A group histogram store names its reference: " + index);
+					assertNotNull(index.discriminatorPrimaryKey(), "A group histogram store names its group: " + index);
+					assertEquals(0, index.entityCount(), "A group histogram store covers no entity: " + index);
+				}
+			}
+		}
+
+		/**
+		 * Builds the catalog of {@link #shouldDescribeTheHistogramStoreOfAGroup()}: a product referencing a brand of a
+		 * brand group, the reference indexed with its group component and holding a histogram over the weight of the
+		 * brand, which the brand carries.
+		 */
+		private void buildCatalogWithGroupHistogram() {
+			final Evita theEvita = IndexBrowseTest.this.evita;
+			theEvita.defineCatalog(STORE_CATALOG).updateViaNewSession(theEvita);
+			theEvita.updateCatalog(
+				STORE_CATALOG,
+				session -> {
+					session.defineEntitySchema(ENTITY_BRAND)
+						.withoutGeneratedPrimaryKey()
+						.withAttribute(ATTRIBUTE_WEIGHT, Integer.class, AttributeSchemaEditor::filterable)
+						.updateVia(session);
+					session.defineEntitySchema(ENTITY_BRAND_GROUP).withoutGeneratedPrimaryKey().updateVia(session);
+					session.defineEntitySchema(ENTITY_PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withReferenceToEntity(
+							REFERENCE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs
+								.withGroupTypeRelatedToEntity(ENTITY_BRAND_GROUP)
+								.indexedForFiltering()
+								.indexedWithComponents(
+									ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+								)
+								.bucketed(
+									"weightHistogram",
+									ExpressionFactory.parse(
+										"$reference.referencedEntity?.attributes['" + ATTRIBUTE_WEIGHT + "']"
+									)
+								)
+						)
+						.updateVia(session);
+					session.upsertEntity(session.createNewEntity(ENTITY_BRAND_GROUP, BRAND_GROUP_PK));
+					session.upsertEntity(session.createNewEntity(ENTITY_BRAND, 1).setAttribute(ATTRIBUTE_WEIGHT, 5));
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_PRODUCT, 1)
+							.setReference(
+								REFERENCE_BRAND, 1,
+								whichIs -> whichIs.setGroup(ENTITY_BRAND_GROUP, BRAND_GROUP_PK)
+							)
+					);
+				}
 			);
 		}
 	}

@@ -262,9 +262,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private final boolean usageStatisticsTracking;
 	/**
-	 * What the withdrawal of a reference-histogram value does when the index does not hold the value for the owner -
-	 * fixed when the engine started and read from the catalog once, when the executor is built (see
-	 * {@link ReferenceIndexMutator#removeHistogramForTrigger}).
+	 * The root mutation's policy for a missing reference-histogram value, supplied when the executor is created.
 	 */
 	@Nonnull private final MissingHistogramValueBehavior missingHistogramValueBehavior;
 	/**
@@ -479,8 +477,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Creates the index executor of one entity's local mutations, which writes the registry of single-owner
 	 * partitions.
 	 *
-	 * @param missingHistogramValueBehavior what the withdrawal of a reference-histogram value the index does not hold
-	 *                                      does - see {@link #missingHistogramValueBehavior}
+	 * @param containerAccessor             access to the entity's storage parts
+	 * @param entityPrimaryKey              the primary key of the entity being mutated
+	 * @param entityIndexCreatingAccessor   access to the entity collection's indexes
+	 * @param catalogIndexCreatingAccessor  access to the catalog indexes
+	 * @param schemaAccessor                the current schema of the mutated entity type
+	 * @param priceInternalIdSupplier       source of new internal price identifiers
+	 * @param fullEntitySupplier            the entity with all its content
+	 * @param triggerRegistrySupplier       source of the catalog expression triggers, when available
+	 * @param localFacetTriggerSupplier     lookup for local facet triggers by reference and scope, when available
+	 * @param crossEntitySchemaResolver     lookup for schemas of other entity types, when available
+	 * @param entityTypeClassifierResolver  mapping between entity type names and primary keys
+	 * @param usageRegistry                 the collection's capability usage counters
+	 * @param catalogUsageRegistry          the catalog's capability usage counters
+	 * @param usageStatisticsTracking       whether to record capability usage
+	 * @param missingHistogramValueBehavior the root mutation's policy for a missing reference-histogram value
 	 * @param partitionReservations         the reservations of the root mutation the executor belongs to, shared by
 	 *                                      all its executors - see {@link PartitionReservations}
 	 */
@@ -513,8 +524,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Creates the index executor of one entity's local mutations.
 	 *
-	 * @param missingHistogramValueBehavior what the withdrawal of a reference-histogram value the index does not hold
-	 *                                      does - see {@link #missingHistogramValueBehavior}
+	 * @param containerAccessor             access to the entity's storage parts
+	 * @param entityPrimaryKey              the primary key of the entity being mutated
+	 * @param entityIndexCreatingAccessor   access to the entity collection's indexes
+	 * @param catalogIndexCreatingAccessor  access to the catalog indexes
+	 * @param schemaAccessor                the current schema of the mutated entity type
+	 * @param priceInternalIdSupplier       source of new internal price identifiers
+	 * @param fullEntitySupplier            the entity with all its content
+	 * @param triggerRegistrySupplier       source of the catalog expression triggers, when available
+	 * @param localFacetTriggerSupplier     lookup for local facet triggers by reference and scope, when available
+	 * @param crossEntitySchemaResolver     lookup for schemas of other entity types, when available
+	 * @param entityTypeClassifierResolver  mapping between entity type names and primary keys
+	 * @param usageRegistry                 the collection's capability usage counters
+	 * @param catalogUsageRegistry          the catalog's capability usage counters
+	 * @param usageStatisticsTracking       whether to record capability usage
+	 * @param missingHistogramValueBehavior the root mutation's policy for a missing reference-histogram value
 	 * @param partitionRegistryWritten      TRUE when the executor writes the registry of single-owner partitions,
 	 *                                      FALSE only for an executor writing as another owner of a partition - see
 	 *                                      {@link #partitionRegistryWritten}
@@ -1968,54 +1992,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Returns the existing entity index by its storage primary key and registers it for modification tracking
-	 * so that its changed storage parts are persisted on flush. Returns `null` if no index with the given PK exists.
-	 * Use this method instead of a plain read by primary key when the caller intends to
-	 * mutate the returned index (e.g. inserting/removing histogram values).
-	 *
-	 * @param indexPrimaryKey the storage primary key of the index
-	 * @return the existing index registered for modification, or `null` if no index with the given PK exists
-	 */
-	@Nullable
-	EntityIndex getEntityIndexByPrimaryKeyForModification(int indexPrimaryKey) {
-		return this.entityIndexCreatingAccessor.getOrCreateIndexByPrimaryKey(indexPrimaryKey);
-	}
-
-	/**
-	 * Returns the existing index of the group family of a reference by its storage primary key, registered for
-	 * modification - see {@link #getEntityIndexByPrimaryKeyForModification(int)}. The primary keys of the group family
-	 * never name a partition of the entity family, so a primary key without an index object must not name a registry
-	 * row of the reference's single-owner partitions either: a registered partition reached by the group-family walk
-	 * means the two families got mixed up.
-	 *
-	 * @param scope           the scope of the group family
-	 * @param referenceName   the reference of this collection's entity type the group family belongs to
-	 * @param indexPrimaryKey the storage primary key of the index
-	 * @return the existing index registered for modification, or `null` if no index with the given PK exists
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when no index exists and the primary key names a registry
-	 *                                                         row of the reference in the scope
-	 */
-	@Nullable
-	EntityIndex getGroupIndexByPrimaryKeyForModification(
-		@Nonnull Scope scope,
-		@Nonnull String referenceName,
-		int indexPrimaryKey
-	) {
-		final EntityIndex index = getEntityIndexByPrimaryKeyForModification(indexPrimaryKey);
-		if (index == null) {
-			final ReferencedTypeEntityIndex typeIndex = getReferencedTypeIndexIfExists(scope, referenceName);
-			isPremiseValid(
-				typeIndex == null ||
-					typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(indexPrimaryKey).isEmpty(),
-				() -> "The group family of reference `" + referenceName + "` in scope `" + scope + "` lists primary " +
-					"key " + indexPrimaryKey + ", which names a registered single-owner partition of the reference " +
-					"rather than a group index!"
-			);
-		}
-		return index;
-	}
-
-	/**
 	 * Method returns existing index by primary key and adds it to the changed set of indexes that needs persisting.
 	 *
 	 * The resolution MUST go through the registering accessor, not the plain read: every caller of this method mutates
@@ -2956,8 +2932,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Removes the reference's current histogram values before storage changes and schedules one final add for this run.
 	 * Later mutations of the same reference do nothing for its histograms. Each trigger removes its values only when
-	 * its condition holds against current storage; the removal asserts that each value is present for the owner and
-	 * fails otherwise. A reference missing from storage is a protocol error.
+	 * its condition holds against current storage. The executor's policy handles missing values. A reference missing
+	 * from storage is a protocol error.
 	 *
 	 * @param referenceKey the reference, resolving an unknown internal key against current storage
 	 * @param scope the scope of this run

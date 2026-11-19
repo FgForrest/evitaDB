@@ -26,13 +26,21 @@ package io.evitadb.index;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -43,6 +51,8 @@ import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.LoadedComponentBundle.Histograms;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.range.RangeIndex;
@@ -53,6 +63,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramCardinalityStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramCardinalityStoragePartRemoval;
@@ -99,6 +110,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Currency;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -223,6 +235,359 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 					IOUtils.closeQuietly(reloaded::close);
 				}
 			}
+		}
+	}
+
+	/**
+	 * A {@link GroupHistogramEntityIndex} persisted to a real offset index and reloaded through its OWN reload plan
+	 * (`GroupHistogramEntityIndex.reloadPlan()`), the way `DefaultEntityCollectionPersistenceService#readEntityIndex`
+	 * does it: the manifest and the sibling entity-id part are read back from the store, never handed in. The store
+	 * key, its manifest and the parts it emits therefore all travel through Kryo.
+	 *
+	 * The refusal cells write what no writer of a store produces - a membership, a language, an attribute, a price, a
+	 * facet, a hierarchy - and assert that the reload names the store rather than loading it.
+	 */
+	@Nested
+	@DisplayName("Group histogram store reloaded through its own reload plan")
+	class GroupHistogramStoreReload {
+
+		/**
+		 * The primary key of the group whose store every cell persists and reloads.
+		 */
+		private static final int GROUP_PK = 100;
+		/**
+		 * The key of the store every cell persists and reloads.
+		 */
+		private static final EntityIndexKey STORE_KEY =
+			GroupHistogramEntityIndex.keyOf(REFERENCE_NAME, GROUP_PK, Scope.LIVE);
+
+		/**
+		 * Verifies that a store whose histogram paged out reloads through its own plan with the histogram intact and no
+		 * row, and that the reloaded store emits nothing on its next flush.
+		 */
+		@Test
+		@DisplayName("a paged store reloads its histogram identically, holds no row and emits nothing on next flush")
+		void shouldReloadAPagedStoreThroughItsOwnPlan() {
+			final GroupHistogramEntityIndex store = newStore();
+			for (int i = 1; i <= VALUE_COUNT; i++) {
+				store.insertHistogramValue(HISTOGRAM_NAME, null, i, i, Integer.class, 0);
+			}
+			final List<StoragePart> emitted = collectStore(store);
+			assertTrue(leafPages(emitted).size() >= 3, "the store's histogram must page out across several leaves");
+
+			final OffsetIndexDescriptor descriptor = persist(emitted);
+			OffsetIndex reloaded = null;
+			try {
+				reloaded = loadOffsetIndex(descriptor, PERSISTED_VERSION);
+				final GroupHistogramEntityIndex restored = reloadStore(reloaded);
+
+				assertEquals(STORE_KEY, restored.getIndexKey());
+				assertEquals(ENTITY_INDEX_PK, restored.getPrimaryKey());
+				assertTrue(restored.getAllPrimaryKeys().isEmpty(), "a reloaded store must hold no rows");
+				assertFalse(restored.isEmpty(), "a reloaded store holding a histogram must not be empty");
+				assertReloadIdentical(
+					Objects.requireNonNull(store.getHistogramIndex(HISTOGRAM_NAME)),
+					Objects.requireNonNull(restored.getHistogramIndex(HISTOGRAM_NAME)),
+					null
+				);
+				final TrappedChanges afterReload = new TrappedChanges();
+				restored.getModifiedStorageParts(afterReload);
+				assertEquals(
+					0, afterReload.getTrappedChangesCount(),
+					"an untouched reloaded store must emit nothing on its first flush"
+				);
+			} finally {
+				if (reloaded != null) {
+					IOUtils.closeQuietly(reloaded::close);
+				}
+			}
+		}
+
+		/**
+		 * Verifies that a store created and emptied before its first flush persists a manifest that reloads as an empty
+		 * store.
+		 */
+		@Test
+		@DisplayName("a store created and emptied before its first flush persists a manifest that reloads as empty")
+		void shouldReloadAStoreEmptiedBeforeItsFirstFlush() {
+			final GroupHistogramEntityIndex store = newStore();
+			store.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0);
+			store.removeHistogramValue(HISTOGRAM_NAME, null, 42, 10, 0);
+			final List<StoragePart> emitted = collectStore(store);
+			assertTrue(
+				emitted.stream().anyMatch(EntityIndexStoragePart.class::isInstance),
+				"the store must persist a manifest even though it is empty at its first flush"
+			);
+
+			final OffsetIndexDescriptor descriptor = persist(emitted);
+			OffsetIndex reloaded = null;
+			try {
+				reloaded = loadOffsetIndex(descriptor, PERSISTED_VERSION);
+				final GroupHistogramEntityIndex restored = reloadStore(reloaded);
+
+				assertEquals(STORE_KEY, restored.getIndexKey());
+				assertTrue(restored.isEmpty(), "the reloaded store must be empty");
+				assertNull(restored.getHistogramIndex(HISTOGRAM_NAME));
+			} finally {
+				if (reloaded != null) {
+					IOUtils.closeQuietly(reloaded::close);
+				}
+			}
+		}
+
+		/**
+		 * Verifies that a persisted entity-id membership is refused, naming the store, rather than loaded or erased.
+		 */
+		@Test
+		@DisplayName("a persisted membership is refused, naming the store, rather than loaded or erased")
+		void shouldThrowExceptionWhenThePersistedMembershipIsNotEmpty() {
+			final GroupHistogramEntityIndex store = newStore();
+			store.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0);
+			final List<StoragePart> emitted = new ArrayList<>(collectStore(store));
+			// written after the flush's own (no-op) removal of the part, exactly as a later write would land
+			emitted.add(new EntityIdsStoragePart(ENTITY_INDEX_PK, 1, new TransactionalBitmap(1_001), Map.of()));
+
+			final GenericEvitaInternalError error = assertReloadRefused(emitted);
+			assertTrue(error.getMessage().contains("entity primary key"), error.getMessage());
+		}
+
+		/**
+		 * Verifies that a persisted language membership is refused, naming the store, even with no entity primary key
+		 * persisted.
+		 */
+		@Test
+		@DisplayName("a persisted language membership is refused, naming the store, even with no entity primary key")
+		void shouldThrowExceptionWhenThePersistedLanguageMembershipIsNotEmpty() {
+			final GroupHistogramEntityIndex store = newStore();
+			store.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0);
+			final List<StoragePart> emitted = new ArrayList<>(collectStore(store));
+			emitted.add(
+				new EntityIdsStoragePart(
+					ENTITY_INDEX_PK, 1, new TransactionalBitmap(),
+					Map.of(Locale.ENGLISH, new TransactionalBitmap(1_001))
+				)
+			);
+
+			final GenericEvitaInternalError error = assertReloadRefused(emitted);
+			assertTrue(error.getMessage().contains(Locale.ENGLISH.toString()), error.getMessage());
+		}
+
+		/**
+		 * Verifies that an attribute sub-index persisted with the store is refused, naming the store, after its part
+		 * loaded intact.
+		 */
+		@Test
+		@DisplayName("a persisted attribute sub-index is refused, naming the store, after it loaded intact")
+		void shouldThrowExceptionWhenTheManifestNamesAnAttribute() {
+			final GroupHistogramEntityIndex store = newStore();
+			store.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0);
+			// only a walker that must never address a store could write this - the flush persists it as it would for
+			// any index, so the attribute loader finds its part and the refusal must come from the store's own plan
+			store.insertFilterAttribute(
+				null, filterableAttribute("code"), Set.of(), null, "ABC", 1_001, false
+			);
+			final List<StoragePart> emitted = collectStore(store);
+			final EntityIndexStoragePart manifest = manifestOf(emitted);
+			assertEquals(1, manifest.getAttributeIndexes().size(), "the fixture must persist one attribute key");
+
+			final GenericEvitaInternalError error = assertReloadRefused(emitted);
+			assertTrue(error.getMessage().contains("1 attribute"), error.getMessage());
+		}
+
+		/**
+		 * Verifies that a price key in the store's manifest is refused, naming the store, although no loader reads it.
+		 */
+		@Test
+		@DisplayName("a persisted price sub-index is refused, naming the store, although no loader reads it")
+		void shouldThrowExceptionWhenTheManifestNamesAPrice() {
+			final GroupHistogramEntityIndex store = newStore();
+			store.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0);
+			final List<StoragePart> emitted = new ArrayList<>(collectStore(store));
+			final EntityIndexStoragePart manifest = manifestOf(emitted);
+			// a store's price index is the void one, so no flush of it can name a price key; the store's plan has no
+			// price loader either, which leaves its own validation as the only thing that can notice one
+			emitted.set(
+				emitted.indexOf(manifest),
+				new EntityIndexStoragePart(
+					ENTITY_INDEX_PK, 1, STORE_KEY,
+					Set.of(),
+					Set.of(new PriceIndexKey("basic", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE)),
+					false, Set.of(), manifest.getHistogramIndexes()
+				)
+			);
+
+			final GenericEvitaInternalError error = assertReloadRefused(emitted);
+			assertTrue(error.getMessage().contains("1 price"), error.getMessage());
+		}
+
+		/**
+		 * Verifies that a facet sub-index persisted with the store is refused, naming the store, after its part loaded
+		 * intact.
+		 */
+		@Test
+		@DisplayName("a persisted facet sub-index is refused, naming the store, after it loaded intact")
+		void shouldThrowExceptionWhenTheManifestNamesAFacet() {
+			final GroupHistogramEntityIndex store = newStore();
+			store.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0);
+			// the facet part is persisted alongside, so the facet loader finds it and the refusal must come from the
+			// store's own plan - a manifest naming a facet with no part behind it fails inside the loader instead
+			store.addFacet(null, new ReferenceKey(REFERENCE_NAME, 1), GROUP_PK, 1_001);
+			final List<StoragePart> emitted = collectStore(store);
+			final EntityIndexStoragePart manifest = manifestOf(emitted);
+			assertEquals(Set.of(REFERENCE_NAME), manifest.getFacetIndexes(), "the fixture must persist one facet key");
+
+			final GenericEvitaInternalError error = assertReloadRefused(emitted);
+			assertTrue(error.getMessage().contains("1 facet"), error.getMessage());
+		}
+
+		/**
+		 * Verifies that a hierarchy persisted with the store is refused, naming the store, after its part loaded
+		 * intact.
+		 */
+		@Test
+		@DisplayName("a persisted hierarchy is refused, naming the store, after it loaded intact")
+		void shouldThrowExceptionWhenTheManifestNamesAHierarchy() {
+			final GroupHistogramEntityIndex store = newStore();
+			store.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0);
+			// the hierarchy part is persisted alongside, so the hierarchy loader finds it and the refusal must come
+			// from the store's own plan - a manifest naming a hierarchy with no part behind it fails inside the loader
+			store.addNode(1_001, null);
+			final List<StoragePart> emitted = collectStore(store);
+			assertTrue(manifestOf(emitted).isHierarchyIndex(), "the fixture must persist a hierarchy");
+
+			final GenericEvitaInternalError error = assertReloadRefused(emitted);
+			assertTrue(error.getMessage().contains("and a hierarchy"), error.getMessage());
+		}
+
+		/**
+		 * Creates a fresh store of the fixture's group under the primary key every cell reloads.
+		 *
+		 * @return the store
+		 */
+		@Nonnull
+		private GroupHistogramEntityIndex newStore() {
+			return new GroupHistogramEntityIndex(ENTITY_INDEX_PK, ENTITY_TYPE, STORE_KEY, true);
+		}
+
+		/**
+		 * Collects everything a flush of the store emits, the manifest and the membership removal included.
+		 *
+		 * @param store the store to flush
+		 * @return the emitted parts in emission order
+		 */
+		@Nonnull
+		private List<StoragePart> collectStore(@Nonnull GroupHistogramEntityIndex store) {
+			final TrappedChanges trappedChanges = new TrappedChanges();
+			store.getModifiedStorageParts(trappedChanges);
+			final List<StoragePart> parts = new ArrayList<>(trappedChanges.getTrappedChangesCount());
+			final Iterator<StoragePart> iterator = trappedChanges.getTrappedChangesIterator();
+			while (iterator.hasNext()) {
+				parts.add(iterator.next());
+			}
+			return parts;
+		}
+
+		/**
+		 * Returns the one manifest of an emission.
+		 *
+		 * @param parts the emitted parts
+		 * @return the manifest
+		 */
+		@Nonnull
+		private EntityIndexStoragePart manifestOf(@Nonnull List<StoragePart> parts) {
+			EntityIndexStoragePart manifest = null;
+			for (final StoragePart part : parts) {
+				if (part instanceof EntityIndexStoragePart manifestPart) {
+					assertNull(manifest, "a flush must emit at most one manifest");
+					manifest = manifestPart;
+				}
+			}
+			assertNotNull(manifest, "the emission carries no manifest");
+			return manifest;
+		}
+
+		/**
+		 * Builds a filterable attribute schema of the given name, the shape a reference attribute walker would write.
+		 *
+		 * @param name the attribute name
+		 * @return the attribute schema
+		 */
+		@Nonnull
+		private AttributeSchemaContract filterableAttribute(@Nonnull String name) {
+			return AttributeSchema._internalBuild(
+				name, null, new Scope[]{Scope.LIVE}, null, null,
+				false, false, false, String.class, null, ConflictResolutionOverride.INHERITED
+			);
+		}
+
+		/**
+		 * Persists the parts, reloads the store from the real offset index and asserts that the reload is refused with
+		 * a message naming the store's primary key.
+		 *
+		 * @param parts the parts to persist
+		 * @return the refusal, for further assertions on its message
+		 */
+		@Nonnull
+		private GenericEvitaInternalError assertReloadRefused(@Nonnull List<StoragePart> parts) {
+			final OffsetIndexDescriptor descriptor = persist(parts);
+			OffsetIndex reloaded = null;
+			try {
+				reloaded = loadOffsetIndex(descriptor, PERSISTED_VERSION);
+				final OffsetIndex theReloaded = reloaded;
+				final GenericEvitaInternalError error = assertThrows(
+					GenericEvitaInternalError.class, () -> reloadStore(theReloaded)
+				);
+				assertTrue(
+					error.getMessage().contains("group histogram store with primary key " + ENTITY_INDEX_PK),
+					error.getMessage()
+				);
+				return error;
+			} finally {
+				if (reloaded != null) {
+					IOUtils.closeQuietly(reloaded::close);
+				}
+			}
+		}
+
+		/**
+		 * Reloads the store the way `DefaultEntityCollectionPersistenceService#readEntityIndex` reloads any entity
+		 * index: it reads the manifest and the sibling entity-id part by the index primary key, resolves the
+		 * membership and the effective version from them, and runs the reload plan of the manifest's kind.
+		 *
+		 * @param offsetIndex the real store to read from
+		 * @return the reloaded store
+		 */
+		@Nonnull
+		private GroupHistogramEntityIndex reloadStore(@Nonnull OffsetIndex offsetIndex) {
+			final StoragePartPersistenceService<StorageDescriptor> service = new OffsetIndexReadService(offsetIndex);
+			final EntityIndexStoragePart manifest = service.getStoragePart(
+				PERSISTED_VERSION, ENTITY_INDEX_PK, EntityIndexStoragePart.class
+			);
+			assertNotNull(manifest, "the store's manifest must have been persisted");
+			assertEquals(EntityIndexType.REFERENCED_GROUP_HISTOGRAM, manifest.getEntityIndexKey().type());
+			final EntityIdsStoragePart membership = service.getStoragePart(
+				PERSISTED_VERSION, ENTITY_INDEX_PK, EntityIdsStoragePart.class
+			);
+			final Bitmap entityIds = membership == null ? EmptyBitmap.INSTANCE : membership.getEntityIds();
+			final Map<Locale, TransactionalBitmap> entityIdsByLanguage =
+				membership == null ? Map.of() : membership.getEntityIdsByLanguage();
+			final int version = membership == null ?
+				manifest.getVersion() : Math.max(manifest.getVersion(), membership.getVersion());
+			final LoadContext context = new LoadContext(
+				PERSISTED_VERSION,
+				ENTITY_INDEX_PK,
+				EntitySchema._internalBuild(ENTITY_TYPE),
+				manifest.getEntityIndexKey(),
+				manifest,
+				version,
+				entityIds,
+				entityIdsByLanguage,
+				service,
+				(RepresentativeReferenceKey) manifest.getEntityIndexKey().discriminator()
+			);
+			return assertInstanceOf(
+				GroupHistogramEntityIndex.class, GroupHistogramEntityIndex.reloadPlan().run(context)
+			);
 		}
 	}
 
@@ -1911,6 +2276,10 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 				final long removedPartPK =
 					deferredRemoval.computeUniquePartIdAndSet(offsetIndex.getReadOnlyKeyCompressor());
 				offsetIndex.remove(catalogVersion, removedPartPK, deferredRemoval.removedContainerType());
+			} else if (part instanceof DataStoreChanges.RemovedStoragePart removal) {
+				// a primary-key-addressable removal - an emptied index drops its entity-id part this way, and the
+				// removal of one that was never written is a no-op, exactly as on the production drain
+				offsetIndex.remove(catalogVersion, removal.storagePartPK(), removal.containerType());
 			} else {
 				offsetIndex.put(catalogVersion, part);
 			}

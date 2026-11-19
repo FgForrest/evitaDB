@@ -264,6 +264,17 @@ class IndexActivityTest {
 			assertHolderSurvivesCommit(referencedTypeIndex(), index -> index.insertPrimaryKeyIfMissing(1, 7));
 		}
 
+		/**
+		 * Verifies that the commit copy of a group histogram store keeps counting into the same activity holder.
+		 */
+		@Test
+		@DisplayName("GroupHistogramEntityIndex")
+		void shouldCarryTheHolderThroughAGroupHistogramStoreCopy() {
+			assertHolderSurvivesCommit(
+				groupHistogramStore(), index -> index.insertHistogramValue("price", null, 42, 1, Integer.class, 0)
+			);
+		}
+
 		@Test
 		@DisplayName("CatalogIndex")
 		void shouldCarryTheHolderThroughACatalogIndexCopy() {
@@ -311,7 +322,7 @@ class IndexActivityTest {
 		@Test
 		@DisplayName("An index rebuilt from persisted state counts into the holder it was handed")
 		void shouldCountIntoTheHolderItWasHanded() {
-			// this is the constructor the four `reloadPlan()` finalizers call, and they hand it a brand-new holder
+			// this is the constructor the five `reloadPlan()` finalizers call, and they hand it a brand-new holder
 			// rather than the one the previous incarnation held - which is what makes the counters "since catalog
 			// load". Only the constructor's own half of that is pinned here: it adopts the holder it is given and
 			// mints none of its own. The reload itself is covered end to end by
@@ -423,6 +434,16 @@ class IndexActivityTest {
 		return new ReferencedTypeEntityIndex(
 			INDEX_PK, ENTITY_TYPE,
 			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_NAME)
+		);
+	}
+
+	/**
+	 * @return a fresh, empty histogram-only store of one group
+	 */
+	@Nonnull
+	private static GroupHistogramEntityIndex groupHistogramStore() {
+		return new GroupHistogramEntityIndex(
+			INDEX_PK, ENTITY_TYPE, GroupHistogramEntityIndex.keyOf(REFERENCE_NAME, 7, Scope.LIVE), true
 		);
 	}
 

@@ -1296,11 +1296,12 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			}
 		}
 
-		// grouped-reference histograms live in the group ReducedGroupEntityIndex; without
-		// REFERENCED_GROUP_ENTITY on indexedComponents the engine never creates that index
-		// and every histogram value is silently dropped. Validate the final post-mutation
-		// state here — individual mutations (Create, ModifyGroup, SetIndexed, SetBucketed)
-		// can each leave the schema temporarily inconsistent on the way to a valid result,
+		// grouped-reference histograms live in the histogram store of each group, but both sides depend
+		// on the group-type index that REFERENCED_GROUP_ENTITY on indexedComponents creates - the reader
+		// finds the groups there, and an entity's own write refuses a value whose group that index does
+		// not track, so without the component no grouped histogram can be filled or read.
+		// Validate the final post-mutation state here — individual mutations (Create, ModifyGroup,
+		// SetIndexed, SetBucketed) can each leave the schema temporarily inconsistent on the way to a valid result,
 		// so the invariant is enforced once at session commit rather than per-mutation.
 		if (this.referencedGroupType != null) {
 			for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : this.bucketedInScopes.entrySet()) {

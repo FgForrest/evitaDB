@@ -25,6 +25,8 @@ package io.evitadb.test.upgrade;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -88,8 +90,70 @@ public final class Release2026_2ReferenceFixtureRecipes {
 	@Nonnull
 	public static List<ReleaseFixtureRecipe> all() {
 		return Arrays.asList(
-			d6(), d7(), d8(), d16(), d16n(), d17(), d17a(), d5r(), dK1h(), dGrp(), dUw(), drf(), dRR(), dRng()
+			d6(), d7(), d8(), d16(), d16n(), d17(), d17a(), d5r(), dK1h(), dGrp(), groupedHistogram(), dUw(), drf(),
+			dRR(), dRng()
 		);
+	}
+
+	/**
+	 * Writes grouped histogram copies in both legacy group index kinds and an independent ungrouped histogram.
+	 * Two owners contribute shares 5 and 9 to group 10 and to the ungrouped tag reference. The grouped histogram
+	 * admits a value only while the group's filterable `enabled` attribute is true: group 10 is created disabled, and
+	 * a transaction committed after the catalog goes live enables it. Release 2026.2 writes a grouped value into the
+	 * reduced group index alone when the owner inserts it, but into both the reduced group and the group-type index
+	 * when a change of the group reevaluates its owners, so that transaction is what writes both copies. The value
+	 * expression remains a plain reference attribute.
+	 *
+	 * @return the recipe written by the released engine
+	 */
+	@Nonnull
+	public static ReleaseFixtureRecipe groupedHistogram() {
+		return ReleaseFixtureRecipe.writtenBy2026_2(
+				"groupedHistogram",
+				"grouped and ungrouped reference histograms over two owners' plain integer shares",
+				session -> {
+					session.defineEntitySchema(GROUP).withoutGeneratedPrimaryKey()
+						.withAttribute("enabled", Boolean.class, thatIs -> thatIs.filterable()).updateVia(session);
+					session.defineEntitySchema(BRAND).withoutGeneratedPrimaryKey().updateVia(session);
+					session.createNewEntity(GROUP, 10).setAttribute("enabled", false).upsertVia(session);
+					for (int brand = 1; brand <= 2; brand++) {
+						session.createNewEntity(BRAND, brand).upsertVia(session);
+					}
+					session.defineEntitySchema(PRODUCT).withoutGeneratedPrimaryKey()
+						.withReferenceToEntity(BRAND, BRAND, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs.withGroupTypeRelatedToEntity(GROUP)
+								.indexedForFilteringAndPartitioning().faceted()
+								.indexedWithComponents(ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
+								.withAttribute("share", Integer.class, thatIs -> thatIs.filterable())
+								.bucketedInScope(
+									Scope.LIVE, "shares", ExpressionFactory.parse("$reference.attributes['share']"),
+									ExpressionFactory.parse(
+										"($reference.groupEntity?.attributes['enabled'] ?? false) == true")))
+						.withReferenceToEntity("tag", BRAND, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs.indexedForFilteringAndPartitioning().faceted()
+								.withAttribute("share", Integer.class, thatIs -> thatIs.filterable())
+								.bucketed("shares", ExpressionFactory.parse("$reference.attributes['share']")))
+						.updateVia(session);
+					for (int owner = 1; owner <= 2; owner++) {
+						final int share = owner == 1 ? 5 : 9;
+						session.createNewEntity(PRODUCT, owner)
+							.setReference(BRAND, owner, ref -> ref.setGroup(10).setAttribute("share", share))
+							.setReference("tag", owner, ref -> ref.setAttribute("share", share))
+							.upsertVia(session);
+					}
+				}
+			)
+			.thenAlive(session -> session.getEntity(GROUP, 10, entityFetchAllContent()).orElseThrow()
+				.openForWrite().setAttribute("enabled", true).upsertVia(session))
+			.withProbe("grouped shares", query(collection(PRODUCT), require(
+				referenceSummaryOfReferenceWithHistograms(BRAND,
+					FacetStatisticsDepth.COUNTS,
+					null, null, histogramStatistics(10, "shares")))))
+			.withProbe("ungrouped shares", query(collection(PRODUCT), require(
+				referenceSummaryOfReferenceWithHistograms("tag",
+					FacetStatisticsDepth.COUNTS,
+					null, null, histogramStatistics(10, "shares")))));
 	}
 
 	/**

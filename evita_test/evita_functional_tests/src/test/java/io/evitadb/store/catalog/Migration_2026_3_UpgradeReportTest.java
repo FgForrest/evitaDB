@@ -55,6 +55,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static io.evitadb.spi.store.catalog.persistence.PersistenceService.STORAGE_PROTOCOL_VERSION;
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -80,7 +81,7 @@ class Migration_2026_3_UpgradeReportTest implements EvitaTestSupport {
 	@DisplayName("Should recommend conditional reindexing when a counter has no surviving filter sibling")
 	void shouldRecommendReindexingForUncheckedCounter() {
 		final CapturedReport report = captureReport(() -> this.harness.withUpgradedCatalog("d16", evita -> {
-			assertEquals(7, ReleaseFixtureHarness.headerStorageProtocol(evita, "d16"));
+			assertEquals(STORAGE_PROTOCOL_VERSION, ReleaseFixtureHarness.headerStorageProtocol(evita, "d16"));
 		}));
 		final List<String> unchecked = report.warnings().stream()
 			.filter(message -> message.contains("could NOT be checked")).toList();
@@ -101,7 +102,7 @@ class Migration_2026_3_UpgradeReportTest implements EvitaTestSupport {
 	@DisplayName("Should omit conditional reindexing when no counter is unchecked")
 	void shouldOmitReindexingWhenAllCountersAreChecked() {
 		final CapturedReport report = captureReport(() -> this.harness.withUpgradedCatalog("d13", evita -> {
-			assertEquals(7, ReleaseFixtureHarness.headerStorageProtocol(evita, "d13"));
+			assertEquals(STORAGE_PROTOCOL_VERSION, ReleaseFixtureHarness.headerStorageProtocol(evita, "d13"));
 		}));
 		assertFalse(report.warnings().stream().anyMatch(message -> message.contains("could NOT be checked")));
 		assertFalse(report.warnings().stream().anyMatch(message -> message.contains("If filtering is incomplete")));
@@ -293,7 +294,7 @@ class Migration_2026_3_UpgradeReportTest implements EvitaTestSupport {
 	@DisplayName("Should omit the migration loss warning for a fresh current catalog")
 	void shouldOmitLossWarningForFreshCurrentCatalog() {
 		final CapturedReport report = captureReport(() -> this.harness.withFreshCatalog("d2", evita -> {
-			assertEquals(7, ReleaseFixtureHarness.headerStorageProtocol(evita, "d2"));
+			assertEquals(STORAGE_PROTOCOL_VERSION, ReleaseFixtureHarness.headerStorageProtocol(evita, "d2"));
 		}));
 		assertTrue(report.warnings().isEmpty());
 		assertFalse(report.console().contains("Potentially affected fields:"));
@@ -323,7 +324,7 @@ class Migration_2026_3_UpgradeReportTest implements EvitaTestSupport {
 	private void bootFixture(@Nonnull TestPaths paths, @Nonnull String fixture) {
 		try (final Evita evita = this.harness.boot(paths)) {
 			ReleaseFixtureHarness.requireAlive(evita, fixture);
-			assertEquals(7, ReleaseFixtureHarness.headerStorageProtocol(evita, fixture));
+			assertEquals(STORAGE_PROTOCOL_VERSION, ReleaseFixtureHarness.headerStorageProtocol(evita, fixture));
 		}
 	}
 

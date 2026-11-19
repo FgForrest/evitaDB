@@ -36,7 +36,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.GroupHistogramEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.test.EvitaTestSupport;
@@ -347,7 +347,7 @@ class HistogramScopeChangeTest implements EvitaTestSupport, IndexingTestSupport 
 	 * @param collection    the entity collection to inspect
 	 * @param scope         the scope to check
 	 * @param referenceName the reference schema name
-	 * @param groupPK       the group entity primary key (group index discriminator)
+	 * @param groupPK       the group entity primary key (histogram store discriminator)
 	 * @param histogramName the histogram definition name
 	 * @param value         the expected histogram bucket value
 	 * @param ownerPK       the primary key of the owner entity (Product PK)
@@ -361,20 +361,15 @@ class HistogramScopeChangeTest implements EvitaTestSupport, IndexingTestSupport 
 		@Nonnull Serializable value,
 		int ownerPK
 	) {
-		final EntityIndex entityIndex = IndexingTestSupport.getReferencedGroupEntityIndex(
+		final GroupHistogramEntityIndex store = IndexingTestSupport.getGroupHistogramStore(
 			collection, scope, referenceName, groupPK
 		);
 		assertNotNull(
-			entityIndex,
-			"ReducedGroupEntityIndex for ref '" + referenceName
+			store,
+			"Histogram store for ref '" + referenceName
 				+ "' groupPK " + groupPK + " in scope " + scope + " must exist"
 		);
-		assertInstanceOf(
-			ReducedGroupEntityIndex.class, entityIndex,
-			"Expected ReducedGroupEntityIndex but got " + entityIndex.getClass().getSimpleName()
-		);
-		final ReducedGroupEntityIndex groupIndex = (ReducedGroupEntityIndex) entityIndex;
-		final FilterIndex filterIndex = groupIndex.getHistogramFilterIndex(histogramName, null);
+		final FilterIndex filterIndex = store.getHistogramFilterIndex(histogramName, null);
 		assertNotNull(
 			filterIndex,
 			"Histogram FilterIndex '" + histogramName
@@ -394,7 +389,7 @@ class HistogramScopeChangeTest implements EvitaTestSupport, IndexingTestSupport 
 	 * @param collection    the entity collection to inspect
 	 * @param scope         the scope to check
 	 * @param referenceName the reference schema name
-	 * @param groupPK       the group entity primary key (group index discriminator)
+	 * @param groupPK       the group entity primary key (histogram store discriminator)
 	 * @param histogramName the histogram definition name
 	 * @param ownerPK       the primary key of the owner entity (Product PK)
 	 */
@@ -406,18 +401,13 @@ class HistogramScopeChangeTest implements EvitaTestSupport, IndexingTestSupport 
 		@Nonnull String histogramName,
 		int ownerPK
 	) {
-		final EntityIndex entityIndex = IndexingTestSupport.getReferencedGroupEntityIndex(
+		final GroupHistogramEntityIndex store = IndexingTestSupport.getGroupHistogramStore(
 			collection, scope, referenceName, groupPK
 		);
-		if (entityIndex == null) {
-			return; // no group index = not indexed
+		if (store == null) {
+			return; // no histogram store = not indexed
 		}
-		assertInstanceOf(
-			ReducedGroupEntityIndex.class, entityIndex,
-			"Expected ReducedGroupEntityIndex but got " + entityIndex.getClass().getSimpleName()
-		);
-		final ReducedGroupEntityIndex groupIndex = (ReducedGroupEntityIndex) entityIndex;
-		final FilterIndex filterIndex = groupIndex.getHistogramFilterIndex(histogramName, null);
+		final FilterIndex filterIndex = store.getHistogramFilterIndex(histogramName, null);
 		if (filterIndex == null) {
 			return; // no histogram FilterIndex = not indexed
 		}

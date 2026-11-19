@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
@@ -122,8 +123,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Pins the storage-part round-trip contract of every concrete `EntityIndex` subclass —
- * `GlobalEntityIndex`, `ReducedEntityIndex`, `ReducedGroupEntityIndex` and
- * `ReferencedTypeEntityIndex`. Catches the regression class where data is persisted to disk
+ * `GlobalEntityIndex`, `ReducedEntityIndex`, `ReducedGroupEntityIndex`,
+ * `ReferencedTypeEntityIndex` and `GroupHistogramEntityIndex`. Catches the regression class where data is persisted
+ * to disk
  * but the manifest (`EntityIndexStoragePart`) never references it, causing reload to
  * reconstruct an empty in-memory index.
  *
@@ -1008,8 +1010,9 @@ class EntityIndexRoundTripTest {
 
 		/**
 		 * Pre-populates a `ReducedGroupEntityIndex` with PKs (cardinality-aware), languages,
-		 * filter attributes (cardinality-tracked), CARDINALITY sub-indexes, histogram values, a
-		 * facet entry, and the group cardinality storage part. Hierarchy population is
+		 * filter attributes (cardinality-tracked), CARDINALITY sub-indexes, a facet entry, and the
+		 * group cardinality storage part. It holds no histogram - the histograms of a group live in
+		 * its `GroupHistogramEntityIndex`, see `GroupHistogramEntityIndexRoundTripTest`. Hierarchy population is
 		 * intentionally skipped — `AbstractReducedEntityIndex.addNode` throws because reduced
 		 * indexes never carry hierarchical state; hierarchy round-trip is covered by
 		 * `GlobalEntityIndexRoundTripTest`. Every kind of sub-index this subclass can hold must
@@ -1041,10 +1044,6 @@ class EntityIndexRoundTripTest {
 			// filter attribute with cardinality tracking — drives the CARDINALITY storage part
 			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13, false);
 			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13, false);
-
-			// histogram — must round-trip via the manifest
-			index.insertHistogramValue(HISTOGRAM_NAME, null, 100, 13, Integer.class, 0);
-			index.insertHistogramValue(HISTOGRAM_NAME, null, 200, 14, Integer.class, 0);
 
 			// price ref-index intentionally NOT populated here for the same reason as in
 			// ReducedEntityIndexRoundTripTest: PriceListAndCurrencyPriceRefIndex requires a
@@ -1088,8 +1087,6 @@ class EntityIndexRoundTripTest {
 			// reloaded RGEI answer "how many references back this entity in this group?" queries
 			final GroupCardinalityIndexStoragePart groupPart = storage.groupCardinalityPart;
 			assertNotNull(groupPart, "RGEI must emit a GroupCardinalityIndexStoragePart");
-			final Map<String, HistogramIndex> histogramIndexes =
-				reloadHistogramIndexes(storage, rrk.referenceName());
 
 			return new ReducedGroupEntityIndex(
 				manifest.getPrimaryKey(),
@@ -1104,13 +1101,12 @@ class EntityIndexRoundTripTest {
 				groupPart.getPkCardinalities(),
 				groupPart.getReferencedPrimaryKeysIndex(),
 				reloadCardinalityIndexes(storage),
-				histogramIndexes,
 				new IndexActivity()
 			);
 		}
 
 		@Test
-		@DisplayName("should preserve manifest cross-refs and reload histogram + cardinality sub-indexes")
+		@DisplayName("should preserve manifest cross-refs and reload the cardinality sub-indexes")
 		void shouldRoundTripReducedGroupEntityIndex() {
 			final ReducedGroupEntityIndex original = buildPopulatedIndex();
 
@@ -1118,9 +1114,12 @@ class EntityIndexRoundTripTest {
 
 			assertManifestReferencesAllSubParts(storage);
 
-			// pin the histogram + cardinality parts — without these checks the test would silently
-			// pass when emission regressed to nothing
-			assertFalse(storage.histogramParts.isEmpty(), "Expected histogram parts");
+			// pin the cardinality parts — without these checks the test would silently pass when emission regressed
+			// to nothing
+			assertTrue(storage.histogramParts.isEmpty(), "A reduced group index holds no histogram");
+			assertTrue(
+				storage.requireManifest().getHistogramIndexes().isEmpty(), "A reduced group index lists no histogram"
+			);
 			assertFalse(storage.attributeCardinalityParts.isEmpty(), "Expected attribute cardinality parts");
 			assertNotNull(storage.groupCardinalityPart, "Expected group cardinality part");
 			assertTrue(storage.priceParts.isEmpty(), "Price parts intentionally not exercised here");
@@ -1134,11 +1133,6 @@ class EntityIndexRoundTripTest {
 			assertTrue(reloaded.getAllPrimaryKeys().contains(13));
 			assertTrue(reloaded.getAllPrimaryKeys().contains(14));
 			assertTrue(reloaded.getLanguages().contains(Locale.ENGLISH));
-			// histogram sentinel — the sub-index that the manifest must round-trip
-			final FilterIndex reloadedHistogram = reloaded.getHistogramFilterIndex(HISTOGRAM_NAME, null);
-			assertNotNull(reloadedHistogram, "Histogram filter index must survive the reload");
-			assertTrue(reloadedHistogram.getRecordsEqualTo(100).contains(13));
-			assertTrue(reloadedHistogram.getRecordsEqualTo(200).contains(14));
 			// group cardinality sentinel — referenced PKs 1, 2, 3 must all be tracked
 			assertEquals(3, reloaded.getReferencedEntityPrimaryKeys().size());
 			assertTrue(reloaded.isPriceIndexEmpty(), "Price was not populated in this fixture");
@@ -1301,6 +1295,103 @@ class EntityIndexRoundTripTest {
 		}
 	}
 
+	/**
+	 * Round trip of `GroupHistogramEntityIndex`: its flush carries a histogram-only manifest, the histogram and the
+	 * no-op removal of an entity-id part it never wrote, and a reload restores the histograms and no row.
+	 */
+	@Nested
+	@DisplayName("GroupHistogramEntityIndex round-trip")
+	class GroupHistogramEntityIndexRoundTripTest {
+
+		/**
+		 * Pre-populates a `GroupHistogramEntityIndex` with the only data a store can hold - histogram values of two
+		 * owners. It holds no rows, languages, attributes, facets or prices, so its flush must carry the histogram and
+		 * a manifest naming it, and nothing of a row-holding index.
+		 *
+		 * @return a populated `GroupHistogramEntityIndex`
+		 */
+		@Nonnull
+		private static GroupHistogramEntityIndex buildPopulatedIndex() {
+			final GroupHistogramEntityIndex index = new GroupHistogramEntityIndex(
+				INDEX_PK, ENTITY_TYPE, GroupHistogramEntityIndex.keyOf(REFERENCE_NAME, GROUP_PK, Scope.LIVE), true
+			);
+			index.insertHistogramValue(HISTOGRAM_NAME, null, 100, 13, Integer.class, 0);
+			index.insertHistogramValue(HISTOGRAM_NAME, null, 200, 14, Integer.class, 0);
+			return index;
+		}
+
+		/**
+		 * Reconstructs a `GroupHistogramEntityIndex` from the captured storage parts, mirroring what the store's
+		 * reload plan feeds its constructor. The plan itself, including the refusal of a persisted membership, is run
+		 * against a real offset index by `HistogramIndexLoaderPagingRoundTripTest`.
+		 *
+		 * @param storage the captured storage parts
+		 * @return a freshly-loaded `GroupHistogramEntityIndex`
+		 */
+		@Nonnull
+		private static GroupHistogramEntityIndex reload(@Nonnull CapturedStorage storage) {
+			final EntityIndexStoragePart manifest = storage.requireManifest();
+			final RepresentativeReferenceKey rrk =
+				(RepresentativeReferenceKey) manifest.getEntityIndexKey().discriminator();
+			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, rrk, true);
+			return new GroupHistogramEntityIndex(
+				manifest.getPrimaryKey(),
+				manifest.getEntityIndexKey(),
+				manifest.getVersion(),
+				reloadEntityIds(storage),
+				reloadEntityIdsByLanguage(storage),
+				(ReferenceAttributeIndex) attributeIndex,
+				reloadHierarchyIndex(storage),
+				reloadFacetIndex(storage),
+				reloadHistogramIndexes(storage, rrk.referenceName()),
+				new IndexActivity()
+			);
+		}
+
+		/**
+		 * Verifies that the store persists a manifest naming only its histogram, emits nothing of a row-holding index,
+		 * and reloads with its histogram intact and no row.
+		 */
+		@Test
+		@DisplayName("should persist a histogram-only manifest and reload the histograms without any row")
+		void shouldRoundTripGroupHistogramEntityIndex() {
+			final GroupHistogramEntityIndex original = buildPopulatedIndex();
+
+			final CapturedStorage storage = flush(original);
+
+			assertManifestReferencesAllSubParts(storage);
+			assertFalse(storage.histogramParts.isEmpty(), "Expected histogram parts");
+			assertFalse(storage.histogramCardinalityParts.isEmpty(), "Expected histogram cardinality parts");
+			assertTrue(storage.attributeParts.isEmpty(), "A store must not emit attribute parts");
+			assertTrue(storage.attributeCardinalityParts.isEmpty(), "A store must not emit attribute cardinalities");
+			assertTrue(storage.priceParts.isEmpty(), "A store must not emit price parts");
+			assertTrue(storage.facetParts.isEmpty(), "A store must not emit facet parts");
+			assertNull(storage.hierarchyPart, "A store must not emit a hierarchy part");
+			assertNull(storage.groupCardinalityPart, "A store must not emit a group cardinality part");
+			assertNull(storage.referenceTypeCardinalityPart, "A store must not emit a reference-type cardinality part");
+			// a store has no membership: its first flush writes no entity-id part, only the removal of the one that
+			// was never written - a no-op the offset index ignores
+			assertNull(storage.bitmapsPart, "A store must not emit an entity-id part");
+			assertEquals(
+				List.of(new DataStoreChanges.RemovedStoragePart(EntityIdsStoragePart.class, INDEX_PK)),
+				storage.removedParts
+			);
+
+			final GroupHistogramEntityIndex reloaded = reload(storage);
+
+			assertTrue(reloaded.getAllPrimaryKeys().isEmpty(), "A reloaded store must hold no rows");
+			assertTrue(reloaded.getLanguages().isEmpty(), "A reloaded store must hold no languages");
+			assertFalse(reloaded.isEmpty(), "A reloaded store holding histograms must not be empty");
+			final FilterIndex reloadedHistogram = reloaded.getHistogramFilterIndex(HISTOGRAM_NAME, null);
+			assertNotNull(reloadedHistogram, "Histogram filter index must survive the reload");
+			assertTrue(reloadedHistogram.getRecordsEqualTo(100).contains(13));
+			assertTrue(reloadedHistogram.getRecordsEqualTo(200).contains(14));
+			assertInstanceOf(ReferenceAttributeIndex.class, reloaded.attributeIndex);
+
+			assertManifestStableAfterReload(reloaded, storage.requireManifest());
+		}
+	}
+
 	@Nested
 	@DisplayName("Legacy inline-bitmap manifest reload")
 	@Tag(INDEXING)
@@ -1412,6 +1503,11 @@ class EntityIndexRoundTripTest {
 		@Nullable private GroupCardinalityIndexStoragePart groupCardinalityPart;
 		/** Reference-type cardinality part emitted only by `ReferencedTypeEntityIndex`. */
 		@Nullable private ReferenceTypeCardinalityIndexStoragePart referenceTypeCardinalityPart;
+		/**
+		 * Removals of primary-key-addressable parts, such as the entity-id part a `GroupHistogramEntityIndex` flush
+		 * removes because its membership is empty.
+		 */
+		@Nonnull private final List<DataStoreChanges.RemovedStoragePart> removedParts = new ArrayList<>(2);
 
 		/**
 		 * Dispatches an emitted storage part to the appropriate bucket. The dispatch is intentionally
@@ -1427,6 +1523,8 @@ class EntityIndexRoundTripTest {
 			} else if (part instanceof EntityIdsStoragePart bitmapsStoragePart) {
 				assertNull(this.bitmapsPart, "Multiple entity-id bitmaps parts emitted in one flush");
 				this.bitmapsPart = bitmapsStoragePart;
+			} else if (part instanceof DataStoreChanges.RemovedStoragePart removedPart) {
+				this.removedParts.add(removedPart);
 			} else if (part instanceof AttributeCardinalityIndexStoragePart cardPart) {
 				this.attributeCardinalityParts.add(cardPart);
 			} else if (part instanceof AttributeIndexStoragePart attrPart) {

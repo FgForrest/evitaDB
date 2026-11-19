@@ -42,7 +42,7 @@ public interface HistogramExpressionTrigger extends ExpressionIndexTrigger {
 
 	/**
 	 * Returns the name of the histogram index from the {@link HistogramIndexDefinition}. This name is used
-	 * as the key in the `histogramIndexes` map on `ReducedGroupEntityIndex` and `ReferencedTypeEntityIndex`.
+	 * as the key in the `histogramIndexes` map on `GroupHistogramEntityIndex` and `ReferencedTypeEntityIndex`.
 	 *
 	 * @return the histogram index name, never null
 	 */

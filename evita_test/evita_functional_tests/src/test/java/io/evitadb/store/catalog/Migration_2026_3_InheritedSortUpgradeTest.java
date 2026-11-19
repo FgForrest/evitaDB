@@ -35,6 +35,7 @@ import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import static io.evitadb.spi.store.catalog.persistence.PersistenceService.STORAGE_PROTOCOL_VERSION;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -65,7 +66,7 @@ class Migration_2026_3_InheritedSortUpgradeTest implements EvitaTestSupport {
 			assertEquals(4, this.harness.lastBootstrapStorageProtocol(paths, INHERITED_SORT_TWINS));
 			try (final Evita evita = this.harness.boot(paths)) {
 				requireAlive(evita, INHERITED_SORT_TWINS);
-				assertEquals(7, headerStorageProtocol(evita, INHERITED_SORT_TWINS));
+				assertEquals(STORAGE_PROTOCOL_VERSION, headerStorageProtocol(evita, INHERITED_SORT_TWINS));
 				assertEquals(List.of(1, 2, 3, 4, 5), pks(evita, INHERITED_SORT_TWINS, ordered));
 			}
 			try (final Evita evita = this.harness.boot(paths)) {
@@ -82,7 +83,7 @@ class Migration_2026_3_InheritedSortUpgradeTest implements EvitaTestSupport {
 			}
 			try (final Evita evita = this.harness.boot(paths)) {
 				requireAlive(evita, INHERITED_SORT_TWINS);
-				assertEquals(7, headerStorageProtocol(evita, INHERITED_SORT_TWINS));
+				assertEquals(STORAGE_PROTOCOL_VERSION, headerStorageProtocol(evita, INHERITED_SORT_TWINS));
 				assertEquals(List.of(2, 3, 4, 5, 1), pks(evita, INHERITED_SORT_TWINS, ordered));
 			}
 		} finally {

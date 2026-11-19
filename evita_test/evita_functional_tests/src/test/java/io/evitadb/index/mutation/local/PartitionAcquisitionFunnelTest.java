@@ -1063,37 +1063,9 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 		}
 	}
 
-	@Nested
-	@DisplayName("group family by primary key")
-	class GroupFamily {
-
-		@Test
-		@DisplayName("a primary key naming a registered partition is refused on the group-family walk")
-		void shouldRefuseRegisteredPartitionOnGroupFamilyWalk() {
-			final int primaryKey = seedRow(keyOf(SINGLE_REFERENCE));
-			final GenericEvitaInternalError error = assertThrows(
-				GenericEvitaInternalError.class,
-				() -> PartitionAcquisitionFunnelTest.this.virtualExecutor
-					.getGroupIndexByPrimaryKeyForModification(Scope.LIVE, SINGLE_REFERENCE, primaryKey)
-			);
-			assertTrue(
-				error.getPrivateMessage().contains("registered single-owner partition"), error.getPrivateMessage()
-			);
-		}
-
-		@Test
-		@DisplayName("a primary key naming nothing answers nothing on the group-family walk")
-		void shouldAnswerNothingForUnknownPrimaryKeyOnGroupFamilyWalk() {
-			seedRow(keyOf(SINGLE_REFERENCE));
-			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
-			assertNull(outer.virtualExecutor.getGroupIndexByPrimaryKeyForModification(Scope.LIVE, SINGLE_REFERENCE, 77));
-		}
-	}
-
 	/**
 	 * A map-based index maintainer that counts how each index was reached, every index it creates and every primary
-	 * key it hands out. Unlike the collection's maintainer it answers `null` for a primary key it holds no index of,
-	 * which lets the group-family walk see the missing index.
+	 * key it hands out. Unlike the collection's maintainer it answers `null` for a primary key it holds no index of.
 	 */
 	private final class CountingIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex> {
 		/**

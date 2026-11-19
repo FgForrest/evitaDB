@@ -55,7 +55,7 @@ import java.util.Map;
  * deliberately does not attempt it, having no access to either.
  *
  * @deprecated kept for backward compatibility; can be removed once no catalog holds a cardinality part written
- *             before 2026.3 — which upgrading to protocol 7 does NOT establish. `Migration_2026_3` rewrites only the
+ *             before 2026.3 — which upgrading to protocol 9 does NOT establish. `Migration_2026_3` rewrites only the
  *             parts whose keys change, so a counter that was already canonical (an `Integer`, `Boolean` or enum one,
  *             or an ASCII-only `String` one) keeps this vintage's `serialVersionUID` after the upgrade and stays
  *             readable only through this class until it is next flushed. This reader therefore outlives the

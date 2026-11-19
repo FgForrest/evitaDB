@@ -112,7 +112,9 @@ import static java.util.Optional.ofNullable;
  * it stores per-reference histogram data in a `histogramIndexes` map ({@code Map<String, HistogramIndex>}). These
  * histogram indexes back the {@link io.evitadb.api.query.require.ReferenceHistogramStatistics} computation for
  * non-grouped references: the accumulator calls {@link #getHistogramFilterIndex(String, Locale)} to obtain the
- * source {@link io.evitadb.index.attribute.FilterIndex} and runs histogram bucket computation against it.
+ * source {@link io.evitadb.index.attribute.FilterIndex} and runs histogram bucket computation against it. Only the
+ * index of a `REFERENCED_ENTITY_TYPE` key holds histograms: those of a grouped reference live in the
+ * {@link GroupHistogramEntityIndex} of each group, except a contribution that carries no group, which is written here.
  *
  * **Virtual reference partitions** — this index also carries one {@link VirtualReferencePartitionIndex}, recording
  * what is known about single-owner reference partitions that have no reduced entity index of their own: the owner
@@ -397,6 +399,15 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 					bundles.get(LoadedComponentBundle.VirtualReferencePartitions.class);
 			final io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart manifest =
 				context.entityIndexStoragePart();
+			// the histograms of an ungrouped reference live in its referenced-type index, those of a group in the
+			// group's histogram store: no current writer lists histogram keys on a group-type manifest and the storage
+			// migration removes the legacy ones, so keys there mean an image that bypassed that migration
+			Assert.isPremiseValid(
+				manifest.getEntityIndexKey().type() != EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE ||
+					manifest.getHistogramIndexes().isEmpty(),
+				() -> "Index " + manifest.getPrimaryKey() + " (`" + manifest.getEntityIndexKey() +
+					"`) contains legacy histogram keys " + manifest.getHistogramIndexes() + " - refusing to load it."
+			);
 			return new ReferencedTypeEntityIndex(
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
@@ -804,6 +815,16 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		return histogramIndex == null ? null : histogramIndex.getFilterIndex(locale);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Only the index of a `REFERENCED_ENTITY_TYPE` key holds histograms - those of an ungrouped reference. The
+	 * histograms of a grouped reference live in the histogram store of each group ({@link GroupHistogramEntityIndex}),
+	 * so the group-type index refuses a value: one written there would be read by nothing and would keep the index
+	 * from being dropped once the last group leaves it.
+	 *
+	 * @throws GenericEvitaInternalError when this is the index of a `REFERENCED_GROUP_ENTITY_TYPE` key
+	 */
 	@Override
 	public void insertHistogramValue(
 		@Nonnull String histogramName,
@@ -813,6 +834,14 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull Class<? extends Serializable> valueType,
 		int indexedDecimalPlaces
 	) {
+		if (this.indexKey.type() == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE) {
+			throw new GenericEvitaInternalError(
+				"Cannot insert histogram value into the group-type index " + this.indexKey + " (primary key " +
+					this.primaryKey + "): histogram `" + histogramName + "` of reference `" + getReferenceName() +
+					"`, owner primary key " + ownerPK + ". The histograms of a grouped reference belong to the " +
+					"histogram store of its group."
+			);
+		}
 		HistogramIndexOperations.insertHistogramValue(
 			this.histogramIndexes, this.dirty, getReferenceName(),
 			histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces
