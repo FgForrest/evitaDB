@@ -1028,6 +1028,7 @@ public interface QueryConstraints {
 	 * @param attributeValue value to match
 	 * @param <T> type of the attribute value
 	 * @return the attribute filter, or null when the value is undefined
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the attribute name is null or blank
 	 * @see AttributeInSet
 	 */
 	@Nullable

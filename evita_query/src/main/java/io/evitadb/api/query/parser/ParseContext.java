@@ -111,10 +111,15 @@ public class ParseContext {
 	}
 
 	/**
-	 * Tries to resolve next positional argument. Checks if there are any positional arguments left and if they
-	 * have supported data types. This method expects that syntax tree using positional parameters is parsed
-	 * synchronously in original order. Also, each argument can be used only once in query.
-	 * A bound null is a legal argument and is returned as null; a missing argument still throws.
+	 * Resolves the next positional argument and checks its data type. The syntax tree must be parsed synchronously in
+	 * query order, because each placeholder takes the next argument and every argument can be used only once.
+	 * A bound null is a legal argument and is returned as null; a missing argument throws.
+	 *
+	 * @param <A> the type the calling visitor expects
+	 * @return the bound value or null; a collection that is not serializable itself is returned as a list of its items
+	 * @throws EvitaInvalidUsageException when no positional argument is left, when the argument is an `Iterable` that
+	 *                                    is not a `Collection`, or when the argument, its array component or one of
+	 *                                    its items cannot be bound, a NaN or an infinite `Float` or `Double` included
 	 */
 	@Nullable
 	public <A extends Serializable & Comparable<?>> A getNextPositionalArgument() {
@@ -136,9 +141,14 @@ public class ParseContext {
 	}
 
 	/**
-	 * Checks that the parsed query used every positional argument the client passed. Each placeholder takes the next
-	 * argument, so an argument left over usually means a placeholder took a value meant for a later one; it is refused
-	 * rather than ignored.
+	 * Checks that the parsed query used every positional argument the client passed, and refuses it when more
+	 * arguments were passed than its placeholders took. Each placeholder takes the next argument when it is visited,
+	 * so an argument left over usually means a placeholder was never visited and the ones after it took the values
+	 * meant for their predecessors; it is refused rather than ignored. Named arguments are not checked, because
+	 * a query may use a named argument any number of times, including never.
+	 *
+	 * It must run only after the whole query was parsed: until then the placeholders not yet visited still have
+	 * arguments waiting for them.
 	 *
 	 * @throws EvitaSyntaxException when some positional arguments were not used by any placeholder
 	 */
@@ -154,9 +164,17 @@ public class ParseContext {
 	}
 
 	/**
-	 * Tries to resolve named parameter by name specified by client. Checks if there are any positional arguments
-	 * left and if they have supported data types. Each argument can be used multiple times in query.
+	 * Resolves a named argument by the name used in the query and checks its data type. Unlike a positional
+	 * argument, a named argument can be used any number of times in a query.
 	 * A name bound to null is a legal argument and is returned as null; a name that is not bound at all throws.
+	 *
+	 * @param name the parameter name without its `@` prefix
+	 * @param <A> the type the calling visitor expects
+	 * @return the bound value or null; a collection that is not serializable itself is returned as a list of its items
+	 * @throws EvitaInvalidUsageException when no named arguments were passed or the name is not bound, when the
+	 *                                    argument is an `Iterable` that is not a `Collection`, or when the argument,
+	 *                                    its array component or one of its items cannot be bound, a NaN or an
+	 *                                    infinite `Float` or `Double` included
 	 */
 	@Nullable
 	public <A extends Serializable & Comparable<?>> A getNamedArgument(@Nonnull String name) {
@@ -253,8 +271,10 @@ public class ParseContext {
 	}
 
 	/**
-	 * Checks which types can reach the visitor for position-specific validation. Finite floats and doubles may be
-	 * bound where the constraint factory normalizes them to decimals.
+	 * Checks which types can reach the visitor for position-specific validation. Finite floats and doubles pass this
+	 * check for the attribute value positions (the comparisons, `attributeBetween`, `attributeInSet` and
+	 * `attributeSetExact`), whose factories normalize them to decimals; the visitor of every other position refuses
+	 * them.
 	 *
 	 * @param type the scalar or array component type
 	 * @return whether the type is eligible for binding

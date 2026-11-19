@@ -99,6 +99,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	/**
 	 * Parses a leading value that may be a reference name or a managed-references behaviour.
 	 */
+	@Nonnull
 	protected final EvitaQLValueTokenVisitor managedReferenceBehaviourValueTokenVisitor =
 		EvitaQLValueTokenVisitor.withAllowedTypes(
 			ManagedReferencesBehaviour.class, String.class, String[].class, Iterable.class
@@ -107,6 +108,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	/**
 	 * Parses a lone attribute-name argument, which can supply the entire list.
 	 */
+	@Nonnull
 	private final EvitaQLValueTokenVisitor attributeNamesValueTokenVisitor =
 		EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Object[].class, Iterable.class);
 	protected final EvitaQLOrderConstraintVisitor orderConstraintVisitor = new EvitaQLOrderConstraintVisitor();
@@ -1654,9 +1656,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			}
 		}
 
-		final String[] indexNames = parseVariadicTail(ctx, args,
-			EvitaQLValueTokenVisitor.withAllowedTypes(String.class))
-			.asStringArray();
+		final String[] indexNames = parseVariadicTail(ctx, args, this.stringValueTokenVisitor).asStringArray();
 		final EntityFetch entityFetch = fetchAfterValuesArg == null ?
 			fetchBeforeValues : visitChildConstraint(fetchAfterValuesArg, EntityFetch.class);
 
@@ -1761,8 +1761,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					behavior = null;
 				}
 
-				final String[] attributesNames = parseVariadicTail(ctx, args,
-					EvitaQLValueTokenVisitor.withAllowedTypes(String.class))
+				final String[] attributesNames = parseVariadicTail(ctx, args, this.stringValueTokenVisitor)
 					.asStringArray();
 
 				return QueryConstraints.attributeHistogram(
