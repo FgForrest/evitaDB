@@ -1,7 +1,7 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-11-19 23:00
+updated: 2026-11-19 23:12
 status: accepted
 kind: fix
 issues: [1466, 2014, 2032, 2033, 2040]
@@ -307,6 +307,8 @@ both reached the disk.
   behaviour is: shutdown waits at most the 5 s of the drain and then refuses, which behaves like a rollback of the
   last warm-up session. It is not a real rollback - warm-up has no transactions - but the outcome for the user is the
   same: the catalog returns to the state it last published, and reload recovers that completely.
+  Worth revisiting only if a shutdown had to keep a slow session's work rather than return to the last published
+  state - and then by lengthening the drain's own wait, not by adding a second wait behind it.
 - **Termination publishes the catalog index too (#2032).** Termination stored the header without the catalog's own
   trapped changes, so the catalog index - which holds the values of globally unique attributes, and answers lookups of
   them even within a collection - was published behind the collections: an inserted entity was not found by its unique
