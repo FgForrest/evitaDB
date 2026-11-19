@@ -1,10 +1,10 @@
 ---
 title: A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue
 date: 2026-11-11
-updated: 2026-11-17 01:20
+updated: 2026-11-19 16:36
 status: accepted
 kind: fix
-issues: [1911, 1916, 1918, 1922, 1923, 1948]
+issues: [1911, 1916, 1918, 1922, 1923, 1948, 2029]
 prs: [1921, 1954, 1955, 1970]
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation/local, evita_engine/src/main/java/io/evitadb/core/catalog,
   evita_engine/src/main/java/io/evitadb/core/expression/proxy]
@@ -358,16 +358,32 @@ histogram trigger of each - O(N·K). On any other entity type it costs one regis
   as an entity attribute change already does for any value its current condition denies.
 - **A changed histogram definition or condition is not followed by any recomputation.** *Open, covered by the
   general rebuild work in #409.* The index keeps contributions computed under the old definition.
-- **Catalogs written by the previous release may hold doubled or stale values.** *Not repaired by this change.*
-  A correct writer stops new drift and does not look for old drift; where a withdrawal expects a value such a
-  catalog lacks, the write fails loudly until the catalog is rebuilt. The release already recommends a full
-  reindex. An engine started with the hidden system property `evitadb.referenceHistogram.missingValueBehavior=REPORT`
-  lets such writes go on until then: each value the withdrawal cannot find is logged at error level and skipped. The
-  property is a temporary safety valve, read once when the engine starts and deliberately absent from
-  `ServerOptions`, the server YAML and `documentation/user/`, because the engine is expected to keep its histograms
-  consistent; documenting or promoting it reverses this decision. It replaces the public setting
-  `missingHistogramValueBehavior` of #1953, which existed on `dev` only and was withdrawn before any release, and it
-  is removed in a later release under #1948.
+- **Catalogs written by the previous release may hold doubled or stale values.** *Not repaired by this change.* A
+  correct writer stops new drift and does not look for old drift. Where a withdrawal expects a value such a catalog
+  lacks, the 2026.3 default (`REPORT`, see the next item) logs the value at error level and skips it, and the write goes
+  on; the write's own final add may leave the affected contribution correct, but drift it does not touch can remain
+  until the catalog is rebuilt, which the release recommends. An engine started with the
+  hidden system property `evitadb.referenceHistogram.missingValueBehavior=REFUSE` makes such a write fail instead. The
+  property is a temporary safety valve, read once when the engine starts and deliberately absent from `ServerOptions`,
+  the server YAML and `documentation/user/`, because the engine is expected to keep its histograms consistent;
+  documenting or promoting it reverses this decision. It replaces the public setting `missingHistogramValueBehavior` of
+  #1953, which existed on `dev` only and was withdrawn before any release, and it is removed in a later release under
+  #1948.
+- **2026.3 ships with `REPORT` as the default; `REFUSE` is meant to return as the default in 2026.4.** *Decided
+  2026-11-19 under #1948.* An absent or blank property now selects `REPORT`; `REFUSE` stays selectable. The open
+  defects that leave values missing were not all fixed for 2026.3. Measured on 2026-11-16 with the group store and
+  the array emission fix in place, 22 of the 226 cases of the histogram reproduction classes were refused under
+  `REFUSE`; under `REPORT` all 22 completed their writes, 6 with a correct histogram and 16 still failing their
+  histogram assertions. The defects filed later (#2005 to #2007) lie outside that comparison. **Keeping `REFUSE` as
+  the default (declined). Rejected because** an ordinary update of an affected reference would fail for drift the
+  operator cannot repair short of a rebuild, while the entity bodies are intact; the release accepts histograms that
+  can stay wrong instead. Every asserted withdrawal that finds its value missing logs one error line starting with
+  `Cannot withdraw histogram value` - also where the write's final add leaves the histogram correct, as in the 6
+  cases above that turned green. Revisit once the histogram maintenance no longer leaves values missing; that
+  is when `REFUSE` becomes the default again (#2029). `MissingHistogramValueBehaviorTest` pins the default (absent,
+  empty and blank settings resolve to `REPORT`, a session write with a missing value completes and logs one error
+  line), and the release-fixture and migration upgrade tests assert the reported write next to an explicit `REFUSE`
+  cell; resolving an absent setting to `REFUSE` again fails five of their cells.
 - **Local and cross-entity work can apply one contribution twice.** *Open: #1925.* For a self-referencing entity
   type, and for a reference with a reflected counterpart, one upsert engages the local or nested path and the
   cross-entity path on the same contribution, and the value is added twice. Measured: 36 failing cases in three
@@ -375,7 +391,8 @@ histogram trigger of each - O(N·K). On any other entity type it costs one regis
 - **The cross-entity path reads reference-attribute values by the wrong identifiers.** *Open: #1926.* It
   intersects owner primary keys with the record IDs of a reference-attribute filter index, which are partition
   keys on an ungrouped reference and referenced keys on a grouped one. Measured: 16 of 48 cases fail, the same
-  before this change. A local withdrawal of a value this path failed to add fails loudly.
+  before this change. A later local withdrawal of a value this path failed to add finds it missing, which the
+  session write logs under the 2026.3 default and refuses under `REFUSE`.
 - **A scope change does not pass an existing reference's attribute change to its reflected counterpart.** *Open:
   #1927.*
 - **Duplicates on the cross-entity path** stay as coarse as
@@ -403,3 +420,5 @@ histogram trigger of each - O(N·K). On any other entity type it costs one regis
   replaced by the synchronous add
 - **2026-11-11** — three defects found while testing fixed in the same pull request (#1928, #1929, #1930); the
   other defects found on the way filed as #1922 to #1927
+- **2026-11-19** — the missing-value policy defaults to `REPORT` for 2026.3, with `REFUSE` planned to return as
+  the default in 2026.4 (#1948, #2029)

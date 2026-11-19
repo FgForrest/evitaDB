@@ -34,9 +34,10 @@ import javax.annotation.Nullable;
  *
  * Before a write changes a reference whose attribute feeds a reference histogram, the engine withdraws the value the
  * reference contributed so far, and it asserts that the value is there. A value that is missing means the derived
- * histogram index has drifted from the stored entities - the entity bodies themselves are intact. The engine is
- * expected to keep its histograms consistent, so such drift stops a session write by default. Replay during
- * catalog loading and live trunk incorporation always uses `REPORT`. The write is already committed to the WAL.
+ * histogram index has drifted from the stored entities - the entity bodies themselves are intact. A session write
+ * uses {@link #REPORT} when the system property is absent or blank, logging the missing value and continuing.
+ * Replay during catalog loading and live trunk incorporation always uses {@link #REPORT} because the write is
+ * already committed to the WAL.
  *
  * Other histogram consistency checks - the final add of the values, the bookkeeping of the references awaiting it,
  * the shape of the values - are not governed by this behavior and always fail the write. Cross-entity expression
@@ -50,7 +51,7 @@ import javax.annotation.Nullable;
  * the catalog to every session write collector, so it cannot change under a running engine. The
  * property is temporary and will be removed in a later release, together with this choice.
  *
- * What an operator who sets `REPORT` needs to know:
+ * Operational effects of {@link #REPORT}:
  *
  * - every value the engine cannot withdraw produces one error line starting with `Cannot withdraw histogram value`,
  *   which is the text to alert on;
@@ -68,43 +69,44 @@ public enum MissingHistogramValueBehavior {
 
 	/**
 	 * The session write fails with an error naming the entity, the reference, the histogram and the missing value.
-	 * Chosen when the property is absent or blank.
+	 * Selected by explicitly setting the property to `REFUSE`.
 	 */
 	REFUSE,
 	/**
 	 * The write logs the same identification at error level, skips the withdrawal of that one value and continues.
-	 * Where the index the histogram lives in is missing altogether, its values are reported too, and the histogram
-	 * checks fail the write only if it goes on to add a value into that index - the reference's new value, typically -
-	 * on a check this behavior does not govern; a write that adds nothing there, such as the removal of the reference,
-	 * passes them. The exception is a group index that the catalog still lists for the group but no longer holds: a
-	 * write reaching it fails under either behavior and nothing is reported for it. The price is a histogram that may
-	 * stay wrong where the write itself does not repair it, until the catalog is rebuilt.
+	 * Selected when the property is absent, blank or explicitly set to `REPORT`.
+	 * Where the index holding the histograms of the reference is missing altogether - the histogram store of the
+	 * group, or the referenced-type index of an ungrouped reference - every value the withdrawal expected there is
+	 * reported too. The final add of the reference's new value then runs its own checks, which this behavior does not
+	 * govern: it creates the missing store of a group the group-type index tracks, as the first value of a group
+	 * does, and it fails the write when the group-type index is missing or does not track the group, or when the
+	 * referenced-type index of an ungrouped reference is missing. A write that adds nothing there, such as the removal
+	 * of the reference, passes. The price is a histogram that may stay wrong where the write itself does not repair
+	 * it, until the catalog is rebuilt.
 	 */
 	REPORT;
 
 	/**
 	 * Undocumented escape hatch choosing the behavior: the name of a constant of this enum, matched case-insensitively
-	 * after trimming. An absent or blank value means {@link #REFUSE}; any other value stops the engine start.
+	 * after trimming. An absent or blank value selects {@link #REPORT}. An unrecognized value stops the engine start.
 	 */
 	static final String PROPERTY = "evitadb.referenceHistogram.missingValueBehavior";
 
 	/**
 	 * Resolves the behavior from the system property `evitadb.referenceHistogram.missingValueBehavior`. The engine
-	 * calls it once, when it starts, and keeps the result for its whole life. When the result is {@link #REPORT}, one
-	 * warning says so, naming the property, because the escape hatch is open and the operator must know it.
+	 * calls it once, when it starts, and keeps the result for its whole life. A non-blank setting that names a
+	 * behavior produces one INFO line naming the property and selected behavior. An absent or blank setting is silent.
 	 *
-	 * @return the behavior the property names, or {@link #REFUSE} when it is absent or blank
+	 * @return the behavior the property names, or {@link #REPORT} when it is absent or blank
 	 * @throws EvitaInvalidUsageException when the property holds a value that names no behavior
 	 */
 	@Nonnull
 	public static MissingHistogramValueBehavior fromSystemProperty() {
-		final MissingHistogramValueBehavior behavior = resolve(System.getProperty(PROPERTY));
-		if (behavior == REPORT) {
-			log.warn(
-				"The system property `{}` is `{}`: a write that cannot withdraw a reference-histogram value logs the " +
-					"value at error level and continues instead of failing. The property is a temporary escape " +
-					"hatch and will be removed in a later release.",
-				PROPERTY, REPORT
+		final String value = System.getProperty(PROPERTY);
+		final MissingHistogramValueBehavior behavior = resolve(value);
+		if (value != null && !value.isBlank()) {
+			log.info(
+				"The system property `{}` selects `{}` for missing reference-histogram values.", PROPERTY, behavior
 			);
 		}
 		return behavior;
@@ -114,14 +116,14 @@ public enum MissingHistogramValueBehavior {
 	 * Resolves the behavior a value of the system property {@link #PROPERTY} names.
 	 *
 	 * @param value the value of the property, or `null` when it is absent
-	 * @return {@link #REFUSE} for an absent or blank value, otherwise the constant whose name equals the trimmed value
+	 * @return {@link #REPORT} for an absent or blank value, otherwise the constant whose name equals the trimmed value
 	 * ignoring case
 	 * @throws EvitaInvalidUsageException when the value names no behavior
 	 */
 	@Nonnull
 	static MissingHistogramValueBehavior resolve(@Nullable String value) {
 		if (value == null || value.isBlank()) {
-			return REFUSE;
+			return REPORT;
 		}
 		final String trimmedValue = value.strip();
 		for (final MissingHistogramValueBehavior behavior : values()) {

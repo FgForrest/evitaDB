@@ -982,14 +982,14 @@ when no group is assigned, or in the group's `GroupHistogramEntityIndex`. The gr
 reference name, scope and group primary key through `GroupHistogramEntityIndex#keyOf`, independently of the
 representative attribute tuples that split the group's reduced indexes. Withdrawal looks up the destination
 without creating it, checks each value-owner pair and registers an existing destination for modification.
-Missing stores, histograms, locale buckets or value-owner pairs cause session writes to fail under the default
-`REFUSE` policy. The `Evita` constructor reads the hidden system property
-`evitadb.referenceHistogram.missingValueBehavior` once to select the session policy. The session-less entry point
-uses `REPORT` for committed WAL replay during catalog loading and live trunk incorporation. Each missing value is
-logged at error level and skipped under `REPORT`, and the remaining withdrawal proceeds. The root collector
-supplies the effective policy to the executors of implicit and reflected mutations. The policy governs only the
-withdrawals that assert presence: cross-entity expression re-evaluation removes a contribution only when it is
-present and skips an absent one silently, in a session and in a replay alike.
+The `Evita` constructor reads the hidden system property `evitadb.referenceHistogram.missingValueBehavior` once to
+select the session policy. An absent or blank property selects `REPORT`. Missing stores, histograms, locale buckets
+or value-owner pairs cause session writes to fail when the property explicitly selects `REFUSE`. The session-less
+entry point always uses `REPORT` for committed WAL replay during catalog loading and live trunk incorporation.
+Each missing value is logged at error level and skipped under `REPORT`, and the remaining withdrawal proceeds.
+The root collector supplies the effective policy to the executors of implicit and reflected mutations. The policy
+governs only the withdrawals that assert presence: cross-entity expression re-evaluation removes a contribution
+only when it is present and skips an absent one silently, in a session and in a replay alike.
 The values must have the shape the histogram descriptor declares: `resolveHistogramValues` fails on an array
 where a single value is declared or vice versa, and on a value or element of the wrong number or range kind, rather than
 resolving to fewer values and skipping their presence check.

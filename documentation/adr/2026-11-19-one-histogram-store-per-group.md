@@ -1,7 +1,7 @@
 ---
 title: One histogram store per group
 date: 2026-11-19
-updated: 2026-11-19 15:30
+updated: 2026-11-19 16:36
 status: accepted
 kind: fix
 issues: [1924]
@@ -56,6 +56,17 @@ make replication correct when a representative tuple changed the set of destinat
 - **Rejected because:** representative-rank movement has a silent seam that would need its own contribution move;
   each histogram read requires a K-way merge, and range histograms require a global sweep even to fix this defect.
   Revisit only with explicit partition-movement and range-aggregation contracts that justify that recurring cost.
+
+### Union the copies at read time and clear an index at its last owner (declined)
+
+- **Pros:** keeps the storage format and the replication scheme: the reader merges the histograms of every reduced
+  index listed for the group, and the only write-side addition clears an index losing its last owner, so it cannot
+  serve stale copies later.
+- **Rejected because:** the copies stay wrong. A listed index can hold a stale value, which a union reports, and the
+  union cannot restore the unit lost when one owner carries a value on two references at two ranks. Clearing at the
+  last owner turns a stale value into a missing one, because a returning owner creates a new index that lacks the
+  group's values. Revisit only if each index held exactly its own references' contributions, which is the
+  partitioned option above.
 
 ### Put the group into the histogram storage key (declined)
 
@@ -124,11 +135,12 @@ including obsolete schema definitions and localized keys, and remove roots, card
 pages. Preserve ungrouped histograms. Publish the result as protocol 9 in one bootstrap publication. A protocol-6
 input containing a group store, or an affected manifest with legacy inline bitmap carriers, is refused.
 
-The session-less entity mutation entry point creates its root collector with `REPORT` for committed WAL replay,
-both during catalog loading and during live trunk incorporation. The session mutation entry point creates its
-collector with the engine's configured policy, which defaults to `REFUSE`. Nested implicit and reflected
-mutations share their root collector. `ReferenceIndexMutator#refuseOrReportMissingHistogramValue` uses the
-effective policy to log and skip a missing withdrawal value or throw while the session can still roll back.
+The session-less entity mutation entry point creates its root collector with `REPORT` for committed WAL replay, both
+during catalog loading and during live trunk incorporation. The session mutation entry point creates its collector
+with the engine's configured policy, which defaults to `REPORT` in 2026.3 (see the net-change record). Nested
+implicit and reflected mutations share their root collector.
+`ReferenceIndexMutator#refuseOrReportMissingHistogramValue` uses the effective policy to log and skip a missing
+withdrawal value or throw while the session can still roll back.
 
 ### Boundary pick: merge producing indexes and stop at the first owned candidate
 
@@ -206,14 +218,18 @@ Migration entry points live in `evita_store/evita_store_server/.../store/catalog
 
 ## Verification
 
-The replay policy run on 2026-11-19 passed **76 / 0 / 0 / 0** across six classes. In
-`MissingHistogramValueBehaviorTest`, the same missing value is refused through a session and reported through
-the replay entry point. Live trunk incorporation reports under the refusing default and makes the committed
-write visible. Deferred startup reports under both configured policies, and the following session write uses
-the configured policy. Switching either entry point to the other policy made the same-value test fail.
+The replay policy run on 2026-11-19, made while `REFUSE` was still the default, passed **76 / 0 / 0 / 0** across
+six classes. In `MissingHistogramValueBehaviorTest`, the same missing value is refused through a session and
+reported through the replay entry point. Live trunk incorporation reports while the session policy is `REFUSE`
+(the cell now selects it explicitly) and makes the committed write visible. Deferred startup reports under both
+configured policies, and the following session write uses the configured policy. Switching either entry point to
+the other policy made the same-value test fail.
 
 These are completed implementation runs on 2026-11-16 and 2026-11-17, checked against the shipped tests and
-archived results; no performance run was made. Counts are tests / failures / errors / skips.
+archived results; no performance run was made. Counts are tests / failures / errors / skips. The 2026.3 default
+change later grew the policy-bearing classes to `MissingHistogramValueBehaviorTest` 37,
+`Release2026_2GroupedHistogramUpgradeTest` 5 and `Migration_2026_3_GroupedHistogramCleanupTest` 6 cells, each
+refusal now under an explicit `REFUSE`; the net-change record describes what they pin.
 
 - Storage/migration sweep: **1,161 / 0 / 0 / 1** across 59 XML suites (1,160 passed), including released-fixture
   upgrade suites: `Release2026_2IndexUpgradeTest` 9 and `Release2026_2UpgradeDefectsTest` 128.
@@ -239,8 +255,9 @@ archived results; no performance run was made. Counts are tests / failures / err
   release writes the group-type copy only from its cross-entity reevaluation, which a hand-built image cannot show.
   After the upgrade both manifest kinds are free of grouped histograms in one publication, the ungrouped histogram
   answers exactly as the release did, the catalog reloads without a refusal and no group store exists. A write
-  withdrawing the missing grouped value is refused with the exact diagnostic; the same write succeeds on a catalog
-  replaced from source. Disabling the cleanup failed two of the four cells (surviving keys; the reload refusal).
+  withdrawing the missing grouped value is refused with the exact diagnostic under the then default `REFUSE`; the
+  same write succeeds on a catalog replaced from source. Disabling the cleanup failed two of the four cells
+  (surviving keys; the reload refusal).
 - `GroupHistogramAcrossReducedIndexesFunctionalTest` **54 / 0 / 0 / 0** covers split groups and mutation parity.
   Boundary/merge gate on this branch after merging dev: **287 / 0 / 0 / 1**, including
   `GroupHistogramStoreLifecycleFunctionalTest` 29,
@@ -284,9 +301,10 @@ classes ran again with every release fixture regenerated by the release engines:
 
 ## Consequences & open follow-ups
 
-- Grouped histograms are empty after upgrade until rebuilt or populated by later admitted writes. Ordinary
-  withdrawals expecting old contributions can refuse until rebuild; REPORT skips missing values without repairing
-  the absent contributions. Preserve a pre-upgrade backup for downgrade and rebuild from source for completeness.
+- Grouped histograms are empty after upgrade until rebuilt or populated by later admitted writes. Ordinary withdrawals
+  expecting old contributions report and skip the missing values under the 2026.3 default, without repairing the absent
+  contributions; an engine set to `REFUSE` refuses them until rebuild. Preserve a pre-upgrade backup for downgrade and
+  rebuild from source for completeness.
 - Committed WAL replay reports missing withdrawal values for grouped and ungrouped histograms during both catalog
   loading and trunk incorporation. Replayed references can add their final values while untouched contributions
   remain absent. Logs record the skipped withdrawals. The session policy still controls whether a write rolls back.
