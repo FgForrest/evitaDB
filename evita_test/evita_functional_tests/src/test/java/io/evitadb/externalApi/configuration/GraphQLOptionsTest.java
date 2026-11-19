@@ -55,7 +55,7 @@ class GraphQLOptionsTest {
 	@CsvSource(value = {"null, true", "false, false", "true, true"}, nullValues = "null")
 	void shouldDefaultParallelizeToTrueInJsonCreator(@Nullable Boolean parallelize, boolean expected) {
 		final GraphQLOptions options = new GraphQLOptions(
-			null, "localhost:5555", null, null, null, null, parallelize, null, null
+			null, "localhost:5555", null, null, null, null, parallelize, null, null, null, null
 		);
 
 		assertEquals(expected, options.isParallelize(), "parallelize=" + parallelize);

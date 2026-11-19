@@ -32,6 +32,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.GraphQLDocumentCache;
+import io.evitadb.externalApi.graphql.api.QueryComplexityLimitsInstrumentation;
 import io.evitadb.externalApi.graphql.api.tracing.OperationTracingInstrumentation;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
@@ -61,6 +62,7 @@ public class CatalogGraphQLBuilder implements GraphQLBuilder {
     @Override
     public GraphQL build(@Nonnull GraphQLOptions config) {
         final Instrumentation instrumentation = new ChainedInstrumentation(
+            new QueryComplexityLimitsInstrumentation(config),
             new OperationTracingInstrumentation(),
             new RequestMetricInstrumentation(this.catalog.getName()),
             new EvitaSessionManagingInstrumentation(this.evita, this.catalog.getName()),

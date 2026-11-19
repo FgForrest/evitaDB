@@ -131,6 +131,8 @@ api:
       keepAlive: ${api.endpoints.graphQL.keepAlive:null}
       parallelize: ${api.endpoints.graphQL.parallelize:true}
       documentCacheSizeInBytes: ${api.endpoints.graphQL.documentCacheSizeInBytes:16MB}
+      maxQueryDepth: ${api.endpoints.graphQL.maxQueryDepth:100}
+      maxQueryFieldsCount: ${api.endpoints.graphQL.maxQueryFieldsCount:100000}
       mTLS:
         enabled: ${api.endpoints.graphQL.mTLS.enabled:null}
         allowedClientCertificatePaths: ${api.endpoints.graphQL.mTLS.allowedClientCertificatesPaths:null}

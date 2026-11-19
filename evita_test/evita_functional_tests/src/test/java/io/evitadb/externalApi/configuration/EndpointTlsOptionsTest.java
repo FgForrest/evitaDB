@@ -143,7 +143,7 @@ class EndpointTlsOptionsTest {
 	@Nonnull
 	private static AbstractApiOptions createOptions(@Nonnull String endpoint, @Nullable String mode) {
 		return switch (endpoint) {
-			case "graphQL" -> new GraphQLOptions(null, ":5555", null, mode, null, null, null, null, null);
+			case "graphQL" -> new GraphQLOptions(null, ":5555", null, mode, null, null, null, null, null, null, null);
 			case "rest" -> new RestOptions(null, ":5555", null, mode, null, null, null);
 			case "gRPC" -> new GrpcOptions(null, ":5555", null, mode, null, null, null, null, null);
 			case "lab" -> new LabOptions(null, ":5555", null, mode, null, null, null, null);
