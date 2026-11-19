@@ -1,7 +1,7 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-11-19 23:37
+updated: 2026-11-20 00:29
 status: accepted
 kind: fix
 issues: [1466, 2014, 2032, 2033, 2040]
@@ -322,7 +322,11 @@ both reached the disk.
   accepted one still runs on the engine executor. `Catalog#goLive()` and the handover of `Catalog#replace` now run
   under `warmUpPublicationLock` and refuse once the termination bit is set, exactly as a flush's last step does, so
   the termination either waits for the handover or the handover writes nothing - except when the rename's own
-  progress consumer terminates the same catalog, see the consequences. A go-live that finishes bars the instance it
+  progress consumer terminates the same catalog, see the consequences. Both check the barrier before the termination
+  bit: the barrier schedules a deactivation that terminates the very instance it bars, and a caller still holding it
+  must get the barrier's `CatalogUnpublishableException`, which names the failure, rather than its consequence. The
+  flush's last step keeps the termination first, because the flush's entry already refused an earlier barrier and a
+  termination meeting a flush in progress raises the barrier itself. A go-live that finishes bars the instance it
   supersedes, without scheduling a deactivation, so a termination of that instance can never store a warm-up header
   after the ALIVE record. Shutdown terminates the catalogs it captured and only then clears the engine state, and
   these are two separate events: when it captured the go-live's placeholder instead of the catalog *and* cleared the
@@ -465,7 +469,10 @@ catalog stayed open (`expected: <true> but was: <false>` on `isTerminated()`). T
 the header supplier it asks after copying the records; before the change the closed catalog service held the
 compacted collection storage registered afterwards (`CollectionFileReference[entityType=CATEGORY, ... fileIndex=1
 ...]`). The flush must fail with the closed service's own refusal, so a write failing before it registers anything
-cannot pass the test.
+cannot pass the test. Two cases of `EntityAtomicMutationRollbackWarmUpFunctionalTest` terminate a barred catalog and
+then call go-live and the rename on it: with the termination checked first, both were refused with
+`InstanceTerminatedException` instead of the barrier's `CatalogUnpublishableException` - the go-live case is what the
+existing go-live refusal test met intermittently, whenever the scheduled deactivation landed before its call.
 
 `CatalogWarmUpTerminationCatalogIndexTest` (6 tests) covers the catalog index. Before the shared publication tail, both
 idle-writer tests failed - an inserted product missed by both lookups of its globally unique value (`expected:
