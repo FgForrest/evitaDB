@@ -10,7 +10,7 @@ areas: [evita_engine/src/main/java/io/evitadb/core/query/extraResult, evita_engi
 supersedes: []
 superseded-by: []
 relates: [2026-04-23-bucketed-histogram-indexing, 2026-05-27-range-and-multi-histogram-schema,
-  2026-11-17-one-histogram-store-per-group]
+  2026-11-19-one-histogram-store-per-group]
 ---
 
 # Expose reference histograms via ReferenceSummary, with a dedicated histogramHaving constraint
@@ -192,7 +192,7 @@ feature was located.
 
 ## Related work
 
-- [One histogram store per group](2026-11-17-one-histogram-store-per-group.md) — reads one histogram source per
+- [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) — reads one histogram source per
   group, resolves boundaries across its reduced indexes and merges no-sorter reference-attribute candidates.
 
 - [[2026-04-23-bucketed-histogram-indexing]] — same PR (#1136); the index this record's

@@ -11,7 +11,7 @@ supersedes: []
 superseded-by: []
 relates: [2026-09-04-millisecond-temporal-precision, 2026-10-08-unique-indexes-normalize-like-filter-indexes,
   2026-09-21-cardinality-counter-normalized-keys, 2026-10-20-single-owner-partitions-as-registry-rows,
-  2026-09-18-range-index-counting-kernel, 2026-11-17-one-histogram-store-per-group]
+  2026-09-18-range-index-counting-kernel, 2026-11-19-one-histogram-store-per-group]
 ---
 
 # Upgrade released catalogs from surviving index parts, refusing collisions and warning about irrecoverable loss
@@ -256,7 +256,7 @@ All five errors were HTTPS subscription session timeouts, and their three classe
 ## Consequences & open follow-ups
 
 **Update 2026-11-17 (Europe/Prague):**
-[One histogram store per group](2026-11-17-one-histogram-store-per-group.md) extends this migration with cleanup
+[One histogram store per group](2026-11-19-one-histogram-store-per-group.md) extends this migration with cleanup
 of grouped histogram roots, counters and bucket/range pages, planned before writes and folded into its single
 publication from 6 to 9. Protocols 7 and 8 are explicitly refused development formats. The protocol-7 statements
 below describe this record's original implementation. Cleanup does not fill stores from bodies; every replay of
@@ -287,7 +287,7 @@ into unproven stale membership/locale cases or histogram and price reconstructio
 
 ## Related work
 
-- [One histogram store per group](2026-11-17-one-histogram-store-per-group.md) — extends the surviving-parts
+- [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) — extends the surviving-parts
   migration with grouped histogram cleanup, protocol 9 and missing-value reporting in every WAL replay.
 
 - [Millisecond precision](2026-09-04-millisecond-temporal-precision.md) defines current equality and the released
