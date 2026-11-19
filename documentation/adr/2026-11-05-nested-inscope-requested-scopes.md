@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-19 16:56
+updated: 2026-11-19 21:00
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917, 1920]
@@ -592,11 +592,12 @@ owner accepted the folded bound's refusal too, and labelled the change breaking 
   failures, 71 skipped and 1 error - a two-minute timeout in
   `CatalogGraphQLDataSubscriptionsFunctionalTest#shouldReceiveCatalogCaptureWithBodyUntyped`, whose class passes alone,
   13 of 13.
-- **#1915, measured and left alone.** A named localized attribute of bodies with no locale source is refused by a
+- **#1915, measured and left alone.** A named localized attribute of bodies with no locale source was refused by a
   planned query and answered by `getEntity`, alike for a locale below `or` and a filter without any `entityHaving`
-  (`$GroupBodyScopes#shouldRefusePlannedLocalizedBodyAttributesWhenFetchLocaleIsMissing`,
-  `#shouldKeepDirectFetchParityWhenNeitherShapeSuppliesBodyLocale`). The price criteria of the bodies are read from
-  the code only: the data set has no prices.
+  (`$GroupBodyScopes#shouldRefusePlannedLocalizedBodyAttributesWhenFetchLocaleIsMissing`). Since #1949
+  (`2026-11-17-direct-entity-calls-check-requested-content`) `getEntity` refuses it too
+  (`$GroupBodyScopes#shouldRefuseDirectFetchWhenNeitherShapeSuppliesBodyLocale`). The price criteria of the bodies
+  are read from the code only: the data set has no prices.
 
 - **#1917, scope placement and uniqueness.** The clean nine-class gate passes 792 tests with no failures, errors
   or skips: `ScopePlacementFunctionalTest` 23, `ScopeInDisjunctionFunctionalTest` 26, `NegatedScopeFunctionalTest` 23,
@@ -756,6 +757,11 @@ owner accepted the folded bound's refusal too, and labelled the change breaking 
     technical details), the defect #1920 fixed for the main fetch. A fix would widen what those bodies admit.
   - #2027: a main fetch per scope (`inScope(LIVE, entityFetch(…)), inScope(ARCHIVED, entityFetch(…))`) is refused by
     the generic single-constraint lookup with `MoreThanSingleResultException`, when the plan is executed.
+  - #2035: a `priceHistogram` or `attributeHistogram` inside a require-level `inScope(S, …)` is checked against the
+    indexes of `S` but computed over every searched scope - measured: count 2 where the same query searching `S`
+    alone counts 1. The project owner decided that it describes the entities of `S` only, as the user documentation
+    says; a `facetSummary` under the same wrapper already does. Open with it: the single histogram slot asked for by
+    a wrapper per scope, or by a wrapped and an unwrapped histogram, is answered with one histogram today.
 - **Backport: none, by the project owner's decision.** The `ClassCastException` stays on `release_2026-2`, where it
   depends on the data. The refusal never shipped, because that branch has no residual check.
 
@@ -801,4 +807,4 @@ owner accepted the folded bound's refusal too, and labelled the change breaking 
   depending on the data. Option R reviewed by an advisor and two adversarial Codex reviews, one of them writing its
   own design first and reaching the same contract; it moved the detection of the main fetch from the frame depth to
   the structure. The project owner chose R, accepted the refusal of the folded hierarchy bound and the `breaking
-  change` label. #2027 split off.
+  change` label. #2027 split off, and #2035 from the review's histogram finding.
