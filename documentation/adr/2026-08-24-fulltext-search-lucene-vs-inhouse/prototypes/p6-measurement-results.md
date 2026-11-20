@@ -2345,6 +2345,120 @@ is the rerun.
   correctness comes from the bitmaps, and a transaction's own inserts reach the graph on commit (0.8–2.3 ms each,
   measurement 12). The practical bound is thousands of pending inserts per transaction.
 
+### 14. Search quality on a public news corpus with generated queries (follow-up run, 2026-11-19)
+
+**What is measured.** Whether a search for a query returns the article the query was written for, on a public
+corpus (`BeIR/trec-news-generated-queries`: news articles, each with about three machine-generated queries), at
+five corpus sizes. Per size and method: hit@1, hit@5, hit@10 and MRR@10 of the source article, recall@10 of the
+index against the exact search, build time, sizes and latency.
+
+**Why.** The five corpora above say how faithfully an index reproduces the exact search; only A and B say
+anything about relevance, and with tens to hundreds of clicks. This corpus has tens of thousands of query–article
+pairs, so it separates two losses that add up in what a user sees: what the **embedding model** misses (the exact
+row) and what the **index** misses on top of it (the rows below it). It also shows how both grow with the corpus.
+
+**What we expect.** The exact row near an earlier orientation measurement with the same model (top-5 about 83 % at
+3,000 articles, 77 % at 7,000, 58 % at 100,000), and the default index within a few points of the exact row.
+
+**Setup.**
+
+- **Sample.** The articles are ordered by the SHA-256 of their id and the first N are taken, so every smaller
+  sample is a subset of every larger one. Articles with an empty title and text are dropped; every non-empty query
+  of a sampled article is kept. The source article of a query plays the role of a click (`source.format=ranked-pairs`,
+  harness doc, part 3).
+- **Model.** `BAAI/bge-m3`, revision `5617a9f6`, dense vectors only, 1,024 dimensions, unit length. One vector per
+  article from `title + " " + text`, one per query, no instruction prefix, inputs truncated to 8,192 tokens, half
+  precision on the embedding device. Truncated articles: 0 / 6 / 21 / 56 / 304 at the five sizes; no query is
+  truncated. Article length: p50 783 tokens, p95 2,284, p99 4,497.
+- **Methods.** *Exact* is the brute-force scan. *Default index* is the jVector graph walked by our searcher over
+  Lucene OSQ 1-bit codes, 4× oversampling, reranked by the exact vectors. The other two rows isolate the parts: the
+  same graph walked over the exact vectors (the graph's own loss) and over 4-bit codes.
+- **Environment.** JDK 21.0.13 on Linux aarch64 in a virtual machine, 15 logical cores, 8 GB heap; Lucene 10.6.0,
+  jVector 4.0.2, SIMD confirmed in every run; graph parameters as in the rest of the document. Not the machine of
+  the measurements above, so the latencies are not comparable with them.
+
+| articles | queries | method | recall@10 | hit@1 | hit@5 | hit@10 | MRR@10 | p50 / p95 ms |
+|---|---|---|---|---|---|---|---|---|
+| 100 | 297 | exact | 1.000 | 0.973 | 0.997 | 0.997 | 0.984 | 0.02 / 0.02 |
+| 3,000 | 8,853 | exact | 1.000 | 0.734 | 0.900 | 0.934 | 0.805 | 0.33 / 0.38 |
+| | | graph, float32 | 0.984 | 0.728 | 0.891 | 0.925 | 0.798 | 0.29 / 0.42 |
+| | | **default index** (OSQ 1-bit, 4×) | 0.962 | 0.723 | 0.888 | 0.922 | 0.795 | 0.07 / 0.09 |
+| | | graph, OSQ 4-bit, 4× | 0.983 | 0.726 | 0.891 | 0.925 | 0.797 | 0.09 / 0.11 |
+| 7,000 | 20,681 | exact | 1.000 | 0.654 | 0.844 | 0.893 | 0.735 | 0.74 / 0.84 |
+| | | graph, float32 | 0.963 | 0.639 | 0.822 | 0.870 | 0.718 | 0.44 / 0.65 |
+| | | **default index** (OSQ 1-bit, 4×) | 0.937 | 0.636 | 0.818 | 0.866 | 0.714 | 0.09 / 0.11 |
+| | | graph, OSQ 4-bit, 4× | 0.962 | 0.638 | 0.821 | 0.869 | 0.716 | 0.11 / 0.15 |
+| 20,000 | 59,146 | exact | 1.000 | 0.548 | 0.756 | 0.820 | 0.638 | 2.27 / 2.51 |
+| | | graph, float32 | 0.933 | 0.521 | 0.716 | 0.776 | 0.605 | 0.54 / 0.74 |
+| | | **default index** (OSQ 1-bit, 4×) | 0.900 | 0.515 | 0.708 | 0.768 | 0.598 | 0.10 / 0.12 |
+| | | graph, OSQ 4-bit, 4× | 0.931 | 0.520 | 0.715 | 0.776 | 0.604 | 0.12 / 0.16 |
+| 100,000 | 59,146 | exact | 1.000 | 0.379 | 0.598 | 0.675 | 0.473 | 11.71 / 13.86 |
+| | | graph, float32 | 0.867 | 0.339 | 0.532 | 0.601 | 0.422 | 0.83 / 1.38 |
+| | | **default index** (OSQ 1-bit, 4×) | 0.824 | 0.332 | 0.521 | 0.589 | 0.413 | 0.16 / 0.27 |
+| | | graph, OSQ 4-bit, 4× | 0.865 | 0.337 | 0.531 | 0.600 | 0.421 | 0.25 / 0.38 |
+
+Build time and sizes (MB = 2^20 bytes; the graph is built on all cores and its size is its heap footprint, the
+scenarios do not write it to a file):
+
+| articles | float32 block | OSQ 1-bit codes | OSQ 4-bit codes | graph (heap) | graph build |
+|---|---|---|---|---|---|
+| 100 | 0.39 MB | 0.02 MB | 0.05 MB | 0.22 MB | 0.2 s |
+| 3,000 | 11.72 MB | 0.42 MB | 1.51 MB | 1.27 MB | 0.9–1.0 s |
+| 7,000 | 27.34 MB | 0.97 MB | 3.53 MB | 2.73 MB | 1.6 s |
+| 20,000 | 78.13 MB | 2.75 MB | 10.07 MB | 7.44 MB | 4.7–5.1 s |
+| 100,000 | 390.63 MB | 13.74 MB | 50.36 MB | 36.3 MB | 27.7–31.5 s |
+
+Per vector: 4,096 bytes of float32, 144 bytes of 1-bit code, 528 bytes of 4-bit code, 380 to 440 bytes of graph.
+
+- **The model's loss dominates and matches the orientation numbers.** Exact hit@5 is 0.900 / 0.844 / 0.756 / 0.598
+  at 3,000 / 7,000 / 20,000 / 100,000 articles, against 83 % / 77 % / – / 58 % measured earlier. The more articles,
+  the more of them answer a generated query as well as its source does.
+- **The index's loss grows with the corpus.** The default index loses 1.2 / 2.6 / 4.8 / 7.7 points of hit@5 to the
+  exact search, and its recall@10 falls 0.962 / 0.937 / 0.900 / 0.824, below the 0.95 of the spec from 7,000
+  articles on.
+- **Most of that loss is the graph walk, not the code.** The same graph walked over the exact vectors already
+  loses 0.9 / 2.2 / 4.0 / 6.6 points of hit@5 (recall@10 0.984 / 0.963 / 0.933 / 0.867); the 1-bit code adds 0.3
+  to 1.1 points, and the 4-bit code gives almost all of that back at 3.7× the code size. A deeper walk or a denser
+  graph is what would close the gap; more bits will not.
+- **The corpus is harder for the graph than the production ones.** Corpora C and D, news of 214,410 and 416,559
+  vectors, reach recall@10 0.995 and 0.991 with the same graph parameters and the same default index (measurement
+  8); their queries are held-out articles of another model, far longer than these one-line queries. Corpus A, with
+  short real queries, is the one that behaves alike (0.910).
+- **Latency.** The default index answers in 0.07–0.16 ms p50 from 3,000 to 100,000 articles while the exact scan
+  grows linearly to 11.7 ms; one-thread harness timings, good to an order of magnitude.
+
+Latency under JMH at 100,000 articles (`ClickSearchLatencyBenchmark`, unfiltered, 4× oversampling with the exact
+rerank, one thread, sampled per query; ms). Run on the host of the virtual machine, JDK 21.0.7 on macOS aarch64,
+3 GB heap per fork; SIMD confirmed in every fork (jVector's Panama provider, Lucene "Java vector incubator API
+enabled"):
+
+| configuration | samples | p50 | p95 | p99 |
+|---|---|---|---|---|
+| exact | 1,867 | 10.65 | 11.06 | 12.44 |
+| Lucene graph, float32 | 44,118 | 0.46 | 0.67 | 0.78 |
+| Lucene graph, OSQ 1-bit | 176,449 | 0.11 | 0.15 | 0.19 |
+| Lucene graph, OSQ 4-bit | 106,335 | 0.19 | 0.27 | 0.32 |
+| Lucene graph, OSQ 7-bit | 56,578 | 0.35 | 0.51 | 0.59 |
+| jVector graph, PQ 256 × 8 | 28,885 | 0.70 | 0.88 | 0.99 |
+| jVector graph, BQ | 108,713 | 0.18 | 0.25 | 0.30 |
+| **default index** (jVector graph, OSQ 1-bit, our searcher) | 150,488 | 0.13 | 0.18 | 0.21 |
+| jVector graph, OSQ 4-bit, our searcher | 91,114 | 0.22 | 0.32 | 0.37 |
+
+- **JMH confirms the harness timings.** The default index answers in 0.13 ms p50 and 0.18 ms p95, about 80× faster
+  than the exact scan (10.65 ms p50); the 4-bit code costs a little under twice the 1-bit one.
+- The filtered configurations were not run: the dataset is one collection and declares no filter.
+
+Deviations of this run:
+
+- **100 articles: the exact row only.** Both scenarios stop at jVector's product quantization, which cannot train
+  256 clusters on 100 points, before any index row is written. The sample is smaller than one graph neighbourhood,
+  so an index row would say nothing.
+- **100,000 articles: the queries of the first 20,000 articles** (59,146 of 295,858), the same queries as at
+  20,000, to bound the run time; the corpus is the full 100,000.
+- **Not run:** the synthetic filter matrix, fulltext and the hybrid of both.
+- **The data stay outside the repository.** The texts, the queries, the vectors and the per-query outputs are kept
+  on local disk only; this section holds aggregates.
+
 ## Deviations and reruns
 
 - Corpus C, `lucene-float32` and `lucene-osq1`: the first runs failed on Lucene's file lock
