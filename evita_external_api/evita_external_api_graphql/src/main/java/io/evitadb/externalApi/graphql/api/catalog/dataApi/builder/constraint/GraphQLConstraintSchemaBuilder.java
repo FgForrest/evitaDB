@@ -78,10 +78,10 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBuilder<GraphQLConstraintSchemaBuildingContext, GraphQLInputType, GraphQLInputType, GraphQLInputObjectField> {
+public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBuilder<GraphQLConstraintSchemaBuildingContext, GraphQLInputType, GraphQLInputObjectType, GraphQLInputObjectField> {
 
 	protected GraphQLConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
-	                                         @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintSchemaBuilder<GraphQLConstraintSchemaBuildingContext, GraphQLInputType, GraphQLInputType, GraphQLInputObjectField>>> additionalBuilders,
+	                                         @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintSchemaBuilder<GraphQLConstraintSchemaBuildingContext, GraphQLInputType, GraphQLInputObjectType, GraphQLInputObjectField>>> additionalBuilders,
 	                                         @Nonnull Set<Class<? extends Constraint<?>>> allowedConstraints,
 	                                         @Nonnull Set<Class<? extends Constraint<?>>> forbiddenConstraints) {
 		super(sharedContext, additionalBuilders, allowedConstraints, forbiddenConstraints);

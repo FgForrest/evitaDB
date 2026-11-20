@@ -144,7 +144,7 @@ public class GraphQLDocumentCacheBenchmarkState extends GraphQLArtificialBenchma
 
 		// parallel fetching is off to keep the measurement on the calling thread
 		final GraphQLOptions options = new GraphQLOptions(
-			null, ":5555", null, null, null, null, false, this.documentCacheSizeInBytes, null
+			null, ":5555", null, null, null, null, false, this.documentCacheSizeInBytes, null, null, null
 		);
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(getCatalogName());
 		final GraphQLSchema schema = new CatalogDataApiGraphQLSchemaBuilder(options, this.evita, catalog).build();

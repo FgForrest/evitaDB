@@ -105,14 +105,14 @@ public class GraphQLSchemaBuildingContext {
     /**
      * Register new GraphQL type to schema.
      */
-    public void registerType(@Nonnull GraphQLType type) {
+    public void registerType(@Nonnull GraphQLNamedType type) {
 	    this.schemaBuilder.additionalType(type);
     }
 
     /**
      * Register new GraphQL types to schema.
      */
-    public void registerTypes(@Nonnull Set<GraphQLType> types) {
+    public void registerTypes(@Nonnull Set<? extends GraphQLNamedType> types) {
 	    this.schemaBuilder.additionalTypes(types);
     }
 

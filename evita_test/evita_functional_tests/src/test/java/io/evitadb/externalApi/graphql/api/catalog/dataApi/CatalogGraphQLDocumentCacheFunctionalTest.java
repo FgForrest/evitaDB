@@ -307,7 +307,7 @@ public class CatalogGraphQLDocumentCacheFunctionalTest
 		assertInstanceOf(GraphQLDocumentCache.class, builder.build(new GraphQLOptions()).getPreparsedDocumentProvider());
 		assertSame(
 			NoOpPreparsedDocumentProvider.INSTANCE,
-			builder.build(new GraphQLOptions(null, ":5555", null, null, null, null, null, 0L, null))
+			builder.build(new GraphQLOptions(null, ":5555", null, null, null, null, null, 0L, null, null, null))
 				.getPreparsedDocumentProvider()
 		);
 	}

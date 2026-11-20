@@ -146,6 +146,8 @@ api:                                              # [see API configuration](#api
       keepAlive: null
       parallelize: true
       documentCacheSizeInBytes: 16MB
+      maxQueryDepth: 100
+      maxQueryFieldsCount: 100000
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -1433,6 +1435,24 @@ when constructing endpoint options programmatically without a TLS mode.
         are dominated by a fixed cost of several hundred bytes). The cache of a catalog is
         discarded whenever its GraphQL schema is rebuilt (e.g. after a catalog schema change).</p>
         <p>Set to `0` to disable the cache. Negative values are rejected.</p>
+    </dd>
+    <dt>maxQueryDepth</dt>
+    <dd>
+        <p>**Default:** `100`</p>
+        <p>Maximum depth of field selections in a GraphQL query, with fragments expanded. A deeper query is rejected
+        with a validation error before it is executed. The limit is checked on the query document sent by the
+        client, so it does not depend on the size of the catalog schema or of the result.</p>
+        <p>Introspection queries are additionally capped by graphql-java to a depth of 20 and 500 fields, whatever
+        the configured limits are.</p>
+        <p>The value must be positive.</p>
+    </dd>
+    <dt>maxQueryFieldsCount</dt>
+    <dd>
+        <p>**Default:** `100000`</p>
+        <p>Maximum number of fields in a GraphQL query, counted with every fragment spread expanded. A query with more
+        fields is rejected with a validation error before it is executed. Like `maxQueryDepth`, the limit protects
+        the server against needlessly expensive documents and applies to the query document, not to the result.</p>
+        <p>The value must be positive.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>

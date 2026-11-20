@@ -151,7 +151,7 @@ class LongRunningExternalApiChurnTest implements EvitaTestSupport {
 				.enable(RestProvider.CODE, new RestOptions(true, "localhost:" + ports[0], null,
 					"FORCE_NO_TLS", true, null, null))
 				.enable(GraphQLProvider.CODE, new GraphQLOptions(true, "localhost:" + ports[1], null,
-					"FORCE_NO_TLS", true, null, true, null, null)).build();
+					"FORCE_NO_TLS", true, null, true, null, null, null, null)).build();
 			final EvitaServer server = new EvitaServer(evita, options);
 			try {
 				server.run();

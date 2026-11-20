@@ -126,7 +126,7 @@ class GraphQLDocumentCacheTest {
 	@Nonnull
 	private static GraphQLOptions optionsWithDocumentCache(long documentCacheSizeInBytes) {
 		return new GraphQLOptions(
-			null, ":5555", null, null, null, null, null, documentCacheSizeInBytes, null
+			null, ":5555", null, null, null, null, null, documentCacheSizeInBytes, null, null, null
 		);
 	}
 
@@ -289,7 +289,7 @@ class GraphQLDocumentCacheTest {
 		void shouldUseDefaultBudgetWhenNotConfigured() {
 			assertEquals(
 				GraphQLOptions.DEFAULT_DOCUMENT_CACHE_SIZE_IN_BYTES,
-				new GraphQLOptions(null, ":5555", null, null, null, null, null, null, null)
+				new GraphQLOptions(null, ":5555", null, null, null, null, null, null, null, null, null)
 					.getDocumentCacheSizeInBytes()
 			);
 		}
