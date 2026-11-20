@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.reference.producer;
 
+import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -90,13 +91,10 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
  *
  * - computes histograms via the existing {@link AttributeHistogramComputer} machinery — shares bucket
  * behaviors, cache hooks, and number-type handling with attribute-level histograms;
- * - for grouped references, a histogram is computed from the {@link GroupHistogramEntityIndex} of a group - the one
- * store holding the histograms of the group as a whole, however many {@link ReducedGroupEntityIndex} instances the
- * group spans when the reference has representative attributes - and attached to the matching
- * {@link ReferenceGroupStatistics} entry identified by the group PK;
- * - for ungrouped references, a single histogram is computed from the
- * {@link ReferencedTypeEntityIndex} and attached to the (existing or newly-injected) non-grouped
- * entry (the entry with {@code groupEntity == null});
+ * - for grouped references, a histogram combines the {@link GroupHistogramEntityIndex} stores of a group in the
+ * requested scopes and is attached to the matching {@link ReferenceGroupStatistics} entry;
+ * - for ungrouped references, a single histogram combines the {@link ReferencedTypeEntityIndex} instances of the
+ * requested scopes and is attached to the non-grouped entry (the entry with {@code groupEntity == null});
  * - histogram-only groups — references with no facets but with histogram data — get a synthetic
  * {@link ReferenceGroupStatistics} entry so the relaxed group filter keeps them in the result;
  * - boundary entity resolution (`minReferencedEntity` / `maxReferencedEntity`) runs in two passes —
@@ -107,17 +105,17 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
  * {@link HistogramValueSource#REFERENCED_ENTITY_ATTRIBUTE} histogram come from the referenced entity's own
  * {@link FilterIndex}, those of a {@link HistogramValueSource#REFERENCE_ATTRIBUTE} histogram from the
  * reference attribute's {@link FilterIndex} of each index the references live in. Either way they are
- * confined to the referenced entities of the boundary context: the type index of an ungrouped reference, or
- * every reduced index of the group of a grouped one - the reference carrying the smallest or the largest
- * value of the group may sit in any of them. The candidates of a grouped histogram are further confined to the
- * referenced entities a reduced index of the group tracks for an owner the histogram counts at the bound, so an
- * entity whose references belong only to owners the query or the histogram's condition leaves out anchors nothing -
- * unless no candidate of the whole boundary context passes that check, as at a bound the default of the histogram's
- * value expression gives a counted owner through a reference or a referenced entity no filter index holds. Such a
- * bound keeps every candidate, so the entity anchoring it may be one no owner the histogram counts references. So
- * may the entity of a bound whose pick among the checked candidates cannot be loaded: the bound then takes the
- * entity picked among every candidate, if that one loads, so a histogram has boundary entities wherever the pick
- * among every candidate gives it loadable ones.
+ * confined to the referenced entities of the boundary context: the type index of an ungrouped reference in each
+ * contributing scope, or every reduced index of the group of a grouped one in each contributing scope - the reference
+ * carrying the smallest or the largest value of the group may sit in any of them. The candidates of a grouped histogram
+ * are further confined to the referenced entities a reduced index of the group tracks for an owner the histogram counts
+ * at the bound, so an entity whose references belong only to owners the query or the histogram's condition leaves out
+ * anchors nothing - unless no candidate of the whole boundary context passes that check, as at a bound the default of
+ * the histogram's value expression gives a counted owner through a reference or a referenced entity no filter index
+ * holds. Such a bound keeps every candidate, so the entity anchoring it may be one no owner the histogram counts
+ * references. So may the entity of a bound whose pick among the checked candidates cannot be loaded: the bound then
+ * takes the entity picked among every candidate, if that one loads, so a histogram has boundary entities wherever the
+ * pick among every candidate gives it loadable ones.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -216,13 +214,29 @@ final class ReferenceHistogramAccumulator {
 	 * Runs in three stages:
 	 *
 	 * 1. compute every cacheable histogram and collect a {@link PendingHistogram} descriptor per
-	 * (group, histogramName) tuple — together with candidate min/max PKs resolved against the
-	 * referenced entity's global {@link FilterIndex};
+	 * (group, histogramName) tuple — together with candidate min/max PKs resolved from the filter indexes of
+	 * the histogram's source attribute. One histogram combines the filter indexes of every scope of its request,
+	 * so a group held in several scopes still yields a single histogram;
 	 * 2. batch-fetch the distinct boundary PKs, keyed by `(entityType, entityFetch)`, so histograms
 	 * sharing an entity fetch shape pay only one round-trip to the entity collection, while each histogram
 	 * receives its boundary entities in the shape its own entity fetch asks for;
 	 * 3. emit final {@link HistogramContract} DTOs — either re-creating an existing DTO with its
 	 * histogram map attached or synthesizing a new DTO for histogram-only groups.
+	 *
+	 * @param referenceSchema                   the reference whose histograms are computed
+	 * @param requests                          the histogram requests registered for the reference
+	 * @param existing                          the statistics the facet phase produced for the reference
+	 * @param attributeHistogramBaselineFormula baseline formula selecting owners for histogram computation, or
+	 *                                          `null` when every record passes
+	 * @param context                           the query execution context
+	 * @param resultAdapter                     creates the statistics of histogram-only groups
+	 * @param facetSorter                       the reference's sorter deciding ties among boundary PKs, or `null`
+	 *                                          for the lowest-PK rule
+	 * @param groupEntityFetcher                fetches the group entities of histogram-only groups, or `null` for
+	 *                                          bare entity references
+	 * @param groupPredicate                    selects the groups to compute, or `null` for every group
+	 * @return the statistics of the reference with the histograms attached, or `existing` itself when no histogram
+	 *         has data
 	 */
 	@Nonnull
 	private static <T extends ReferenceGroupStatistics> Collection<T> computeForReference(
@@ -240,17 +254,18 @@ final class ReferenceHistogramAccumulator {
 			&& referenceSchema.isReferencedGroupTypeManaged();
 		final String referenceName = referenceSchema.getName();
 		final String entityType = Objects.requireNonNull(context.getQueryContext().getEntityType());
-		final Set<Scope> scopes = context.getQueryContext().getScopes();
 
-		// Stage 1: compute cacheable histograms + resolve boundary PKs (no fetch yet). Group stores and RTEIs
-		// live on the entity collection, located per scope via QueryPlanningContext#getEntityIndex.
-		// Sizing: non-grouped = req × scope (floor); grouped grows by one store per group — probe the
-		// RTEI's group count and clamp to a sanity cap against pathological group counts.
+		// Stage 1: compute one cacheable histogram per request and group. Probe the requested scopes for
+		// a capacity estimate before collecting the contributing indexes.
+		final Set<Scope> requestedScopes = EnumSet.noneOf(Scope.class);
+		for (final HistogramRequest request : requests) {
+			requestedScopes.addAll(request.scopes());
+		}
 		final int pendingEstimate;
 		if (grouped) {
 			// long, so neither the sum over scopes nor its product with the request count can overflow
 			long groupsProbe = 0;
-			for (final Scope scope : scopes) {
+			for (final Scope scope : requestedScopes) {
 				final EntityIndexKey probeKey = new EntityIndexKey(
 					EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
 				);
@@ -262,14 +277,12 @@ final class ReferenceHistogramAccumulator {
 				}
 			}
 			pendingEstimate = (int) Math.min(
-				requests.size() * Math.max(scopes.size(), groupsProbe), PENDING_SANITY_CAP
+				requests.size() * groupsProbe, PENDING_SANITY_CAP
 			);
 		} else {
-			pendingEstimate = Math.min(requests.size() * scopes.size(), PENDING_SANITY_CAP);
+			pendingEstimate = requests.size();
 		}
 		final List<PendingHistogram> pending = new ArrayList<>(pendingEstimate);
-		// hoisted out of the scope × group loop — both depend only on the request
-		final List<ResolvedRequest> resolved = new ArrayList<>(requests.size());
 		for (final HistogramRequest req : requests) {
 			final AttributeSchemaContract attributeSchema = resolveSourceAttributeSchema(req, context);
 			@SuppressWarnings("rawtypes") final Comparator comparator = FilterIndex.getComparator(
@@ -281,28 +294,26 @@ final class ReferenceHistogramAccumulator {
 				),
 				attributeSchema.getPlainType()
 			);
-			resolved.add(new ResolvedRequest(req, attributeSchema, comparator));
-		}
-		if (!grouped) {
-			// an ungrouped histogram is read from the type index of the entity component, which a scope indexed
-			// without that component never builds - the histogram would silently be missing from the result
-			final EntitySchemaContract entitySchema = context.getQueryContext().getSchema();
-			for (final Scope scope : scopes) {
-				HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, scopes);
-			}
-		}
-		for (final ResolvedRequest resolvedReq : resolved) {
-			for (final Scope scope : scopes) {
-				if (grouped) {
-					collectGroupedPending(
-						resolvedReq, entityType, referenceName, scope,
-						attributeHistogramBaselineFormula, context, facetSorter, groupPredicate, pending
-					);
-				} else {
-					collectNonGroupedPending(
-						resolvedReq, entityType, referenceName, scope,
-						attributeHistogramBaselineFormula, context, facetSorter, pending
-					);
+			final ResolvedRequest resolved = new ResolvedRequest(req, attributeSchema, comparator);
+			if (grouped) {
+				computeGroupedHistograms(
+					resolved, entityType, referenceName, attributeHistogramBaselineFormula,
+					context, facetSorter, groupPredicate, pending
+				);
+			} else {
+				final Set<Scope> scopes = req.scopes();
+				final EntitySchemaContract entitySchema = context.getQueryContext().getSchema();
+				final List<HistogramSource> sources = new ArrayList<>(scopes.size());
+				for (final Scope scope : scopes) {
+					// The ungrouped source is the reference's entity type index.
+					HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, scopes);
+					collectNonGroupedSource(req, entityType, referenceName, scope, context, sources);
+				}
+				if (!sources.isEmpty()) {
+					computePendingHistogram(
+						resolved, sources, HistogramRequest.NON_GROUPED_SENTINEL,
+						attributeHistogramBaselineFormula, context, facetSorter
+					).ifPresent(pending::add);
 				}
 			}
 		}
@@ -332,99 +343,167 @@ final class ReferenceHistogramAccumulator {
 	}
 
 	/**
-	 * Collects a pending histogram per group tracked by the reference's {@code REFERENCED_GROUP_ENTITY_TYPE} index in
-	 * the given scope, read from the {@link GroupHistogramEntityIndex} of the group. A group without a store holds no
-	 * histogram value and yields nothing.
-	 *
-	 * The reduced indexes of a group serve as the boundary context of the histogram: the owners of a group spread over
-	 * several reduced indexes when the reference has representative attributes, and the reference carrying the
-	 * smallest or the largest value may sit in any of them. The store itself tracks no reference, so it is never part
-	 * of the context.
+	 * Computes each group's histogram in the order of its first contributing scope and that scope's group PKs.
+	 * The sources of a group held in several scopes follow the iteration order of the request's scopes.
+	 * Only the current group's histogram and boundary indexes are held in the request's reusable source list.
 	 *
 	 * When a {@code groupPredicate} is supplied (the caller attached a `filterGroupBy` to the
 	 * enclosing `referenceSummaryOfReference`), group PKs that fail the predicate are skipped — the
 	 * same group selection the facet path applies, so the histogram path never emits histograms for
 	 * groups the caller did not request. A {@code null} predicate means "no group filtering".
+	 *
+	 * @param resolved                          the pre-resolved histogram request
+	 * @param entityType                        owner entity type
+	 * @param referenceName                     reference being summarized
+	 * @param attributeHistogramBaselineFormula baseline formula selecting owners for histogram computation
+	 * @param context                           query execution context
+	 * @param facetSorter                       the reference's sorter deciding ties among boundary PKs
+	 * @param groupPredicate                    optional group selection
+	 * @param pending                           computed histograms awaiting boundary entity loading
 	 */
-	private static void collectGroupedPending(
+	private static void computeGroupedHistograms(
 		@Nonnull ResolvedRequest resolved,
 		@Nonnull String entityType,
 		@Nonnull String referenceName,
-		@Nonnull Scope scope,
 		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context,
 		@Nullable NestedContextSorter facetSorter,
 		@Nullable IntPredicate groupPredicate,
 		@Nonnull List<PendingHistogram> pending
 	) {
-		final EntityIndexKey rteiKey = new EntityIndexKey(
-			EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
-		);
-		final ReferencedTypeEntityIndex rtei = context.getQueryContext()
-			.getEntityIndex(entityType, rteiKey, ReferencedTypeEntityIndex.class)
-			.orElse(null);
-		if (rtei == null) {
-			return;
-		}
-		final Bitmap groupPks = rtei.getAllReferencedPrimaryKeys();
-		if (groupPks.isEmpty()) {
-			return;
-		}
-		final PrimitiveIterator.OfInt groupPkIt = groupPks.iterator();
-		while (groupPkIt.hasNext()) {
-			final int groupPk = groupPkIt.nextInt();
-			// invariant: group PK `0` is reserved as the non-grouped sentinel across the reference
-			// histogram subsystem (both in `histogramsByGroupKey` / `buildGroupEntity` here and in
-			// `HistogramRequest.NON_GROUPED_SENTINEL` / `ResolvedHistogramHaving.NON_GROUPED_SENTINEL`
-			// on the request side); a real group PK of `0` would collide with that slot and silently
-			// swallow the grouped histogram
-			if (groupPk == 0) {
-				throw new GenericEvitaInternalError(
-					"Group primary key must be non-zero — PK `0` is reserved as the non-grouped " +
-						"sentinel. Got: 0 for reference `" + referenceName + "`."
-				);
-			}
-			// honour the enclosing referenceSummary's `filterGroupBy`: a group failing the predicate
-			// is intentional filtering (the caller did not select it), mirroring the facet path
-			if (groupPredicate != null && !groupPredicate.test(groupPk)) {
-				continue;
-			}
-			final GroupHistogramEntityIndex store = context.getQueryContext()
-				.getEntityIndex(
-					entityType, GroupHistogramEntityIndex.keyOf(referenceName, groupPk, scope),
-					GroupHistogramEntityIndex.class
-				)
+		final HistogramRequest request = resolved.request();
+		final List<GroupedScope> groupScopes = new ArrayList<>(request.scopes().size());
+		for (final Scope scope : request.scopes()) {
+			final EntityIndexKey rteiKey = new EntityIndexKey(
+				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
+			);
+			final ReferencedTypeEntityIndex rtei = context.getQueryContext()
+				.getEntityIndex(entityType, rteiKey, ReferencedTypeEntityIndex.class)
 				.orElse(null);
-			if (store == null) {
-				// no value of the group was ever admitted, or the last one left - nothing to compute
-				continue;
+			if (rtei != null) {
+				final Bitmap groupPks = rtei.getAllReferencedPrimaryKeys();
+				if (!groupPks.isEmpty()) {
+					groupScopes.add(new GroupedScope(scope, rtei, groupPks));
+				}
 			}
-			final int[] rgeiPks = rtei.getAllReferenceIndexes(groupPk);
-			final ReducedGroupEntityIndex[] groupIndexes = new ReducedGroupEntityIndex[rgeiPks.length];
-			for (int i = 0; i < rgeiPks.length; i++) {
-				groupIndexes[i] = context.getQueryContext().getReducedGroupEntityIndexByPrimaryKey(rgeiPks[i]);
+		}
+
+		// a group held in several scopes is computed once, at the first scope that yields a source for it, together
+		// with the sources of the later scopes; those later scopes must then skip it
+		final IntHashSet processedSharedGroups = groupScopes.size() > 1 ? new IntHashSet() : null;
+		final List<HistogramSource> sources = new ArrayList<>(groupScopes.size());
+		for (int i = 0; i < groupScopes.size(); i++) {
+			final GroupedScope groupScope = groupScopes.get(i);
+			final PrimitiveIterator.OfInt groupPkIt = groupScope.groupPks().iterator();
+			while (groupPkIt.hasNext()) {
+				final int groupPk = groupPkIt.nextInt();
+				// PK `0` keys the non-grouped slot in Stage 3 and in the requested ranges of a `histogramHaving`, so
+				// a real group with that PK would silently swallow the grouped histogram
+				if (groupPk == HistogramRequest.NON_GROUPED_SENTINEL) {
+					throw new GenericEvitaInternalError(
+						"Group primary key must be non-zero — PK `0` is reserved as the non-grouped " +
+							"sentinel. Got: 0 for reference `" + referenceName + "`."
+					);
+				}
+				if (groupPredicate != null && !groupPredicate.test(groupPk)) {
+					continue;
+				}
+				if (processedSharedGroups != null && processedSharedGroups.contains(groupPk)) {
+					continue;
+				}
+				final HistogramSource first = readGroupedSource(
+					request, entityType, referenceName, groupPk, groupScope, context
+				);
+				if (first == null) {
+					continue;
+				}
+				sources.add(first);
+				if (processedSharedGroups != null) {
+					// Later scopes add to this group's histogram in scope order.
+					for (int j = i + 1; j < groupScopes.size(); j++) {
+						final GroupedScope otherScope = groupScopes.get(j);
+						if (otherScope.groupPks().contains(groupPk)) {
+							processedSharedGroups.add(groupPk);
+							final HistogramSource source = readGroupedSource(
+								request, entityType, referenceName, groupPk, otherScope, context
+							);
+							if (source != null) {
+								sources.add(source);
+							}
+						}
+					}
+				}
+				computePendingHistogram(
+					resolved, sources, groupPk, attributeHistogramBaselineFormula, context, facetSorter
+				).ifPresent(pending::add);
+				sources.clear();
 			}
-			computePendingHistogram(
-				resolved, store, groupIndexes, groupPk, attributeHistogramBaselineFormula, context, facetSorter
-			).ifPresent(pending::add);
 		}
 	}
 
 	/**
-	 * Collects a pending histogram from the non-grouped {@link ReferencedTypeEntityIndex}
+	 * Reads a group's histogram values from its store. All reduced indexes of the group provide the boundary context
+	 * because the reference carrying the smallest or largest value may sit in any of them.
+	 *
+	 * @param request       histogram request
+	 * @param entityType    owner entity type
+	 * @param referenceName reference being summarized
+	 * @param groupPk       group primary key
+	 * @param groupScope    scope and group type index
+	 * @param context       query execution context
+	 * @return the scope's source for the group, or `null` when the store has no index for the requested histogram
+	 */
+	@Nullable
+	private static HistogramSource readGroupedSource(
+		@Nonnull HistogramRequest request,
+		@Nonnull String entityType,
+		@Nonnull String referenceName,
+		int groupPk,
+		@Nonnull GroupedScope groupScope,
+		@Nonnull QueryExecutionContext context
+	) {
+		final Scope scope = groupScope.scope();
+		final GroupHistogramEntityIndex store = context.getQueryContext()
+			.getEntityIndex(
+				entityType, GroupHistogramEntityIndex.keyOf(referenceName, groupPk, scope),
+				GroupHistogramEntityIndex.class
+			)
+			.orElse(null);
+		if (store == null) {
+			return null;
+		}
+		final FilterIndex histogramIndex = store.getHistogramFilterIndex(request.histogramName(), request.locale());
+		if (histogramIndex == null) {
+			return null;
+		}
+		final int[] rgeiPks = groupScope.typeIndex().getAllReferenceIndexes(groupPk);
+		final ReducedGroupEntityIndex[] groupIndexes = new ReducedGroupEntityIndex[rgeiPks.length];
+		for (int i = 0; i < rgeiPks.length; i++) {
+			groupIndexes[i] = context.getQueryContext().getReducedGroupEntityIndexByPrimaryKey(rgeiPks[i]);
+		}
+		return new HistogramSource(scope, histogramIndex, groupIndexes);
+	}
+
+	/**
+	 * Collects the histogram and boundary indexes of the non-grouped {@link ReferencedTypeEntityIndex}
 	 * (key type {@link EntityIndexType#REFERENCED_ENTITY_TYPE}). Uses the sentinel group PK `0`
 	 * so the downstream merge slots the histogram into the non-grouped DTO position. The type index
 	 * tracks every reference of the reference name in the scope, so it is its own boundary context.
+	 *
+	 * @param request        histogram request
+	 * @param entityType     owner entity type
+	 * @param referenceName  reference being summarized
+	 * @param scope          scope whose reference index is read
+	 * @param context        query execution context
+	 * @param sources        histogram and boundary indexes collected for the non-grouped entry
 	 */
-	private static void collectNonGroupedPending(
-		@Nonnull ResolvedRequest resolved,
+	private static void collectNonGroupedSource(
+		@Nonnull HistogramRequest request,
 		@Nonnull String entityType,
 		@Nonnull String referenceName,
 		@Nonnull Scope scope,
-		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context,
-		@Nullable NestedContextSorter facetSorter,
-		@Nonnull List<PendingHistogram> pending
+		@Nonnull List<HistogramSource> sources
 	) {
 		final EntityIndexKey rteiKey = new EntityIndexKey(
 			EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
@@ -435,67 +514,53 @@ final class ReferenceHistogramAccumulator {
 		if (rtei == null) {
 			return;
 		}
-		computePendingHistogram(
-			resolved, rtei, new EntityIndex[]{rtei}, 0, attributeHistogramBaselineFormula, context, facetSorter
-		).ifPresent(pending::add);
+		final FilterIndex histogramIndex = rtei.getHistogramFilterIndex(request.histogramName(), request.locale());
+		if (histogramIndex != null) {
+			sources.add(new HistogramSource(scope, histogramIndex, new EntityIndex[]{rtei}));
+		}
 	}
 
 	/**
-	 * Computes a single cacheable histogram from {@code sourceIndex} and resolves its candidate min/max
-	 * PKs over {@code boundaryContext} (see {@link #resolveBoundaryPks}). Returns {@link Optional#empty()}
-	 * when the histogram resolves to {@link CacheableHistogramContract#EMPTY} or when the source
-	 * attribute cannot be located.
+	 * Computes one histogram for a group from all contributing scopes. Histogram values come from the filter
+	 * indexes that store them. Boundary candidates come from the indexes tracking the references the histogram covers,
+	 * since the reference carrying a boundary value is indexed where its owner sits. For grouped references this
+	 * includes every reduced index of the group in each contributing scope.
 	 *
-	 * The histogram and its boundaries are read from different indexes: the histogram from the one index
-	 * holding it, the boundaries from every index tracking the references the histogram covers, since the
-	 * reference carrying a boundary value is indexed only where its owner sits.
+	 * The raw bounds are the keys exactly as stored in the histogram's {@link FilterIndex}. If either bound is
+	 * {@code null}, as with a legacy cache entry, the histogram is emitted without boundary entities.
 	 *
-	 * Boundary PK resolution uses the histogram's raw min/max — the keys exactly as stored in the
-	 * attribute's {@link FilterIndex}. When either is {@code null} (legacy cache entry
-	 * or an EMPTY histogram) boundary resolution is skipped, and the histogram is emitted without
-	 * boundary entities.
-	 *
-	 * For a {@link GroupHistogramEntityIndex} the owners the histogram counts at a bound - read from its filter index
-	 * once the bound has a candidate, see {@link #countedOwners} - confine the candidates to the referenced entities of
-	 * those owners, and a bound none of whose candidates passes keeps them all (see {@link #resolveBoundaryPks}). A
-	 * {@link ReferencedTypeEntityIndex} maps a referenced entity to the primary keys of the reduced indexes of its
-	 * references, not to the owners referencing it, so the candidates of an ungrouped histogram are confined only to
-	 * the referenced entities the type index tracks.
+	 * The {@link GroupHistogramEntityIndex} filter indexes identify the owners the histogram counts at a bound
+	 * (see {@link #countedOwners}). Grouped candidates are confined to referenced entities of those owners when
+	 * any candidate qualifies (see {@link #resolveBoundaryPks}). A {@link ReferencedTypeEntityIndex} maps referenced
+	 * entities to their reduced-index PKs. The ungrouped lookup therefore confines candidates to the referenced
+	 * entities tracked by the contributing type indexes.
 	 *
 	 * @param resolved                          the pre-resolved histogram request
-	 * @param sourceIndex                       the index holding the histogram
-	 * @param boundaryContext                   the indexes tracking the references the histogram covers, in which
-	 *                                          the boundary PKs are resolved: {@code sourceIndex} itself for an
-	 *                                          ungrouped reference, the reduced indexes of the group for a grouped
-	 *                                          one
-	 * @param groupPk                           group primary key; `0` sentinel means the non-grouped slot
-	 * @param attributeHistogramBaselineFormula baseline filter formula the histogram is computed against
+	 * @param sources                           histogram and boundary indexes from the contributing scopes
+	 * @param groupPk                           group primary key or the non-grouped sentinel
+	 * @param attributeHistogramBaselineFormula baseline formula selecting owners for histogram computation
 	 * @param context                           the query execution context
-	 * @param facetSorter                       the reference's sorter deciding ties among boundary PKs, or
-	 *                                          {@code null} for the lowest-PK rule
+	 * @param facetSorter                       the reference's sorter deciding ties among boundary PKs
 	 * @return the pending histogram, or empty when there is nothing to emit
 	 */
 	@Nonnull
 	private static Optional<PendingHistogram> computePendingHistogram(
 		@Nonnull ResolvedRequest resolved,
-		@Nonnull EntityIndex sourceIndex,
-		@Nonnull EntityIndex[] boundaryContext,
+		@Nonnull List<HistogramSource> sources,
 		int groupPk,
 		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context,
 		@Nullable NestedContextSorter facetSorter
 	) {
 		final HistogramRequest req = resolved.request();
-		final FilterIndex filterIndex = histogramFilterIndexFor(sourceIndex, req);
-		if (filterIndex == null) {
-			return Optional.empty();
+		final List<FilterIndex> filterIndexes = new ArrayList<>(sources.size());
+		for (final HistogramSource source : sources) {
+			filterIndexes.add(source.histogramIndex());
 		}
 		final CacheableHistogramContract cacheable = computeCacheable(
-			resolved, filterIndex, attributeHistogramBaselineFormula, context
+			resolved, filterIndexes, attributeHistogramBaselineFormula, context
 		);
-		// match the JavaDoc contract: skip EMPTY-sentinel histograms entirely so they never enter
-		// the `histogramsByGroupKey` map. Avoids allocating a PendingHistogram, a boundary-prefetch
-		// slot, and a synthetic group DTO carrying nothing the client can use
+		// Skip the EMPTY sentinel to avoid a pending histogram, a boundary-prefetch slot and a synthetic group.
 		if (cacheable == CacheableHistogramContract.EMPTY) {
 			return Optional.empty();
 		}
@@ -504,35 +569,65 @@ final class ReferenceHistogramAccumulator {
 		if (rawMin == null || rawMax == null) {
 			return Optional.of(new PendingHistogram(groupPk, req, cacheable, BoundaryPks.NONE));
 		}
-		final FilterIndex ownerFilterIndex = sourceIndex instanceof GroupHistogramEntityIndex ? filterIndex : null;
+		final EntityIndex[] boundaryContext = joinBoundaryContexts(sources);
+		final List<FilterIndex> ownerFilterIndexes =
+			groupPk == HistogramRequest.NON_GROUPED_SENTINEL ? List.of() : filterIndexes;
 		final BoundaryPks boundaryPks = resolveBoundaryPks(
-			req, sourceIndex.getIndexKey().scope(), boundaryContext, resolved.attributeSchema(),
-			rawMin, rawMax, ownerFilterIndex, attributeHistogramBaselineFormula, context, facetSorter
+			req, sources, boundaryContext, resolved.attributeSchema(),
+			rawMin, rawMax, ownerFilterIndexes, attributeHistogramBaselineFormula, context, facetSorter
 		);
 		return Optional.of(new PendingHistogram(groupPk, req, cacheable, boundaryPks));
 	}
 
 	/**
-	 * Returns the owners the histogram of a group counts at `value`: the owners its filter index holds at the value -
+	 * Concatenates the boundary contexts of the sources in their order. A single source hands over its own array,
+	 * so the common single-scope case allocates nothing.
+	 *
+	 * @param sources histogram and boundary indexes from the contributing scopes, never empty
+	 * @return the indexes tracking the references the histogram covers
+	 */
+	@Nonnull
+	private static EntityIndex[] joinBoundaryContexts(@Nonnull List<HistogramSource> sources) {
+		if (sources.size() == 1) {
+			return sources.getFirst().boundaryContext();
+		}
+		int boundaryIndexCount = 0;
+		for (final HistogramSource source : sources) {
+			boundaryIndexCount += source.boundaryContext().length;
+		}
+		final EntityIndex[] boundaryContext = new EntityIndex[boundaryIndexCount];
+		int offset = 0;
+		for (final HistogramSource source : sources) {
+			final EntityIndex[] indexes = source.boundaryContext();
+			System.arraycopy(indexes, 0, boundaryContext, offset, indexes.length);
+			offset += indexes.length;
+		}
+		return boundaryContext;
+	}
+
+	/**
+	 * Returns the owners the histogram of a group counts at `value`: the owners its filter indexes hold at the value -
 	 * the group store indexes only the values the histogram's condition admits - narrowed by the records of the
 	 * baseline formula exactly as {@link AttributeHistogramComputer} narrows the buckets of the histogram. The cached
 	 * histogram keeps only its raw bounds, not the owners of its extreme buckets, so the owners are read again from
-	 * the filter index.
+	 * the filter indexes.
 	 *
-	 * @param histogramFilterIndex the filter index of the group store the histogram is computed from, keyed on owner
-	 *                             primary keys
-	 * @param value                the raw bound of the histogram
-	 * @param baselineFormula      the baseline formula the histogram is computed against, or `null` when no formula
-	 *                             narrows the histogram
+	 * @param ownerFilterIndexes the group stores' filter indexes, keyed on owner primary keys
+	 * @param value              the raw bound of the histogram
+	 * @param baselineFormula    the baseline formula the histogram is computed against, or `null` when no formula
+	 *                           narrows the histogram
 	 * @return the primary keys of the owners the histogram counts at the value
 	 */
 	@Nonnull
 	private static Bitmap countedOwners(
-		@Nonnull FilterIndex histogramFilterIndex,
+		@Nonnull List<FilterIndex> ownerFilterIndexes,
 		@Nonnull Serializable value,
 		@Nullable Formula baselineFormula
 	) {
-		final Bitmap owners = resolveBoundaryCandidates(histogramFilterIndex, value);
+		Bitmap owners = EmptyBitmap.INSTANCE;
+		for (final FilterIndex filterIndex : ownerFilterIndexes) {
+			owners = union(owners, resolveBoundaryCandidates(filterIndex, value));
+		}
 		if (baselineFormula == null || owners.isEmpty()) {
 			return owners;
 		}
@@ -546,41 +641,22 @@ final class ReferenceHistogramAccumulator {
 	}
 
 	/**
-	 * Looks up the histogram-backed {@link FilterIndex} on the appropriate index subtype: the
-	 * {@link GroupHistogramEntityIndex} of a group for a grouped reference, the {@link ReferencedTypeEntityIndex} for
-	 * an ungrouped one. Any other subtype is a programming error and must surface immediately.
-	 */
-	@Nullable
-	private static FilterIndex histogramFilterIndexFor(
-		@Nonnull EntityIndex sourceIndex,
-		@Nonnull HistogramRequest req
-	) {
-		if (sourceIndex instanceof GroupHistogramEntityIndex store) {
-			return store.getHistogramFilterIndex(req.histogramName(), req.locale());
-		}
-		if (sourceIndex instanceof ReferencedTypeEntityIndex rtei) {
-			return rtei.getHistogramFilterIndex(req.histogramName(), req.locale());
-		}
-		throw new GenericEvitaInternalError(
-			"Unexpected EntityIndex subtype `" + sourceIndex.getClass().getName() + "` passed to " +
-				"histogramFilterIndexFor — only GroupHistogramEntityIndex and ReferencedTypeEntityIndex " +
-				"expose a histogram filter index."
-		);
-	}
-
-	/**
 	 * Delegates the actual histogram math to {@link AttributeHistogramComputer}. Builds a one-off
-	 * {@link AttributeHistogramRequest} wrapping the single {@link FilterIndex} backing this
+	 * {@link AttributeHistogramRequest} wrapping the {@link FilterIndex} instances backing this
 	 * (reference, group, histogram) tuple and routes the computation through
 	 * {@link QueryExecutionContext#analyse(CacheableEvitaResponseExtraResultComputer)} so the result
-	 * participates in the shared extra-result cache. The {@link FilterIndex#getId()} identifies
-	 * each group store / RTEI histogram index uniquely at the process level, so cache keys collide neither
-	 * across references nor with attribute-level histograms.
+	 * participates in the shared extra-result cache. The key includes the contributing index IDs and baseline formula.
+	 *
+	 * @param resolved                          the pre-resolved histogram request
+	 * @param filterIndexes                     the indexes holding the histogram values
+	 * @param attributeHistogramBaselineFormula baseline formula selecting owners for histogram computation
+	 * @param context                           the query execution context
+	 * @return the computed or cached histogram
 	 */
 	@Nonnull
 	private static CacheableHistogramContract computeCacheable(
 		@Nonnull ResolvedRequest resolved,
-		@Nonnull FilterIndex filterIndex,
+		@Nonnull List<FilterIndex> filterIndexes,
 		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context
 	) {
@@ -590,7 +666,7 @@ final class ReferenceHistogramAccumulator {
 			req.bucketCount(),
 			req.behavior(),
 			resolved.comparator(),
-			List.of(filterIndex)
+			filterIndexes
 		);
 		final AttributeHistogramComputer computer = new AttributeHistogramComputer(
 			req.histogramName(), attributeHistogramBaselineFormula,
@@ -618,12 +694,12 @@ final class ReferenceHistogramAccumulator {
 	 * {@link BoundaryPks#NONE} when no index of the context has a FilterIndex of the attribute (the
 	 * attribute is not filterable, or no reference of the context carries it).
 	 *
-	 * The candidate set is intersected with the referenced PKs tracked by the boundary context - the type
-	 * index of an ungrouped reference, every reduced index of the group of a grouped one - so out-of-scope
-	 * entities do not surface as boundary anchors. With the owners of a bound, a candidate further stays only
-	 * when a reduced index of the context tracks it for one of them. That check decides per bound over the
-	 * candidates of the whole context: when no candidate of a bound passes it, the bound keeps every candidate of
-	 * the context and picks among them by the same rule, so the entity anchoring such a bound may be one no owner the
+	 * The candidate set is intersected with the referenced PKs tracked by the boundary context - the type index of an
+	 * ungrouped reference, every reduced index of the group of a grouped one, each in every contributing scope - so
+	 * out-of-scope entities do not surface as boundary anchors. With the owners of a bound, a candidate further stays
+	 * only when a reduced index of the context tracks it for one of them. That check decides per bound over the
+	 * candidates of the whole context: when no candidate of a bound passes it, the bound keeps every candidate of the
+	 * context and picks among them by the same rule, so the entity anchoring such a bound may be one no owner the
 	 * histogram counts references. When candidates pass it, the pick among every candidate rides along as the
 	 * alternative the bound takes when the entity of its pick cannot be loaded (see {@link BoundaryPick}).
 	 *
@@ -632,30 +708,29 @@ final class ReferenceHistogramAccumulator {
 	 * are passed to {@link FilterIndex#getRecordsEqualTo(Serializable)} verbatim: a filter index of the source
 	 * attribute keys its values in the same form, and its normalizer lets an already normalized value through.
 	 *
-	 * @param req              the histogram request
-	 * @param scope            the scope of the indexes the histogram is read from
-	 * @param boundaryContext  the indexes tracking the references the histogram covers
-	 * @param attributeSchema  schema of the attribute the histogram is computed over
-	 * @param minValue         the histogram's raw smallest value
-	 * @param maxValue         the histogram's raw largest value
-	 * @param ownerFilterIndex the filter index of the group store the histogram is computed from, which tells the
-	 *                         owners the histogram counts at a bound (see {@link #countedOwners}), or `null` for a
-	 *                         boundary context of the type index, whose candidates are not confined by owner
-	 * @param baselineFormula  the baseline formula the histogram is computed against, or `null` for none
-	 * @param context          the query execution context
-	 * @param facetSorter      the reference's sorter deciding ties among boundary PKs, or {@code null} for the
-	 *                         lowest-PK rule
+	 * @param req                the histogram request
+	 * @param sources            the histogram sources with their scopes
+	 * @param boundaryContext    the indexes tracking the references the histogram covers
+	 * @param attributeSchema    schema of the attribute the histogram is computed over
+	 * @param minValue           the histogram's raw smallest value
+	 * @param maxValue           the histogram's raw largest value
+	 * @param ownerFilterIndexes group-store indexes for the counted owners at a bound (see {@link #countedOwners}),
+	 *                           or empty for an ungrouped histogram
+	 * @param baselineFormula    the baseline formula the histogram is computed against, or `null` for none
+	 * @param context            the query execution context
+	 * @param facetSorter        the reference's sorter deciding ties among boundary PKs, or {@code null} for the
+	 *                           lowest-PK rule
 	 * @return the resolved boundary PKs, {@link BoundaryPks#NONE} when nothing can be resolved
 	 */
 	@Nonnull
 	private static BoundaryPks resolveBoundaryPks(
 		@Nonnull HistogramRequest req,
-		@Nonnull Scope scope,
+		@Nonnull List<HistogramSource> sources,
 		@Nonnull EntityIndex[] boundaryContext,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Serializable minValue,
 		@Nonnull Serializable maxValue,
-		@Nullable FilterIndex ownerFilterIndex,
+		@Nonnull List<FilterIndex> ownerFilterIndexes,
 		@Nullable Formula baselineFormula,
 		@Nonnull QueryExecutionContext context,
 		@Nullable NestedContextSorter facetSorter
@@ -663,13 +738,13 @@ final class ReferenceHistogramAccumulator {
 		final HistogramValueSource source = req.valueDescriptor().source();
 		if (source == HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE) {
 			return resolveBoundaryPksFromReferencedEntity(
-				req, scope, boundaryContext, attributeSchema, minValue, maxValue, ownerFilterIndex,
+				req, sources, boundaryContext, attributeSchema, minValue, maxValue, ownerFilterIndexes,
 				baselineFormula, context, facetSorter
 			);
 		}
 		if (source == HistogramValueSource.REFERENCE_ATTRIBUTE) {
 			return resolveBoundaryPksFromReferenceAttribute(
-				req, boundaryContext, attributeSchema, minValue, maxValue, ownerFilterIndex,
+				req, boundaryContext, attributeSchema, minValue, maxValue, ownerFilterIndexes,
 				baselineFormula, facetSorter
 			);
 		}
@@ -680,38 +755,38 @@ final class ReferenceHistogramAccumulator {
 
 	/**
 	 * Resolves min/max referenced PKs when the histogram source is a referenced-entity attribute.
-	 * Looks up the referenced entity collection's own global {@link FilterIndex} and intersects with
-	 * the referenced PKs tracked by the boundary context - the union over its indexes - of which a candidate
-	 * stays, with the owners of the bound, only when some reduced index of the context tracks it for one of them.
+	 * Joins matches from the referenced collection's global {@link FilterIndex} in each contributing scope and
+	 * intersects them with the referenced PKs tracked by the boundary indexes. For a grouped histogram a candidate
+	 * qualifies when some reduced index tracks it for a counted owner of the bound.
 	 *
 	 * A referenced entity without the attribute gives the histogram the default of its value expression, yet the global
 	 * filter index does not hold it, so it is never a candidate, and the owners the histogram counts at a bound may
 	 * reference no candidate at all. Such a bound keeps every candidate of the context (see {@link #pickBoundaryPk}),
 	 * so the entity anchoring it may be one no owner the histogram counts references.
 	 *
-	 * @param req              the histogram request
-	 * @param scope            the scope of the indexes the histogram is read from
-	 * @param boundaryContext  the indexes tracking the references the histogram covers
-	 * @param attributeSchema  schema of the referenced entity's attribute the histogram is computed over
-	 * @param minValue         the histogram's raw smallest value
-	 * @param maxValue         the histogram's raw largest value
-	 * @param ownerFilterIndex the filter index of the group store telling the owners the histogram counts at a bound,
-	 *                         or `null` to keep every candidate
-	 * @param baselineFormula  the baseline formula the histogram is computed against, or `null` for none
-	 * @param context          the query execution context
-	 * @param facetSorter      the reference's sorter deciding ties among boundary PKs, or {@code null} for the
-	 *                         lowest-PK rule
-	 * @return the resolved boundary PKs, {@link BoundaryPks#NONE} when nothing can be resolved
+	 * @param req                the histogram request
+	 * @param sources            the histogram sources with their scopes
+	 * @param boundaryContext    the indexes tracking the references the histogram covers
+	 * @param attributeSchema    schema of the referenced entity's attribute the histogram is computed over
+	 * @param minValue           the histogram's raw smallest value
+	 * @param maxValue           the histogram's raw largest value
+	 * @param ownerFilterIndexes group-store indexes for counted owners at a bound, or empty to keep every candidate
+	 * @param baselineFormula    the baseline formula the histogram is computed against, or `null` for none
+	 * @param context            the query execution context
+	 * @param facetSorter        the reference's sorter deciding ties among boundary PKs, or {@code null} for the
+	 *                           lowest-PK rule
+	 * @return the resolved boundary PKs, {@link BoundaryPks#NONE} when the request has no source entity type or the
+	 *         boundary context tracks no referenced entity
 	 */
 	@Nonnull
 	private static BoundaryPks resolveBoundaryPksFromReferencedEntity(
 		@Nonnull HistogramRequest req,
-		@Nonnull Scope scope,
+		@Nonnull List<HistogramSource> sources,
 		@Nonnull EntityIndex[] boundaryContext,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Serializable minValue,
 		@Nonnull Serializable maxValue,
-		@Nullable FilterIndex ownerFilterIndex,
+		@Nonnull List<FilterIndex> ownerFilterIndexes,
 		@Nullable Formula baselineFormula,
 		@Nonnull QueryExecutionContext context,
 		@Nullable NestedContextSorter facetSorter
@@ -720,33 +795,34 @@ final class ReferenceHistogramAccumulator {
 		if (sourceEntityType == null) {
 			return BoundaryPks.NONE;
 		}
-		final GlobalEntityIndex globalIndex = context.getQueryContext()
-			.getGlobalEntityIndexIfExists(sourceEntityType, scope)
-			.orElse(null);
-		if (globalIndex == null) {
-			return BoundaryPks.NONE;
-		}
-		final FilterIndex attributeFilterIndex = globalIndex.getFilterIndex(
-			null, attributeSchema, req.locale()
-		);
-		if (attributeFilterIndex == null) {
-			return BoundaryPks.NONE;
-		}
 		final Bitmap inGroup = referencedPrimaryKeys(boundaryContext);
 		if (inGroup.isEmpty()) {
 			return BoundaryPks.NONE;
 		}
-		final BoundaryPick min = pickBoundaryPk(
-			attributeFilterIndex, minValue, inGroup, boundaryContext, ownerFilterIndex, baselineFormula, facetSorter
-		);
-		final BoundaryPick max;
-		if (Objects.equals(maxValue, minValue)) {
-			max = min;
-		} else {
-			max = pickBoundaryPk(
-				attributeFilterIndex, maxValue, inGroup, boundaryContext, ownerFilterIndex, baselineFormula, facetSorter
-			);
+		final boolean sameBound = Objects.equals(maxValue, minValue);
+		Bitmap minCandidates = EmptyBitmap.INSTANCE;
+		Bitmap maxCandidates = EmptyBitmap.INSTANCE;
+		for (final HistogramSource histogramSource : sources) {
+			final GlobalEntityIndex globalIndex = context.getQueryContext()
+				.getGlobalEntityIndexIfExists(sourceEntityType, histogramSource.scope())
+				.orElse(null);
+			if (globalIndex == null) {
+				continue;
+			}
+			final FilterIndex attributeFilterIndex = globalIndex.getFilterIndex(null, attributeSchema, req.locale());
+			if (attributeFilterIndex != null) {
+				minCandidates = union(minCandidates, resolveBoundaryCandidates(attributeFilterIndex, minValue));
+				if (!sameBound) {
+					maxCandidates = union(maxCandidates, resolveBoundaryCandidates(attributeFilterIndex, maxValue));
+				}
+			}
 		}
+		final BoundaryPick min = pickBoundaryPk(
+			minCandidates, minValue, inGroup, boundaryContext, ownerFilterIndexes, baselineFormula, facetSorter
+		);
+		final BoundaryPick max = sameBound ? min : pickBoundaryPk(
+			maxCandidates, maxValue, inGroup, boundaryContext, ownerFilterIndexes, baselineFormula, facetSorter
+		);
 		return new BoundaryPks(sourceEntityType, min, max);
 	}
 
@@ -769,16 +845,15 @@ final class ReferenceHistogramAccumulator {
 	 * bound keeps every candidate of the context (see {@link #pickBoundaryPkFromReferenceAttribute}), so the entity
 	 * anchoring it may be one no owner the histogram counts references.
 	 *
-	 * @param req              the histogram request
-	 * @param boundaryContext  the indexes tracking the references the histogram covers
-	 * @param attributeSchema  schema of the reference attribute the histogram is computed over
-	 * @param minValue         the histogram's raw smallest value
-	 * @param maxValue         the histogram's raw largest value
-	 * @param ownerFilterIndex the filter index of the group store telling the owners the histogram counts at a bound,
-	 *                         or `null` to keep every candidate
-	 * @param baselineFormula  the baseline formula the histogram is computed against, or `null` for none
-	 * @param facetSorter      the reference's sorter deciding ties among boundary PKs, or {@code null} for the
-	 *                         lowest-PK rule
+	 * @param req                the histogram request
+	 * @param boundaryContext    the indexes tracking the references the histogram covers
+	 * @param attributeSchema    schema of the reference attribute the histogram is computed over
+	 * @param minValue           the histogram's raw smallest value
+	 * @param maxValue           the histogram's raw largest value
+	 * @param ownerFilterIndexes group-store indexes for counted owners at a bound, or empty to keep every candidate
+	 * @param baselineFormula    the baseline formula the histogram is computed against, or `null` for none
+	 * @param facetSorter        the reference's sorter deciding ties among boundary PKs, or {@code null} for the
+	 *                           lowest-PK rule
 	 * @return the resolved boundary PKs, {@link BoundaryPks#NONE} when nothing can be resolved
 	 */
 	@Nonnull
@@ -788,7 +863,7 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Serializable minValue,
 		@Nonnull Serializable maxValue,
-		@Nullable FilterIndex ownerFilterIndex,
+		@Nonnull List<FilterIndex> ownerFilterIndexes,
 		@Nullable Formula baselineFormula,
 		@Nullable NestedContextSorter facetSorter
 	) {
@@ -811,7 +886,7 @@ final class ReferenceHistogramAccumulator {
 			return BoundaryPks.NONE;
 		}
 		final BoundaryPick min = pickBoundaryPkFromReferenceAttribute(
-			referenceAttributeFilterIndexes, boundaryContext, minValue, ownerFilterIndex, baselineFormula, inScope,
+			referenceAttributeFilterIndexes, boundaryContext, minValue, ownerFilterIndexes, baselineFormula, inScope,
 			facetSorter
 		);
 		final BoundaryPick max;
@@ -819,8 +894,8 @@ final class ReferenceHistogramAccumulator {
 			max = min;
 		} else {
 			max = pickBoundaryPkFromReferenceAttribute(
-				referenceAttributeFilterIndexes, boundaryContext, maxValue, ownerFilterIndex, baselineFormula, inScope,
-				facetSorter
+				referenceAttributeFilterIndexes, boundaryContext, maxValue,
+				ownerFilterIndexes, baselineFormula, inScope, facetSorter
 			);
 		}
 		return new BoundaryPks(referencedEntityType, min, max);
@@ -892,11 +967,11 @@ final class ReferenceHistogramAccumulator {
 	 *
 	 * 1. looks up the records holding the value in the filter index of the index,
 	 * 2. maps them to referenced entity PKs via the same index's `getReferencedPrimaryKeysForIndexPks(...)`,
-	 * 3. with {@code ownerFilterIndex}, sets apart those an owner the histogram counts at the value references (see
+	 * 3. with {@code ownerFilterIndexes}, sets apart those an owner the histogram counts at the value references (see
 	 *    {@link #referencedByCountedOwners}) in the same index, where the reference carrying the value sits,
 	 * 4. joins the set-apart PKs of all indexes, intersects them with the referenced PKs tracked by the context, and
 	 *    picks the final PK via the same sorter/lowest-PK rule as {@link #pickBoundaryPk},
-	 * 5. when that leaves no PK, or without {@code ownerFilterIndex}, does the same with the referenced PKs of the
+	 * 5. when that leaves no PK, or without {@code ownerFilterIndexes}, does the same with the referenced PKs of the
 	 *    second step of all indexes joined.
 	 *
 	 * The fifth step depends on the outcome over the whole context, never on a single index: a candidate an index
@@ -907,8 +982,8 @@ final class ReferenceHistogramAccumulator {
 	 * along as the alternative the bound falls back to when the entity of the fourth step does not load (see
 	 * {@link BoundaryPick}); it reuses the candidates of the second step and reads no index again.
 	 *
-	 * The steps run as written with a sorter, or without {@code ownerFilterIndex}. Without a sorter and with
-	 * {@code ownerFilterIndex}, {@link #pickLowestOwnedBoundaryPk} makes the identical pick, alternative included,
+	 * The steps run as written with a sorter, or without {@code ownerFilterIndexes}. Without a sorter and with
+	 * {@code ownerFilterIndexes}, {@link #pickLowestOwnedBoundaryPk} makes the identical pick, alternative included,
 	 * by merging producing-index iterators in unsigned PK order, without owned subsets or candidate unions. Equal PKs
 	 * are checked in index-position order. A sorter keeps the steps as written, because the order it gives the
 	 * set-apart PKs need not be their order among every candidate sorted - a limited segment or a seeded shuffle
@@ -917,7 +992,7 @@ final class ReferenceHistogramAccumulator {
 	 *
 	 * The mapping of the second step differs by the kind of index: the type index keys its filter index on its own
 	 * reduced-index PKs, which only it can translate, while a reduced group index keys it on referenced entity PKs
-	 * and the mapping keeps those it tracks. The owners are read from the group store at the first index holding a
+	 * and the mapping keeps those it tracks. The owners are read from the group stores at the first index holding a
 	 * candidate, so a value no reference of the context carries reads none - and a referenced entity whose only
 	 * references at the value are given the default is no candidate.
 	 *
@@ -928,8 +1003,8 @@ final class ReferenceHistogramAccumulator {
 	 *                                        context, at the same position; {@code null} where the index has none
 	 * @param boundaryContext                 the indexes tracking the references the histogram covers
 	 * @param value                           the boundary value
-	 * @param ownerFilterIndex                the filter index of the group store telling the owners the histogram
-	 *                                        counts at the value, or {@code null} to keep every candidate
+	 * @param ownerFilterIndexes              the group-store indexes tracking the counted owners at the bound,
+	 *                                        or empty to keep every candidate
 	 * @param baselineFormula                 the baseline formula the histogram is computed against, or `null` for
 	 *                                        none
 	 * @param inScope                         the referenced entity PKs tracked by the context
@@ -942,14 +1017,14 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull FilterIndex[] referenceAttributeFilterIndexes,
 		@Nonnull EntityIndex[] boundaryContext,
 		@Nonnull Serializable value,
-		@Nullable FilterIndex ownerFilterIndex,
+		@Nonnull List<FilterIndex> ownerFilterIndexes,
 		@Nullable Formula baselineFormula,
 		@Nonnull Bitmap inScope,
 		@Nullable NestedContextSorter facetSorter
 	) {
-		if (facetSorter == null && ownerFilterIndex != null) {
+		if (facetSorter == null && !ownerFilterIndexes.isEmpty()) {
 			return pickLowestOwnedBoundaryPk(
-				referenceAttributeFilterIndexes, boundaryContext, value, ownerFilterIndex, baselineFormula, inScope
+				referenceAttributeFilterIndexes, boundaryContext, value, ownerFilterIndexes, baselineFormula, inScope
 			);
 		}
 
@@ -966,10 +1041,10 @@ final class ReferenceHistogramAccumulator {
 			if (!indexPkCandidates.isEmpty()) {
 				final Bitmap referencedPks = referencedPrimaryKeysForIndexPks(boundaryContext[i], indexPkCandidates);
 				referencedPkCandidates = union(referencedPkCandidates, referencedPks);
-				if (ownerFilterIndex != null) {
+				if (!ownerFilterIndexes.isEmpty()) {
 					if (ownersRoaring == null) {
 						ownersRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(
-							countedOwners(ownerFilterIndex, value, baselineFormula)
+							countedOwners(ownerFilterIndexes, value, baselineFormula)
 						);
 					}
 					// each index answers for its own owners: a candidate is checked in the index whose filter index
@@ -994,10 +1069,9 @@ final class ReferenceHistogramAccumulator {
 	}
 
 	/**
-	 * Makes the pick of {@link #pickBoundaryPkFromReferenceAttribute} for a context confined to the owners
-	 * `ownerFilterIndex` counts, without a sorter: the lowest candidate in scope that a counted owner references in an
-	 * index whose filter index produced it, with the lowest candidate in scope as its alternative - or that lowest
-	 * candidate alone when no candidate has such an owner.
+	 * Makes the pick of {@link #pickBoundaryPkFromReferenceAttribute} without a sorter for a context confined to
+	 * the owners counted by the group-store filter indexes. Picks the lowest in-scope candidate a counted owner
+	 * references in a producing index, with the lowest in-scope candidate as the fallback.
 	 *
 	 * The pick is the one the steps of {@link #pickBoundaryPkFromReferenceAttribute} make with the lowest-PK rule, but
 	 * a primitive-array heap merges the producing indexes' candidate iterators in unsigned PK order, the order
@@ -1010,8 +1084,7 @@ final class ReferenceHistogramAccumulator {
 	 *                                        context, at the same position; {@code null} where the index has none
 	 * @param boundaryContext                 the indexes tracking the references the histogram covers
 	 * @param value                           the boundary value
-	 * @param ownerFilterIndex                the filter index of the group store telling the owners the histogram
-	 *                                        counts at the value
+	 * @param ownerFilterIndexes              group-store filter indexes identifying the owners counted at the value
 	 * @param baselineFormula                 the baseline formula the histogram is computed against, or `null` for
 	 *                                        none
 	 * @param inScope                         the referenced entity PKs tracked by the context
@@ -1023,7 +1096,7 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull FilterIndex[] referenceAttributeFilterIndexes,
 		@Nonnull EntityIndex[] boundaryContext,
 		@Nonnull Serializable value,
-		@Nonnull FilterIndex ownerFilterIndex,
+		@Nonnull List<FilterIndex> ownerFilterIndexes,
 		@Nullable Formula baselineFormula,
 		@Nonnull Bitmap inScope
 	) {
@@ -1051,7 +1124,7 @@ final class ReferenceHistogramAccumulator {
 				// Read at the first nonempty raw lookup, even if mapping or scope removes every candidate.
 				if (ownersRoaring == null) {
 					ownersRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(
-						countedOwners(ownerFilterIndex, value, baselineFormula)
+						countedOwners(ownerFilterIndexes, value, baselineFormula)
 					);
 				}
 			}
@@ -1275,7 +1348,7 @@ final class ReferenceHistogramAccumulator {
 	 * The {@code value} is the histogram's raw bound in the key form of its filter index, which the global filter
 	 * index of the attribute shares, so it is passed to the lookup verbatim.
 	 *
-	 * With {@code ownerFilterIndex} a candidate stays only when some reduced index of {@code boundaryContext} tracks
+	 * With {@code ownerFilterIndexes} a candidate stays only when some reduced index of {@code boundaryContext} tracks
 	 * it for an owner the histogram counts at the value (see {@link #countedOwners}), read once a candidate exists.
 	 * The value is an attribute of the referenced entity, so every reference to the candidate carries it; the
 	 * candidate passes even when the reference of a counted owner to it is one the histogram's condition rejects.
@@ -1286,28 +1359,26 @@ final class ReferenceHistogramAccumulator {
 	 * alternative the bound falls back to when the entity of the pick does not load (see {@link BoundaryPick}); it
 	 * reuses the candidates of the group and reads no index again.
 	 *
-	 * @param attributeFilterIndex the referenced entity collection's global filter index of the attribute
-	 * @param value                the boundary value
-	 * @param inGroup              the referenced entity PKs tracked by the boundary context
-	 * @param boundaryContext      the indexes tracking the references the histogram covers
-	 * @param ownerFilterIndex     the filter index of the group store telling the owners the histogram counts at the
-	 *                             value, or {@code null} to keep every candidate
-	 * @param baselineFormula      the baseline formula the histogram is computed against, or `null` for none
-	 * @param facetSorter          the reference's sorter deciding ties, or {@code null} for the lowest-PK rule
+	 * @param candidates         referenced primary keys matching the bound across the contributing scopes
+	 * @param value              the boundary value
+	 * @param inGroup            the referenced entity PKs tracked by the boundary context
+	 * @param boundaryContext    the indexes tracking the references the histogram covers
+	 * @param ownerFilterIndexes group-store indexes for counted owners at the bound, or empty to keep every candidate
+	 * @param baselineFormula    the baseline formula the histogram is computed against, or `null` for none
+	 * @param facetSorter        the reference's sorter deciding ties, or {@code null} for the lowest-PK rule
 	 * @return the pick of the bound, {@link BoundaryPick#NONE} when no candidate qualifies
 	 */
 	@Nonnull
 	private static BoundaryPick pickBoundaryPk(
-		@Nonnull FilterIndex attributeFilterIndex,
+		@Nonnull Bitmap candidates,
 		@Nonnull Serializable value,
 		@Nonnull Bitmap inGroup,
 		@Nonnull EntityIndex[] boundaryContext,
-		@Nullable FilterIndex ownerFilterIndex,
+		@Nonnull List<FilterIndex> ownerFilterIndexes,
 		@Nullable Formula baselineFormula,
 		@Nullable NestedContextSorter facetSorter
 	) {
-		final Bitmap candidates = resolveBoundaryCandidates(attributeFilterIndex, value);
-		if (ownerFilterIndex == null || candidates.isEmpty()) {
+		if (ownerFilterIndexes.isEmpty() || candidates.isEmpty()) {
 			return BoundaryPick.of(intersectAndPickBoundaryPk(candidates, inGroup, facetSorter));
 		}
 		// confined to the group first, so the owner lookups are bounded by the referenced entities of the group
@@ -1319,7 +1390,7 @@ final class ReferenceHistogramAccumulator {
 			return BoundaryPick.NONE;
 		}
 		final PersistentRoaringBitmap ownersRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(
-			countedOwners(ownerFilterIndex, value, baselineFormula)
+			countedOwners(ownerFilterIndexes, value, baselineFormula)
 		);
 		final PeekableIntIterator it = candidatesInGroup.getIntIterator();
 		if (facetSorter == null) {
@@ -1625,9 +1696,8 @@ final class ReferenceHistogramAccumulator {
 	}
 
 	/**
-	 * Pre-resolved per-request artefacts that depend only on the {@link HistogramRequest} — cached
-	 * across the `scopes × groups` loop so schema and comparator resolution happens exactly once
-	 * per request regardless of group fan-out.
+	 * Pre-resolved per-request artefacts that depend only on the {@link HistogramRequest}, so schema and
+	 * comparator resolution happens exactly once per request regardless of the number of its groups and scopes.
 	 *
 	 * @param request         original histogram request
 	 * @param attributeSchema schema of the attribute the histogram is computed over
@@ -1638,6 +1708,34 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull HistogramRequest request,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator
+	) {
+	}
+
+	/**
+	 * Group type index and tracked group PKs in one scope.
+	 *
+	 * @param scope     scope holding the group type index
+	 * @param typeIndex index tracking the reduced indexes for each group
+	 * @param groupPks  primary keys of the tracked groups
+	 */
+	private record GroupedScope(
+		@Nonnull Scope scope,
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		@Nonnull Bitmap groupPks
+	) {
+	}
+
+	/**
+	 * Indexes contributing to one group's histogram in one scope.
+	 *
+	 * @param scope           scope holding the histogram index
+	 * @param histogramIndex  index holding the histogram values
+	 * @param boundaryContext indexes tracking the references used to resolve the boundaries
+	 */
+	private record HistogramSource(
+		@Nonnull Scope scope,
+		@Nonnull FilterIndex histogramIndex,
+		@Nonnull EntityIndex[] boundaryContext
 	) {
 	}
 
@@ -1708,10 +1806,11 @@ final class ReferenceHistogramAccumulator {
 	/**
 	 * Resolved pair of boundary picks (plus the entity type they resolve against). The {@link #NONE}
 	 * sentinel is used when no resolution was attempted or produced — for example, when the histogram has no raw
-	 * bounds, when the referenced entity collection has no global index in the scope, when no index holds a filter
-	 * index of the attribute, or when the boundary context tracks no referenced entity. A single bound no candidate
-	 * qualifies for holds {@link BoundaryPick#NONE} next to a resolved entity type instead. When the smallest and the
-	 * largest value are equal, both bounds hold the same pick.
+	 * bounds, when no index of the boundary context holds a filter index of a reference attribute, or when the
+	 * boundary context tracks no referenced entity. A single bound no candidate qualifies for holds
+	 * {@link BoundaryPick#NONE} next to a resolved entity type instead, and so do both bounds of a referenced entity
+	 * attribute whose collection holds no filter index of the attribute in any contributing scope. When the smallest
+	 * and the largest value are equal, both bounds hold the same pick.
 	 *
 	 * @param entityType the type of the referenced entities, or `null` when nothing was resolved
 	 * @param min        the pick of the bound of the smallest value

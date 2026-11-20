@@ -41,6 +41,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.List;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -130,7 +131,8 @@ final class ReferenceAttributeBoundaryTestSupport {
 		) {
 			final ReferenceHistogramAccumulator.BoundaryPick result =
 				ReferenceHistogramAccumulator.pickBoundaryPkFromReferenceAttribute(
-					this.filters, this.indexes, value, this.owners, this.baseline, this.scope, sorter
+					this.filters, this.indexes, value, this.owners == null ? List.of() : List.of(this.owners),
+					this.baseline, this.scope, sorter
 				);
 			return new ReferenceAttributeBoundaryOracle.Pair(result.pk(), result.alternativePk());
 		}

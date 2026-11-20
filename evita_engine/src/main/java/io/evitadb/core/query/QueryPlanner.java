@@ -758,7 +758,6 @@ public class QueryPlanner {
 							builder.getTargetIndexes(),
 							builder.getFilterFormula(),
 							builder.getFilterByVisitor(),
-							builder.getSorters(),
 							builder.getPrefetchFormulaVisitor()
 						);
 						extraResultPlanner.visit(queryContext.getRequire());

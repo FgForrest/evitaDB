@@ -39,11 +39,16 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The `inScope` require container plans the extra results it wraps in one {@link Scope} requested by the query and
- * checks them against the indexes of that scope only. The main {@link EntityFetch} fetches content for every returned
- * entity, and its content is checked in the scopes it is fetched in - all scopes searched by the query, unless
- * a reference filter selects the scopes of the referenced entities. The filter-side counterpart of this container is
- * {@link io.evitadb.api.query.filter.FilterInScope}.
+ * The `inScope` require container computes the extra results it wraps for entities in the named {@link Scope}
+ * that the query matches. Histogram calculations follow the
+ * [baseline rules](https://evitadb.io/documentation/query/filtering/behavioral#how-userfilter-shapes-predictions).
+ * An unwrapped histogram covers the searched scopes. The price histogram, each attribute histogram, and each
+ * named histogram of a reference can be requested for one scope set per query. The query rejects requests for
+ * the same histogram with different scope sets.
+ *
+ * The main {@link EntityFetch} fetches content for every returned entity, and its content is checked in the scopes
+ * it is fetched in. These are all scopes searched by the query unless a reference filter selects the scopes of
+ * the referenced entities. The filter-side counterpart is {@link io.evitadb.api.query.filter.FilterInScope}.
  *
  * ## Purpose and design intent
  *
@@ -103,8 +108,8 @@ import java.io.Serializable;
  */
 @ConstraintDefinition(
 	name = "inScope",
-	shortDescription = "The constraint plans the extra results it wraps in one scope requested by the query " +
-		"(LIVE or ARCHIVED) and checks them against the indexes of that scope only.",
+	shortDescription = "Computes wrapped extra results for entities in the named scope that the query matches. " +
+		"Each histogram can be requested for one scope set per query.",
 	userDocsLink = "/documentation/query/require/behavioral#in-scope"
 )
 public class RequireInScope extends AbstractRequireConstraintContainer

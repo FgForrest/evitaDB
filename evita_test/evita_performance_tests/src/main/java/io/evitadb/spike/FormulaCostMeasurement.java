@@ -332,8 +332,7 @@ public class FormulaCostMeasurement {
 			2, QueryPriceMode.WITH_TAX,
 			bucketDataSet.getFormulaA(),
 			bucketDataSet.getFormulaB(),
-			bucketDataSet.getFilteredPriceRecordAccessors(),
-			null
+			bucketDataSet.getFilteredPriceRecordAccessors()
 		);
 		blackhole.consume(testedFormula.compute());
 	}

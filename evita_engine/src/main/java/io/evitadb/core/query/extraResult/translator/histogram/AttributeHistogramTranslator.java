@@ -72,12 +72,10 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 
 		// get scopes the histogram will be created from
 		final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
-		// `AttributeHistogramProducer` keys its requests by attribute name alone, so two requirements naming one
-		// attribute may only ever widen the same index set - which holds because the indexes below are resolved
-		// outside any reference scope, exactly like the attribute schema itself. A reference-scoped context would
-		// resolve a different index under the very same name and the producer would silently union the two;
-		// `attributeHistogram` never reaches one, because a reference summary hands its histogram children to
-		// `ReferenceHistogramStatisticsTranslator` instead of dispatching them here
+		// Entity attribute histograms resolve their indexes outside any reference scope. The producer keys its requests
+		// by attribute name alone and keeps the first registration, so a request resolved within a reference scope
+		// would share one slot with the entity attribute of the same name and only the indexes registered first
+		// would count.
 		Assert.isPremiseValid(
 			processingScope.getReferenceSchema().isEmpty(),
 			"Attribute histogram must not be planned within a reference scope!"
@@ -93,7 +91,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 			final AttributeSchemaContract attributeSchema = getAttributeSchema(schema, scopes, attributeName);
 
 			// if there was no producer ready, create new one - one producer serves every attribute histogram in the
-			// query, so the bucket count and the behaviour travel with the attribute rather than with the producer
+			// query, so each attribute carries its own parameters and scopes
 			if (attributeHistogramProducer == null) {
 				attributeHistogramProducer = new AttributeHistogramProducer(
 					extraResultPlanner.getFilteringFormula()
@@ -102,7 +100,9 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 
 			// collect all FilterIndexes for requested attribute and requested language
 			final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema().orElse(null);
+			// the scope restriction of an attribute histogram is this choice of indexes, not its filter formula
 			final List<FilterIndex> attributeIndexes = indexSetToUse.getIndexStream(EntityIndex.class)
+				.filter(index -> scopes.contains(index.getIndexKey().scope()))
 				.map(it -> it.getFilterIndex(referenceSchema, attributeSchema, language))
 				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
@@ -122,7 +122,8 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 					),
 					attributeSchema.getPlainType()
 				),
-				attributeIndexes
+				attributeIndexes,
+				scopes
 			);
 		}
 
