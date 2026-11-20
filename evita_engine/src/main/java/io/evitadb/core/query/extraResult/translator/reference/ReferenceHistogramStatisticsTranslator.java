@@ -50,6 +50,8 @@ import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -64,6 +66,10 @@ import java.util.Set;
  * The translator does not drive traversal itself — the enclosing reference-summary translators handle the
  * dispatch and push a {@link ProcessingScope} carrying the current reference schema before invoking this
  * translator, so lookups remain self-contained.
+ *
+ * Each request carries the scopes of that processing scope - every scope the query searches, or the one named by an
+ * enclosing require-level `inScope` - and {@link ReferenceSummaryProducer#addHistogramRequest} refuses a histogram
+ * requested again for a different scope set.
  *
  * Validation performed here (fail-fast at plan time):
  *
@@ -158,6 +164,7 @@ public class ReferenceHistogramStatisticsTranslator implements RequireConstraint
 			}
 		}
 
+		final Set<Scope> histogramScopes = Collections.unmodifiableSet(EnumSet.copyOf(scopes));
 		for (final String histogramName : constraint.getIndexNames()) {
 			final HistogramValueDescriptor descriptor = resolveDescriptor(
 				referenceSchema, referenceName, histogramName, scopes, extraResultPlanner
@@ -188,6 +195,7 @@ public class ReferenceHistogramStatisticsTranslator implements RequireConstraint
 					bucketCount,
 					behavior,
 					effectiveLocale,
+					histogramScopes,
 					descriptor,
 					entityFetch,
 					requestedRangesByGroupPk

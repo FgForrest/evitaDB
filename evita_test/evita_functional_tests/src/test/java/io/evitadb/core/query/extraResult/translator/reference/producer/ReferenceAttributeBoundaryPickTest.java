@@ -45,6 +45,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceAttributeBoundaryTestSupport.*;
@@ -169,7 +170,7 @@ class ReferenceAttributeBoundaryPickTest {
 
 			final ReferenceHistogramAccumulator.BoundaryPick pick =
 				ReferenceHistogramAccumulator.pickBoundaryPkFromReferenceAttribute(
-					fixture.filters(), fixture.indexes(), 10, fixture.owners(), null, fixture.scope(), null
+					fixture.filters(), fixture.indexes(), 10, List.of(fixture.owners()), null, fixture.scope(), null
 				);
 
 			assertSame(alternative, pick.resolve(Map.of(1, alternative, 10, third)));

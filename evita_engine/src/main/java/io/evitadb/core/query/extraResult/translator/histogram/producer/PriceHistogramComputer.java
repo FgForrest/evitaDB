@@ -31,7 +31,6 @@ import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
-import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
 import io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula;
@@ -64,8 +63,7 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Computes the price histogram extra result from the filtering formula tree. The computer is instantiated by
- * {@link io.evitadb.core.query.extraResult.translator.histogram.PriceHistogramTranslator} and its
- * {@link #compute()} method is called lazily by the extra-result fabrication phase.
+ * {@link PriceHistogramProducer} and its {@link #compute()} method is called lazily during extra-result fabrication.
  *
  * The computation strategy depends on what {@link io.evitadb.api.requestResponse.data.PriceInnerRecordHandling}
  * the matched entities use:
@@ -117,8 +115,9 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 */
 	@Nonnull private final QueryPriceMode queryPriceMode;
 	/**
-	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
-	 * sorting.
+	 * The formula selecting the entities the histogram describes, as handed over by {@link PriceHistogramProducer}:
+	 * the query's filtering formula, intersected with the entities of the requested scopes when they are narrower
+	 * than the scopes the query searches.
 	 */
 	@Nonnull private final Formula filteringFormula;
 	/**
@@ -133,11 +132,6 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 * used in filtering formula processing.
 	 */
 	@Nonnull private final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors;
-	/**
-	 * Contains existing {@link FilteredPriceRecordsLookupResult} if it was already produced by filtering or sorter logic.
-	 * We can reuse already computed data in this producer and save precious ticks.
-	 */
-	@Nullable private final FilteredPriceRecordsLookupResult priceRecordsLookupResult;
 	/**
 	 * Contains memoized value of {@link #getHash()} method.
 	 */
@@ -222,6 +216,17 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		};
 	}
 
+	/**
+	 * Creates a computer from the query's price histogram settings and filtering inputs.
+	 *
+	 * @param bucketCount                            maximum number of buckets
+	 * @param behavior                               requested bucketing behavior
+	 * @param indexedPricePlaces                     decimal places used to index prices
+	 * @param queryPriceMode                         whether to use prices with or without tax
+	 * @param filteringFormula                       formula selecting the entities the histogram describes
+	 * @param filteringFormulaWithFilteredOutRecords relaxed baseline for price supplementation, if available
+	 * @param filteredPriceRecordAccessors           price record accessors harvested from the relaxed tree
+	 */
 	public PriceHistogramComputer(
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
@@ -229,16 +234,28 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull Formula filteringFormula,
 		@Nullable Formula filteringFormulaWithFilteredOutRecords,
-		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
-		@Nullable FilteredPriceRecordsLookupResult priceRecordsLookupResult
+		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors
 	) {
 		this(
 			null, bucketCount, behavior, indexedPricePlaces, queryPriceMode,
-			filteringFormula, filteringFormulaWithFilteredOutRecords, filteredPriceRecordAccessors,
-			priceRecordsLookupResult
+			filteringFormula, filteringFormulaWithFilteredOutRecords, filteredPriceRecordAccessors
 		);
 	}
 
+	/**
+	 * Backs the public constructor and {@link #getCloneWithComputationCallback(Consumer)}.
+	 *
+	 * @param selfOperator                           callback passed by
+	 *                                               {@link #getCloneWithComputationCallback(Consumer)}; not retained,
+	 *                                               the computer is created without a computation callback
+	 * @param bucketCount                            maximum number of buckets
+	 * @param behavior                               requested bucketing behavior
+	 * @param indexedPricePlaces                     decimal places used to index prices
+	 * @param queryPriceMode                         whether to use prices with or without tax
+	 * @param filteringFormula                       formula selecting the entities the histogram describes
+	 * @param filteringFormulaWithFilteredOutRecords relaxed baseline for price supplementation, if available
+	 * @param filteredPriceRecordAccessors           price record accessors harvested from the relaxed tree
+	 */
 	private PriceHistogramComputer(
 		@Nullable Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator,
 		int bucketCount,
@@ -247,8 +264,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		@Nonnull QueryPriceMode queryPriceMode,
 		@Nonnull Formula filteringFormula,
 		@Nullable Formula filteringFormulaWithFilteredOutRecords,
-		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
-		@Nullable FilteredPriceRecordsLookupResult priceRecordsLookupResult
+		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors
 	) {
 		this.onComputationCallback = null;
 		this.bucketCount = bucketCount;
@@ -258,7 +274,6 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		this.filteringFormula = filteringFormula;
 		this.filteringFormulaWithFilteredOutRecords = filteringFormulaWithFilteredOutRecords;
 		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
-		this.priceRecordsLookupResult = priceRecordsLookupResult;
 
 		this.hash = HASH_FUNCTION.hashLongs(
 			new long[]{
@@ -388,7 +403,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		return new PriceHistogramComputer(
 			selfOperator, this.bucketCount, this.behavior, this.indexedPricePlaces, this.queryPriceMode,
 			this.filteringFormula, this.filteringFormulaWithFilteredOutRecords,
-			this.filteredPriceRecordAccessors, this.priceRecordsLookupResult
+			this.filteredPriceRecordAccessors
 		);
 	}
 
@@ -446,10 +461,9 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 *   flattened cache sibling {@link FlattenedFormulaWithFilteredPricesForHistogram}), those accessors
 	 *   contribute one bucket data point per inner record id and every entity they do not cover is topped
 	 *   up from the {@link FilteredPriceRecordsCollector} — see
-	 *   {@link #collectPerInnerRecordHistogramRecords(List)}. The {@code PriceHistogramTranslator} collects
-	 *   this accessor list from a {@code withoutUserFilter} view of the filtering tree so the inner
-	 *   {@link LowestPriceTerminationFormula} produced by {@code priceBetween} (which would otherwise
-	 *   double-count the same entities) does not show up here.
+	 *   {@link #collectPerInnerRecordHistogramRecords(List)}. The {@link PriceHistogramProducer} harvests
+	 *   these accessors from the relaxed filtering tree. Relaxation removes the price range carrier and its
+	 *   inner {@link LowestPriceTerminationFormula}.
 	 * - Otherwise (pure `NONE`/`SUM` handling, or no LOWEST_PRICE LP at all) the existing collector path
 	 *   runs unchanged.
 	 */
@@ -480,9 +494,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 * The second pass runs over `baseline \ covered` rather than over the whole baseline, which is what
 	 * makes double counting impossible by construction — including on the prefetch plan, where a
 	 * `SelectionFormula`'s per-entity alternative would happily answer for a `LOWEST_PRICE` entity that
-	 * pass 1 already expanded. For the same reason {@link #priceRecordsLookupResult} (computed by
-	 * {@link io.evitadb.core.query.sort.price.FilteredPricesSorter} over the *full* accessor set and the
-	 * *full* result) must not be reused here.
+	 * pass 1 already expanded.
 	 *
 	 * @param histogramAccessors accessors exposing the per-inner-record side-output; never empty
 	 * @return every price record the histogram should bucket
@@ -584,18 +596,11 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 */
 	@Nonnull
 	private PriceRecordContract[] collectViaPriceRecordsCollector() {
-		// create price records collector reusing existing data or computing them from scratch
-		final FilteredPriceRecordsCollector priceRecordsCollector = this.priceRecordsLookupResult == null ?
-			new FilteredPriceRecordsCollector(
-				RoaringBitmapBackedBitmap.getRoaringBitmap(this.filteringFormula.compute()),
-				this.filteredPriceRecordAccessors,
-				this.context
-			) :
-			new FilteredPriceRecordsCollector(
-				this.priceRecordsLookupResult,
-				this.filteredPriceRecordAccessors,
-				this.context
-			);
+		final FilteredPriceRecordsCollector priceRecordsCollector = new FilteredPriceRecordsCollector(
+			RoaringBitmapBackedBitmap.getRoaringBitmap(this.filteringFormula.compute()),
+			this.filteredPriceRecordAccessors,
+			this.context
+		);
 
 		// collect all price records that match filtering formula computation (ignoring price between query)
 		if (this.filteringFormulaWithFilteredOutRecords == null) {

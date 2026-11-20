@@ -397,11 +397,13 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	/**
 	 * Registers a histogram request for the given reference. Multiple requests for the same reference are
 	 * allowed (one per histogram index name); a second registration for the *same* `(referenceName, histogramName)`
-	 * pair whose configuration diverges from the existing one throws. Triggered by
+	 * pair whose scope set or configuration diverges from the existing one throws, an identical one is ignored.
+	 * Triggered by
 	 * {@link io.evitadb.core.query.extraResult.translator.reference.ReferenceHistogramStatisticsTranslator}.
 	 *
 	 * @param request the fully-resolved histogram request to register
-	 * @throws EvitaInvalidUsageException when a conflicting registration already exists
+	 * @throws EvitaInvalidUsageException when the histogram is already registered with a different scope set, bucket
+	 *                                    count, behavior or entity fetch
 	 */
 	public void addHistogramRequest(@Nonnull HistogramRequest request) {
 		final String referenceName = request.referenceSchema().getName();
@@ -410,6 +412,13 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		);
 		for (final HistogramRequest already : existing) {
 			if (already.histogramName().equals(request.histogramName())) {
+				if (!already.scopes().equals(request.scopes())) {
+					throw new EvitaInvalidUsageException(
+						"Histogram `" + request.histogramName() + "` on reference `" + referenceName +
+							"` was requested for different scope sets " + already.scopes() +
+							" and " + request.scopes() + "."
+					);
+				}
 				if (already.bucketCount() != request.bucketCount()
 					|| already.behavior() != request.behavior()
 					|| !Objects.equals(already.entityFetch(), request.entityFetch())) {
@@ -1733,6 +1742,9 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	 * @param behavior         histogram-behavior flag controlling bucket layout and empty-bucket suppression
 	 * @param locale           locale used to pick the correct {@code FilterIndex} when the source attribute is
 	 *                         localized; `null` otherwise
+	 * @param scopes           processing scopes in which to compute the histogram - every searched scope, or the
+	 *                         scope of an enclosing require-level `inScope`; two requests for one histogram must
+	 *                         carry equal sets
 	 * @param valueDescriptor  resolved metadata about the source attribute (entity vs reference, type, default)
 	 * @param entityFetch              optional `EntityFetch` controlling boundary entity richness; `null` → plain
 	 *                                 {@code EntityReference} classifier
@@ -1747,6 +1759,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
 		@Nullable Locale locale,
+		@Nonnull Set<Scope> scopes,
 		@Nonnull HistogramValueDescriptor valueDescriptor,
 		@Nullable EntityFetch entityFetch,
 		@Nonnull Map<Integer, RequestedBucketRange> requestedRangesByGroupPk
