@@ -1,7 +1,7 @@
 ---
 title: Expose reference histograms via ReferenceSummary plus a first-class histogramHaving constraint, with group-scoped baseline relaxation
 date: 2026-05-06
-updated: 2026-11-17 01:20
+updated: 2026-11-20 01:45
 status: accepted
 kind: feature
 issues: [8]
@@ -10,7 +10,7 @@ areas: [evita_engine/src/main/java/io/evitadb/core/query/extraResult, evita_engi
 supersedes: []
 superseded-by: []
 relates: [2026-04-23-bucketed-histogram-indexing, 2026-05-27-range-and-multi-histogram-schema,
-  2026-11-19-one-histogram-store-per-group]
+  2026-11-19-one-histogram-store-per-group, 2026-11-05-nested-inscope-requested-scopes]
 ---
 
 # Expose reference histograms via ReferenceSummary, with a dedicated histogramHaving constraint
@@ -192,6 +192,8 @@ feature was located.
 
 ## Related work
 
+- [Nested inScope, requested scopes](2026-11-05-nested-inscope-requested-scopes.md) — a histogram is computed over
+  the scopes it is requested in: one histogram over all searched scopes, or those of an enclosing `inScope` (#2035).
 - [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) — reads one histogram source per
   group, resolves boundaries across its reduced indexes and merges no-sorter reference-attribute candidates.
 
