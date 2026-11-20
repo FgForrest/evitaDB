@@ -74,7 +74,7 @@ import static io.evitadb.spike.vector.VectorMemoryProbe.section;
  *
  * - **recall@10 against the exact scan**: how many of the exact ten nearest vectors the configuration returns,
  *   over every distinct query text; this is the index's own quality on the real query distribution;
- * - **click hit@1, hit@10 and MRR@10**: whether the clicked record is among the first ten records returned,
+ * - **click hit@1, hit@5, hit@10 and MRR@10**: whether the clicked record is among the first ten records returned,
  *   counted per distinct (query, clicked record) pair and, beside it, per click; the exact scan gives the
  *   ceiling, and the gap between it and a configuration is the part the index is responsible for;
  * - the same click hit@10 counted **tolerant to duplicates**: a hit also when the returned record carries a vector
@@ -185,14 +185,13 @@ public final class ClickRecallScenario {
 			));
 			return new Evaluator(base, corpus, queries, null, filter);
 		}
-		if (filter == null) {
-			throw new IllegalArgumentException("A dataset with clicks needs the clicked `collection` as its filter.");
-		}
+		// without a collection every record can be clicked, and the scenarios run unfiltered only
 		final ClickSet clicks = ClickSet.load(clickFile, corpus, filter, base);
 		line(String.format(
-			"corpus %d vectors / %d records; filter: %d vectors (%.2f %%); query texts %d; clicks %d, resolved to "
+			"corpus %d vectors / %d records; filter: %s; query texts %d; clicks %d, resolved to "
 				+ "a record of the collection %d, distinct (query, record) pairs %d, distinct queries among them %d",
-			base.count(), corpus.recordCount, filter.count, 100.0 * filter.count / base.count(), queries.length,
+			base.count(), corpus.recordCount, filter == null ? "none" : String.format(
+				"%d vectors (%.2f %%)", filter.count, 100.0 * filter.count / base.count()), queries.length,
 			clicks.total, clicks.resolved.size(), clicks.pairs.size(), clicks.distinctQueries
 		));
 		return new Evaluator(base, corpus, queries, clicks, filter);
@@ -636,7 +635,7 @@ public final class ClickRecallScenario {
 		/**
 		 * @param file   the joined click log written by {@link ClickQueryEmbedder}
 		 * @param corpus the corpus mapping
-		 * @param filter the collection the clicked records must belong to
+		 * @param filter the collection the clicked records must belong to, null when any record can be clicked
 		 * @param base   the corpus vectors, for the duplicate check
 		 * @return the resolved clicks
 		 * @throws IOException when the file cannot be read
@@ -645,13 +644,13 @@ public final class ClickRecallScenario {
 		static ClickSet load(
 			@Nonnull Path file,
 			@Nonnull Corpus corpus,
-			@Nonnull Filter filter,
+			@Nullable Filter filter,
 			@Nonnull MappedVectors base
 		) throws IOException {
 			// URL and locale -> ordinals of the clicked record within the collection
-			final Map<String, List<Integer>> byUrl = new HashMap<>(filter.count * 2);
+			final Map<String, List<Integer>> byUrl = new HashMap<>((filter == null ? base.count() : filter.count) * 2);
 			for (int i = 0; i < corpus.url.length; i++) {
-				if (filter.accept[i] && !corpus.url[i].isEmpty()) {
+				if ((filter == null || filter.accept[i]) && !corpus.url[i].isEmpty()) {
 					byUrl.computeIfAbsent(corpus.locale[i] + '\t' + corpus.url[i], k -> new ArrayList<>(4)).add(i);
 				}
 			}
@@ -884,9 +883,11 @@ public final class ClickRecallScenario {
 			final double[] pairs = clickMetrics(this.clicks.pairs, records);
 			final double[] all = clickMetrics(this.clicks.resolved, records);
 			line(String.format(
-				"%-18s %-8s %3s | recall@10 %.3f | pairs hit@1 %.3f hit@10 %.3f MRR %.3f dup-tol hit@10 %.3f"
-					+ " | clicks hit@10 %.3f | visited %6.0f fallback %3d starved %3d | p50 %.3f ms p95 %.3f ms",
-				label, mode, factor == 0 ? "-" : factor + "x", recall, pairs[0], pairs[1], pairs[2], pairs[3], all[1],
+				"%-18s %-8s %3s | recall@10 %.3f | pairs hit@1 %.3f hit@5 %.3f hit@10 %.3f MRR %.3f"
+					+ " dup-tol hit@10 %.3f | clicks hit@10 %.3f | visited %6.0f fallback %3d starved %3d"
+					+ " | p50 %.3f ms p95 %.3f ms",
+				label, mode, factor == 0 ? "-" : factor + "x", recall, pairs[0], pairs[1], pairs[2], pairs[3], pairs[4],
+				all[2],
 				stats == null ? 0.0 : stats.visited / (double) this.queries.length,
 				stats == null ? 0 : stats.fallbacks, stats == null ? 0 : stats.starved,
 				OversamplingLadder.percentile(latencies, 0.50), OversamplingLadder.percentile(latencies, 0.95)
@@ -896,11 +897,12 @@ public final class ClickRecallScenario {
 		/**
 		 * @param clicks  the clicks to score
 		 * @param records per query, the first ten record numbers returned
-		 * @return hit@1, hit@10, MRR@10 and duplicate-tolerant hit@10, each averaged over the clicks
+		 * @return hit@1, hit@5, hit@10, MRR@10 and duplicate-tolerant hit@10, each averaged over the clicks
 		 */
 		@Nonnull
 		private static double[] clickMetrics(@Nonnull List<Click> clicks, @Nonnull int[][] records) {
 			double hit1 = 0;
+			double hit5 = 0;
 			double hit10 = 0;
 			double mrr = 0;
 			double tolerant10 = 0;
@@ -908,6 +910,9 @@ public final class ClickRecallScenario {
 				final int rank = rankOf(records[click.query], click.strict);
 				if (rank == 1) {
 					hit1++;
+				}
+				if (rank > 0 && rank <= 5) {
+					hit5++;
 				}
 				if (rank > 0) {
 					hit10++;
@@ -918,7 +923,7 @@ public final class ClickRecallScenario {
 				}
 			}
 			final int n = clicks.size();
-			return new double[]{hit1 / n, hit10 / n, mrr / n, tolerant10 / n};
+			return new double[]{hit1 / n, hit5 / n, hit10 / n, mrr / n, tolerant10 / n};
 		}
 
 		/**

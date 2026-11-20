@@ -148,6 +148,17 @@ A collection that is a sizeable share of the corpus can serve as a real-shaped f
 3. Set `source.format` to the new format's name and give `SpikeDataset#open` the branch that calls the importer.
    It is marked in the code.
 
+**Adding a corpus with generated queries** (`source.format=ranked-pairs`, `RankedPairsImporter`). A public
+corpus whose queries were each generated from one known article needs no clicks: the source article stands in for
+the clicked record, and the click columns then read "the search returned the article the query was generated
+from".
+- `source.file` is a directory with `articles.f32`, `queries.f32`, their `.done` marks and `queries.jsonl`. The
+  articles are in a fixed order (their rank) and the queries follow it, so a sample is a prefix of both blocks.
+- `sample.articles=N` takes the first N articles as the corpus.
+- `queries.articles=K` (optional, default N) takes the queries of the first K articles as the test.
+- Leave `collection` out: any record can then be clicked and the scenarios run the `all` mode only.
+- The importer refuses a sample that reaches past the rows already embedded.
+
 Every scenario runs on every dataset that has a query block. Only the click columns need clicks.
 
 ## 4. Criteria → scenario → doc part

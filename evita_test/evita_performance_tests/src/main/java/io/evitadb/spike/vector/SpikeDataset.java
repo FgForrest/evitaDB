@@ -41,9 +41,12 @@ import java.util.Properties;
  * - `label`: how the results doc names the dataset ("corpus A"); never a customer name, because it is
  *   printed into the output that the doc quotes;
  * - `source.format`: how the blocks are produced; `evitadb-export` (an evitaDB entity export with embeddings,
- *   read by {@link VectorExportExtractor}) is the only importer today, and a dataset in another format (a public
- *   ANN benchmark set) needs an importer that writes the same blocks;
- * - `source.file`: the source file, absolute or relative to the work directory;
+ *   read by {@link VectorExportExtractor}) or `ranked-pairs` (a public corpus with queries generated from known
+ *   articles, read by {@link RankedPairsImporter}); a dataset in another format needs an importer that writes the
+ *   same blocks;
+ * - `source.file`: the source file (a directory for `ranked-pairs`), absolute or relative to the work directory;
+ * - `sample.articles` (`ranked-pairs` only): the sample size, the leading articles that form the corpus;
+ *   `queries.articles` (optional, default the sample size): the queries of that many leading articles are the test;
  * - `collection` (optional): the collection the query-driven scenarios filter to, their real-shaped filter; with
  *   clicks it must be the collection whose records the users clicked. Without it those scenarios run unfiltered
  *   only, and the synthetic filters of `filter-matrix` are the only filtered measurement;
@@ -107,6 +110,12 @@ public record SpikeDataset(
 		final int dimension;
 		if (EVITADB_EXPORT.equals(format)) {
 			dimension = VectorExportExtractor.extractIfMissing(source, dir);
+		} else if (RankedPairsImporter.FORMAT.equals(format)) {
+			final int articles = Integer.parseInt(required(properties, "sample.articles"));
+			dimension = RankedPairsImporter.importIfMissing(
+				source, dir, articles,
+				Integer.parseInt(properties.getProperty("queries.articles", Integer.toString(articles)).trim())
+			);
 		} else {
 			// another importer slots in here; until one exists, blocks produced elsewhere are accepted as they are
 			dimension = VectorExportExtractor.dimensionOfExtracted(dir);
