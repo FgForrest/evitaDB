@@ -24,14 +24,18 @@ inScope(
     </dd>
     <dt>requireConstraint:any+</dt>
     <dd>
-        one or more require constraints whose extra results are checked against the indexes of the named scope only
+        one or more require constraints to evaluate in the named scope
     </dd>
 </dl>
 
 The `inScope` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/RequireInScope.java</SourceClass></LS>
-<LS to="c"><SourceClass>EvitaDB.Client/Queries/Require/RequireInScope.cs</SourceClass></LS>) require container plans
-the extra results it wraps, such as facet summaries, histograms, and hierarchy statistics, in the named scope: they are
-checked against the indexes of that scope only.
+<LS to="c"><SourceClass>EvitaDB.Client/Queries/Require/RequireInScope.cs</SourceClass></LS>) require container computes
+the extra results it wraps, such as facet summaries, histograms, and hierarchy statistics, for entities in the named
+scope that the query matches. Histogram calculations follow the
+[histogram baseline rules](histogram.md#baseline-relaxation--sliders-dont-contract-under-their-own-handles).
+An unwrapped histogram covers the searched scopes. Each query can request the price histogram, a
+histogram for a particular attribute, or a named histogram for a particular reference for one scope set each. The
+query rejects requests for the same histogram with different scope sets.
 
 An extra result requires its indexes in every scope it is planned in. A query that searches both scopes can wrap an
 extra result in `inScope` naming the scope that has them.
@@ -113,8 +117,8 @@ As you can see, the result contains calculations for the data that the engine ca
 </Note>
 
 Place the main `entityFetch` beside the `inScope` container. When querying products in both scopes, this require
-section fetches the code of every returned product and checks the price histogram against the price indexes of the
-live scope only:
+section fetches the code of every returned product and computes the price histogram for matching live products,
+using the [price histogram baseline](histogram.md#price-histogram).
 
 ```evitaql
 require(

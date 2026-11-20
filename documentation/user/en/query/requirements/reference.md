@@ -639,11 +639,17 @@ require constraint can only appear as a child of [`referenceSummary`](#reference
 `parameterValues` and the bucketed index is `intervalParameterValues`, you get one histogram per parameter group
 (*height*, *weight*, *thickness*, …) inside the corresponding reference group of the summary.
 
+An unwrapped summary computes one histogram per group using the references of entities from all searched scopes.
+Wrap the summary in [`inScope`](behavioral.md#in-scope) to compute histograms from references of matching entities
+in the named scope. The [histogram baseline rules](../filtering/behavioral.md#how-userfilter-shapes-predictions) apply.
+Each named histogram of a reference can be requested for one scope set per query. Requests for the same named
+histogram with different scope sets are rejected.
+
 The numeric value plotted in each bucket comes from the `valueExpression` declared on the reference schema's
 bucketed index (typically a numeric attribute on the reference or its referenced entity, such as `basicUnitValue`).
 The output histogram exposes:
 
-- the catalog-wide `[min, max]` span of the underlying value (the slider's outer handles)
+- the `[min, max]` span of the underlying value within the histogram's scopes (the slider's outer handles)
 - the bucket list with `threshold` (lower bound, inclusive), `occurrences` and `relativeFrequency`
 - a `requested` flag per bucket indicating whether it intersects an active
   [`histogramHaving`](../filtering/references.md#histogram-having) range carrier
@@ -663,12 +669,6 @@ When the targeted histogram declares an `assignedWhen` partition selector, only 
 present different slices of the same underlying value.
 
 </Note>
-
-The `[min, max]` span is computed by **peeling out** every value-range carrier under `userFilter` — both
-`histogramHaving` and `attributeBetween` siblings — so moving a slider does not contract its own outer handles and
-sibling sliders in the same family also keep their catalog-wide spans. See
-[the peel-by-family rule in behavioral filtering](../filtering/behavioral.md#how-userfilter-shapes-predictions)
-for the full matrix.
 
 To attach histograms to a reference summary, use the dedicated `withHistograms` factory variants in Java / C#
 (`referenceSummaryWithHistograms` / `referenceSummaryOfReferenceWithHistograms`), which exist to side-step a varargs
