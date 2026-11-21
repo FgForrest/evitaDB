@@ -2239,6 +2239,16 @@ By default, the references are ordered by the primary key of the referenced enti
 by a different property - either the attribute set on the reference itself or the property of the referenced entity -
 you can use the order constraint inside the `referenceContent` requirement.
 
+Each ordering in the `orderBy` ranks the references that have a value for it. A reference without one - the
+attribute is not set on it, the referenced entity or its group lacks the ordered property, or a `Predecessor` /
+`ReferencedEntityPredecessor` attribute gives it no place in the chain - passes to the next ordering, and the
+references no ordering ranks come last, in ascending referenced primary key order.
+
+An [`inScope`](../ordering/behavioral.md#in-scope) ordering applies to the references of owners in the named scope.
+The references of other owners pass to the next ordering in the same `orderBy`, with ascending referenced primary
+key as the final fallback. When combining `entityGroupProperty` and `entityProperty`, put `entityGroupProperty` first
+and put both in the same `inScope` container or leave both unwrapped.
+
 <Note type="info">
 
 The <LS to="e,j,r,c">`referenceContent`</LS> ordering

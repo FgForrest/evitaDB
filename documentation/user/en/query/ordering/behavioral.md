@@ -44,6 +44,11 @@ The [inScope](#in-scope) order constraint allows us to query entities in both sc
 which would be impossible if we couldn't tell which order constraint to apply to which scope. The `inScope` container 
 is designed to handle this situation.
 
+Inside [`referenceContent`](../requirements/fetching.md#ordering-references), `inScope` uses the scope of the entity
+that owns the references. References of owners outside that scope pass to the next ordering in the same `orderBy`.
+The default order, ascending referenced primary key, applies last. When combining `entityGroupProperty` and
+`entityProperty`, put `entityGroupProperty` first. If you use `inScope`, put both in the same container.
+
 <Note type="info">
 
 It's obvious that the `inScope` container is not necessary if we are only querying entities in one scope. However, if
