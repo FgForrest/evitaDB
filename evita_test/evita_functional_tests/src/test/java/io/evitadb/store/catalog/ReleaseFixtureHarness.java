@@ -35,8 +35,14 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
+import io.evitadb.store.kryo.ObservableOutputKeeper;
+import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.model.header.EntityCollectionFileHeader;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
@@ -60,6 +66,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -67,6 +76,7 @@ import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.upgrade.Release2026_2FixtureRecipes.BRAND;
 import static io.evitadb.test.upgrade.Release2026_2FixtureRecipes.PRODUCT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Opens the release-written upgrade fixtures under `testData/release_upgrade_fixtures` with the current engine, and
@@ -391,6 +401,69 @@ final class ReleaseFixtureHarness {
 	int lastBootstrapStorageProtocol(@Nonnull TestPaths paths, @Nonnull String catalog) {
 		final List<CatalogBootstrap> records = bootstrapRecords(paths, catalog);
 		return records.get(records.size() - 1).storageProtocolVersion();
+	}
+
+	/**
+	 * Reads a collection from the published offset indexes with the engine stopped, without running the migration.
+	 *
+	 * @param paths the paths of the copy
+	 * @param catalogName the catalog containing the collection
+	 * @param entityType the collection to open
+	 * @param work receives the published version and collection service
+	 * @param <T> the type of the result
+	 * @return the result of the read
+	 */
+	@Nonnull
+	<T> T readPublishedCollection(
+		@Nonnull final TestPaths paths, @Nonnull final String catalogName, @Nonnull final String entityType,
+		@Nonnull final BiFunction<Long, DefaultEntityCollectionPersistenceService, T> work
+	) {
+		final EvitaConfiguration configuration = configuration(paths);
+		final StorageSettings settings = new StorageSettings(configuration.storage(), configuration.transaction());
+		final CatalogBootstrap bootstrap = bootstrapRecords(paths, catalogName).getLast();
+		final long version = bootstrap.catalogVersion();
+		final Path directory = catalogDirectory(paths, catalogName);
+		final Path dataFile = directory.resolve(
+			CatalogPersistenceService.getCatalogDataStoreFileName(catalogName, bootstrap.catalogFileIndex())
+		);
+		final Scheduler scheduler = new Scheduler(new ScheduledThreadPoolExecutor(1));
+		final OffsetIndexRecordTypeRegistry registry = new OffsetIndexRecordTypeRegistry();
+		try (
+			final CatalogOffHeapMemoryManager memory = new CatalogOffHeapMemoryManager(catalogName, 0, 0, settings);
+			final ObservableOutputKeeper outputs = new ObservableOutputKeeper(
+				catalogName, settings.lockTimeoutSeconds(), settings.waitOnCloseSeconds(), scheduler
+			);
+			final CatalogOffsetIndexStoragePartPersistenceService catalog =
+				CatalogOffsetIndexStoragePartPersistenceService.create(
+					catalogName, dataFile, settings, bootstrap, registry, memory, outputs,
+					DefaultCatalogPersistenceService.VERSIONED_KRYO_FACTORY, null, null, null
+				)
+		) {
+			final CollectionFileReference reference = Objects.requireNonNull(
+				catalog.getCatalogHeader(version).collectionFileIndex().get(entityType)
+			);
+			final EntityCollectionFileHeader header = EntityCollectionHeaderReconciler.reconcile(
+				catalogName, reference, Objects.requireNonNull(catalog.getStoragePart(
+					version, reference.entityTypePrimaryKey(), EntityCollectionFileHeader.class
+				))
+			);
+			try (
+				final DefaultEntityCollectionPersistenceService collection =
+					new DefaultEntityCollectionPersistenceService(
+						version, catalogName, directory, header, settings, memory, outputs, registry, null
+					)
+			) {
+				return work.apply(version, collection);
+			}
+		} finally {
+			scheduler.shutdownNow();
+			try {
+				assertTrue(scheduler.awaitTermination(30, TimeUnit.SECONDS));
+			} catch (final InterruptedException ex) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException(ex);
+			}
+		}
 	}
 
 	/**

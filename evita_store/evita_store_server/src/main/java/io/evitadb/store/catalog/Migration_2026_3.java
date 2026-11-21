@@ -420,9 +420,9 @@ public interface Migration_2026_3 {
 	 * Re-keys every persisted attribute cardinality index and standalone unique index of every collection, and every
 	 * global unique index of the catalog, rewrites every owner sort index storing temporal values raw, localized texts
 	 * in the order of the bare collator, locales in the order of their language tag or date time ranges in the order of
-	 * whole seconds, converts the single-owner reference partitions of every collection into registry rows, removes the
-	 * histograms of every group membership index, and commits the catalog header at protocol version 9 - the work of
-	 * {@link #upgradeFromStorageProtocolVersion_6_to_9}, which owns the collection persistence services it opens.
+	 * whole seconds, removes obsolete referenced entity predecessor chains and grouped membership histograms, converts
+	 * single-owner reference partitions into registry rows, and commits the catalog header at protocol version 9.
+	 * {@link #upgradeFromStorageProtocolVersion_6_to_9} owns the collection persistence services it opens.
 	 *
 	 * @param catalogHeader                 the catalog header being upgraded
 	 * @param storagePartPersistenceService the catalog-level storage part service
@@ -439,8 +439,9 @@ public interface Migration_2026_3 {
 		ConsoleWriter.writeLine(
 			"Catalog `" + catalogHeader.catalogName() + "` uses storage protocol version 6; re-keying attribute " +
 				"cardinality indexes and standalone unique indexes to their canonical form, rewriting sort indexes " +
-				"of temporal values, localized texts, locales and date time ranges, and converting single-owner " +
-				"reference partitions into registry rows (protocol " +
+				"of temporal values, localized texts, locales and date time ranges, removing legacy referenced " +
+				"entity predecessor chains, and converting single-owner reference partitions into registry rows " +
+				"(protocol " +
 				PersistenceService.STORAGE_PROTOCOL_VERSION + ").",
 			ConsoleColor.BRIGHT_BLUE
 		);
@@ -663,8 +664,7 @@ public interface Migration_2026_3 {
 				final FileLocation collectionFileLocation;
 				if (conversion.changed()) {
 					// the final flush of the conversion wrote the parts of the earlier steps too, with a collection
-					// header that no longer lists the converted partitions - flushing again would only write that
-					// header once more
+					// header listing only surviving indexes - flushing again would only write that header once more
 					collectionFileLocation = collectionPersistenceService.getEntityCollectionHeader().fileLocation();
 				} else {
 					collectionFileLocation = collectionPersistenceService.flush(
