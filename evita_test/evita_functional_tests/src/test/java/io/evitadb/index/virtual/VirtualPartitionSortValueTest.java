@@ -246,26 +246,24 @@ class VirtualPartitionSortValueTest implements EvitaTestSupport {
 		assertSpanAtIndexedScale(theHistory.getEvita(), partition);
 	}
 
+	/**
+	 * Checks the one indexed predecessor on each side and the lifetime of its registry key.
+	 *
+	 * @param state catalog state while writing and updating rows
+	 */
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	@DisplayName("chains are written on both sides of a reflected reference, an emptied chain key stays declared")
-	void shouldWriteChainsOnBothSidesOfAReflectedReference(CatalogState state) {
+	void shouldWriteChainsOnBothSidesOfAReflectedReference(@Nonnull CatalogState state) {
 		final VirtualPartitionHistory theHistory = start("chains", state, SortValueAndChainFixture::setUpChains);
 		final AttributeIndexKey productOrder = key(ATTRIBUTE_PRODUCT_ORDER, null);
-		final AttributeIndexKey categoryOrder = key(ATTRIBUTE_CATEGORY_ORDER, null);
-		assertEquals(
-			Set.of(productOrder, categoryOrder), productRegistry(theHistory.getEvita()).getDeclaredChainKeys()
-		);
-		assertEquals(
-			Set.of(
-				new AttributeIndexKey(REFERENCE_PRODUCTS, ATTRIBUTE_PRODUCT_ORDER, null),
-				new AttributeIndexKey(REFERENCE_PRODUCTS, ATTRIBUTE_CATEGORY_ORDER, null)
-			),
-			categoryRegistry(theHistory.getEvita()).getDeclaredChainKeys(),
-			"the reflected reference inherits both chains, its types inverted"
-		);
+		final AttributeIndexKey categoryOrder =
+			new AttributeIndexKey(REFERENCE_PRODUCTS, ATTRIBUTE_CATEGORY_ORDER, null);
+		assertEquals(Set.of(productOrder), productRegistry(theHistory.getEvita()).getDeclaredChainKeys());
+		assertEquals(Set.of(categoryOrder), categoryRegistry(theHistory.getEvita()).getDeclaredChainKeys());
+
 		final int thirdPartition = theHistory.assertRow(ENTITY_PRODUCT, Scope.LIVE, category(3), 3);
-		theHistory.assertRow(ENTITY_CATEGORY, Scope.LIVE, product(3), 3);
+		final int reflectedPartition = theHistory.assertRow(ENTITY_CATEGORY, Scope.LIVE, product(3), 3);
 		assertEquals(
 			2, productRegistry(theHistory.getEvita()).getChainPredecessor(productOrder, thirdPartition).orElseThrow()
 		);
@@ -283,6 +281,11 @@ class VirtualPartitionSortValueTest implements EvitaTestSupport {
 		);
 		assertEquals(
 			1, productRegistry(theHistory.getEvita()).getChainPredecessor(productOrder, thirdPartition).orElseThrow()
+		);
+
+		assertEquals(
+			1, categoryRegistry(theHistory.getEvita())
+				.getChainPredecessor(categoryOrder, reflectedPartition).orElseThrow()
 		);
 
 		theHistory.transaction(

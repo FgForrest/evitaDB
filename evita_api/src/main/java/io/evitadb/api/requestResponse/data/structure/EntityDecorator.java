@@ -222,6 +222,9 @@ public class EntityDecorator implements SealedEntity {
 	 * @param referenceComparator head of the ordering chain, or `null` to keep the input order
 	 * @param start inclusive lower bound of the window
 	 * @param end exclusive upper bound of the window
+	 * @param originalReferences unfiltered rows of the owner
+	 * @param originalStart inclusive start of this reference name in the unfiltered rows
+	 * @param originalEnd exclusive end of this reference name in the unfiltered rows
 	 * @return the number of rows removed from the window
 	 */
 	protected static int sortAndFilterSubList(
@@ -232,15 +235,19 @@ public class EntityDecorator implements SealedEntity {
 		@Nullable BiPredicate<Integer, ReferenceContract> referenceFilter,
 		@Nullable ReferenceComparator referenceComparator,
 		int start,
-		int end
+		int end,
+		@Nonnull ReferenceContract[] originalReferences,
+		int originalStart,
+		int originalEnd
 	) {
 		final int filteredOut = filterOutReferences(
 			entityPrimaryKey, references, referencePredicate,
 			referenceFilter == null ? (pk, ref) -> true : referenceFilter, start, end
 		);
-		if (referenceComparator != null) {
+		if (referenceComparator != null && start < end - filteredOut) {
 			ReferenceComparator.sort(
-				referenceComparator, entityPrimaryKey, ownerScope, references, start, end - filteredOut
+				referenceComparator, entityPrimaryKey, ownerScope, references, start, end - filteredOut,
+				Arrays.asList(originalReferences).subList(originalStart, originalEnd)
 			);
 		}
 		return filteredOut;
@@ -345,7 +352,7 @@ public class EntityDecorator implements SealedEntity {
 			new HierarchySerializablePredicate(evitaRequest),
 			new AttributeValueSerializablePredicate(evitaRequest),
 			new AssociatedDataValueSerializablePredicate(evitaRequest),
-			new ReferenceContractSerializablePredicate(evitaRequest),
+			new ReferenceContractSerializablePredicate(evitaRequest, entitySchema),
 			new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
 			evitaRequest.getAlignedNow()
 		);
@@ -448,6 +455,7 @@ public class EntityDecorator implements SealedEntity {
 	 * @param parentEntity     object of the parentEntity
 	 * @param referenceFetcher fetcher that can be used for fetching, filtering and ordering referenced
 	 *                         entities / groups
+	 * @param evitaRequest     request defining the reference views
 	 */
 	public EntityDecorator(
 		@Nonnull EntityDecorator entity,
@@ -465,7 +473,7 @@ public class EntityDecorator implements SealedEntity {
 			entity.associatedDataPredicate,
 			referenceFetcher == ReferenceFetcher.NO_IMPLEMENTATION ?
 				entity.referencePredicate :
-				entity.referencePredicate.createRicherCopyWith(referenceFetcher.getEnvelopingEntityRequest()),
+				entity.createReferencePredicateRicherCopyWith(referenceFetcher.getEnvelopingEntityRequest()),
 			entity.pricePredicate,
 			entity.alignedNow,
 			referenceFetcher,
@@ -578,8 +586,9 @@ public class EntityDecorator implements SealedEntity {
 		final Integer boxedEntityPrimaryKey = entityPrimaryKey;
 		// `inputReferences` is grouped by reference name, so a run of one name is a contiguous window - `runStart`
 		// marks where the current run begins in the output and `writeIndex` the next free slot. Both count only the
-		// references that were kept, so the input index and the output index part ways at the first discard
+		// references that were kept. `inputRunStart` marks the start of the unfiltered run.
 		int runStart = 0;
+		int inputRunStart = 0;
 		int writeIndex = 0;
 		for (int i = 0; i < inputReferences.length; i++) {
 			final ReferenceContract referenceContract = inputReferences[i];
@@ -589,10 +598,11 @@ public class EntityDecorator implements SealedEntity {
 					writeIndex -= closeReferenceNameRun(
 						entityPrimaryKey, referencePredicate, referenceFetcher, referenceSchema,
 						entityGroupFetcher, entityFilter, fetchedReferenceComparator,
-						outputReferences, runStart, writeIndex
+						outputReferences, runStart, writeIndex, inputReferences, inputRunStart, i
 					);
 				}
 				runStart = writeIndex;
+				inputRunStart = i;
 				referenceSchema = entitySchema
 					.getReference(thisReferenceName)
 				    .orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
@@ -638,7 +648,7 @@ public class EntityDecorator implements SealedEntity {
 			writeIndex -= closeReferenceNameRun(
 				entityPrimaryKey, referencePredicate, referenceFetcher, referenceSchema,
 				entityGroupFetcher, entityFilter, fetchedReferenceComparator,
-				outputReferences, runStart, writeIndex
+				outputReferences, runStart, writeIndex, inputReferences, inputRunStart, inputReferences.length
 			);
 		}
 		// the caller reads this back as `outputReferences.length - filteredOutReferences`, so it is counted off the
@@ -685,6 +695,9 @@ public class EntityDecorator implements SealedEntity {
 	 * @param outputReferences    the reference array being built
 	 * @param from                index of the first reference of this reference name
 	 * @param toExclusive         index just past the last reference of this reference name
+	 * @param inputReferences     all undecorated reference rows of the entity
+	 * @param inputStart          first original row of this reference name
+	 * @param inputEnd            exclusive end of the original rows of this reference name
 	 * @return the number of references the filtering pass removed from the window
 	 */
 	private int closeReferenceNameRun(
@@ -697,7 +710,10 @@ public class EntityDecorator implements SealedEntity {
 		@Nullable ReferenceComparator referenceComparator,
 		@Nonnull ReferenceDecorator[] outputReferences,
 		int from,
-		int toExclusive
+		int toExclusive,
+		@Nonnull ReferenceContract[] inputReferences,
+		int inputStart,
+		int inputEnd
 	) {
 		final int removedHere = sortAndFilterSubList(
 			entityPrimaryKey,
@@ -706,7 +722,7 @@ public class EntityDecorator implements SealedEntity {
 			referencePredicate,
 			entityFilter,
 			referenceComparator,
-			from, toExclusive
+			from, toExclusive, inputReferences, inputStart, inputEnd
 		);
 		noteUnexposedGroups(
 			referenceFetcher, referenceSchema, entityGroupFetcher,
@@ -1046,13 +1062,31 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	/**
-	 * Returns {@link ReferenceContractSerializablePredicate} that is enriched enough to satisfy passed `evitaRequest`.
+	 * Returns a reference predicate that covers the existing and requested data.
+	 *
+	 * @param evitaRequest the new fetch requirements
+	 * @return enriched reference predicate
 	 */
 	@Nonnull
 	public ReferenceContractSerializablePredicate createReferencePredicateRicherCopyWith(
 		@Nonnull EvitaRequest evitaRequest
 	) {
-		return this.referencePredicate.createRicherCopyWith(evitaRequest);
+		return this.referencePredicate.createRicherCopyWith(this.entitySchema, evitaRequest);
+	}
+
+	/**
+	 * Returns a reference predicate using the decode narrowing resolved by the collection for the fetch.
+	 *
+	 * @param evitaRequest the new fetch requirements
+	 * @param requestNarrowing decode narrowing resolved for the new fetch requirements
+	 * @return enriched reference predicate
+	 */
+	@Nonnull
+	public ReferenceContractSerializablePredicate createReferencePredicateRicherCopyWith(
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull Map<String, int[]> requestNarrowing
+	) {
+		return this.referencePredicate.createRicherCopyWith(evitaRequest, requestNarrowing);
 	}
 
 	/**

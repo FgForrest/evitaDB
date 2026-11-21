@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -91,7 +92,50 @@ public final class Release2026_2ReferenceFixtureRecipes {
 	public static List<ReleaseFixtureRecipe> all() {
 		return Arrays.asList(
 			d6(), d7(), d8(), d16(), d16n(), d17(), d17a(), d5r(), dK1h(), dGrp(), groupedHistogram(), dUw(), drf(),
-			dRR(), dRng()
+			dRR(), dRng(), sharedReferencedEntityPredecessor()
+		);
+	}
+
+	/**
+	 * Writes two owner lists that share one target and order it differently.
+	 *
+	 * @return the recipe for the released engine
+	 */
+	@Nonnull
+	public static ReleaseFixtureRecipe sharedReferencedEntityPredecessor() {
+		return ReleaseFixtureRecipe.writtenBy2026_2(
+			"sharedReferencedEntityPredecessor",
+			"two owners with independent predecessor lists that share one target",
+			session -> {
+				session.defineEntitySchema(BRAND).updateVia(session);
+				session.defineEntitySchema(PRODUCT)
+					.withReferenceToEntity(BRAND, BRAND, Cardinality.ZERO_OR_MORE, reference -> reference
+						.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+						.withAttribute(
+							"position", ReferencedEntityPredecessor.class,
+							attribute -> attribute.sortableInScope(Scope.LIVE, Scope.ARCHIVED)
+						))
+					.updateVia(session);
+				for (final int brand : List.of(1, 2, 3)) {
+					session.createNewEntity(BRAND, brand).upsertVia(session);
+				}
+				session.createNewEntity(PRODUCT, 1)
+					.setReference(BRAND, 1, reference -> reference.setAttribute(
+						"position", ReferencedEntityPredecessor.HEAD
+					))
+					.setReference(BRAND, 2, reference -> reference.setAttribute(
+						"position", new ReferencedEntityPredecessor(1)
+					))
+					.upsertVia(session);
+				session.createNewEntity(PRODUCT, 2)
+					.setReference(BRAND, 1, reference -> reference.setAttribute(
+						"position", new ReferencedEntityPredecessor(3)
+					))
+					.setReference(BRAND, 3, reference -> reference.setAttribute(
+						"position", ReferencedEntityPredecessor.HEAD
+					))
+					.upsertVia(session);
+			}
 		);
 	}
 

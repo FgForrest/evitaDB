@@ -45,7 +45,6 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Range;
-import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
@@ -1514,9 +1513,9 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	}
 
 	/**
-	 * Registers `value` for `recordId` in the sort structure of `attributeSchema`. A {@link Predecessor} /
-	 * {@link ReferencedEntityPredecessor} value goes into a {@link ChainIndex} (predecessor ordering); any other value
-	 * goes into a {@link SortIndex}, which is a view over the shared tree for both-flagged attributes or a standalone
+	 * Registers `value` for `recordId` in the sort structure of `attributeSchema`. A {@link Predecessor} value goes
+	 * into a {@link ChainIndex}. An ordinary sortable value goes into a {@link SortIndex}, which is a view over the
+	 * shared tree for both-flagged attributes or a standalone
 	 * owner for sort-only attributes.
 	 *
 	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
@@ -1539,9 +1538,6 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		if (value instanceof Predecessor predecessor) {
 			final ChainIndex theSortIndex = getOrCreateChainIndex(attributeKey);
 			theSortIndex.upsertPredecessor(predecessor, recordId);
-		} else if (value instanceof ReferencedEntityPredecessor referencedEntityPredecessor) {
-			final ChainIndex theSortIndex = getOrCreateChainIndex(attributeKey);
-			theSortIndex.upsertPredecessor(referencedEntityPredecessor, recordId);
 		} else {
 			final PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex> sortIndexes =
 				getOrCreateSortIndexMap();
@@ -1598,8 +1594,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		final AttributeIndexKey lookupKey = createAttributeKey(
 			referenceSchema, attributeSchema, allowedLocales, locale, value);
 
-		if (Predecessor.class.equals(attributeSchema.getType()) || ReferencedEntityPredecessor.class.equals(
-			attributeSchema.getType())) {
+		if (Predecessor.class.equals(attributeSchema.getType())) {
 			// an absent family means an absent index, which the notNull below reports as the caller's error
 			final PersistentTransactionalProducerMap<AttributeIndexKey, ChainIndex> chainIndexes = this.chainIndex;
 			final ChainIndex theChainIndex = entryOf(chainIndexes, lookupKey);

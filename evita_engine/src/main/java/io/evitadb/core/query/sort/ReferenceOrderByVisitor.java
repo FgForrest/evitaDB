@@ -50,9 +50,9 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.query.AttributeSchemaAccessor;
@@ -64,16 +64,16 @@ import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslato
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.translator.EntityGroupPropertyTranslator;
 import io.evitadb.core.query.sort.entity.translator.EntityPropertyTranslator;
+import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
-import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.VirtualReferencePartition;
@@ -137,7 +137,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	/**
 	 * Scopes an unwrapped chain ordering is translated for: the query's scopes plus the scopes of the owners being
 	 * ordered, because a plain chain is read in the owner's own scope and an enriched owner may live outside the
-	 * scopes its enrichment selects. A reflected chain reads one fixed scope, so it keeps the query's scopes.
+	 * scopes its enrichment selects.
 	 */
 	private final Set<Scope> chainScopes;
 	/**
@@ -186,8 +186,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * @param entitySchema schema of the owner
 	 * @param referenceSchema schema of the reference being ordered
 	 * @param ownerScopes scopes of the owners whose references are ordered; an unwrapped plain chain ordering is
-	 *                    translated for them too, because it is read in each owner's own scope. Ignored for a
-	 *                    reflected reference, whose chain is read in one fixed scope.
+	 *                    translated for them too, because it is read in each owner's own scope.
 	 * @return the translated ordering and its nested comparator, if any
 	 */
 	@Nonnull
@@ -203,8 +202,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 			queryContext,
 			fetchRequirementCollector,
 			referenceSchema,
-			referenceSchema instanceof ReflectedReferenceSchemaContract ?
-				queryContext.getScopes() : unionOf(queryContext.getScopes(), ownerScopes),
+			unionOf(queryContext.getScopes(), ownerScopes),
 			// the ordering is a part of the query, so it records the reference attributes it names - counted when the
 			// ordering is checked while the query is planned, see `ReferencedEntityFetcher#verifyReferenceOrdering`
 			new AttributeSchemaAccessor(
@@ -385,6 +383,20 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	}
 
 	/**
+	 * Determines whether an inherited referenced-entity predecessor is backed by a forward predecessor chain.
+	 *
+	 * @param attributeName ordered reference attribute
+	 * @return whether the chain is stored on the forward reference
+	 */
+	public boolean usesForwardPredecessor(@Nonnull String attributeName) {
+		return this.referenceSchema instanceof ReflectedReferenceSchema reflected &&
+			reflected.getInheritedAttributes().contains(attributeName) &&
+			reflected.getAttribute(attributeName)
+				.map(attribute -> ReferencedEntityPredecessor.class.equals(attribute.getPlainType()))
+				.orElse(false);
+	}
+
+	/**
 	 * Validates a chain ordering against its index schemas in every applicable scope. A reflected ordering reads
 	 * the forward reference in a single translated scope. A plain ordering reads the owner's scope.
 	 *
@@ -397,7 +409,8 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		final EntitySchemaContract partitionEntitySchema;
 		final ReferenceSchemaContract partitionReferenceSchema;
 		final Scope reflectedScope;
-		if (this.referenceSchema instanceof ReflectedReferenceSchemaContract reflectedReferenceSchema) {
+		if (this.usesForwardPredecessor(attributeName) &&
+			this.referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
 			Assert.isTrue(
 				scopes.size() == 1,
 				() -> "Chain sort cannot be executed in multiple scopes (" +
@@ -514,8 +527,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	/**
 	 * Returns the chain of the attribute in the partition: the chain index of a materialized partition, the singleton
 	 * chain read out of the registry row of a virtual one (see {@link VirtualPartitionSortedRecords#ofChainFactory}) -
-	 * one `O(log n)` registry lookup. The chain of a partition is keyed by the referenced entity for a
-	 * `ReferencedEntityPredecessor` of the reference of the partition's collection, by the owner otherwise.
+	 * one `O(log n)` registry lookup. The chain of a partition is keyed by its owners.
 	 *
 	 * @param partition       the partition
 	 * @param referenceSchema the reference of the partition's collection
@@ -535,8 +547,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				reducedEntityIndex.getChainIndex(referenceSchema, attributeSchema, locale);
 			case VirtualReferencePartition virtualPartition -> VirtualPartitionSortedRecords.ofChainFactory(
 				virtualPartition,
-				AttributeIndex.createAttributeKey(referenceSchema, attributeSchema, locale),
-				ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType())
+				AttributeIndex.createAttributeKey(referenceSchema, attributeSchema, locale)
 			);
 		};
 	}
@@ -544,7 +555,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	/**
 	 * Returns the scopes the ordering being translated is checked in: the scope of the enclosing `inScope`
 	 * container, or the query's scopes outside one. Attribute and index checks, the nested entity and group sorters
-	 * and the admission of an `inScope` container read it. A chain ordering reads {@link #getChainScopes()} instead,
+	 * and the admission of an `inScope` container read it. A chain ordering reads {@link #getChainScopes} instead,
 	 * which outside a container adds the scopes of the owners being ordered.
 	 *
 	 * @return scopes of the ordering being translated
@@ -557,14 +568,18 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 
 	/**
 	 * Returns the scopes a chain ordering is translated for: the scope of the enclosing `inScope` container, or
-	 * outside one the query's scopes plus, for a plain reference, the scopes of the owners being ordered.
+	 * outside one the query's scopes. An ordering that reads the owner's partition also covers the owners' scopes.
 	 *
+	 * @param attributeName chained attribute
 	 * @return scopes of the chain ordering being translated
 	 */
 	@Nonnull
-	public Set<Scope> getChainScopes() {
+	public Set<Scope> getChainScopes(@Nonnull String attributeName) {
 		final ScopedOrdering ownerGate = this.ownerGates.peek();
-		return ownerGate == null ? this.chainScopes : ownerGate.scopes();
+		if (ownerGate != null) {
+			return ownerGate.scopes();
+		}
+		return this.usesForwardPredecessor(attributeName) ? this.queryContext.getScopes() : this.chainScopes;
 	}
 
 	/**

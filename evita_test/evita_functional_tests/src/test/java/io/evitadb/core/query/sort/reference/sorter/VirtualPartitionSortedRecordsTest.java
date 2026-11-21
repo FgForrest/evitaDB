@@ -278,38 +278,43 @@ class VirtualPartitionSortedRecordsTest {
 	@DisplayName("chain")
 	class Chain {
 
+		/**
+		 * Checks the provider for an undeclared key and a key without a predecessor.
+		 */
 		@Test
 		@DisplayName("a key not declared as a chain, or a partition not chained under it, has no provider")
 		void shouldHaveNoProviderWhenNotChained() {
 			final VirtualReferencePartition partition = handleOf(PARTITION);
 
-			assertNull(VirtualPartitionSortedRecords.ofChain(partition, UNDECLARED, false));
-			assertNull(VirtualPartitionSortedRecords.ofChain(partition, POSITION, false));
-			assertNull(VirtualPartitionSortedRecords.ofChainFactory(partition, POSITION, true));
+			assertNull(VirtualPartitionSortedRecords.ofChain(partition, UNDECLARED));
+			assertNull(VirtualPartitionSortedRecords.ofChain(partition, POSITION));
+			assertNull(VirtualPartitionSortedRecords.ofChainFactory(partition, POSITION));
 		}
 
+		/**
+		 * Checks that the chain provider ranks the owner of a single-owner partition.
+		 */
 		@Test
-		@DisplayName("a chained partition holds the owner, or the target when keyed by the referenced entity")
-		void shouldHoldTheRecordTheChainIsKeyedBy() {
+		@DisplayName("A chained partition holds its owner as the only record")
+		void shouldHoldTheOwnerOfAChainedPartition() {
 			VirtualPartitionSortedRecordsTest.this.registry.putChainPredecessor(POSITION, PARTITION, 3);
 			final VirtualReferencePartition partition = handleOf(PARTITION);
 
-			final SortedRecordsProvider byOwner = VirtualPartitionSortedRecords.ofChain(partition, POSITION, false);
-			final SortedRecordsProvider byTarget = VirtualPartitionSortedRecords.ofChain(partition, POSITION, true);
-
+			final SortedRecordsProvider byOwner = VirtualPartitionSortedRecords.ofChain(partition, POSITION);
 			assertNotNull(byOwner);
 			assertSingleton(byOwner, OWNER, OWNER);
-			assertNotNull(byTarget);
-			assertSingleton(byTarget, TARGET, TARGET);
 		}
 
+		/**
+		 * Checks that a singleton order has one provider for both directions.
+		 */
 		@Test
 		@DisplayName("the factory of a chained partition answers one provider in both directions")
 		void shouldAnswerOneProviderInBothDirections() {
 			VirtualPartitionSortedRecordsTest.this.registry.putChainPredecessor(POSITION, PARTITION, 3);
 
 			final SortedRecordsSupplierFactory factory = VirtualPartitionSortedRecords.ofChainFactory(
-				handleOf(PARTITION), POSITION, false
+				handleOf(PARTITION), POSITION
 			);
 
 			assertNotNull(factory);

@@ -49,6 +49,11 @@ the `referenceProperty` constraint is implicit and must not be repeated. All att
 in `referenceContent` automatically refer to the reference attributes, unless the [`entityProperty`](#entity-property)
 container is used there.
 
+A `ReferencedEntityPredecessor` orders an owner's references by the list formed by that owner's reference rows.
+The full list determines the order before the reference filter and pagination are applied. Use
+`referenceContent(..., orderBy(attributeNatural(...)))` to fetch the references in that order. An owner's list
+cannot order the owners themselves through `referenceProperty`.
+
 </Note>
 
 Sorting by reference attribute is not as common as sorting by entity attributes, but it allows you to sort entities
@@ -192,8 +197,8 @@ The reference used for ordering an entity is picked by the following rules:
    the ordering (ascending for an ascending order, descending for a descending one), as with any other attribute.
 
 These rules apply to attributes whose values can be compared with one another. Attributes of type
-[`Predecessor`](../../use/data-types.md#predecessor) and `ReferencedEntityPredecessor` form chains within each
-referenced entity and can only be ordered referenced entity by referenced entity, as the
+[`Predecessor`](../../use/data-types.md#predecessor) form owner chains within each referenced entity and can be
+ordered referenced entity by referenced entity, as the
 [`traverseByEntityProperty`](#traverse-by-entity-property) constraint does.
 
 <Note type="info">

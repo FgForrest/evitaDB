@@ -171,7 +171,7 @@ class PrefetchedRecordsSorterClassificationTest {
 		@Nonnull Supplier<SortedRecordsProvider[]> providers
 	) {
 		return new TraverseReferencePredecessorAttributeComparator(
-			ATTRIBUTE_CHAIN, Predecessor.class, REFERENCE_SCHEMA, null, OrderDirection.ASC, providers
+			ATTRIBUTE_CHAIN, REFERENCE_SCHEMA, null, OrderDirection.ASC, providers
 		);
 	}
 
@@ -568,7 +568,7 @@ class PrefetchedRecordsSorterClassificationTest {
 			@Nonnull SortedRecordsProvider[] providers
 		) {
 			return new TraverseReferencePredecessorAttributeComparator(
-				ATTRIBUTE_CHAIN, Predecessor.class, VARIANTS_REFERENCE_SCHEMA, null, OrderDirection.ASC, () -> providers
+				ATTRIBUTE_CHAIN, VARIANTS_REFERENCE_SCHEMA, null, OrderDirection.ASC, () -> providers
 			);
 		}
 
@@ -581,7 +581,7 @@ class PrefetchedRecordsSorterClassificationTest {
 			@Nonnull SortedRecordsProvider... providers
 		) {
 			return new TraverseReferencePredecessorAttributeComparator(
-				ATTRIBUTE_CHAIN, Predecessor.class, DECIMAL_VARIANTS_REFERENCE_SCHEMA, null, OrderDirection.ASC,
+				ATTRIBUTE_CHAIN, DECIMAL_VARIANTS_REFERENCE_SCHEMA, null, OrderDirection.ASC,
 				() -> providers
 			);
 		}
@@ -687,7 +687,7 @@ class PrefetchedRecordsSorterClassificationTest {
 			};
 			final TraverseReferencePredecessorAttributeComparator comparator =
 				new TraverseReferencePredecessorAttributeComparator(
-					ATTRIBUTE_CHAIN, Predecessor.class, VARIANTS_REFERENCE_SCHEMA, null, OrderDirection.ASC,
+					ATTRIBUTE_CHAIN, VARIANTS_REFERENCE_SCHEMA, null, OrderDirection.ASC,
 					() -> providers
 				);
 			final SortResult sorted = sort(comparator, variantsBlockKey(2), 0, 10, 70, 71, 72, 73, 74);
@@ -737,7 +737,7 @@ class PrefetchedRecordsSorterClassificationTest {
 			};
 			final TraverseReferencePredecessorAttributeComparator comparator =
 				new TraverseReferencePredecessorAttributeComparator(
-					ATTRIBUTE_CHAIN, Predecessor.class, DECIMAL_VARIANTS_REFERENCE_SCHEMA, null, OrderDirection.ASC,
+					ATTRIBUTE_CHAIN, DECIMAL_VARIANTS_REFERENCE_SCHEMA, null, OrderDirection.ASC,
 					() -> providers
 				);
 			final SortResult sorted = sort(comparator, decimalVariantsBlockKey(2), 0, 10, 82, 83, 84);

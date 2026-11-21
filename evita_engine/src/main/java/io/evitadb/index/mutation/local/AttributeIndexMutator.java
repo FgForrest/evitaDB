@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
@@ -178,6 +179,10 @@ public interface AttributeIndexMutator {
 		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.getAttributeSchema(
 			attributeKey.attributeName());
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.attributeName() + "` not defined in schema!");
+		if (ReferencedEntityPredecessor.class.equals(attributeDefinition.getPlainType())) {
+			// The predecessor describes the owner's own list and is stored only in its reference rows.
+			return;
+		}
 
 		final Serializable valueToInsert = NumberUtils.normalizeForIndexing(
 			Objects.requireNonNull(
@@ -325,6 +330,10 @@ public interface AttributeIndexMutator {
 		final String attributeName = attributeKey.attributeName();
 		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.getAttributeSchema(attributeName);
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeName + "` not defined in schema!");
+		if (ReferencedEntityPredecessor.class.equals(attributeDefinition.getPlainType())) {
+			// The predecessor describes the owner's own list and is stored only in its reference rows.
+			return;
+		}
 
 		final Set<Locale> allowedLocales = entitySchema.getLocales();
 		final Locale locale = attributeKey.locale();

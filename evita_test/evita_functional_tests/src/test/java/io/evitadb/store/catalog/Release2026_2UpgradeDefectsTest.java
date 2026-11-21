@@ -24,10 +24,21 @@
 package io.evitadb.store.catalog;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
@@ -41,6 +52,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -66,6 +78,8 @@ import static io.evitadb.test.upgrade.Release2026_2FixtureRecipes.inRange;
 import static io.evitadb.test.upgrade.Release2026_2FixtureRecipes.orderedInEnglish;
 import static io.evitadb.test.upgrade.ReleaseFixtureValues.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -85,6 +99,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(STORAGE)
 @Tag(ATTRIBUTE)
 class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
+	private static final String SHARED_PREDECESSOR = "sharedReferencedEntityPredecessor";
+	private static final AttributeIndexKey BRAND_POSITION = new AttributeIndexKey(BRAND, "position", null);
+
 	/** A moment inside both open-bound twins. */
 	private static final OffsetDateTime MID_2025 = BASE.minusMonths(7);
 
@@ -101,7 +118,7 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 			"d1a", "d1b", "d1b2", "d1c", "d2", "d3", "d3p", "d4", "d4c", "d4t", "d4f", "d4cp", "d5f", "d5s", "dF1p",
 			"dS1p", "dX", "dv", "dN1h", "d14", "d2p", "dDel", "d6", "d7", "d8", "d16", "d16n", "d17", "d17a", "d5r",
 			"dK1h", "dGrp", "groupedHistogram", "dUw", "drf", "dRR", "dRng", "d9", "d9o", "d10", "d10s", "d11", "d11t",
-			"dU", "d6c", "d12", "d12b", "d13", "d15"
+			"dU", "d6c", "d12", "d12b", "d13", "d15", SHARED_PREDECESSOR
 		);
 	}
 
@@ -117,7 +134,7 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 			"d1a", "d1c", "d2", "d3", "d3p", "d4", "d4c", "d4t", "d4f", "d5f", "d5s", "dF1p", "dS1p", "dX", "dv",
 			"dN1h", "d14", "d2p", "dDel", "d16", "d16n", "d5r", "dK1h", "dGrp", "groupedHistogram", "dUw", "drf",
 			"dRR", "dRng", "dU",
-			"d12", "d12b", "d15", "d4cp", "d7", "d17", "d17a", "d10s"
+			"d12", "d12b", "d15", "d4cp", "d7", "d17", "d17a", "d10s", SHARED_PREDECESSOR
 		);
 	}
 
@@ -167,6 +184,108 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 		final AtomicReference<List<String>> fresh = new AtomicReference<>();
 		this.harness.withFreshCatalog(fixture, evita -> fresh.set(probe(evita, fixture)));
 		this.harness.withUpgradedCatalog(fixture, evita -> assertEquals(fresh.get(), probe(evita, fixture)));
+	}
+
+	/**
+	 * Moves owners of a release-era chain across scopes, reloads the archive, then promotes and demotes its partition.
+	 */
+	@Test
+	@Tag(REFERENCE)
+	@DisplayName("Can archive and restore the owners of a release-era shared predecessor")
+	void shouldMoveOwnersAndRebuildTheirPartitionAfterUpgrade() {
+		final TestPaths paths = this.harness.copy(SHARED_PREDECESSOR);
+		try {
+			assertEquals(6, this.harness.lastBootstrapStorageProtocol(paths, SHARED_PREDECESSOR));
+			try (final Evita evita = this.harness.boot(paths)) {
+				ReleaseFixtureHarness.requireAlive(evita, SHARED_PREDECESSOR);
+				final EntityIndex original = sharedBrandPartition(evita, Scope.LIVE);
+				assertNotNull(original);
+				assertNotNull(original.getChainIndex(BRAND_POSITION));
+				assertBrandOrder(evita, Scope.LIVE, 2, List.of(3, 1));
+				evita.updateCatalog(SHARED_PREDECESSOR, session -> {
+					assertTrue(session.archiveEntity(PRODUCT, 1));
+				});
+				assertNull(sharedBrandPartition(evita, Scope.LIVE));
+				assertBrandOrder(evita, Scope.LIVE, 2, List.of(3, 1));
+				evita.updateCatalog(SHARED_PREDECESSOR, session -> {
+					assertTrue(session.archiveEntity(PRODUCT, 2));
+				});
+			}
+			try (final Evita evita = this.harness.boot(paths)) {
+				ReleaseFixtureHarness.requireAlive(evita, SHARED_PREDECESSOR);
+				assertBrandOrder(evita, Scope.ARCHIVED, 1, List.of(1, 2));
+				assertBrandOrder(evita, Scope.ARCHIVED, 2, List.of(3, 1));
+				evita.updateCatalog(SHARED_PREDECESSOR, session -> {
+					assertTrue(session.restoreEntity(PRODUCT, 1));
+					assertTrue(session.restoreEntity(PRODUCT, 2));
+				});
+				final EntityIndex promoted = sharedBrandPartition(evita, Scope.LIVE);
+				assertNotNull(promoted);
+				assertNull(promoted.getChainIndex(BRAND_POSITION));
+				evita.updateCatalog(SHARED_PREDECESSOR, session -> {
+					assertTrue(session.archiveEntity(PRODUCT, 1));
+				});
+				assertNull(sharedBrandPartition(evita, Scope.LIVE));
+				final ReferencedTypeEntityIndex typeIndex = (ReferencedTypeEntityIndex) productCollection(evita)
+					.getIndexByKeyIfExists(
+						new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, BRAND)
+					);
+				assertNotNull(typeIndex);
+				assertTrue(typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(promoted.getPrimaryKey())
+					.isPresent());
+				assertTrue(typeIndex.getVirtualReferencePartitionIndex().getDeclaredChainKeys().isEmpty());
+				assertBrandOrder(evita, Scope.LIVE, 2, List.of(3, 1));
+			}
+		} finally {
+			this.harness.cleanup(paths);
+		}
+	}
+
+	/**
+	 * Finds the materialized partition for the brand both owners reference.
+	 *
+	 * @param evita engine with the upgraded catalog
+	 * @param scope scope of the owners
+	 * @return partition index, or null when the partition has no index object
+	 */
+	@Nullable
+	private static EntityIndex sharedBrandPartition(@Nonnull Evita evita, @Nonnull Scope scope) {
+		return productCollection(evita).getIndexByKeyIfExists(new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY, scope, new RepresentativeReferenceKey(new ReferenceKey(BRAND, 1))
+		));
+	}
+
+	/**
+	 * Returns the product collection carrying the reference lists.
+	 *
+	 * @param evita engine with the upgraded catalog
+	 * @return product collection
+	 */
+	@Nonnull
+	private static EntityCollection productCollection(@Nonnull Evita evita) {
+		return ((Catalog) evita.getCatalogInstance(SHARED_PREDECESSOR).orElseThrow())
+			.getCollectionForEntityInternal(PRODUCT).orElseThrow();
+	}
+
+	/**
+	 * Checks the order of an owner's brands after a scope change or restart.
+	 *
+	 * @param evita engine with the upgraded catalog
+	 * @param scope scope of the owner
+	 * @param owner owner primary key
+	 * @param expected ordered brand keys
+	 */
+	private static void assertBrandOrder(
+		@Nonnull Evita evita, @Nonnull Scope scope, int owner, @Nonnull List<Integer> expected
+	) {
+		final List<SealedEntity> owners = evita.queryCatalog(
+			SHARED_PREDECESSOR, (EvitaSessionContract session) -> session.queryListOfSealedEntities(query(
+				collection(PRODUCT), filterBy(scope(scope), entityPrimaryKeyInSet(owner)),
+				require(entityFetch(referenceContent(BRAND, orderBy(attributeNatural("position")))))
+			))
+		);
+		assertEquals(expected, owners.getFirst().getReferences(BRAND).stream()
+			.map(ReferenceContract::getReferencedPrimaryKey).toList());
 	}
 
 	/** Loads and probes the release catalogs whose stored index order the upgrade rewrites. */

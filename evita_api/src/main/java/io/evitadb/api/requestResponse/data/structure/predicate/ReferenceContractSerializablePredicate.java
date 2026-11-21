@@ -304,6 +304,19 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * @param evitaRequest the request containing reference and attribute requirements
 	 */
 	public ReferenceContractSerializablePredicate(@Nonnull EvitaRequest evitaRequest) {
+		this(evitaRequest, (EntitySchemaContract) null);
+	}
+
+	/**
+	 * Creates a reference predicate with decode coverage resolved using the owner's schema.
+	 *
+	 * @param evitaRequest request containing reference and attribute requirements
+	 * @param entitySchema owner's schema, or null for a request with no schema context
+	 */
+	public ReferenceContractSerializablePredicate(
+		@Nonnull EvitaRequest evitaRequest,
+		@Nullable EntitySchemaContract entitySchema
+	) {
 		this.requiresEntityReferences = evitaRequest.isRequiresEntityReferences();
 		this.referenceSet = getReferenceSet(evitaRequest);
 		this.namedReferenceNames = getNamedReferenceNames(evitaRequest);
@@ -313,7 +326,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
 		this.underlyingPredicate = null;
-		this.referenceKeyNarrowing = evitaRequest.getReferenceKeyNarrowing();
+		this.referenceKeyNarrowing = evitaRequest.getReferenceKeyNarrowing(entitySchema);
 		this.visibleReferenceNames = computeVisibleReferenceNames();
 	}
 
@@ -625,16 +638,14 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * mentions is widened rather than kept narrow. Widening only ever costs a decode; keeping a narrowing the other
 	 * side never agreed to would drop references, and enrichment is far too rare to trade that risk for the saving.
 	 *
-	 * @param evitaRequest the request being merged in
+	 * @param requestNarrowing decode narrowing resolved for the enriching request
 	 * @return the combined narrowing, never NULL
 	 */
 	@Nonnull
-	private Map<String, int[]> combineReferenceKeyNarrowing(@Nonnull EvitaRequest evitaRequest) {
-		if (this.referenceKeyNarrowing.isEmpty()) {
-			return Collections.emptyMap();
-		}
-		final Map<String, int[]> requestNarrowing = evitaRequest.getReferenceKeyNarrowing();
-		if (requestNarrowing.isEmpty()) {
+	private Map<String, int[]> combineReferenceKeyNarrowing(
+		@Nonnull Map<String, int[]> requestNarrowing
+	) {
+		if (this.referenceKeyNarrowing.isEmpty() || requestNarrowing.isEmpty()) {
 			return Collections.emptyMap();
 		}
 		final Map<String, int[]> combined = CollectionUtils.createHashMap(this.referenceKeyNarrowing.size());
@@ -648,19 +659,51 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	}
 
 	/**
-	 * Creates a richer copy of the current `ReferenceContractSerializablePredicate` instance
-	 * by combining its existing state with the details from the provided `EvitaRequest`.
+	 * Enriches the reference predicate with the requirements of a request without schema context.
 	 *
-	 * The result is **monotonic**: nothing either side made visible may become invisible on the copy. Reference
-	 * names are therefore not merely unioned - each side's catch-all requirement is folded into the names only the
-	 * other side lists, see {@link #combineReferencedEntities(EvitaRequest)}.
-	 *
-	 * @param evitaRequest the `EvitaRequest` containing additional requirements and state to merge into the new instance.
-	 * @return a new `ReferenceContractSerializablePredicate` instance that combines the state from the current instance
-	 * with the requirements from the provided `EvitaRequest`.
+	 * @param evitaRequest request containing additional reference requirements
+	 * @return predicate covering the previous and new requirements
 	 */
 	@Nonnull
 	public ReferenceContractSerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
+		return createRicherCopyWith(
+			evitaRequest, this.referenceKeyNarrowing.isEmpty() ? Collections.emptyMap() :
+				evitaRequest.getReferenceKeyNarrowing()
+		);
+	}
+
+	/**
+	 * Enriches the reference predicate with the requirements and schema used for the fetch.
+	 * A reference decoded in full remains fully decoded, so only a previously narrowed predicate
+	 * needs to inspect the schema to determine whether its coverage expands.
+	 *
+	 * @param entitySchema owner's schema for checking the required decode coverage
+	 * @param evitaRequest request containing additional reference requirements
+	 * @return predicate covering the previous and new requirements
+	 */
+	@Nonnull
+	public ReferenceContractSerializablePredicate createRicherCopyWith(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull EvitaRequest evitaRequest
+	) {
+		return this.referenceKeyNarrowing.isEmpty() ?
+			createRicherCopyWith(evitaRequest) :
+			createRicherCopyWith(evitaRequest, evitaRequest.getReferenceKeyNarrowing(entitySchema));
+	}
+
+	/**
+	 * Combines reference requirements monotonically, keeping all reference names, attributes, and rows covered
+	 * by either side. A catch-all requirement contributes its defaults to the names requested by the other side.
+	 *
+	 * @param evitaRequest request containing additional reference requirements
+	 * @param requestNarrowing decode narrowing resolved using the schema and effective aliases for the fetch
+	 * @return predicate covering the previous and new requirements
+	 */
+	@Nonnull
+	public ReferenceContractSerializablePredicate createRicherCopyWith(
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull Map<String, int[]> requestNarrowing
+	) {
 		final Set<Locale> requiredLocales = PredicateLocaleHelper.combineLocales(this.locales, evitaRequest);
 		PredicateLocaleHelper.assertImplicitLocalesConsistent(this.implicitLocale, evitaRequest);
 
@@ -671,7 +714,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 			.map(RequirementContext::attributeRequest)
 			.orElse(null);
 
-		final Map<String, int[]> combinedKeyNarrowing = combineReferenceKeyNarrowing(evitaRequest);
+		final Map<String, int[]> combinedKeyNarrowing = combineReferenceKeyNarrowing(requestNarrowing);
 
 		if ((this.requiresEntityReferences || !doesRequireEntityReferences) &&
 			Objects.equals(this.referenceSet, requiredReferencedEntities) &&

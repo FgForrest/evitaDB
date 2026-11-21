@@ -26,12 +26,14 @@ package io.evitadb.api.requestResponse.data.structure.predicate;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.AttributeRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.chunk.NoTransformer;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.utils.CollectionUtils;
@@ -43,6 +45,7 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -53,6 +56,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -2067,23 +2072,25 @@ class ReferenceContractSerializablePredicateTest {
 		 *
 		 * @param referenceKeyNarrowing referenced primary keys each name is bound to
 		 * @param referenceNames        reference names the request asks for
-		 * @return the request stub
+		 * @return request with per-reference key filters
 		 */
 		@Nonnull
 		private EvitaRequest narrowingRequest(
 			@Nonnull Map<String, int[]> referenceKeyNarrowing,
 			@Nonnull String... referenceNames
 		) {
-			final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
-			Mockito.when(evitaRequest.isRequiresEntityReferences()).thenReturn(true);
-			Mockito.when(evitaRequest.getReferenceEntityFetch())
-				.thenReturn(getDefaultRequirementContext(Arrays.asList(referenceNames)));
-			Mockito.when(evitaRequest.getNamedReferenceEntityFetch()).thenReturn(Collections.emptyMap());
-			Mockito.when(evitaRequest.getImplicitLocale()).thenReturn(null);
-			Mockito.when(evitaRequest.getRequiredLocales()).thenReturn(Collections.emptySet());
-			Mockito.when(evitaRequest.getDefaultReferenceRequirement()).thenReturn(null);
-			Mockito.when(evitaRequest.getReferenceKeyNarrowing()).thenReturn(referenceKeyNarrowing);
-			return evitaRequest;
+			final ReferenceContent[] references = Arrays.stream(referenceNames)
+				.map(name -> {
+					final int[] keys = referenceKeyNarrowing.get(name);
+					return keys == null ? referenceContent(name) : referenceContent(
+						name, filterBy(entityPrimaryKeyInSet(keys))
+					);
+				})
+				.toArray(ReferenceContent[]::new);
+			return new EvitaRequest(
+				query(collection("product"), require(entityFetch(references))),
+				OffsetDateTime.now(), SealedEntity.class, null
+			);
 		}
 	}
 

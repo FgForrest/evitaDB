@@ -25,7 +25,6 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.Predecessor;
-import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -86,17 +85,6 @@ class ChainIndexPredecessorPrimaryKeyTest {
 		// the element of a dangling chain is placed after the head chain, where its true successor would sit too
 		assertArrayEquals(new int[]{1, 2, 3}, chainIndex.getUnorderedLookup().getArray());
 		assertEquals(OptionalInt.of(99), chainIndex.getPredecessorPrimaryKey(3));
-	}
-
-	@Test
-	@DisplayName("a referenced entity predecessor is reported as the chain index received it")
-	void shouldReturnAReferencedEntityPredecessor() {
-		final ChainIndex chainIndex = new ChainIndex(KEY);
-		chainIndex.upsertPredecessor(ReferencedEntityPredecessor.HEAD, 7);
-		chainIndex.upsertPredecessor(new ReferencedEntityPredecessor(7), 8);
-
-		assertEquals(OptionalInt.of(ChainableType.HEAD_PK), chainIndex.getPredecessorPrimaryKey(7));
-		assertEquals(OptionalInt.of(7), chainIndex.getPredecessorPrimaryKey(8));
 	}
 
 	@Test
