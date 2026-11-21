@@ -524,8 +524,17 @@ public class AttributeNaturalTranslator
 		);
 	}
 
+	/**
+	 * Translates an attribute, compound, or predecessor ordering of the references of an owner.
+	 *
+	 * @param attributeNatural attribute ordering constraint
+	 * @param orderByVisitor visitor assembling the ordering of the reference rows
+	 */
 	@Override
-	public void createComparator(@Nonnull AttributeNatural attributeNatural, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
+	public void createComparator(
+		@Nonnull AttributeNatural attributeNatural,
+		@Nonnull ReferenceOrderByVisitor orderByVisitor
+	) {
 		final String attributeOrCompoundName = attributeNatural.getAttributeName();
 		final NamedSchemaContract attributeOrCompoundSchema = orderByVisitor.getAttributeSchemaOrSortableAttributeCompound(
 			attributeOrCompoundName
@@ -546,7 +555,8 @@ public class AttributeNaturalTranslator
 					orderByVisitor,
 					SortedRecordsSupplierFactory::getAscendingOrderRecordsSupplier,
 					(ref1, ref2) -> ref1.primaryKey() == ref2.primaryKey(),
-					(epk, referenceKey) -> epk
+					(epk, referenceKey) -> epk,
+					false
 				);
 			} else {
 				comparator = new ReferencePredecessorComparator(
@@ -556,7 +566,8 @@ public class AttributeNaturalTranslator
 					orderByVisitor,
 					SortedRecordsSupplierFactory::getDescendingOrderRecordsSupplier,
 					(ref1, ref2) -> ref1.primaryKey() == ref2.primaryKey(),
-					(epk, referenceKey) -> epk
+					(epk, referenceKey) -> epk,
+					false
 				);
 			}
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
@@ -570,7 +581,8 @@ public class AttributeNaturalTranslator
 					orderByVisitor,
 					SortedRecordsSupplierFactory::getAscendingOrderRecordsSupplier,
 					(ref1, ref2) -> true,
-					(epk, referenceKey) -> referenceKey.primaryKey()
+					(epk, referenceKey) -> referenceKey.primaryKey(),
+					true
 				);
 			} else {
 				comparator = new ReferencePredecessorComparator(
@@ -580,7 +592,8 @@ public class AttributeNaturalTranslator
 					orderByVisitor,
 					SortedRecordsSupplierFactory::getDescendingOrderRecordsSupplier,
 					(ref1, ref2) -> true,
-					(epk, referenceKey) -> referenceKey.primaryKey()
+					(epk, referenceKey) -> referenceKey.primaryKey(),
+					true
 				);
 			}
 		} else if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchema compoundSchemaContract) {

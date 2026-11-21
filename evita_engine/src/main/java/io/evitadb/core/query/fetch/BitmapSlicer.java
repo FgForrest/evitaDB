@@ -74,8 +74,8 @@ import java.util.stream.IntStream;
  *   - {@link #sliceEntityIds} — PK-bitmap fast path used when no orderBy is requested (or the comparator is the
  *     default PK-ascending one); slicing operates directly on the PK bitmap.
  *   - {@link #sliceEntityIdsSorted} — comparator-aware path used when a non-trivial orderBy is in play; it pulls
- *     full reference contracts, sorts them with the configured {@link ReferenceComparator} chain, and slices the
- *     sorted list so the pre-fetch slice agrees with the post-fetch sort done by `EntityDecorator`.
+ *     full reference contracts, sorts them with the {@link ReferenceComparator} chain and each owner's scope,
+ *     and slices the sorted rows using the same order as `EntityDecorator`.
  *
  * The {@link ChunkTransformer} passed to the constructor determines the page/strip mathematics shared by both paths.
  *
@@ -421,7 +421,8 @@ class BitmapSlicer {
 	 * {@code EntityDecorator#sortAndFilterSubList} will use post-fetch), then slices the chunk using the configured
 	 * page/strip offset+limit. The returned bitmap contains exactly the PKs whose bodies will be the post-fetch
 	 * winners — no over-fetch, no under-fetch: the pre-fetch slice matches the post-fetch sort+chunk in
-	 * `EntityDecorator`.
+	 * `EntityDecorator`. Each owner is sorted in its own scope - the key it is listed under in the owner map - so a
+	 * link of an `inScope` container skips the owners of other scopes, as the decorator does.
 	 *
 	 * The references are filtered **row by row, before they are sorted and sliced**: a row the filter rejected, or
 	 * a dropped one, may share its referenced primary key with an admitted row, and kept in the buffer it would take
@@ -451,56 +452,78 @@ class BitmapSlicer {
 		@Nonnull BiFunction<String, Integer, Collection<ReferenceContract>> referenceContractsAccessor,
 		@Nonnull ReferenceComparator comparator
 	) {
-		this.groupsForEntity = CollectionUtils.createHashMap(this.entityPrimaryKey.size());
-		return FormulaFactory.or(
-			this.entityPrimaryKey
-				.values()
-				.stream()
-				.flatMapToInt(IntStream::of)
-				.mapToObj(epk -> {
-					final Bitmap filteredReferenceEntityIds = FormulaFactory.and(
-						this.referencedEntityIdsFormula.apply(this.referenceName, epk),
-						referencedEntityIds,
-						validityMapping.getValidReferencedEntitiesFormula(epk)
-					).compute();
-					if (filteredReferenceEntityIds.isEmpty()) {
-						this.groupsForEntity.put(epk, ArrayUtils.EMPTY_INT_ARRAY);
-						return EmptyFormula.INSTANCE;
-					}
-					// gather the source entity's references whose PK is in the filtered set — see the
-					// JavaDoc body for why groups must be derived from these raw references rather than
-					// from the chunked-predicate view exposed by referencedEntityToGroupIdTranslator
-					final Collection<ReferenceContract> sourceRefs =
-						referenceContractsAccessor.apply(this.referenceName, epk);
-					final ReferenceContract[] filterBuffer = new ReferenceContract[sourceRefs.size()];
-					int filteredCount = 0;
-					for (ReferenceContract r : sourceRefs) {
-						// a key admitted for the source entity does not admit every row holding it - see the JavaDoc
-						if (
-							filteredReferenceEntityIds.contains(r.getReferencedPrimaryKey()) &&
-								validityMapping.isReferenceSelected(epk, r)
-						) {
-							filterBuffer[filteredCount++] = r;
-						}
-					}
-					final ReferenceContract[] filteredRefs = filteredCount == filterBuffer.length
-						? filterBuffer
-						: Arrays.copyOf(filterBuffer, filteredCount);
-					// group accounting reflects *all* filtered references (independent of slicing), so
-					// getGroupIds keeps returning the full set
-					this.groupsForEntity.put(epk, groupPksOf(filteredRefs));
-					if (filteredRefs.length == 0) {
-						return EmptyFormula.INSTANCE;
-					}
-					sortReferencesByComparatorChain(epk, filteredRefs, comparator);
-					final OffsetAndLimit offsetAndLimit = this.offsetAndLimitForSize.apply(filteredRefs.length);
-					final int[] sliced = materializeSlicedPks(filteredRefs, offsetAndLimit);
-					return sliced.length == 0
-						? EmptyFormula.INSTANCE
-						: ReferencedEntityFetcher.toFormula(sliced);
-				})
-				.toArray(Formula[]::new)
+		int ownerCount = 0;
+		for (int[] ownerKeys : this.entityPrimaryKey.values()) {
+			ownerCount += ownerKeys.length;
+		}
+		this.groupsForEntity = CollectionUtils.createHashMap(ownerCount);
+		final Formula[] slices = new Formula[ownerCount];
+		int index = 0;
+		for (Map.Entry<Scope, int[]> ownersInScope : this.entityPrimaryKey.entrySet()) {
+			final Scope ownerScope = ownersInScope.getKey();
+			for (int epk : ownersInScope.getValue()) {
+				slices[index++] = sliceSortedOwner(
+					epk, ownerScope, referencedEntityIds, validityMapping, referenceContractsAccessor, comparator
+				);
+			}
+		}
+		return FormulaFactory.or(slices).compute();
+	}
+
+	/**
+	 * Filters and orders one owner's references and takes a page of rows before collecting their body keys. Records
+	 * the groups of all admitted rows of the owner in {@link #groupsForEntity} as a side effect.
+	 *
+	 * @param ownerPrimaryKey primary key of the entity owning the references
+	 * @param ownerScope scope of the entity owning the references
+	 * @param referencedEntityIds filter-matching referenced entity keys
+	 * @param validityMapping row admission mapping for each owner
+	 * @param referenceContractsAccessor accessor for the owner's reference rows
+	 * @param comparator head of the reference ordering chain
+	 * @return formula for the referenced entity keys in the slice
+	 */
+	@Nonnull
+	private Formula sliceSortedOwner(
+		int ownerPrimaryKey,
+		@Nonnull Scope ownerScope,
+		@Nonnull Formula referencedEntityIds,
+		@Nonnull ValidEntityToReferenceMapping validityMapping,
+		@Nonnull BiFunction<String, Integer, Collection<ReferenceContract>> referenceContractsAccessor,
+		@Nonnull ReferenceComparator comparator
+	) {
+		final Integer boxedOwnerPrimaryKey = ownerPrimaryKey;
+		final Bitmap filteredReferenceEntityIds = FormulaFactory.and(
+			this.referencedEntityIdsFormula.apply(this.referenceName, boxedOwnerPrimaryKey),
+			referencedEntityIds,
+			validityMapping.getValidReferencedEntitiesFormula(ownerPrimaryKey)
 		).compute();
+		if (filteredReferenceEntityIds.isEmpty()) {
+			this.groupsForEntity.put(boxedOwnerPrimaryKey, ArrayUtils.EMPTY_INT_ARRAY);
+			return EmptyFormula.INSTANCE;
+		}
+		final Collection<ReferenceContract> sourceRefs =
+			referenceContractsAccessor.apply(this.referenceName, boxedOwnerPrimaryKey);
+		final ReferenceContract[] filterBuffer = new ReferenceContract[sourceRefs.size()];
+		int filteredCount = 0;
+		for (ReferenceContract row : sourceRefs) {
+			// A key admitted for this owner can also be shared by a rejected row.
+			if (filteredReferenceEntityIds.contains(row.getReferencedPrimaryKey()) &&
+				validityMapping.isReferenceSelected(ownerPrimaryKey, row)) {
+				filterBuffer[filteredCount++] = row;
+			}
+		}
+		final ReferenceContract[] filteredRefs = filteredCount == filterBuffer.length
+			? filterBuffer
+			: Arrays.copyOf(filterBuffer, filteredCount);
+		// Group accounting covers all admitted rows, including those outside the requested page.
+		this.groupsForEntity.put(boxedOwnerPrimaryKey, groupPksOf(filteredRefs));
+		if (filteredRefs.length == 0) {
+			return EmptyFormula.INSTANCE;
+		}
+		ReferenceComparator.sort(comparator, ownerPrimaryKey, ownerScope, filteredRefs, 0, filteredRefs.length);
+		final OffsetAndLimit offsetAndLimit = this.offsetAndLimitForSize.apply(filteredRefs.length);
+		final int[] sliced = materializeSlicedPks(filteredRefs, offsetAndLimit);
+		return sliced.length == 0 ? EmptyFormula.INSTANCE : ReferencedEntityFetcher.toFormula(sliced);
 	}
 
 	/**
@@ -541,53 +564,6 @@ class BitmapSlicer {
 			sliced[i] = sorted[from + i].getReferencedPrimaryKey();
 		}
 		return sliced;
-	}
-
-	/**
-	 * Sorts the candidates in place by walking the comparator chain. Uses the same delta-snapshot
-	 * pattern as {@code EntityDecorator#sortAndFilterSubList} — both call sites must agree because
-	 * this method drives the pre-fetch slice and `EntityDecorator` drives the post-fetch sort; any
-	 * divergence in window arithmetic would let the slice return PKs the post-fetch sort then
-	 * discards (under-fetch) or drop PKs the post-fetch sort would keep (over-fetch).
-	 *
-	 * Algorithm at each link of the chain: forward `entityPrimaryKey` to EPK-aware links, snapshot
-	 * `getNonSortedReferenceCount()`, run `Arrays.sort` over `[start, end)`, then advance `start`
-	 * past the just-sorted prefix using the per-pass delta of the snapshot — clamped to
-	 * `[0, end - start]` so a comparator whose counter is a cumulative cross-entity accumulator
-	 * (notably `EntityNestedQueryComparator`, which never resets `nonSortedReferences` between
-	 * source-entity passes) cannot drive `start` past `end` and trip the next `Arrays.sort` with a
-	 * backwards range. The shared accumulator behavior is intentional — the comparator's lifecycle
-	 * is owned by the caller; clamping on the consumer side keeps it composable.
-	 *
-	 * @param entityPrimaryKey primary key of the source entity owning the references — forwarded to
-	 *                         {@link ReferenceComparator.EntityPrimaryKeyAwareComparator} stages so they can
-	 *                         scope their lookups to this entity
-	 * @param candidates       references to sort in place (mutated)
-	 * @param comparator       head of the comparator chain; subsequent stages are walked via
-	 *                         {@link ReferenceComparator#getNextComparator()}
-	 */
-	private static void sortReferencesByComparatorChain(
-		int entityPrimaryKey,
-		@Nonnull ReferenceContract[] candidates,
-		@Nonnull ReferenceComparator comparator
-	) {
-		ReferenceComparator current = comparator;
-		int start = 0;
-		int end = candidates.length;
-		while (current != null && end > start) {
-			if (current instanceof ReferenceComparator.EntityPrimaryKeyAwareComparator epkAware) {
-				epkAware.setEntityPrimaryKey(entityPrimaryKey);
-			}
-			final int nonSortedBefore = current.getNonSortedReferenceCount();
-			Arrays.sort(candidates, start, end, current);
-			final int nonSortedAfter = current.getNonSortedReferenceCount();
-			final int delta = Math.max(0, Math.min(nonSortedAfter - nonSortedBefore, end - start));
-			if (delta == 0) {
-				break;
-			}
-			start = Math.max(end - delta, start);
-			current = current.getNextComparator();
-		}
 	}
 
 	/**

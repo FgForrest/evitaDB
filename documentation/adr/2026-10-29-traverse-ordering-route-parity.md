@@ -1,7 +1,7 @@
 ---
 title: Bound reference ordering by the filtered hierarchy and sort each target as one block
 date: 2026-10-29
-updated: 2026-10-29 11:20
+updated: 2026-11-21 11:10
 status: accepted
 kind: fix
 issues: [1670, 1830]
@@ -16,6 +16,7 @@ superseded-by: []
 relates:
   - 2026-09-23-pick-first-reference-ordering-from-selection
   - 2026-09-15-bidirectional-reference-counterpart-rewrite
+  - 2026-11-20-reference-owner-scope
 ---
 
 # Bound reference ordering by the filtered hierarchy and sort each target as one block
@@ -300,6 +301,8 @@ refused the traverse queries over both scopes in the same way, and those queries
 - [Bidirectional reference counterpart rewrite](2026-09-15-bidirectional-reference-counterpart-rewrite.md) retained
   candidate partitions to protect ordering. Traverse ordering now derives its bounds independently, so that part
   of the guard is removed; implicit pick-first chains keep it.
+- `2026-11-20-reference-owner-scope` - a defect of `referenceContent` ordering this work could not see: that ordering
+  has a single route, so no parity oracle covers it.
 
 ## Timeline
 

@@ -69,9 +69,9 @@ import static org.hamcrest.Matchers.nullValue;
  * in the fetch that do read an index are refused - a reference ordering when the reference is not indexed in every
  * queried scope, an `entityHaving` searching the referenced entities in a scope that does not index the attribute,
  * a `stopAt` node filter by an attribute filterable in one scope. The filters are confined to the scope that indexes
- * them by an `inScope` container or by a `scope` named in the `entityHaving`; the ordering passes when wrapped in
- * an `inScope` container, which however does not confine it (see
- * `References#shouldAcceptOrderingReferencesWrappedInInScope`).
+ * them by an `inScope` container or by a `scope` named in the `entityHaving`. A reference ordering wrapped in
+ * `inScope` applies only to the references of owners in the named scope (see
+ * `References#shouldOrderOnlyLiveOwnersReferencesWhenWrappedInInScope`).
  *
  * The fixture keeps every index in the `LIVE` scope only (the default): the reference attribute `rank` is filterable
  * and sortable, the `brands` reference is indexed, the category hierarchy is indexed and the `code` attribute is
@@ -318,8 +318,8 @@ public class CatalogGraphQLScopedEntityContentFunctionalTest extends CatalogGrap
 
 		@Test
 		@UseDataSet(DATA_SET)
-		@DisplayName("Should accept ordering references wrapped in inScope and order the live owners' references")
-		void shouldAcceptOrderingReferencesWrappedInInScope(GraphQLTester tester) {
+		@DisplayName("Should apply inScope ordering only to live owners and keep the archived owners' default order")
+		void shouldOrderOnlyLiveOwnersReferencesWhenWrappedInInScope(GraphQLTester tester) {
 			tester.test(TEST_CATALOG)
 				.document("""
 					{
@@ -340,11 +340,11 @@ public class CatalogGraphQLScopedEntityContentFunctionalTest extends CatalogGrap
 				.body(ERRORS_PATH, nullValue())
 				.body(brandsOfProductPath(1), contains(3, 2, 1))
 				.body(brandsOfProductPath(2), contains(3, 2, 1))
-				// the order of the references of the archived owners is deliberately not pinned: the wrapped ordering
-				// currently orders them by their own ranks too (2, 1, 3), so unlike a wrapped filter, which leaves
-				// the references of owners in another scope alone, it does not confine anything
-				.body(brandsOfProductPath(3), containsInAnyOrder(1, 2, 3))
-				.body(brandsOfProductPath(4), containsInAnyOrder(1, 2, 3));
+				// Archived owners retain the default ascending referenced primary-key order.
+				.body(
+					brandsOfProductPath(3), contains(1, 2, 3),
+					brandsOfProductPath(4), contains(1, 2, 3)
+				);
 		}
 	}
 

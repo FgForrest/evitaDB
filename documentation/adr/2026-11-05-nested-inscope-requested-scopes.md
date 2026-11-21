@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-19 21:00
+updated: 2026-11-21 11:10
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917, 1920]
@@ -21,7 +21,7 @@ supersedes: []
 superseded-by: []
 relates: [2026-10-08-scope-faithful-planning-and-facet-summary-parity,
   2026-10-20-reference-content-filter-row-by-row, 2026-10-21-one-locale-per-entity-level,
-  2026-11-17-direct-entity-calls-check-requested-content]
+  2026-11-17-direct-entity-calls-check-requested-content, 2026-11-20-reference-owner-scope]
 ---
 
 # A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
@@ -777,6 +777,9 @@ owner accepted the folded bound's refusal too, and labelled the change breaking 
   every way to match instead, so a locale below `or` gives the bodies none, while a scope below `or` adds its scope.
 - `2026-11-17-direct-entity-calls-check-requested-content` — closes the open `getEntity` follow-up above: the direct
   calls check the requested content next to the scope check this record added.
+- `2026-11-20-reference-owner-scope` - the `referenceContent` ordering's `inScope` gates by the owner's scope; its
+  refusals (nested orderings across gates, a reflected chain over several scopes) follow this record's "decide before
+  any row" rule.
 
 ## Timeline
 
