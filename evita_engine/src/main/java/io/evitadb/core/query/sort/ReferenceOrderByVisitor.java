@@ -64,9 +64,9 @@ import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslato
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.translator.EntityGroupPropertyTranslator;
 import io.evitadb.core.query.sort.entity.translator.EntityPropertyTranslator;
-import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator;
+import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;

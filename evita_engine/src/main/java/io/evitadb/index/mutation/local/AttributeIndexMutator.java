@@ -141,6 +141,9 @@ public interface AttributeIndexMutator {
 	 *
 	 * When the `existingValueSupplier` returns no prior value, the removal half of the update is simply skipped.
 	 *
+	 * An attribute of type {@link ReferencedEntityPredecessor} touches no index at all: it describes only its owner's
+	 * own list of references and is kept solely in the owner's reference rows.
+	 *
 	 * @param executor                the executor that owns the target indexes and provides schema / primary-key context
 	 * @param referenceSchema         the reference schema when the attribute belongs to a reference, `null` for entity
 	 *                                attributes
@@ -294,6 +297,8 @@ public interface AttributeIndexMutator {
 	 * - **Sortable attribute compounds** — when `updateCompounds` is `true`, every compound sort schema that references
 	 *   this attribute is updated: its old compound key is removed and, if remaining component values are all non-null,
 	 *   a new compound key is inserted without the removed attribute (treated as `null`).
+	 *
+	 * An attribute of type {@link ReferencedEntityPredecessor} is not indexed, so its removal touches no index either.
 	 *
 	 * @param executor                the executor that owns the target indexes and provides schema / primary-key context
 	 * @param referenceSchema         the reference schema when the attribute belongs to a reference, `null` for entity

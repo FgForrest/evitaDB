@@ -1515,8 +1515,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	/**
 	 * Registers `value` for `recordId` in the sort structure of `attributeSchema`. A {@link Predecessor} value goes
 	 * into a {@link ChainIndex}. An ordinary sortable value goes into a {@link SortIndex}, which is a view over the
-	 * shared tree for both-flagged attributes or a standalone
-	 * owner for sort-only attributes.
+	 * shared tree for both-flagged attributes or a standalone owner for sort-only attributes.
 	 *
 	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
 	 * @param attributeSchema the schema of the attribute being inserted

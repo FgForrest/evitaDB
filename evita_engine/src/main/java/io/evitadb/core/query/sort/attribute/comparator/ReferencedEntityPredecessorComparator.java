@@ -42,6 +42,7 @@ import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Collection;
 import java.util.Locale;
 
@@ -51,14 +52,35 @@ import java.util.Locale;
  * their stored order. The first valued row of a target supplies its predecessor. Rows without a position follow
  * the ranked rows and go to the next ordering.
  *
+ * The ranks belong to the owner last passed to {@link #prepareOwner(Collection)}, which must precede
+ * {@link #canRank(ReferenceContract)} and {@link #compare(ReferenceContract, ReferenceContract)} for every owner, so
+ * one instance serves one sort walk at a time.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@NotThreadSafe
 @SuppressWarnings("ComparatorNotSerializable")
 public final class ReferencedEntityPredecessorComparator implements OwnerReferencesAwareComparator {
+	/**
+	 * Placeholder rank of a target whose first valued row has been seen, until the chain assigns its position.
+	 */
 	private static final int NO_POSITION = Integer.MAX_VALUE;
+	/**
+	 * Key of the temporary chain built for each owner; it is never registered in an index.
+	 */
 	private final AttributeIndexKey chainKey;
+	/**
+	 * Attribute read from each reference row, including rows whose attributes the response does not carry.
+	 */
 	private final AttributeKey attributeKey;
+	/**
+	 * Requested order; descending reverses the whole chain, unconnected runs included, as the index does.
+	 */
 	private final OrderDirection direction;
+	/**
+	 * Chain position of each ranked row of the current owner, keyed by the packed referenced and internal primary
+	 * keys of the row. Replaced by every {@link #prepareOwner(Collection)}, empty before the first one.
+	 */
 	private LongIntHashMap positionsByRow = new LongIntHashMap(0);
 
 	/**

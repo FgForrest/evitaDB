@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.reference;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
@@ -62,7 +63,8 @@ class ReflectedChainArchivingFunctionalTest implements EvitaTestSupport {
 	private static final Scope[] SCOPES = {Scope.LIVE, Scope.ARCHIVED};
 
 	/**
-	 * Archives two of three owners of the same reflected partition in separate transactions.
+	 * Archives two of three owners of the same reflected partition in separate transactions, then checks that the
+	 * remaining owner still orders its reflected row.
 	 */
 	@Test
 	@DisplayName("Should archive two products sharing a target with inherited predecessor values")
@@ -83,6 +85,22 @@ class ReflectedChainArchivingFunctionalTest implements EvitaTestSupport {
 				)
 			);
 			assertEquals(List.of(1, 2), archived.stream().map(SealedEntity::getPrimaryKeyOrThrowException).toList());
+
+			final List<SealedEntity> remaining = evita.queryCatalog(
+				CATALOG, (EvitaSessionContract session) -> session.queryListOfSealedEntities(
+					query(
+						collection(PRODUCT), filterBy(scope(Scope.LIVE)),
+						require(entityFetch(referenceContent(VALUES, orderBy(attributeNatural(POSITION)))))
+					)
+				)
+			);
+			assertEquals(List.of(3), remaining.stream().map(SealedEntity::getPrimaryKeyOrThrowException).toList());
+			assertEquals(
+				List.of(1),
+				remaining.getFirst().getReferences(VALUES).stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.toList()
+			);
 		} finally {
 			cleanupTestPaths(paths);
 		}

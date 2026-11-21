@@ -1937,9 +1937,10 @@ class ReferenceContractSerializablePredicateTest {
 				Map.of(NARROWED, new int[]{10, 30}), NARROWED
 			);
 
-			final ReferenceContractSerializablePredicate richer = predicate.createRicherCopyWith(
-				narrowingRequest(Map.of(NARROWED, new int[]{20, 30}), NARROWED)
-			);
+			final EvitaRequest request = narrowingRequest(Map.of(NARROWED, new int[]{20, 30}), NARROWED);
+
+			final ReferenceContractSerializablePredicate richer =
+				predicate.createRicherCopyWith(request, request.getReferenceKeyNarrowing());
 
 			final ReferenceDecodeCoverage coverage = richer.getDecodeCoverage();
 			assertNotNull(coverage);
@@ -1955,9 +1956,10 @@ class ReferenceContractSerializablePredicateTest {
 				Map.of(NARROWED, new int[]{10}), NARROWED
 			);
 
-			final ReferenceContractSerializablePredicate richer = predicate.createRicherCopyWith(
-				narrowingRequest(Collections.emptyMap(), NARROWED)
-			);
+			final EvitaRequest request = narrowingRequest(Collections.emptyMap(), NARROWED);
+
+			final ReferenceContractSerializablePredicate richer =
+				predicate.createRicherCopyWith(request, request.getReferenceKeyNarrowing());
 
 			assertNameDecodedWhole(richer, NARROWED);
 		}
@@ -1969,9 +1971,10 @@ class ReferenceContractSerializablePredicateTest {
 				Map.of(NARROWED, new int[]{10}), NARROWED
 			);
 
-			final ReferenceContractSerializablePredicate richer = predicate.createRicherCopyWith(
-				narrowingRequest(Map.of(WHOLE, new int[]{99}), WHOLE)
-			);
+			final EvitaRequest request = narrowingRequest(Map.of(WHOLE, new int[]{99}), WHOLE);
+
+			final ReferenceContractSerializablePredicate richer =
+				predicate.createRicherCopyWith(request, request.getReferenceKeyNarrowing());
 
 			// deliberately conservative in this direction: widening costs a decode, keeping a narrowing the other
 			// side never agreed to would drop references
@@ -1999,12 +2002,11 @@ class ReferenceContractSerializablePredicateTest {
 				Map.of(NARROWED, new int[]{10, 20}), NARROWED
 			);
 
+			final EvitaRequest request = narrowingRequest(Map.of(NARROWED, new int[]{10, 20}), NARROWED);
+
 			// identity, not equality: the enrichment compares predicates by reference and skips a storage round
 			// trip on it, so a copy allocated when nothing widened turns every enrichment into a re-read
-			assertSame(
-				predicate,
-				predicate.createRicherCopyWith(narrowingRequest(Map.of(NARROWED, new int[]{10, 20}), NARROWED))
-			);
+			assertSame(predicate, predicate.createRicherCopyWith(request, request.getReferenceKeyNarrowing()));
 		}
 
 		@Test

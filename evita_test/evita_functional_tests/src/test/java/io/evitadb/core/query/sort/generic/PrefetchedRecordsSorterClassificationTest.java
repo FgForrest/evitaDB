@@ -39,7 +39,6 @@ import io.evitadb.core.query.sort.attribute.comparator.TraverseReferenceAttribut
 import io.evitadb.core.query.sort.attribute.comparator.TraverseReferenceCompoundAttributeComparator;
 import io.evitadb.core.query.sort.attribute.comparator.TraverseReferencePredecessorAttributeComparator;
 import io.evitadb.core.query.sort.generic.PrefetchedOwnersFixture.SortResult;
-import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.EvitaInternalError;

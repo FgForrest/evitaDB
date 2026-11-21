@@ -176,16 +176,63 @@ class ReferencedEntityPredecessorOrderingFunctionalTest implements EvitaTestSupp
 		assertTrue(pageRows.getFirst().getReferencedEntity().isPresent());
 
 		assertEquals(List.of(1, 3), referenceKeys(fetchOwner(Scope.LIVE, 1, orderedLabels), ITEMS));
+	}
+
+	/**
+	 * Checks that the decode of a key-filtered reference keeps every row only when a referenced-entity predecessor
+	 * orders it, because the hidden rows carry links of the chain.
+	 */
+	@Test
+	@DisplayName("Should decode every row of a reference ordered by a referenced-entity predecessor")
+	void shouldDecodeEveryRowOfAReferenceOrderedByPredecessor() {
+		final ReferenceContent orderedChain = referenceContent(
+			ITEMS, filterBy(entityPrimaryKeyInSet(1, 3)), orderBy(attributeNatural(POSITION))
+		);
+		final ReferenceContent orderedLabels = referenceContent(
+			ITEMS, filterBy(entityPrimaryKeyInSet(1, 3)), orderBy(attributeNatural(LABEL))
+		);
 		final ReferenceContent otherReference = referenceContent(
 			DUPLICATES, filterBy(entityPrimaryKeyInSet(1)), orderBy(attributeNatural(LABEL))
 		);
+
 		final ReferenceDecodeCoverage chainCoverage = decodeCoverage(orderedChain, otherReference);
+		final ReferenceDecodeCoverage labelCoverage = decodeCoverage(orderedLabels);
+
 		assertEquals(Set.of(ITEMS), chainCoverage.getNamesDecodedWhole());
 		assertEquals(Set.of(DUPLICATES), chainCoverage.getNamesDecodedByKey().keySet());
 		assertArrayEquals(new int[]{1}, chainCoverage.getNamesDecodedByKey().get(DUPLICATES).toArray());
-		final ReferenceDecodeCoverage labelCoverage = decodeCoverage(orderedLabels);
 		assertEquals(Set.of(ITEMS), labelCoverage.getNamesDecodedByKey().keySet());
 		assertArrayEquals(new int[]{1, 3}, labelCoverage.getNamesDecodedByKey().get(ITEMS).toArray());
+	}
+
+	/**
+	 * Checks that a live catalog's write transaction ranks the rows of a committed owner and of an owner it wrote
+	 * itself, and that both keep their order once it commits.
+	 */
+	@Test
+	@DisplayName("Should order the rows an open write transaction sees, including the ones it wrote itself")
+	void shouldOrderRowsInsideWriteTransaction() {
+		this.evita.updateCatalog(CATALOG, session -> {
+			writeTargets(session);
+			writeOwner(session, 1, CHAIN);
+			session.goLiveAndClose();
+		});
+		final ReferenceContent contents = referenceContent(ITEMS, orderBy(attributeNatural(POSITION)));
+
+		this.evita.updateCatalog(CATALOG, session -> {
+			writeOwner(session, 2, new int[]{3, Predecessor.HEAD_PK, 2});
+			final List<SealedEntity> owners = session.queryListOfSealedEntities(
+				query(
+					collection(OWNER), filterBy(entityPrimaryKeyInSet(1, 2)),
+					orderBy(entityPrimaryKeyNatural(OrderDirection.ASC)), require(entityFetch(contents))
+				)
+			);
+			assertEquals(List.of(3, 2, 1), referenceKeys(owners.getFirst(), ITEMS));
+			assertEquals(List.of(2, 3, 1), referenceKeys(owners.getLast(), ITEMS));
+		});
+
+		assertEquals(List.of(3, 2, 1), referenceKeys(fetchOwner(Scope.LIVE, 1, contents), ITEMS));
+		assertEquals(List.of(2, 3, 1), referenceKeys(fetchOwner(Scope.LIVE, 2, contents), ITEMS));
 	}
 
 	/**
@@ -553,7 +600,8 @@ class ReferencedEntityPredecessorOrderingFunctionalTest implements EvitaTestSupp
 	}
 
 	/**
-	 * Moves and removes owners sharing every target and repeats an archive-scope ordering after restart.
+	 * Moves and removes owners sharing every target and repeats an archive-scope ordering after restart. A third
+	 * owner, when present, is never touched after its restore and must keep its whole list.
 	 *
 	 * @param goLive whether the writes use a transactional catalog
 	 * @param ownerCount number of owners sharing each target
@@ -590,10 +638,16 @@ class ReferencedEntityPredecessorOrderingFunctionalTest implements EvitaTestSupp
 		});
 		final ReferenceContent contents = referenceContent(ITEMS, orderBy(attributeNatural(POSITION)));
 		assertEquals(List.of(3, 2), referenceKeys(fetchOwner(Scope.ARCHIVED, 2, contents), ITEMS));
+		if (ownerCount == 3) {
+			assertEquals(List.of(3, 2, 1), referenceKeys(fetchOwner(Scope.LIVE, 3, contents), ITEMS));
+		}
 		this.evita.close();
 		this.evita = new Evita(this.configuration);
 		CatalogReloadTestSupport.awaitCatalogLoaded(this.evita, CATALOG);
 		assertEquals(List.of(3, 2), referenceKeys(fetchOwner(Scope.ARCHIVED, 2, contents), ITEMS));
+		if (ownerCount == 3) {
+			assertEquals(List.of(3, 2, 1), referenceKeys(fetchOwner(Scope.LIVE, 3, contents), ITEMS));
+		}
 	}
 
 	/**

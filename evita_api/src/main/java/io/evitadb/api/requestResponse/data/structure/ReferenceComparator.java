@@ -85,7 +85,9 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 	 * Sorts admitted rows in place, advancing to the next applicable link with the unranked suffix.
 	 * The same walk is used before fetching reference bodies and when ordering the decorated rows. A link whose
 	 * scope does not admit the owner is skipped without being prepared, and the rows no applicable link ranks are
-	 * ordered by {@link #DEFAULT} last.
+	 * ordered by {@link #DEFAULT} last. A stage whose comparator (a link's delegate, or a bare comparator) is an
+	 * {@link OwnerReferencesAwareComparator} is prepared from `ownerReferences` rather than from the owner's key and
+	 * scope, so it can rank by rows outside the sorted range, such as rows the reference filter or the page hides.
 	 *
 	 * @param comparator head of the ordering chain
 	 * @param ownerPrimaryKey primary key of the entity owning the rows

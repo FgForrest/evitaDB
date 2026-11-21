@@ -39,7 +39,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
@@ -101,7 +100,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Consumer;
 
@@ -903,9 +901,8 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Writes a reference-attribute mutation into a pair of reduced indexes or partitions - the one the old value is
-	 * removed from and the one the new value is inserted into. Either half may
-	 * be a virtual partition, whose registry row alone receives its half of the write (see
-	 * {@link AttributeIndexMutator}).
+	 * removed from and the one the new value is inserted into. Either half may be a virtual partition, whose registry
+	 * row alone receives its half of the write (see {@link AttributeIndexMutator}).
 	 *
 	 * @param executor                     the mutation executor coordinating the index updates
 	 * @param targetForRemoval             the reduced index or partition the old value is removed from

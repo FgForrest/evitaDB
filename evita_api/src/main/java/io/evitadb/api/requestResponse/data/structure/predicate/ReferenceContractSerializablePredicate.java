@@ -661,15 +661,16 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	/**
 	 * Enriches the reference predicate with the requirements of a request without schema context.
 	 *
+	 * Without the owner's schema the request's decode narrowing cannot tell which names an ordering needs in full, so
+	 * none of it is taken and the copy decodes every reference whole. A copy that keeps a narrowing needs
+	 * {@link #createRicherCopyWith(EntitySchemaContract, EvitaRequest)} or a narrowing resolved by the caller.
+	 *
 	 * @param evitaRequest request containing additional reference requirements
 	 * @return predicate covering the previous and new requirements
 	 */
 	@Nonnull
 	public ReferenceContractSerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
-		return createRicherCopyWith(
-			evitaRequest, this.referenceKeyNarrowing.isEmpty() ? Collections.emptyMap() :
-				evitaRequest.getReferenceKeyNarrowing()
-		);
+		return createRicherCopyWith(evitaRequest, Collections.emptyMap());
 	}
 
 	/**
