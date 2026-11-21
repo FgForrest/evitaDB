@@ -23,8 +23,6 @@
 
 package io.evitadb.core.query.fetch;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
 import io.evitadb.api.query.require.Page;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
@@ -37,7 +35,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
-import io.evitadb.api.requestResponse.data.structure.ReferenceComparator.EntityPrimaryKeyAwareComparator;
+import io.evitadb.api.requestResponse.data.structure.ReferenceComparator.Link;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -50,6 +48,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -89,9 +88,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * - Construction: rejection of unsupported transformers and identity behavior for `NoTransformer`.
  * - `sliceEntityIdsSorted`: empty/single-element/all-equal candidate sets, page-boundary rebasing,
- *   strip overflow, comparator-chain advance, `EntityPrimaryKeyAwareComparator` callback, group
+ *   strip overflow, comparator-chain advance, owner preparation, group
  *   accounting derivation (must use `referenceContractsAccessor`, not the group translator),
- *   validity-mapping enforcement, cross-entity comparator-state leak tolerance, and multi-source-
+ *   validity-mapping enforcement, per-owner fallback, and multi-source-
  *   entity behavior.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
@@ -168,6 +167,9 @@ class BitmapSlicerTest {
 		}
 	}
 
+	/**
+	 * Exercises row admission, comparator links and pagination in the sorted slicing path.
+	 */
 	@Nested
 	@DisplayName("sliceEntityIdsSorted")
 	class SliceEntityIdsSortedTest {
@@ -358,39 +360,40 @@ class BitmapSlicerTest {
 			assertArrayEquals(new int[]{10, 20, 30}, picked);
 		}
 
+		/**
+		 * Verifies that the second comparator determines which unranked row reaches the first page.
+		 */
 		@Test
-		@DisplayName("Should advance to the next comparator in the chain when the primary leaves an unsorted tail")
-		void shouldAdvanceComparatorChainWhenPrimaryComparatorReportsNonSortedTail() {
-			// PrimaryComparatorWithUnsortedTail sorts only the first 2 elements (the rest are
-			// reported as non-sorted) and chains a ReversedPkComparator as the secondary.
-			// Expected layout after both passes: head of comparator-1 result (sorted by PK),
-			// followed by reversed-PK ordering of the remainder.
+		@DisplayName("Should advance to the next comparator when the primary leaves unranked rows")
+		void shouldAdvanceComparatorChainWhenPrimaryLeavesUnrankedRows() {
 			final int sourceEntityPk = 1;
 			final Map<Integer, List<ReferenceContract>> refsByEntity = singletonRefMap(
 				sourceEntityPk, ref(10), ref(20), ref(30), ref(40)
 			);
-			final BitmapSlicer slicer = newPageSlicer(refsByEntity, new Page(1, 4));
+			final BitmapSlicer slicer = newPageSlicer(refsByEntity, new Page(1, 3));
+
+			final Link primary = new Link(null, new LimitedPkComparator(20));
+			primary.append(new Link(null, new ReversedPkComparator()));
 
 			final Bitmap result = slicer.sliceEntityIdsSorted(
 				new ConstantFormula(new BaseBitmap(10, 20, 30, 40)),
 				permissiveValidityMapping(refsByEntity),
 				referenceContractsAccessor(refsByEntity),
-				new PrimaryComparatorWithUnsortedTail(2, new ReversedPkComparator())
+				primary
 			);
 
-			// all four come back (bitmap stores ascending), but the test is about chain advance
-			final int[] picked = result.getArray();
-			Arrays.sort(picked);
-			assertArrayEquals(new int[]{10, 20, 30, 40}, picked);
+			assertArrayEquals(new int[]{10, 20, 40}, result.getArray());
 		}
 
+		/**
+		 * Verifies that a comparator is skipped when an earlier link ranks the whole window.
+		 */
 		@Test
-		@DisplayName("Should stop walking the comparator chain when the unsorted range is exhausted")
-		void shouldStopComparatorChainWhenNonSortedRangeIsExhausted() {
-			// Primary comparator reports `getNonSortedReferenceCount() == 0`, so even though a
-			// next comparator is chained, the loop must exit immediately after the first pass.
+		@DisplayName("Should skip the next comparator when an earlier one ranks every row")
+		void shouldSkipNextComparatorWhenEarlierComparatorRanksEveryRow() {
 			final SpyingComparator next = new SpyingComparator(new ReversedPkComparator());
-			final ReferenceComparator primary = new FullySortingComparator(next);
+			final Link primary = new Link(null, new ReversedPkComparator());
+			primary.append(new Link(null, next));
 			final int sourceEntityPk = 1;
 			final Map<Integer, List<ReferenceContract>> refsByEntity = singletonRefMap(
 				sourceEntityPk, ref(10), ref(20), ref(30)
@@ -406,21 +409,27 @@ class BitmapSlicerTest {
 
 			assertEquals(
 				0, next.compareCallCount,
-				"chained comparator must not be invoked when primary reports zero non-sorted refs"
+				"The first comparator ranked all rows, so the next comparator should be skipped."
 			);
 		}
 
+		/**
+		 * Verifies that a comparator receives the key and scope of each owner before ranking its references.
+		 */
 		@Test
-		@DisplayName("Should invoke setEntityPrimaryKey on EPK-aware comparators on every chain link")
-		void shouldInvokeSetEntityPrimaryKeyOnEntityPrimaryKeyAwareComparator() {
-			final EpkAwareComparator comparator = new EpkAwareComparator();
+		@DisplayName("Should prepare the comparator with each owner's primary key and scope")
+		void shouldPrepareComparatorForEachOwner() {
+			final RecordingOwnerComparator comparator = new RecordingOwnerComparator();
 			final int sourceEntityA = 7;
 			final int sourceEntityB = 11;
 			final Map<Integer, List<ReferenceContract>> refsByEntity = new LinkedHashMap<>();
 			refsByEntity.put(sourceEntityA, List.of(ref(10), ref(20)));
 			refsByEntity.put(sourceEntityB, List.of(ref(30), ref(40)));
+			final Map<Scope, int[]> owners = CollectionUtils.createLinkedHashMap(2);
+			owners.put(Scope.LIVE, new int[]{sourceEntityA});
+			owners.put(Scope.ARCHIVED, new int[]{sourceEntityB});
 			final BitmapSlicer slicer = new BitmapSlicer(
-				Collections.singletonMap(Scope.LIVE, new int[]{sourceEntityA, sourceEntityB}),
+				owners,
 				REFERENCE_NAME,
 				referencedEntityIdsFormula(refsByEntity),
 				emptyGroupTranslator(),
@@ -437,8 +446,9 @@ class BitmapSlicerTest {
 
 			assertEquals(
 				List.of(sourceEntityA, sourceEntityB), comparator.observedKeys,
-				"setEntityPrimaryKey must be invoked once per source entity, in iteration order"
+				"Each owner key should be recorded once, in iteration order."
 			);
+			assertEquals(List.of(Scope.LIVE, Scope.ARCHIVED), comparator.observedScopes);
 		}
 
 		@Test
@@ -682,44 +692,36 @@ class BitmapSlicerTest {
 			);
 		}
 
+		/**
+		 * Verifies that references with the same unranked key fall through independently for different owners.
+		 */
 		@Test
-		@DisplayName("Should tolerate comparators whose non-sorted count is a cross-entity monotonic accumulator")
-		void shouldToleratePerPassNonSortedCountWithCrossEntityAccumulator() {
-			// Some comparator chains (notably `EntityNestedQueryComparator`) keep their
-			// `nonSortedReferences` IntSet alive across source-entity passes — the count is
-			// monotonically growing, not a per-pass reading. The slicer must therefore work with
-			// the *delta* between the count before and after each `Arrays.sort` invocation and
-			// clamp it to the sorted slice, so a stale accumulator from the first source entity
-			// cannot produce a negative `start` and trip `Arrays.sort` with a backwards range.
+		@DisplayName("Should pass shared unranked keys through the chain for each owner")
+		void shouldPassSharedUnrankedKeysThroughTheChainForEachOwner() {
 			final int sourceEntityA = 1;
 			final int sourceEntityB = 2;
-			final Map<Integer, List<ReferenceContract>> refsByEntity = new LinkedHashMap<>();
-			refsByEntity.put(sourceEntityA, List.of(ref(10), ref(20), ref(30)));
-			refsByEntity.put(sourceEntityB, List.of(ref(40), ref(50)));
+			final Map<Integer, List<ReferenceContract>> refsByEntity = CollectionUtils.createLinkedHashMap(2);
+			refsByEntity.put(sourceEntityA, List.of(ref(10), ref(30), ref(40)));
+			refsByEntity.put(sourceEntityB, List.of(ref(20), ref(30), ref(50)));
 			final BitmapSlicer slicer = new BitmapSlicer(
 				Collections.singletonMap(Scope.LIVE, new int[]{sourceEntityA, sourceEntityB}),
 				REFERENCE_NAME,
 				referencedEntityIdsFormula(refsByEntity),
 				emptyGroupTranslator(),
-				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				new PageTransformer(new Page(1, 2), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
 				false
 			);
-			final ReferenceComparator chained = new ReversedPkComparator();
-			final ReferenceComparator leaky = new MonotoneNonSortedAccumulator(chained);
+			final Link primary = new Link(null, new LimitedPkComparator(20));
+			primary.append(new Link(null, new ReversedPkComparator()));
 
 			final Bitmap result = slicer.sliceEntityIdsSorted(
 				new ConstantFormula(new BaseBitmap(10, 20, 30, 40, 50)),
 				permissiveValidityMapping(refsByEntity),
 				referenceContractsAccessor(refsByEntity),
-				leaky
+				primary
 			);
 
-			// the accumulator returns 0 on its primary pass — every ref ends up handed to the
-			// chained reversed-PK comparator, which sorts both entities' refs in descending PK
-			// order; bitmap storage is ascending, so the union of all 5 PKs is returned
-			final int[] picked = result.getArray();
-			Arrays.sort(picked);
-			assertArrayEquals(new int[]{10, 20, 30, 40, 50}, picked);
+			assertArrayEquals(new int[]{10, 20, 40, 50}, result.getArray());
 		}
 	}
 
@@ -1283,191 +1285,131 @@ class BitmapSlicerTest {
 	}
 
 	/**
-	 * Comparator that orders references by descending primary key. Used as the canonical
-	 * comparator in tests because it disagrees with PK-bitmap ordering, exposing slicer
-	 * ordering bugs.
+	 * Ranks all references by descending primary key.
 	 */
 	private static final class ReversedPkComparator implements ReferenceComparator, Serializable {
 		@Serial private static final long serialVersionUID = 1049423735946139846L;
 
+		/**
+		 * Compares reference keys in descending order.
+		 *
+		 * @param o1 first row
+		 * @param o2 second row
+		 * @return the descending order of the keys
+		 */
 		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
+		public int compare(@Nonnull ReferenceContract o1, @Nonnull ReferenceContract o2) {
 			return Integer.compare(o2.getReferencedPrimaryKey(), o1.getReferencedPrimaryKey());
-		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			return 0;
-		}
-
-		@Nonnull
-		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-			throw new UnsupportedOperationException("not used");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return null;
 		}
 	}
 
 	/**
-	 * Comparator that orders the references by their position in a list, comparing them by identity - it tells apart
-	 * two references sharing one referenced primary key.
+	 * Orders rows by identity, including when two rows share a referenced key.
 	 */
 	private static final class RankComparator implements ReferenceComparator, Serializable {
 		@Serial private static final long serialVersionUID = -5402117219931183208L;
 
 		private final List<ReferenceContract> ranking;
 
+		/**
+		 * Sets the expected rows and their order.
+		 *
+		 * @param ranking rows in ranked order
+		 */
 		RankComparator(@Nonnull List<ReferenceContract> ranking) {
 			this.ranking = ranking;
 		}
 
+		/**
+		 * Orders two rows by their positions in the ranking.
+		 *
+		 * @param o1 first row
+		 * @param o2 second row
+		 * @return the order of the rows
+		 */
 		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
+		public int compare(@Nonnull ReferenceContract o1, @Nonnull ReferenceContract o2) {
 			return Integer.compare(rankOf(o1), rankOf(o2));
 		}
 
+		/**
+		 * Finds the row by identity. A row outside the expected ranking is a test failure.
+		 *
+		 * @param reference row to locate
+		 * @return the index of the row
+		 */
 		private int rankOf(@Nonnull ReferenceContract reference) {
 			for (int i = 0; i < this.ranking.size(); i++) {
 				if (this.ranking.get(i) == reference) {
 					return i;
 				}
 			}
-			throw new IllegalArgumentException("Unranked reference " + reference.getReferenceKey());
-		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			return 0;
-		}
-
-		@Nonnull
-		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-			throw new UnsupportedOperationException("not used");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return null;
+			throw new AssertionError("Unranked reference " + reference.getReferenceKey());
 		}
 	}
 
 	/**
-	 * Comparator that reports every pair as equal. Combined with `Arrays.sort` stability,
-	 * insertion order is preserved.
+	 * Orders all rows equally so their source order is preserved.
 	 */
 	private static final class AllEqualComparator implements ReferenceComparator, Serializable {
 		@Serial private static final long serialVersionUID = 2921062812216467221L;
 
+		/**
+		 * Compares the rows as equal.
+		 *
+		 * @param o1 first row
+		 * @param o2 second row
+		 * @return zero
+		 */
 		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
+		public int compare(@Nonnull ReferenceContract o1, @Nonnull ReferenceContract o2) {
 			return 0;
-		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			return 0;
-		}
-
-		@Nonnull
-		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-			throw new UnsupportedOperationException("not used");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return null;
 		}
 	}
 
 	/**
-	 * Primary comparator that successfully sorts only the first `headSize` elements (by PK
-	 * ascending) and reports the rest as non-sorted, chaining to a secondary comparator.
+	 * Ranks keys up to a configured maximum in ascending order.
 	 */
-	private static final class PrimaryComparatorWithUnsortedTail implements ReferenceComparator, Serializable {
+	private static final class LimitedPkComparator implements ReferenceComparator, Serializable {
 		@Serial private static final long serialVersionUID = 1212470114057994610L;
 
-		private final int headSize;
-		private final ReferenceComparator next;
-		private int sortedSoFar;
+		private final int maxRankedKey;
 
-		PrimaryComparatorWithUnsortedTail(int headSize, @Nonnull ReferenceComparator next) {
-			this.headSize = headSize;
-			this.next = next;
+		/**
+		 * Sets the upper bound on keys this comparator can rank.
+		 *
+		 * @param maxRankedKey maximum ranked key
+		 */
+		LimitedPkComparator(int maxRankedKey) {
+			this.maxRankedKey = maxRankedKey;
 		}
 
+		/**
+		 * Checks whether the key falls within the ranked range.
+		 *
+		 * @param reference row to classify
+		 * @return whether the reference key is in range
+		 */
 		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
-			this.sortedSoFar++;
+		public boolean canRank(@Nonnull ReferenceContract reference) {
+			return reference.getReferencedPrimaryKey() <= this.maxRankedKey;
+		}
+
+		/**
+		 * Compares the ranked keys in ascending order.
+		 *
+		 * @param o1 first ranked row
+		 * @param o2 second ranked row
+		 * @return the order of the keys
+		 */
+		@Override
+		public int compare(@Nonnull ReferenceContract o1, @Nonnull ReferenceContract o2) {
 			return Integer.compare(o1.getReferencedPrimaryKey(), o2.getReferencedPrimaryKey());
-		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			// the comparator chain walks at most `len - headSize` items into the secondary
-			return Math.max(0, this.sortedSoFar - this.headSize);
-		}
-
-		@Nonnull
-		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-			throw new UnsupportedOperationException("not used");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return this.next;
 		}
 	}
 
 	/**
-	 * Comparator that fully sorts everything (PK ascending) and reports zero non-sorted refs;
-	 * the slicer must therefore never invoke the chained comparator.
-	 */
-	private static final class FullySortingComparator implements ReferenceComparator, Serializable {
-		@Serial private static final long serialVersionUID = -3439388572083215292L;
-
-		private final ReferenceComparator next;
-
-		FullySortingComparator(@Nonnull ReferenceComparator next) {
-			this.next = next;
-		}
-
-		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
-			return Integer.compare(o1.getReferencedPrimaryKey(), o2.getReferencedPrimaryKey());
-		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			return 0;
-		}
-
-		@Nonnull
-		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-			throw new UnsupportedOperationException("not used");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return this.next;
-		}
-	}
-
-	/**
-	 * Comparator that counts `compare` invocations on a wrapped delegate, used to assert
-	 * whether the chain advances or stops.
+	 * Records comparison calls to a wrapped comparator.
 	 */
 	private static final class SpyingComparator implements ReferenceComparator, Serializable {
 		@Serial private static final long serialVersionUID = -1109723067085802297L;
@@ -1475,114 +1417,60 @@ class BitmapSlicerTest {
 		private final ReferenceComparator delegate;
 		int compareCallCount;
 
+		/**
+		 * Sets the comparator that handles ordering.
+		 *
+		 * @param delegate comparator to observe
+		 */
 		SpyingComparator(@Nonnull ReferenceComparator delegate) {
 			this.delegate = delegate;
 		}
 
+		/**
+		 * Records a comparison and forwards it to the delegate.
+		 *
+		 * @param o1 first row
+		 * @param o2 second row
+		 * @return the delegate's comparison result
+		 */
 		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
+		public int compare(@Nonnull ReferenceContract o1, @Nonnull ReferenceContract o2) {
 			this.compareCallCount++;
 			return this.delegate.compare(o1, o2);
 		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			return this.delegate.getNonSortedReferenceCount();
-		}
-
-		@Nonnull
-		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-			throw new UnsupportedOperationException("not used");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return this.delegate.getNextComparator();
-		}
 	}
 
 	/**
-	 * `EntityPrimaryKeyAwareComparator` whose `setEntityPrimaryKey` callback records each
-	 * invocation in insertion order so tests can assert per-source-entity setup.
+	 * Records the key and scope of each owner it is prepared for.
 	 */
-	private static final class EpkAwareComparator
-		implements ReferenceComparator, EntityPrimaryKeyAwareComparator, Serializable {
+	private static final class RecordingOwnerComparator implements ReferenceComparator, Serializable {
 		@Serial private static final long serialVersionUID = 7880289428338626380L;
 
 		final List<Integer> observedKeys = new ArrayList<>();
+		final List<Scope> observedScopes = new ArrayList<>();
 
+		/**
+		 * Records the owner passed to the comparator.
+		 *
+		 * @param ownerPrimaryKey primary key of the owner
+		 * @param ownerScope scope of the owner
+		 */
 		@Override
-		public void setEntityPrimaryKey(int entityPrimaryKey) {
-			this.observedKeys.add(entityPrimaryKey);
+		public void prepareOwner(int ownerPrimaryKey, @Nonnull Scope ownerScope) {
+			this.observedKeys.add(ownerPrimaryKey);
+			this.observedScopes.add(ownerScope);
 		}
 
+		/**
+		 * Compares reference keys in ascending order.
+		 *
+		 * @param o1 first row
+		 * @param o2 second row
+		 * @return the ascending order of the keys
+		 */
 		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
+		public int compare(@Nonnull ReferenceContract o1, @Nonnull ReferenceContract o2) {
 			return Integer.compare(o1.getReferencedPrimaryKey(), o2.getReferencedPrimaryKey());
 		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			return 0;
-		}
-
-		@Nonnull
-		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-			throw new UnsupportedOperationException("not used");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return null;
-		}
 	}
-
-	/**
-	 * Comparator that mimics `EntityNestedQueryComparator`'s lazy-init `IntSet` for tracking
-	 * non-sorted refs across `compare` calls. The set accumulates across source entities, so
-	 * the second source entity's pass sees a stale count from the first pass — reproducing
-	 * the comparator-state-leak failure mode.
-	 */
-	private static final class MonotoneNonSortedAccumulator implements ReferenceComparator, Serializable {
-		@Serial private static final long serialVersionUID = -1951359585234161118L;
-
-		private final ReferenceComparator next;
-		private IntSet nonSorted;
-
-		MonotoneNonSortedAccumulator(@Nonnull ReferenceComparator next) {
-			this.next = next;
-		}
-
-		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
-			if (this.nonSorted == null) {
-				this.nonSorted = new IntHashSet();
-			}
-			this.nonSorted.add(o1.getReferencedPrimaryKey());
-			this.nonSorted.add(o2.getReferencedPrimaryKey());
-			return 0;
-		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			return this.nonSorted == null ? 0 : this.nonSorted.size();
-		}
-
-		@Nonnull
-		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-			throw new UnsupportedOperationException("not used");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return this.next;
-		}
-	}
-
 }

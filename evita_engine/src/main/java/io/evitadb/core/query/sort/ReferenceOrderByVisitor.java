@@ -43,6 +43,7 @@ import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
+import io.evitadb.api.requestResponse.data.structure.ReferenceComparator.Link;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -69,6 +70,7 @@ import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
@@ -91,18 +93,16 @@ import java.util.Deque;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
-import static java.util.Optional.ofNullable;
 
 /**
  * This {@link ConstraintVisitor} translates tree of {@link OrderConstraint} to a {@link OrderingDescriptor} record
- * allowing to access the comparator for reference attributes and for referenced entity as well. The visitor is used
- * only from {@link ReferenceFetcher} implementations.
+ * containing reference comparators in declaration order. The visitor is used by {@link ReferenceFetcher}
+ * implementations to plan and prepare reference orderings.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -135,6 +135,12 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 */
 	@Getter private final ReferenceSchema referenceSchema;
 	/**
+	 * Scopes an unwrapped chain ordering is translated for: the query's scopes plus the scopes of the owners being
+	 * ordered, because a plain chain is read in the owner's own scope and an enriched owner may live outside the
+	 * scopes its enrichment selects. A reflected chain reads one fixed scope, so it keeps the query's scopes.
+	 */
+	private final Set<Scope> chainScopes;
+	/**
 	 * Provides access to the attribute schema or sortable attribute compound based on the attribute name.
 	 */
 	private final AttributeSchemaAccessor attributeSchemaAccessor;
@@ -144,13 +150,20 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 */
 	private EntityNestedQueryComparator nestedQueryComparator;
 	/**
-	 * Contains the created comparator from the ordering query source tree.
+	 * First link of the reference ordering.
 	 */
-	private ReferenceComparator comparator;
+	@Nullable private Link firstLink;
+	/**
+	 * Last link of the reference ordering, where the next comparator is appended.
+	 */
+	@Nullable private Link lastLink;
+	/**
+	 * Enclosing owner gate of the nested stage, or `null` when it is unwrapped.
+	 */
+	@Nullable private ScopedOrdering nestedComparatorScope;
 	/**
 	 * Holds the key data for retrieving the last chain index used in a query context.
-	 * This key comprises a reference key and an attribute key, ensuring the exact chain index
-	 * can be retrieved or identified during the query processing stage.
+	 * The key includes the reference partition, the attribute, and the index scope.
 	 */
 	private LastRetrievedChainIndexKey lastRetrievedChainIndexKey;
 	/**
@@ -159,13 +172,23 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 */
 	@Nullable private SortedRecordsSupplierFactory lastRetrievedChainIndex;
 	/**
-	 * Contemporary stack for scopes used on each level of the ordering query tree.
+	 * Active reference-level `inScope` containers.
 	 */
-	private final Deque<Set<Scope>> scope = new ArrayDeque<>(16);
+	private final Deque<ScopedOrdering> ownerGates = new ArrayDeque<>(16);
 
 	/**
-	 * Extracts {@link OrderingDescriptor} from the passed `orderBy` constraint using passed `queryContext` for
-	 * extraction.
+	 * Translates the reference ordering into its chain of links before any reference row is read. Attributes and
+	 * indexes are checked in the query's scopes, or in the scope of the enclosing `inScope` container.
+	 *
+	 * @param queryContext planning context of the owner request
+	 * @param fetchRequirementCollector collector of attributes needed to order references
+	 * @param orderBy ordering of the references
+	 * @param entitySchema schema of the owner
+	 * @param referenceSchema schema of the reference being ordered
+	 * @param ownerScopes scopes of the owners whose references are ordered; an unwrapped plain chain ordering is
+	 *                    translated for them too, because it is read in each owner's own scope. Ignored for a
+	 *                    reflected reference, whose chain is read in one fixed scope.
+	 * @return the translated ordering and its nested comparator, if any
 	 */
 	@Nonnull
 	public static OrderingDescriptor getComparator(
@@ -173,12 +196,15 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		@Nonnull FetchRequirementCollector fetchRequirementCollector,
 		@Nonnull OrderConstraint orderBy,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull ReferenceSchema referenceSchema
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull Set<Scope> ownerScopes
 		) {
 		final ReferenceOrderByVisitor orderVisitor = new ReferenceOrderByVisitor(
 			queryContext,
 			fetchRequirementCollector,
 			referenceSchema,
+			referenceSchema instanceof ReflectedReferenceSchemaContract ?
+				queryContext.getScopes() : unionOf(queryContext.getScopes(), ownerScopes),
 			// the ordering is a part of the query, so it records the reference attributes it names - counted when the
 			// ordering is checked while the query is planned, see `ReferencedEntityFetcher#verifyReferenceOrdering`
 			new AttributeSchemaAccessor(
@@ -190,6 +216,24 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		);
 		orderBy.accept(orderVisitor);
 		return orderVisitor.getComparator();
+	}
+
+	/**
+	 * Returns the query scopes extended by the owner scopes the query does not select.
+	 *
+	 * @param queryScopes scopes selected by the query
+	 * @param ownerScopes scopes of the owners whose references are ordered
+	 * @return the query scopes when they contain every owner scope, otherwise the union of both
+	 */
+	@Nonnull
+	private static Set<Scope> unionOf(@Nonnull Set<Scope> queryScopes, @Nonnull Set<Scope> ownerScopes) {
+		if (queryScopes.containsAll(ownerScopes)) {
+			return queryScopes;
+		}
+		final Set<Scope> union = EnumSet.noneOf(Scope.class);
+		union.addAll(queryScopes);
+		union.addAll(ownerScopes);
+		return union;
 	}
 
 	@Override
@@ -253,40 +297,54 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	}
 
 	/**
-	 * Returns the created sorter from the ordering query source tree or default {@link ReferenceComparator#DEFAULT}
-	 * instance.
+	 * Exposes the ordering chain and its nested delegate for batch preparation.
+	 *
+	 * @return the ordering descriptor, using {@link ReferenceComparator#DEFAULT} when no link was declared
 	 */
 	@Nonnull
 	public OrderingDescriptor getComparator() {
 		return new OrderingDescriptor(
-			ofNullable(this.comparator).orElse(ReferenceComparator.DEFAULT),
+			this.firstLink == null ? ReferenceComparator.DEFAULT : this.firstLink,
 			this.nestedQueryComparator
 		);
 	}
 
 	/**
-	 * Method returns a nested query comparator for sorting along properties of referenced entity or group.
-	 * @return nested query comparator or null if no nested query comparator was created
+	 * Returns the shared nested comparator for entity and group ordering in the same owner gate.
+	 *
+	 * @return the nested query comparator used by the ordering chain
+	 * @throws EvitaInvalidUsageException when nested orderings use different owner gates
 	 */
 	@Nonnull
 	public EntityNestedQueryComparator getOrCreateNestedQueryComparator() {
+		final ScopedOrdering ownerGate = this.ownerGates.peek();
 		if (this.nestedQueryComparator == null) {
 			this.nestedQueryComparator = new EntityNestedQueryComparator();
+			this.nestedComparatorScope = ownerGate;
 			this.addComparator(this.nestedQueryComparator);
+		} else if (this.nestedComparatorScope != ownerGate) {
+			throw new EvitaInvalidUsageException(
+				"Nested orderings (`entityProperty` or `entityGroupProperty`) of one reference ordering must sit " +
+					"in the same `inScope` container."
+			);
 		}
 		return this.nestedQueryComparator;
 	}
 
 	/**
-	 * Method appends a comparator for comparing the attributes.
-	 * @param comparator comparator to be appended
+	 * Appends a comparator with the owner gate in effect at its declaration.
+	 *
+	 * @param comparator the delegate to append
 	 */
 	public void addComparator(@Nonnull ReferenceComparator comparator) {
-		if (this.comparator == null) {
-			this.comparator = comparator;
+		final ScopedOrdering ownerGate = this.ownerGates.peek();
+		final Link link = new Link(ownerGate == null ? null : ownerGate.scope(), comparator);
+		if (this.lastLink == null) {
+			this.firstLink = link;
 		} else {
-			this.comparator = this.comparator.andThen(comparator);
+			this.lastLink.append(link);
 		}
+		this.lastLink = link;
 	}
 
 	/**
@@ -302,7 +360,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		@Nonnull String attributeName
 	) {
 		return this.attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(
-			attributeName, this.scope.isEmpty() ? this.getScopes() : this.scope.peek()
+			attributeName, getScopes()
 		);
 	}
 
@@ -322,8 +380,48 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		@Nonnull AttributeTrait... requiredTrait
 	) {
 		return this.attributeSchemaAccessor.getAttributeSchema(
-			attributeName, this.getScopes(), requiredTrait
+			attributeName, getScopes(), requiredTrait
 		);
+	}
+
+	/**
+	 * Validates a chain ordering against its index schemas in every applicable scope. A reflected ordering reads
+	 * the forward reference in a single translated scope. A plain ordering reads the owner's scope.
+	 *
+	 * @param attributeName chained attribute
+	 * @param scopes nonempty set of scopes the link applies to
+	 * @return the validated schemas and the fixed lookup scope for a reflected reference
+	 */
+	@Nonnull
+	public ChainLookup translateChainLookup(@Nonnull String attributeName, @Nonnull Set<Scope> scopes) {
+		final EntitySchemaContract partitionEntitySchema;
+		final ReferenceSchemaContract partitionReferenceSchema;
+		final Scope reflectedScope;
+		if (this.referenceSchema instanceof ReflectedReferenceSchemaContract reflectedReferenceSchema) {
+			Assert.isTrue(
+				scopes.size() == 1,
+				() -> "Chain sort cannot be executed in multiple scopes (" +
+					scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
+			);
+			reflectedScope = scopes.iterator().next();
+			partitionEntitySchema = this.queryContext.getSchema(this.referenceSchema.getReferencedEntityType());
+			partitionReferenceSchema = partitionEntitySchema.getReferenceOrThrowException(
+				reflectedReferenceSchema.getReflectedReferenceName()
+			);
+		} else {
+			reflectedScope = null;
+			partitionEntitySchema = this.getSchema();
+			partitionReferenceSchema = this.referenceSchema;
+		}
+		for (final Scope indexScope : scopes) {
+			HavingTranslatorHelper.assertEntityComponentIndexed(
+				partitionEntitySchema, partitionReferenceSchema, indexScope, scopes
+			);
+		}
+		final AttributeSchemaContract partitionAttributeSchema = partitionReferenceSchema
+			.getAttribute(attributeName)
+			.orElseThrow(() -> new AttributeNotFoundException(attributeName, this.referenceSchema, this.getSchema()));
+		return new ChainLookup(partitionReferenceSchema, partitionAttributeSchema, reflectedScope);
 	}
 
 	/**
@@ -331,79 +429,55 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * associated with the given entity primary key, {@link ReferenceKey}, and {@link AttributeKey}. The partition is
 	 * resolved by its key through the memo of the query (see {@link io.evitadb.index.PartitionKeyMemo}), so a query
 	 * resolving the chains of many owners sharing one target builds the registered partitions of the target once.
-	 * The method employs caching mechanisms to improve performance by reusing previously retrieved results when the parameters match.
+	 * The last result is cached by scope and attribute, using the partition key or the reflected owner key.
 	 *
-	 * The chain index is retrieved from the query context based on the reference schema and entity schema. If the reference schema
-	 * is a {@link ReflectedReferenceSchemaContract}, the method retrieves the chain index from the entity index based on the
-	 * reference key and attribute key. If the reference schema is a {@link ReferenceSchemaContract}, the method retrieves the chain
-	 * index from the entity index based on the reference key and attribute key.
-	 *
-	 * @param entityPrimaryKey the primary key of the entity for which the chain index is being requested. May be null.
-	 * @param referenceKey the key representing the reference under which the chain index is categorized.
-	 * @param attributeKey the key representing the attribute for which the chain index is requested.
-	 * @return an {@link Optional} containing the chain if found, or an empty {@link Optional} if not found.
+	 * @param entityPrimaryKey owner primary key
+	 * @param referenceKey reference key used to locate the partition
+	 * @param attributeKey chained attribute
+	 * @param lookupScope scope of the partition
+	 * @param chainLookup schemas resolved at translation for the chain lookup
+	 * @return the chain if found, or an empty optional
 	 */
 	@Nonnull
 	public Optional<SortedRecordsSupplierFactory> getChainIndex(
-		@Nullable Integer entityPrimaryKey,
+		int entityPrimaryKey,
 		@Nonnull RepresentativeReferenceKey referenceKey,
-		@Nonnull AttributeKey attributeKey
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Scope lookupScope,
+		@Nonnull ChainLookup chainLookup
 	) {
-		if (this.referenceSchema instanceof ReflectedReferenceSchemaContract reflectedReferenceSchema) {
+		final LastRetrievedChainIndexKey lastKey = this.lastRetrievedChainIndexKey;
+		if (chainLookup.reflectedScope() != null) {
+			final String forwardReferenceName = chainLookup.referenceSchema().getName();
 			// we optimize the retrieval of the chain index by caching the last retrieved chain index
 			// the references should be sorted by reference key and attribute key, so the caching should be efficient here
-			if (this.lastRetrievedChainIndexKey != null &&
-				this.lastRetrievedChainIndexKey.referenceKey().referenceName().equals(reflectedReferenceSchema.getReflectedReferenceName()) &&
-				Objects.equals(this.lastRetrievedChainIndexKey.referenceKey().primaryKey(), entityPrimaryKey) &&
-				this.lastRetrievedChainIndexKey.attributeKey().equals(attributeKey)) {
+			if (lastKey != null && lastKey.scope() == lookupScope &&
+				lastKey.referenceKey().referenceName().equals(forwardReferenceName) &&
+				lastKey.referenceKey().primaryKey() == entityPrimaryKey &&
+				lastKey.attributeKey().equals(attributeKey)) {
 				return Optional.ofNullable(this.lastRetrievedChainIndex);
 			} else {
 				// else we have to retrieve the chain and cache it
-				Assert.notNull(entityPrimaryKey, "Entity primary key must not be null for reflected reference schema.");
 				final RepresentativeReferenceKey theLookupReferenceKey = new RepresentativeReferenceKey(
-					new ReferenceKey(
-						reflectedReferenceSchema.getReflectedReferenceName(),
-						entityPrimaryKey
-					),
+					new ReferenceKey(forwardReferenceName, entityPrimaryKey),
 					referenceKey.representativeAttributeValues()
-				);
-				final Set<Scope> scopes = this.getScopes();
-				Assert.isTrue(
-					scopes.isEmpty() || scopes.size() == 1,
-					() -> "Chain sort cannot be executed in multiple scopes (" +
-						scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
-				);
-				// resolve target schema
-				final EntitySchemaContract targetEntitySchema = this.queryContext.getSchema(
-					this.referenceSchema.getReferencedEntityType()
-				);
-				final ReferenceSchemaContract targetReferenceSchema = targetEntitySchema.getReferenceOrThrowException(
-					reflectedReferenceSchema.getReflectedReferenceName()
-				);
-				final Scope scope = scopes.isEmpty() ? Scope.DEFAULT_SCOPE : scopes.iterator().next();
-				// the chain index lives in the reduced entity index of the reflected reference, which a scope indexed
-				// without the entity component never builds - every reference would sort as if it had no predecessor
-				HavingTranslatorHelper.assertEntityComponentIndexed(
-					targetEntitySchema, targetReferenceSchema, scope, EnumSet.of(scope)
 				);
 				// get the partition from the referenced entity collection using inverted key specification - read
 				// through the memo of the query
-				final AttributeSchemaContract targetAttributeSchema = targetReferenceSchema
-					.getAttribute(attributeKey.attributeName())
-					.orElseThrow(() -> new AttributeNotFoundException(
-						attributeKey.attributeName(), this.referenceSchema, this.getSchema()
-					));
 				final Optional<SortedRecordsSupplierFactory> chainIndex = Optional.ofNullable(
 					this.queryContext.resolvePartitionForReadIfExists(
-						this.referenceSchema.getReferencedEntityType(), scope, theLookupReferenceKey
+						this.referenceSchema.getReferencedEntityType(), lookupScope, theLookupReferenceKey
 					)
 				).map(
-					it -> getChainOfPartition(it, targetReferenceSchema, targetAttributeSchema, attributeKey.locale())
+					it -> this.getChainOfPartition(
+						it, chainLookup.referenceSchema(), chainLookup.attributeSchema(), attributeKey.locale()
+					)
 				);
 				// cache the result for future use
 				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(
 					theLookupReferenceKey,
-					attributeKey
+					attributeKey,
+					lookupScope
 				);
 				this.lastRetrievedChainIndex = chainIndex.orElse(null);
 				return chainIndex;
@@ -411,40 +485,26 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		} else {
 			// we optimize the retrieval of the chain index by caching the last retrieved chain index
 			// the references should be sorted by reference key and attribute key, so the caching should be efficient here
-			if (this.lastRetrievedChainIndexKey != null &&
-				this.lastRetrievedChainIndexKey.referenceKey().equals(referenceKey) &&
-				this.lastRetrievedChainIndexKey.attributeKey().equals(attributeKey)) {
+			if (lastKey != null && lastKey.scope() == lookupScope &&
+				lastKey.referenceKey().equals(referenceKey) && lastKey.attributeKey().equals(attributeKey)) {
 				return Optional.ofNullable(this.lastRetrievedChainIndex);
 			} else {
-				final Set<Scope> scopes = this.getScopes();
-				Assert.isTrue(
-					scopes.isEmpty() || scopes.size() == 1,
-					() -> "Chain sort cannot be executed in multiple scopes (" +
-						scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
-				);
 				// else we have to retrieve the chain and cache it
-				final Scope scope = scopes.isEmpty() ? Scope.DEFAULT_SCOPE : scopes.iterator().next();
-				// the chain index lives in the reduced entity index of the reference, which a scope indexed without the
-				// entity component never builds - every reference would sort as if it had no predecessor
-				HavingTranslatorHelper.assertEntityComponentIndexed(
-					this.getSchema(), this.referenceSchema, scope, EnumSet.of(scope)
-				);
 				// get the partition from this entity collection using the reference key, through the memo of the query
-				final AttributeSchemaContract attributeSchema = this.referenceSchema
-					.getAttribute(attributeKey.attributeName())
-					.orElseThrow(() -> new AttributeNotFoundException(
-						attributeKey.attributeName(), this.referenceSchema, this.getSchema()
-					));
 				final String entityType = this.queryContext.getEntityType();
 				final Optional<SortedRecordsSupplierFactory> chainIndex = Optional.ofNullable(
 					entityType == null ?
-						this.queryContext.resolvePartitionIfExists(scope, referenceKey) :
-						this.queryContext.resolvePartitionForReadIfExists(entityType, scope, referenceKey)
+						this.queryContext.resolvePartitionIfExists(lookupScope, referenceKey) :
+						this.queryContext.resolvePartitionForReadIfExists(entityType, lookupScope, referenceKey)
 				).map(
-					it -> getChainOfPartition(it, this.referenceSchema, attributeSchema, attributeKey.locale())
+					it -> this.getChainOfPartition(
+						it, chainLookup.referenceSchema(), chainLookup.attributeSchema(), attributeKey.locale()
+					)
 				);
 				// cache the result for future use
-				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(referenceKey, attributeKey);
+				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(
+					referenceKey, attributeKey, lookupScope
+				);
 				this.lastRetrievedChainIndex = chainIndex.orElse(null);
 				return chainIndex;
 			}
@@ -482,40 +542,53 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	}
 
 	/**
-	 * Retrieves the current set of scopes being applied in the query context.
-	 * If the scope stack is empty, this method delegates to the query context to retrieve the scopes.
-	 * Otherwise, it returns the top scope from the stack.
+	 * Returns the scopes the ordering being translated is checked in: the scope of the enclosing `inScope`
+	 * container, or the query's scopes outside one. Attribute and index checks, the nested entity and group sorters
+	 * and the admission of an `inScope` container read it. A chain ordering reads {@link #getChainScopes()} instead,
+	 * which outside a container adds the scopes of the owners being ordered.
 	 *
-	 * @return a set of {@link Scope} objects representing the current query context scopes
+	 * @return scopes of the ordering being translated
 	 */
 	@Nonnull
 	public Set<Scope> getScopes() {
-		return this.scope.isEmpty() ? this.queryContext.getScopes() : this.scope.peek();
+		final ScopedOrdering ownerGate = this.ownerGates.peek();
+		return ownerGate == null ? this.queryContext.getScopes() : ownerGate.scopes();
 	}
 
 	/**
-	 * Executes the given {@link Runnable} within the context of the specified {@link Scope scopes}.
-	 * The method temporarily pushes the provided scopes to the current scope stack,
-	 * executes the runnable, and ensures the stack is restored to its previous state
-	 * afterward, even if the runnable throws an exception.
+	 * Returns the scopes a chain ordering is translated for: the scope of the enclosing `inScope` container, or
+	 * outside one the query's scopes plus, for a plain reference, the scopes of the owners being ordered.
 	 *
-	 * @param scopesToUse the set of scopes to apply during the execution of the runnable
-	 * @param runnable the code to be executed within the given scopes
+	 * @return scopes of the chain ordering being translated
 	 */
-	public void doWithScope(@Nonnull Set<Scope> scopesToUse, @Nonnull Runnable runnable) {
+	@Nonnull
+	public Set<Scope> getChainScopes() {
+		final ScopedOrdering ownerGate = this.ownerGates.peek();
+		return ownerGate == null ? this.chainScopes : ownerGate.scopes();
+	}
+
+	/**
+	 * Translates the orderings of a reference-level `inScope` container. The links they append apply only to owners
+	 * in `scopeToUse`, and their attributes and indexes are checked in it. The container is left even when the
+	 * translation fails.
+	 *
+	 * @param scopeToUse scope required of the owner
+	 * @param runnable translation of the orderings inside the container
+	 */
+	public void doWithScope(@Nonnull Scope scopeToUse, @Nonnull Runnable runnable) {
+		this.ownerGates.push(new ScopedOrdering(scopeToUse));
 		try {
-			this.scope.push(scopesToUse);
 			runnable.run();
 		} finally {
-			this.scope.pop();
+			this.ownerGates.pop();
 		}
 	}
 
 	/**
-	 * DTO record enveloping comparators both for attributes on reference itself and the referenced entity.
-	 * Currently, the sorting allows to use only simple ordering constraints either on reference attributes or
-	 * the referenced entity itself. It doesn't allow to combine them or create more complex orderings.
-	 * This is the work in progress ...
+	 * Holds the ordering chain and its exact nested delegate for validation and batch preparation.
+	 *
+	 * @param comparator head of the reference ordering chain, or the default ordering
+	 * @param nestedQueryComparator nested delegate in the chain, or `null` if absent
 	 */
 	public record OrderingDescriptor(
 		@Nonnull ReferenceComparator comparator,
@@ -524,15 +597,49 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	}
 
 	/**
-	 * The LastRetrievedChainIndexKey record represents a composite key used to uniquely identify a chain index
-	 * based on a combination of a reference key and an attribute key.
+	 * Identifies one enclosing reference-level `inScope`. Each container gets its own instance, so identity tells
+	 * two containers of the same scope apart.
 	 *
-	 * @param referenceKey The reference key represents a unique identifier of a reference within the schema.
-	 * @param attributeKey The attribute key represents a unique identifier of an attribute, which may also be locale-specific.
+	 * @param scope scope required of the owner
+	 */
+	private record ScopedOrdering(@Nonnull Scope scope) {
+
+		/**
+		 * Returns the index scopes of the orderings inside the container.
+		 *
+		 * @return the single scope required of the owner
+		 */
+		@Nonnull
+		Set<Scope> scopes() {
+			return Set.of(this.scope);
+		}
+	}
+
+	/**
+	 * Describes the schema and fixed scope of a reference chain lookup after translation.
+	 *
+	 * @param referenceSchema reference on the collection holding the chain
+	 * @param attributeSchema chained attribute on that reference
+	 * @param reflectedScope fixed scope for a reflected chain, or `null` to use the owner's scope
+	 */
+	public record ChainLookup(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nullable Scope reflectedScope
+	) {
+	}
+
+	/**
+	 * Identifies a chain index lookup within a reference partition.
+	 *
+	 * @param referenceKey key of the reference partition
+	 * @param attributeKey key of the chained attribute, including its locale if applicable
+	 * @param scope scope of the partition
 	 */
 	private record LastRetrievedChainIndexKey(
 		@Nonnull RepresentativeReferenceKey referenceKey,
-		@Nonnull AttributeKey attributeKey
-	) {}
-
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Scope scope
+	) {
+	}
 }

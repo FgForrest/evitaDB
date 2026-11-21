@@ -593,6 +593,10 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		this.attachesBodies = parentEntity instanceof SealedEntity;
 	}
 
+	/**
+	 * Before filling the unnamed view, builds the named reference sets the server fetcher prepared - each filtered,
+	 * sorted in the owner's scope and sliced by its own requirement.
+	 */
 	@Override
 	protected int fillFilteredSortedAndFetchedReferences(
 		int entityPrimaryKey,
@@ -714,6 +718,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 
 						final int filteredOutReferences = sortAndFilterSubList(
 							entityPrimaryKey,
+							entity.getScope(),
 							outputReferences,
 							namedReferencePredicate,
 							referenceFilter,

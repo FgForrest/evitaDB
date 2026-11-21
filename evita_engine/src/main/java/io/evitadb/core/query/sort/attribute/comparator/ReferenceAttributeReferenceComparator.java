@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.sort.attribute.comparator;
 
-import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
@@ -42,7 +41,6 @@ import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
 import static io.evitadb.index.attribute.SortIndex.createComparatorNormalizerFor;
-import static java.util.Optional.ofNullable;
 
 /**
  * Reference attribute comparator sorts {@link ReferenceDecorator} according to a specified reference attribute value.
@@ -54,22 +52,17 @@ import static java.util.Optional.ofNullable;
 @SuppressWarnings("ComparatorNotSerializable")
 public class ReferenceAttributeReferenceComparator implements ReferenceComparator {
 	/**
-	 * Optional reference to the next comparator in the chain, defining the order in case the current comparator
-	 * cannot determine the comparison result.
-	 */
-	@Nullable private final ReferenceComparator nextComparator;
-	/**
-	 * Functional interface used to retrieve the specific attribute value from a given {@link ReferenceContract}.
+	 * Retrieves the raw attribute value from a reference.
 	 */
 	@Nonnull private final Function<ReferenceContract, Serializable> attributeValueFetcher;
+	/**
+	 * Normalizes values for comparison.
+	 */
+	@Nonnull private final UnaryOperator<Serializable> normalizer;
 	/**
 	 * Comparator for directly comparing the fetched attribute values between two {@link ReferenceContract} instances.
 	 */
 	@Nonnull private final Comparator<Serializable> comparator;
-	/**
-	 * Set containing the primary keys of references that were not sorted due to missing or null attribute values.
-	 */
-	private IntHashSet nonSortedReferences;
 
 	/**
 	 * Creates the comparator of the references by the given reference attribute.
@@ -88,102 +81,46 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection
 	) {
-		this(attributeName, type, indexedDecimalPlaces, locale, orderDirection, null);
-	}
-
-	/**
-	 * Creates the comparator of the references by the given reference attribute, falling back to the next comparator
-	 * for the references the attribute does not order.
-	 *
-	 * @param attributeName        the name of the reference attribute
-	 * @param type                 the type of the attribute value
-	 * @param indexedDecimalPlaces the `indexedDecimalPlaces` of the attribute schema - the scale a range value is
-	 *                             compared at
-	 * @param locale               the locale to read a localized attribute in, or `null`
-	 * @param orderDirection       the direction to sort in
-	 * @param nextComparator       the comparator of the references the attribute does not order, or `null`
-	 */
-	public ReferenceAttributeReferenceComparator(
-		@Nonnull String attributeName,
-		@Nonnull Class<?> type,
-		int indexedDecimalPlaces,
-		@Nullable Locale locale,
-		@Nonnull OrderDirection orderDirection,
-		@Nullable ReferenceComparator nextComparator
-	) {
 		final ComparatorSource comparatorSource = new ComparatorSource(
 			type, orderDirection, OrderBehaviour.NULLS_LAST
 		);
 		final Optional<UnaryOperator<Serializable>> normalizerFor =
 			createComparatorNormalizerFor(comparatorSource, indexedDecimalPlaces);
-		final UnaryOperator<Serializable> normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
+		this.normalizer = normalizerFor.orElseGet(UnaryOperator::identity);
 		//noinspection unchecked
 		this.comparator = createComparatorFor(locale, comparatorSource);
 		this.attributeValueFetcher = locale == null ?
-			referenceContract -> normalizer.apply(referenceContract.getAttribute(attributeName)) :
-			referenceContract -> normalizer.apply(referenceContract.getAttribute(attributeName, locale));
-		this.nextComparator = nextComparator;
+			referenceContract -> referenceContract.getAttribute(attributeName) :
+			referenceContract -> referenceContract.getAttribute(attributeName, locale);
 	}
 
-	private ReferenceAttributeReferenceComparator(
-		@Nonnull ReferenceComparator nextComparator,
-		@Nonnull Function<ReferenceContract, Serializable> attributeValueFetcher,
-		@Nonnull Comparator<Serializable> comparator
-	) {
-		this.nextComparator = nextComparator;
-		this.attributeValueFetcher = attributeValueFetcher;
-		this.comparator = comparator;
-	}
-
-	@Nonnull
+	/**
+	 * Checks whether the reference carries a value for the ordered attribute.
+	 *
+	 * @param reference row to classify
+	 * @return whether the value is present
+	 */
 	@Override
-	public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-		return new ReferenceAttributeReferenceComparator(comparatorForUnknownRecords, this.attributeValueFetcher, this.comparator);
+	public boolean canRank(@Nonnull ReferenceContract reference) {
+		return this.attributeValueFetcher.apply(reference) != null;
 	}
 
-	@Nullable
+	/**
+	 * Compares references by their normalized attribute values, with missing values at the end.
+	 *
+	 * @param o1 first row
+	 * @param o2 second row
+	 * @return the order of the rows
+	 */
 	@Override
-	public ReferenceComparator getNextComparator() {
-		return this.nextComparator;
-	}
-
-	@Override
-	public int getNonSortedReferenceCount() {
-		return ofNullable(this.nonSortedReferences)
-			.map(IntHashSet::size)
-			.orElse(0);
-	}
-
-	@Override
-	public int compare(ReferenceContract o1, ReferenceContract o2) {
+	public int compare(@Nullable ReferenceContract o1, @Nullable ReferenceContract o2) {
 		final Serializable attribute1 = o1 == null ? null : this.attributeValueFetcher.apply(o1);
 		final Serializable attribute2 = o2 == null ? null : this.attributeValueFetcher.apply(o2);
-		if (attribute1 != null && attribute2 != null) {
-			return this.comparator.compare(attribute1, attribute2);
-		} else if (attribute1 == null && attribute2 != null) {
-			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
-				.orElseGet(IntHashSet::new);
-			if (o1 != null) {
-				this.nonSortedReferences.add(o1.getReferencedPrimaryKey());
-			}
-			return 1;
-		} else if (attribute1 != null) {
-			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
-				.orElseGet(IntHashSet::new);
-			if (o2 != null) {
-				this.nonSortedReferences.add(o2.getReferencedPrimaryKey());
-			}
-			return -1;
-		} else {
-			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
-				.orElseGet(IntHashSet::new);
-			if (o1 != null) {
-				this.nonSortedReferences.add(o1.getReferencedPrimaryKey());
-			}
-			if (o2 != null) {
-				this.nonSortedReferences.add(o2.getReferencedPrimaryKey());
-			}
-			return 0;
+		if (attribute1 == null) {
+			return attribute2 == null ? 0 : 1;
 		}
+		return attribute2 == null
+			? -1
+			: this.comparator.compare(this.normalizer.apply(attribute1), this.normalizer.apply(attribute2));
 	}
 }

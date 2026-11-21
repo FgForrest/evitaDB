@@ -32,12 +32,14 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Comparator;
@@ -53,11 +55,12 @@ import static io.evitadb.index.attribute.SortIndex.createComparatorNormalizerFor
 
 /**
  * Comparator for sorting entities according to a sortable compound attribute value set on particular reference.
- * It combines multiple attribute comparators into one.
+ * Every tuple participates in the ordering, including tuples whose elements are all null.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class ReferenceCompoundAttributeReferenceComparator implements ReferenceComparator, ReferenceComparator.EntityPrimaryKeyAwareComparator, Serializable {
+@NotThreadSafe
+public class ReferenceCompoundAttributeReferenceComparator implements ReferenceComparator, Serializable {
 	@Serial private static final long serialVersionUID = 3531363761422177481L;
 	/**
 	 * Function for fetching the attribute value from the entity.
@@ -85,6 +88,14 @@ public class ReferenceCompoundAttributeReferenceComparator implements ReferenceC
 	 */
 	@Nonnull private final Map<ReferenceKey, ComparableArray> memoizedValues = CollectionUtils.createHashMap(128);
 
+	/**
+	 * Creates a tuple ordering from the compound schema and its element schemas.
+	 *
+	 * @param compoundSchemaContract compound defining the order of its elements
+	 * @param locale locale used for localized attributes, or `null`
+	 * @param attributeSchemaExtractor extractor for the schema of each element
+	 * @param orderDirection direction of the whole tuple ordering
+	 */
 	public ReferenceCompoundAttributeReferenceComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
@@ -124,30 +135,26 @@ public class ReferenceCompoundAttributeReferenceComparator implements ReferenceC
 		this.attributeElements = attributeElements.toArray(new AttributeElement[0]);
 	}
 
+	/**
+	 * Clears memoized tuples from the previous owner's references.
+	 *
+	 * @param ownerPrimaryKey primary key of the owner
+	 * @param ownerScope scope of the owner
+	 */
 	@Override
-	public void setEntityPrimaryKey(int entityPrimaryKey) {
+	public void prepareOwner(int ownerPrimaryKey, @Nonnull Scope ownerScope) {
 		this.memoizedValues.clear();
 	}
 
+	/**
+	 * Compares the reference tuples using the compound schema's null policies.
+	 *
+	 * @param o1 first row
+	 * @param o2 second row
+	 * @return the order of the tuples
+	 */
 	@Override
-	public int getNonSortedReferenceCount() {
-		return 0;
-	}
-
-	@Nonnull
-	@Override
-	public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-		return this;
-	}
-
-	@Nullable
-	@Override
-	public ReferenceComparator getNextComparator() {
-		return null;
-	}
-
-	@Override
-	public int compare(ReferenceContract o1, ReferenceContract o2) {
+	public int compare(@Nonnull ReferenceContract o1, @Nonnull ReferenceContract o2) {
 		final ComparableArray valueToCompare1 = getAndMemoizeValue(o1);
 		final ComparableArray valueToCompare2 = getAndMemoizeValue(o2);
 		return this.comparator.compare(valueToCompare1, valueToCompare2);

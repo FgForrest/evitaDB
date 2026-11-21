@@ -29,12 +29,11 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.comparator.IntComparator;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * A comparator that compares references based on the primary key of the referenced entity.
+ * Ranks every reference by the primary key of the referenced entity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -46,31 +45,26 @@ public class ReferencePrimaryKeyComparator implements ReferenceComparator, Seria
 	 */
 	@Nonnull private final IntComparator comparator;
 
+	/**
+	 * Creates an ordering of referenced primary keys.
+	 *
+	 * @param comparator ordering of the keys
+	 */
 	public ReferencePrimaryKeyComparator(
 		@Nonnull IntComparator comparator
 	) {
 		this.comparator = comparator;
 	}
 
+	/**
+	 * Compares the referenced primary keys in the configured direction.
+	 *
+	 * @param o1 first row
+	 * @param o2 second row
+	 * @return the order of the keys
+	 */
 	@Override
-	public int getNonSortedReferenceCount() {
-		return 0;
-	}
-
-	@Nonnull
-	@Override
-	public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-		return this;
-	}
-
-	@Nullable
-	@Override
-	public ReferenceComparator getNextComparator() {
-		return null;
-	}
-
-	@Override
-	public int compare(ReferenceContract o1, ReferenceContract o2) {
+	public int compare(@Nonnull ReferenceContract o1, @Nonnull ReferenceContract o2) {
 		return this.comparator.compare(
 			o1.getReferencedPrimaryKey(),
 			o2.getReferencedPrimaryKey()

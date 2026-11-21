@@ -66,6 +66,12 @@ public class OrderInScopeTranslator implements OrderingConstraintTranslator<Orde
 			);
 	}
 
+	/**
+	 * Translates reference orderings within the given owner scope.
+	 *
+	 * @param inScope container setting the owner scope
+	 * @param orderByVisitor visitor assembling the reference ordering
+	 */
 	@Override
 	public void createComparator(@Nonnull OrderInScope inScope, @Nonnull ReferenceOrderByVisitor orderByVisitor) {
 		final Set<Scope> requestedScopes = orderByVisitor.getScopes();
@@ -77,7 +83,7 @@ public class OrderInScopeTranslator implements OrderingConstraintTranslator<Orde
 
 		// process inner constraints
 		orderByVisitor.doWithScope(
-			Set.of(scopeToUse),
+			scopeToUse,
 			() -> {
 				for (OrderConstraint innerConstraint : inScope.getChildren()) {
 					innerConstraint.accept(orderByVisitor);
