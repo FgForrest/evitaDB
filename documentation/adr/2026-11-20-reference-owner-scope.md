@@ -1,7 +1,7 @@
 ---
 title: Inside referenceContent an inScope ordering applies to the owners of that scope, and the ordering is one chain of links walked by both fetch sites
 date: 2026-11-20
-updated: 2026-11-21 17:51
+updated: 2026-11-21 18:07
 status: accepted
 kind: fix
 issues: [2045]
@@ -183,7 +183,7 @@ Deferred:
   attribute in every searched scope, which refused two scoped group orderings whose attribute is sortable in LIVE
   only and an accepted nested `inScope(LIVE, ...)` ordering of `2026-11-05-nested-inscope-requested-scopes`. A
   narrower contract (sort in the body scopes where the attribute is sortable, refuse only when there is none) was
-  not tried.
+  not tried. Tracked as #2050, which proposes admitting an inner `inScope(LIVE, ...)` inside `entityProperty`.
 - **Cost of classification** (suspected, not measured): `canRank` reads each row's value once more before the sort
   reads it again; a scalar comparator could carry the value from the classification into the comparison.
 - **Group membership** is built from raw rows, including rows the reference filter rejects.
