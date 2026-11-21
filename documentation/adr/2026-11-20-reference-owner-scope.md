@@ -1,7 +1,7 @@
 ---
 title: Inside referenceContent an inScope ordering applies to the owners of that scope, and the ordering is one chain of links walked by both fetch sites
 date: 2026-11-20
-updated: 2026-11-21 13:40
+updated: 2026-11-21 17:51
 status: accepted
 kind: fix
 issues: [2045]
@@ -20,6 +20,7 @@ relates:
   - 2026-10-29-traverse-ordering-route-parity
   - 2026-09-28-indexed-reference-scope-requires-entity-component
   - 2026-09-23-reference-decode-narrowing-by-referenced-key
+  - 2026-11-21-referenced-entity-predecessor-owner-local-order
 ---
 
 # Inside referenceContent an inScope ordering applies to the owners of that scope

@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
 date: 2026-10-20
-updated: 2026-11-17 01:20
+updated: 2026-11-21 17:51
 status: accepted
 kind: optimization
 issues: [1615]
@@ -35,7 +35,8 @@ relates: [2026-11-03-release-catalog-upgrade-from-surviving-index-parts,
   2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys,
   2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision,
   2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics,
-  2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-11-19-one-histogram-store-per-group]
+  2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-11-19-one-histogram-store-per-group,
+  2026-11-21-referenced-entity-predecessor-owner-local-order]
 ---
 
 # A single-owner partition of a filtering-only reference is a registry row, not an index object
