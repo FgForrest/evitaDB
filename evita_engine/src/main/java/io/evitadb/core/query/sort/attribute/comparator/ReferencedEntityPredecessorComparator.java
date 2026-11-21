@@ -25,17 +25,20 @@ package io.evitadb.core.query.sort.attribute.comparator;
 
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
-import com.carrotsearch.hppc.cursors.IntIntCursor;
+import com.carrotsearch.hppc.LongIntHashMap;
+import com.carrotsearch.hppc.cursors.LongIntCursor;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator.OwnerReferencesAwareComparator;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -56,7 +59,7 @@ public final class ReferencedEntityPredecessorComparator implements OwnerReferen
 	private final AttributeIndexKey chainKey;
 	private final AttributeKey attributeKey;
 	private final OrderDirection direction;
-	private IntIntMap positionsByRow = new IntIntHashMap(0);
+	private LongIntHashMap positionsByRow = new LongIntHashMap(0);
 
 	/**
 	 * Creates an ordering over a referenced-entity predecessor attribute.
@@ -85,7 +88,7 @@ public final class ReferencedEntityPredecessorComparator implements OwnerReferen
 	@Override
 	public void prepareOwner(@Nonnull Collection<? extends ReferenceContract> references) {
 		final IntIntMap ranksByTarget = new IntIntHashMap(references.size());
-		final IntIntMap ranksByRow = new IntIntHashMap(references.size());
+		final LongIntHashMap ranksByRow = new LongIntHashMap(references.size());
 		final ChainIndex chain = new ChainIndex(this.chainKey);
 		final TransactionalLayerMaintainer transactionalLayer = Transaction.getTransactionalLayerMaintainer();
 		try {
@@ -93,11 +96,12 @@ public final class ReferencedEntityPredecessorComparator implements OwnerReferen
 				if (reference.exists()) {
 					final ReferencedEntityPredecessor predecessor = this.predecessorOf(reference);
 					if (predecessor != null) {
-						final int target = reference.getReferencedPrimaryKey();
+						final ReferenceKey key = reference.getReferenceKey();
+						final int target = key.primaryKey();
 						if (ranksByTarget.putIfAbsent(target, NO_POSITION)) {
 							chain.upsertPredecessor(predecessor, target);
 						}
-						ranksByRow.put(reference.getReferenceKey().internalPrimaryKey(), target);
+						ranksByRow.put(rowKey(key), target);
 					}
 				}
 			}
@@ -108,7 +112,7 @@ public final class ReferencedEntityPredecessorComparator implements OwnerReferen
 				ranksByTarget.put(keys[position], position);
 			}
 			// Replace each valued row's target key with the position shared by that target's valued rows.
-			for (final IntIntCursor row : ranksByRow) {
+			for (final LongIntCursor row : ranksByRow) {
 				ranksByRow.indexReplace(row.index, ranksByTarget.get(row.value));
 			}
 		} finally {
@@ -128,7 +132,7 @@ public final class ReferencedEntityPredecessorComparator implements OwnerReferen
 	 */
 	@Override
 	public boolean canRank(@Nonnull ReferenceContract reference) {
-		return this.positionsByRow.containsKey(reference.getReferenceKey().internalPrimaryKey());
+		return this.positionsByRow.containsKey(rowKey(reference.getReferenceKey()));
 	}
 
 	/**
@@ -141,9 +145,19 @@ public final class ReferencedEntityPredecessorComparator implements OwnerReferen
 	@Override
 	public int compare(@Nonnull ReferenceContract first, @Nonnull ReferenceContract second) {
 		return Integer.compare(
-			this.positionsByRow.get(first.getReferenceKey().internalPrimaryKey()),
-			this.positionsByRow.get(second.getReferenceKey().internalPrimaryKey())
+			this.positionsByRow.get(rowKey(first.getReferenceKey())),
+			this.positionsByRow.get(rowKey(second.getReferenceKey()))
 		);
+	}
+
+	/**
+	 * Identifies a row within the ordered reference. Reflected rows for different targets can share an internal key.
+	 *
+	 * @param key reference row key
+	 * @return packed referenced and internal primary keys
+	 */
+	private static long rowKey(@Nonnull ReferenceKey key) {
+		return NumberUtils.pack(key.primaryKey(), key.internalPrimaryKey());
 	}
 
 	/**

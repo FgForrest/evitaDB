@@ -405,6 +405,91 @@ class ReferencedEntityPredecessorOrderingFunctionalTest implements EvitaTestSupp
 	}
 
 	/**
+	 * Checks local predecessor ordering and paging when reflected rows share an internal primary key.
+	 */
+	@Test
+	@DisplayName("Should rank reflected rows independently when they share an internal primary key")
+	void shouldRankReflectedRowsWithSharedInternalPrimaryKey() {
+		final String brand = "brand";
+		final String product = "product";
+		final String products = "products";
+		this.evita.updateCatalog(CATALOG, session -> {
+			session.defineEntitySchema(brand).updateVia(session);
+			session.defineEntitySchema(product)
+				.withReferenceToEntity(brand, brand, Cardinality.ZERO_OR_MORE, ref -> ref.indexedForFiltering())
+				.updateVia(session);
+			session.defineEntitySchema(brand)
+				.withReflectedReferenceToEntity(products, product, brand, ref -> ref
+					.withCardinality(Cardinality.ZERO_OR_MORE)
+					.indexedForFiltering()
+					.withAttribute(POSITION, ReferencedEntityPredecessor.class, attr -> attr.nullable().sortable()))
+				.updateVia(session);
+			session.createNewEntity(brand, 1).upsertVia(session);
+			for (final int key : List.of(9, 10, 11, 12, 13)) {
+				session.createNewEntity(product, key).setReference(brand, 1).upsertVia(session);
+			}
+			final EntityBuilder owner = session.getEntity(brand, 1, referenceContentWithAttributes(products))
+				.orElseThrow().openForWrite();
+			owner.updateReference(products, 11, ref -> ref.setAttribute(POSITION, new ReferencedEntityPredecessor(12)));
+			owner.updateReference(products, 12, ref -> ref.setAttribute(POSITION, new ReferencedEntityPredecessor(13)));
+			owner.updateReference(products, 13, ref -> ref.setAttribute(
+				POSITION, new ReferencedEntityPredecessor(Predecessor.HEAD_PK)
+			));
+			owner.upsertVia(session);
+			session.goLiveAndClose();
+		});
+		this.evita.queryCatalog(CATALOG, session -> {
+			final SealedEntity owner = session.getEntity(brand, 1, referenceContentWithAttributes(products))
+				.orElseThrow();
+			assertEquals(List.of(9, 10, 11, 12, 13), referenceKeys(owner, products));
+			assertEquals(
+				List.of(1, 1, 1, 1, 1),
+				owner.getReferences(products).stream().map(row -> row.getReferenceKey().internalPrimaryKey()).toList(),
+				"Reflected rows must share an internal primary key"
+			);
+			assertNull(owner.getReference(products, 9).orElseThrow().getAttribute(POSITION));
+			assertNull(owner.getReference(products, 10).orElseThrow().getAttribute(POSITION));
+
+			final OrderBy ascending = orderBy(attributeNatural(POSITION, OrderDirection.ASC));
+			final OrderBy descending = orderBy(attributeNatural(POSITION, OrderDirection.DESC));
+			final OrderBy withFallback = orderBy(
+				attributeNatural(POSITION, OrderDirection.ASC), entityPrimaryKeyNatural(OrderDirection.DESC)
+			);
+			assertAll(
+				() -> assertEquals(
+					List.of(13, 12, 11, 9, 10),
+					referenceKeys(
+						session.getEntity(brand, 1, referenceContent(products, ascending)).orElseThrow(), products
+					),
+					"Ascending chain with default fallback"
+				),
+				() -> assertEquals(
+					List.of(11, 12, 13, 9, 10),
+					referenceKeys(
+						session.getEntity(brand, 1, referenceContent(products, descending)).orElseThrow(), products
+					),
+					"Descending chain with default fallback"
+				),
+				() -> assertEquals(
+					List.of(13, 12, 11, 10, 9),
+					referenceKeys(
+						session.getEntity(brand, 1, referenceContent(products, withFallback)).orElseThrow(), products
+					),
+					"Ascending chain with explicit fallback"
+				),
+				() -> {
+					final SealedEntity pagedOwner = session.getEntity(
+						brand, 1, referenceContent(products, ascending, entityFetch(), page(1, 1))
+					).orElseThrow();
+					assertEquals(List.of(13), referenceKeys(pagedOwner, products));
+					assertEquals(13, pagedOwner.getReference(products, 13).orElseThrow().getReferencedEntity()
+						.orElseThrow().getPrimaryKeyOrThrowException());
+				}
+			);
+		});
+	}
+
+	/**
 	 * Covers empty collections, owners without rows, and populated lists in either scope.
 	 *
 	 * @param scope queried scope

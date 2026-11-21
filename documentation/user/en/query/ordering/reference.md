@@ -49,10 +49,15 @@ the `referenceProperty` constraint is implicit and must not be repeated. All att
 in `referenceContent` automatically refer to the reference attributes, unless the [`entityProperty`](#entity-property)
 container is used there.
 
-A `ReferencedEntityPredecessor` orders an owner's references by the list formed by that owner's reference rows.
-The full list determines the order before the reference filter and pagination are applied. Use
+A locally declared `ReferencedEntityPredecessor` orders an owner's references by the chain formed by that owner's
+reference rows. The full chain determines the order before the reference filter and pagination are applied. Use
 `referenceContent(..., orderBy(attributeNatural(...)))` to fetch the references in that order. An owner's list
 cannot order the owners themselves through `referenceProperty`.
+
+A `ReferencedEntityPredecessor` inherited by a reflected reference follows the forward reference's `Predecessor`
+chain in a single scope. With `scope(LIVE, ARCHIVED)`, an unwrapped inherited chain ordering fails with
+`Chain sort cannot be executed in multiple scopes (LIVE, ARCHIVED) simultaneously.` Wrap the ordering in `inScope`,
+for example `orderBy(inScope(LIVE, attributeNatural('position')))`.
 
 </Note>
 
