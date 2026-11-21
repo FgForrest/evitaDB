@@ -1,7 +1,7 @@
 ---
 title: Bound the reference decode by the referenced keys a requirement names, and let named reference content own the names only it asked for
 date: 2026-09-23
-updated: 2026-10-14 22:34
+updated: 2026-11-21 17:51
 status: accepted
 kind: optimization
 issues: [1637, 1640]
@@ -9,7 +9,8 @@ prs: [1638, 1639]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse, evita_engine/src/main/java/io/evitadb/core/query/response, evita_engine/src/main/java/io/evitadb/core/collection, evita_engine/src/main/java/io/evitadb/spi/store/catalog/persistence, evita_store/evita_store_entity, evita_store/evita_store_server]
 supersedes: []
 superseded-by: []
-relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-11-reference-name-narrowing, 2026-09-23-internal-member-annotation]
+relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-11-reference-name-narrowing, 2026-09-23-internal-member-annotation,
+  2026-11-21-referenced-entity-predecessor-owner-local-order]
 ---
 
 # Bound the reference decode by the referenced keys a requirement names

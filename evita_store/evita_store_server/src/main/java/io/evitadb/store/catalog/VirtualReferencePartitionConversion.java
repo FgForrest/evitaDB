@@ -32,6 +32,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -45,6 +47,13 @@ import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexRootRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.store.catalog.Migration_2025_6.NoChangeHeaderInfoSupplier;
@@ -58,12 +67,14 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -93,17 +104,21 @@ import java.util.TreeMap;
  * schema over, because a reflected reference may inherit its indexing from the reference it reflects, and the stored
  * schema alone does not say what it inherits.
  *
+ * Before classifying an index, the migration drops obsolete {@link ReferencedEntityPredecessor} chains, including
+ * inherited chains of reflected references. Plain reference ordering now uses the owner's reference values, and
+ * reflected reference ordering uses the forward predecessor chain. The row writer carries only ordinary predecessor
+ * chains. An index that empties as a result of the cleanup is retired with the same rule as the runtime sweep.
+ *
  * A catalog of protocol 6 holds no registry row: 2026.2 kept no registry, and a registry without a stored root loads
  * empty. A registry row met on the way is therefore a premise failure rather than something to rebuild - it would mean
  * the catalog was stamped with a protocol it was not written under.
  *
  * # What it leaves as it is
  *
- * A partition with several owners stays an index object, as the write path keeps it, and so does every partition of a
- * reference indexed for partitioning. A partition of a reference that is neither - the reference is gone from the
- * schema, or no longer indexed with the referenced entity component in the scope, or a partition without an owner or
- * without a referenced-type entity index to carry its row - is left as it is, and the operator is warned. Such a
- * partition never aborts the conversion.
+ * A surviving partition with several owners or a reference indexed for partitioning stays an index object.
+ * The migration also keeps partitions whose reference is gone from the schema or is no longer indexed with the
+ * referenced entity component in the scope, and partitions without an owner or a referenced-type entity index
+ * to carry their row. The operator is warned about these partitions.
  *
  * # Durability
  *
@@ -140,19 +155,18 @@ final class VirtualReferencePartitionConversion {
 	}
 
 	/**
-	 * Converts the single-owner partitions of one collection into registry rows - see the class documentation - and,
-	 * when it wrote anything, flushes the collection data store with a collection header that no longer lists the
-	 * converted partitions. Nothing is published: the caller puts the collection header the data store holds afterwards
-	 * into the catalog data store and publishes it with the catalog header.
+	 * Removes obsolete reference chains, converts the single-owner partitions of one collection into registry rows and
+	 * flushes the collection data store when it writes anything. The collection header lists the surviving indexes.
+	 * The caller puts that header into the catalog data store and publishes it with the catalog header.
 	 *
 	 * The migration runs it after its other steps over the collection: it reads only the entity indexes the collection
 	 * header lists, and removes the ones it converts. Its final flush writes whatever those steps left unflushed too.
 	 *
-	 * @param catalogVersion   the catalog version being converted
-	 * @param collectionHeader the collection header as published
+	 * @param catalogVersion    the catalog version being converted
+	 * @param collectionHeader  the collection header as published
 	 * @param collectionService the data store of the collection, opened over that header
-	 * @param entitySchema     the schema of the collection, its reflected references bound
-	 * @param flushThreshold   how many records may be written into the data store before it is flushed
+	 * @param entitySchema      the schema of the collection, its reflected references bound
+	 * @param flushThreshold    how many records may be written into the data store before it is flushed
 	 * @return what the conversion did
 	 * @throws GenericEvitaInternalError when a registry of the collection holds a row - see the class documentation -
 	 *                                   or the flush threshold is not positive
@@ -174,7 +188,7 @@ final class VirtualReferencePartitionConversion {
 		final List<String> leftovers = new ArrayList<>(0);
 
 		final IndexClassification classification = classifyIndexes(
-			catalogVersion, collectionHeader, storage, entitySchema
+			catalogVersion, collectionHeader, storage, entitySchema, writer
 		);
 		for (final Entry<ReferenceInScope, int[]> reference : classification.notWrittenVirtually().entrySet()) {
 			leftovers.add(
@@ -229,7 +243,7 @@ final class VirtualReferencePartitionConversion {
 	}
 
 	/**
-	 * Classifies every entity index the collection header lists by its key - only the manifest of each is read: the
+	 * Drops obsolete reference predecessor chains and classifies each surviving index by its manifest key: the
 	 * referenced-type entity indexes carrying the registries, the partitions to convert by the reference they belong
 	 * to, the partitions of references indexed for partitioning, which stay index objects by design, and the
 	 * partitions of the other references, which stay index objects although their kind is not kept.
@@ -238,6 +252,7 @@ final class VirtualReferencePartitionConversion {
 	 * @param collectionHeader the collection header as published
 	 * @param storage          the storage part service of the collection data store
 	 * @param entitySchema     the schema of the collection, its reflected references bound
+	 * @param writer           applies removals to the collection's offset index
 	 * @return the classification
 	 * @throws GenericEvitaInternalError when the manifest of a listed entity index is missing
 	 */
@@ -246,7 +261,8 @@ final class VirtualReferencePartitionConversion {
 		long catalogVersion,
 		@Nonnull EntityCollectionFileHeader collectionHeader,
 		@Nonnull OffsetIndexStoragePartPersistenceService storage,
-		@Nonnull EntitySchema entitySchema
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull CollectionWriter writer
 	) {
 		final SortedMap<ReferenceInScope, Integer> typeIndexes = new TreeMap<>(ReferenceInScope.ORDER);
 		final Map<ReferenceInScope, CompositeIntArray> candidates = CollectionUtils.createHashMap(8);
@@ -261,6 +277,9 @@ final class VirtualReferencePartitionConversion {
 					"Entity index storage part for primary key " + indexPrimaryKey + " of collection `" +
 						collectionHeader.entityType() + "` is missing!"
 				);
+			}
+			if (writer.removeLegacyReferenceChains(manifest, entitySchema)) {
+				continue;
 			}
 			final EntityIndexKey indexKey = manifest.getEntityIndexKey();
 			final Scope scope = indexKey.scope();
@@ -489,7 +508,7 @@ final class VirtualReferencePartitionConversion {
 		 */
 		private final int flushThreshold;
 		/**
-		 * The primary keys of the partitions converted into rows - the entity indexes the header stops listing.
+		 * The primary keys of emptied indexes and partitions converted into rows.
 		 */
 		@Nonnull private final IntHashSet removedIndexes = new IntHashSet();
 		/**
@@ -525,20 +544,117 @@ final class VirtualReferencePartitionConversion {
 		}
 
 		/**
-		 * Removes every storage part of a converted partition - exactly the footprint the engine reclaims when it drops
+		 * Removes reference predecessor roots, leaves and manifest entries, and retires an index that becomes empty.
+		 *
+		 * @param manifest the index manifest from the release image
+		 * @param entitySchema the collection schema with reflected references bound
+		 * @return TRUE when the whole index was retired
+		 */
+		private boolean removeLegacyReferenceChains(
+			@Nonnull EntityIndexStoragePart manifest, @Nonnull EntitySchema entitySchema
+		) {
+			Set<AttributeIndexStorageKey> retainedKeys = null;
+			final int indexId = manifest.getPrimaryKey();
+			final TrappedChanges changes = new TrappedChanges();
+			for (final AttributeIndexStorageKey key : manifest.getAttributeIndexes()) {
+				if (key.indexType() != AttributeIndexType.CHAIN ||
+					!isReferencedEntityPredecessor(entitySchema, key)) {
+					continue;
+				}
+				final AttributeIndexRootRemoval removal =
+					new AttributeIndexRootRemoval(indexId, key.attribute(), AttributeIndexType.CHAIN);
+				final long rootId = removal.computeUniquePartIdAndSet(this.storage.getReadOnlyKeyCompressor());
+				final ChainIndexStoragePart root =
+					this.storage.getStoragePart(this.catalogVersion, rootId, ChainIndexStoragePart.class);
+				Assert.isPremiseValid(root != null, () -> "Missing chain root for " + key + " of index " + indexId);
+				if (root.isPaged()) {
+					final AttributeKeyWithIndexType chainKey =
+						new AttributeKeyWithIndexType(key.attribute(), AttributeIndexType.CHAIN);
+					for (final int page : root.getPageSequencesOrThrowException()) {
+						changes.addChangeToStore(new ChainIndexLeafPageRemoval(indexId, chainKey, page));
+					}
+				}
+				changes.addChangeToStore(removal);
+				if (retainedKeys == null) {
+					retainedKeys = new HashSet<>(manifest.getAttributeIndexes());
+				}
+				retainedKeys.remove(key);
+			}
+			if (retainedKeys == null) {
+				return false;
+			}
+			changes.addChangeToStore(new EntityIndexStoragePart(
+				indexId, manifest.getVersion(), manifest.getEntityIndexKey(), retainedKeys, manifest.getPriceIndexes(),
+				manifest.isHierarchyIndex(), manifest.getFacetIndexes(), manifest.getHistogramIndexes()
+			));
+			write(changes);
+
+			// protocol 6 keeps an index's members in a sibling part: an index with members stays, and only an index
+			// without them is loaded in full for the emptiness check
+			final EntityIdsStoragePart members =
+				this.storage.getStoragePart(this.catalogVersion, indexId, EntityIdsStoragePart.class);
+			if (members != null && (!members.getEntityIds().isEmpty() || !members.getEntityIdsByLanguage().isEmpty())) {
+				return false;
+			}
+			final EntityIndex index = this.collectionService.readEntityIndex(
+				this.catalogVersion, indexId, entitySchema, false
+			);
+			if (index.isEmpty()) {
+				removeIndex(index);
+				return true;
+			}
+			return false;
+		}
+
+		/**
+		 * Resolves the declaring reference of a chain. An unqualified key may be an entity-level chain
+		 * or a reference chain from an older release carried forward by 2026.2.
+		 *
+		 * @param entitySchema the collection schema with reflected references bound
+		 * @param key the persisted chain key and its owning index
+		 * @return TRUE for a chain owned by a referenced entity predecessor attribute
+		 */
+		private static boolean isReferencedEntityPredecessor(
+			@Nonnull EntitySchema entitySchema, @Nonnull AttributeIndexStorageKey key
+		) {
+			final AttributeIndexKey attributeKey = key.attribute();
+			final String attributeName = attributeKey.attributeName();
+			final String referenceName;
+			if (attributeKey.referenceName() == null) {
+				// an unqualified key is the entity's own chain when the entity declares a matching predecessor
+				// attribute, otherwise a reference chain an older release stored under an unqualified key
+				final boolean entityChain = entitySchema.getAttribute(attributeName)
+					.filter(attribute -> attribute.getType() == Predecessor.class &&
+						attribute.isLocalized() == (attributeKey.locale() != null))
+					.isPresent();
+				if (entityChain) {
+					return false;
+				}
+				referenceName = key.entityIndexKey().referenceName();
+			} else {
+				referenceName = attributeKey.referenceName();
+			}
+			return referenceName != null && entitySchema.getReference(referenceName)
+				.flatMap(reference -> reference.getAttribute(attributeName))
+				.filter(attribute -> attribute.getType() == ReferencedEntityPredecessor.class)
+				.isPresent();
+		}
+
+		/**
+		 * Removes every storage part of a retired index - exactly the footprint the engine reclaims when it drops
 		 * an index (`DataStoreChanges#reclaimRemovedIndexFootprint`): every persisted sub-index root and leaf page, the
 		 * manifest and the membership bitmaps.
 		 *
-		 * @param partition the index object of the converted partition, as loaded
+		 * @param index the retired index, as loaded
 		 */
-		private void removeIndex(@Nonnull EntityIndex partition) {
+		private void removeIndex(@Nonnull EntityIndex index) {
 			final TrappedChanges footprint = new TrappedChanges();
-			partition.emitFootprintRemovals(footprint);
+			index.emitFootprintRemovals(footprint);
 			write(footprint);
-			final int partitionPrimaryKey = partition.getPrimaryKey();
-			remove(partitionPrimaryKey, EntityIndexStoragePart.class);
-			remove(partitionPrimaryKey, EntityIdsStoragePart.class);
-			this.removedIndexes.add(partitionPrimaryKey);
+			final int indexId = index.getPrimaryKey();
+			remove(indexId, EntityIndexStoragePart.class);
+			remove(indexId, EntityIdsStoragePart.class);
+			this.removedIndexes.add(indexId);
 		}
 
 		/**
@@ -601,8 +717,8 @@ final class VirtualReferencePartitionConversion {
 		}
 
 		/**
-		 * Flushes the data store a last time, with a collection header listing every entity index but the converted
-		 * partitions, when anything was written at all.
+		 * Flushes the data store a last time, with a collection header listing each surviving entity index,
+		 * when anything was written at all.
 		 *
 		 * @return TRUE when anything was written
 		 */
@@ -626,8 +742,8 @@ final class VirtualReferencePartitionConversion {
 	}
 
 	/**
-	 * Supplies the collection header of a converted collection: everything as published, except the entity indexes,
-	 * which no longer include the converted partitions. The index primary key sequence is kept - it covers the primary
+	 * Supplies the collection header of a converted collection with only surviving entity indexes.
+	 * The index primary key sequence is kept - it covers the primary
 	 * keys of the rows as it covered those of the objects.
 	 *
 	 * @param collectionHeader the collection header as published

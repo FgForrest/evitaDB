@@ -39,14 +39,12 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.expression.trigger.HistogramValueSource;
 import io.evitadb.dataType.Range;
-import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
@@ -102,7 +100,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Consumer;
 
@@ -731,8 +728,7 @@ public interface ReferenceIndexMutator {
 	 * AttributeAndCompoundSchemaProvider, ExistingAttributeValueSupplier, IndexWriteTarget, IndexWriteTarget, boolean,
 	 * boolean)}
 	 * twice: once for the type index (keyed by the partition primary key) and once for the partition itself (keyed by
-	 * the owning entity's primary key, or by the referenced entity's primary key when the attribute type is
-	 * {@link ReferencedEntityPredecessor}). The type index half is written for every partition whatever its form; the
+	 * the owning entity's primary key). The type index half is written for every partition whatever its form; the
 	 * partition half is a dispatch over the form of each partition of the pair: an index object receives its half of
 	 * the write, a virtual partition of a mutation writing it virtually receives it into its registry row only.
 	 *
@@ -777,7 +773,7 @@ public interface ReferenceIndexMutator {
 			executor,
 			toWriteTarget(executor, referenceSchema, partitionForRemoval, "attributeUpdate"),
 			toWriteTarget(executor, referenceSchema, partitionForUpsert, "attributeUpdate"),
-			referenceSchema, referenceKey, attributeMutation,
+			referenceSchema, attributeMutation,
 			attributeSchemaProvider, existingValueAccessorFactory
 		);
 	}
@@ -855,7 +851,7 @@ public interface ReferenceIndexMutator {
 			(indexType, target) -> referenceKey.primaryKey(),
 			() -> updateAttributeInPartitions(
 				executor, indexForRemoval, indexForUpsert,
-				referenceSchema, referenceKey, attributeMutation,
+				referenceSchema, attributeMutation,
 				attributeSchemaProvider, existingValueAccessorFactory
 			)
 		);
@@ -905,16 +901,13 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Writes a reference-attribute mutation into a pair of reduced indexes or partitions - the one the old value is
-	 * removed from and the one the new value is inserted into - keyed by the owning entity's primary key, or by the
-	 * referenced entity's primary key when the attribute type is {@link ReferencedEntityPredecessor}. Either half may
-	 * be a virtual partition, whose registry row alone receives its half of the write (see
-	 * {@link AttributeIndexMutator}).
+	 * removed from and the one the new value is inserted into. Either half may be a virtual partition, whose registry
+	 * row alone receives its half of the write (see {@link AttributeIndexMutator}).
 	 *
 	 * @param executor                     the mutation executor coordinating the index updates
 	 * @param targetForRemoval             the reduced index or partition the old value is removed from
 	 * @param targetForUpsert              the reduced index or partition the new value is inserted into
 	 * @param referenceSchema              the schema describing the reference and its attributes
-	 * @param referenceKey                 identifies the specific reference instance being updated
 	 * @param attributeMutation            the attribute-level mutation to apply
 	 * @param attributeSchemaProvider      provider of the reference's attribute and compound schemas
 	 * @param existingValueAccessorFactory supplier of the reference's existing attribute values
@@ -924,26 +917,19 @@ public interface ReferenceIndexMutator {
 		@Nonnull IndexWriteTarget targetForRemoval,
 		@Nonnull IndexWriteTarget targetForUpsert,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull ReferenceKey referenceKey,
 		@Nonnull AttributeMutation attributeMutation,
 		@Nonnull ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueAccessorFactory
 	) {
-		executeWithProperPrimaryKey(
-			executor,
-			referenceKey.primaryKey(),
-			attributeMutation.getAttributeKey().attributeName(),
-			attributeSchemaProvider::getAttributeSchema,
-			() -> executor.updateAttribute(
-				referenceSchema,
-				attributeMutation,
-				attributeSchemaProvider,
-				existingValueAccessorFactory,
-				targetForRemoval,
-				targetForUpsert,
-				false,
-				true
-			)
+		executor.updateAttribute(
+			referenceSchema,
+			attributeMutation,
+			attributeSchemaProvider,
+			existingValueAccessorFactory,
+			targetForRemoval,
+			targetForUpsert,
+			false,
+			true
 		);
 	}
 
@@ -3108,41 +3094,6 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Executes `lambda` under the correct primary key context for the named attribute.
-	 *
-	 * For attributes whose type is assignable from {@link ReferencedEntityPredecessor}, the indexing operation
-	 * must use the **referenced entity's** primary key (not the owning entity's), because predecessor ordering
-	 * is expressed relative to the referenced entity. In that case `lambda` is wrapped in
-	 * {@link EntityIndexLocalMutationExecutor#executeWithDifferentPrimaryKeyToIndex} with `primaryKeyToIndex`
-	 * (the referenced entity's PK). For all other attribute types, `lambda` is invoked directly.
-	 *
-	 * @param executor                the mutation executor; provides the `executeWithDifferentPrimaryKeyToIndex`
-	 *                                override mechanism
-	 * @param primaryKeyToIndex       the referenced entity (or group) primary key to use when the attribute is a
-	 *                                {@link ReferencedEntityPredecessor}
-	 * @param attributeName           the name of the attribute being indexed; used to look up its schema
-	 * @param attributeSchemaProvider resolves the {@link AttributeSchema} for a given attribute name
-	 * @param lambda                  the indexing action to execute under the correct primary key context
-	 */
-	private static void executeWithProperPrimaryKey(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		int primaryKeyToIndex,
-		@Nonnull String attributeName,
-		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
-		@Nonnull Runnable lambda
-	) {
-		// we need to index entity primary key into the referenced entity index for all attributes
-		final AttributeSchema attributeSchema = attributeSchemaProvider.apply(attributeName);
-		if (ReferencedEntityPredecessor.class.isAssignableFrom(attributeSchema.getPlainType())) {
-			executor.executeWithDifferentPrimaryKeyToIndex(
-				(indexType, target) -> primaryKeyToIndex, lambda
-			);
-		} else {
-			lambda.run();
-		}
-	}
-
-	/**
 	 * Writes one owner of a partition into an empty partition of the same key, exactly as the partition-local half of
 	 * the owner's entering a partition writes it: the owner's primary key, then every piece of the owner's existing
 	 * data the partition indexes (see {@link #indexAllExistingData}). Nothing outside the partition is written - not
@@ -3538,8 +3489,8 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Indexes the attributes of the reference the representative reference key identifies into `target`, each
-	 * keyed by the primary key the attribute's type is indexed under (see {@link #executeWithProperPrimaryKey}).
+	 * Indexes the attributes of the reference the representative reference key identifies into `target`.
+	 * Owner-local reference ordering stays in the reference rows.
 	 *
 	 * @param executor                    the mutation executor
 	 * @param referenceSchema             the schema of the reference
@@ -3561,26 +3512,10 @@ public interface ReferenceIndexMutator {
 		existingDataSupplierFactory
 			.getNormalizedReferenceAttributeValueSupplier(representativeReferenceKey)
 			.getAttributeValues()
-			.forEach(attribute ->
-				         executeWithProperPrimaryKey(
-					         executor,
-					         representativeReferenceKey.primaryKey(),
-					         attribute.key().attributeName(),
-					         referenceSchemaAttributeProvider::getAttributeSchema,
-					         () -> AttributeIndexMutator.executeAttributeUpsert(
-						         executor,
-						         referenceSchema,
-						         referenceSchemaAttributeProvider,
-						         NO_EXISTING_VALUE_SUPPLIER,
-						         target,
-						         target,
-						         attribute.key(),
-						         Objects.requireNonNull(attribute.value()),
-						         false,
-						         false
-					         )
-				         )
-			);
+			.forEach(attribute -> AttributeIndexMutator.executeAttributeUpsert(
+				executor, referenceSchema, referenceSchemaAttributeProvider, NO_EXISTING_VALUE_SUPPLIER,
+				target, target, attribute.key(), Objects.requireNonNull(attribute.value()), false, false
+			));
 	}
 
 	/**
@@ -3860,9 +3795,14 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Removes the reference-level attributes of the given reference from `targetIndex`. The per-reference
-	 * counterpart of {@link #removeAllEntityLevelAttributes}: reference attributes are keyed by the
-	 * reference's primary key, so each reference removal must drop its own keys regardless of whether
-	 * the entity remains in the target index via sibling references.
+	 * counterpart of {@link #removeAllEntityLevelAttributes}. In group indexes the attribute records use the
+	 * referenced entity's key, so each reference removal drops its own records.
+	 *
+	 * @param executor mutation executor supplying the owner schema and record ID
+	 * @param referenceSchema schema of the removed reference
+	 * @param targetIndex reduced index from which the reference data is removed
+	 * @param referenceKey key of the removed reference
+	 * @param existingDataSupplierFactory provider of the owner's current reference attributes
 	 */
 	private static void removeAllReferenceLevelAttributes(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -3887,25 +3827,10 @@ public interface ReferenceIndexMutator {
 		// on grouped reduced indexes live under the referenced entity PK, not the owner PK
 		final Runnable removeReferenceAttributes = () -> referenceAttributeValueSupplier
 			.getAttributeValues()
-			.forEach(attribute ->
-				         executeWithProperPrimaryKey(
-					         executor,
-					         rrk.primaryKey(),
-					         attribute.key().attributeName(),
-					         referenceSchemaAttributeProvider::getAttributeSchema,
-					         () -> AttributeIndexMutator.executeAttributeRemoval(
-						         executor,
-						         referenceSchema,
-						         referenceSchemaAttributeProvider,
-						         referenceAttributeValueSupplier,
-						         targetIndex,
-						         targetIndex,
-						         attribute.key(),
-						         false,
-						         false
-					         )
-				         )
-			);
+			.forEach(attribute -> AttributeIndexMutator.executeAttributeRemoval(
+				executor, referenceSchema, referenceSchemaAttributeProvider, referenceAttributeValueSupplier,
+				targetIndex, targetIndex, attribute.key(), false, false
+			));
 		if (targetIndex instanceof ReducedGroupEntityIndex) {
 			executor.executeWithDifferentPrimaryKeyToIndex(
 				(indexType, target) -> rrk.primaryKey(), removeReferenceAttributes

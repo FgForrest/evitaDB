@@ -46,6 +46,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
@@ -118,6 +119,7 @@ import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.api.query.QueryConstraints.statistics;
 import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Reduces a catalog to sorted `path -> value` lines that two catalogs holding the same data must share, whatever
@@ -632,7 +634,8 @@ public final class CatalogDescriber {
 	 *   numeric or string attribute, the latter over the owners of one target whose row carries a value, referenced
 	 *   by a single owner where there is one: it sorts by the sort index of the only partition the ordering plans over
 	 *   and fails over several partitions and over a partition holding no value, reading index objects as well;
-	 * - `referenceContent(orderBy)` of every sortable chained attribute, one line per owner.
+	 * - `referenceContent(orderBy)` of every sortable chained attribute, one line per owner. Entity-level
+	 *   traversal of a referenced-entity predecessor records the planning refusal.
 	 *
 	 * @param lines            the lines to add to
 	 * @param session          the session to query in
@@ -669,8 +672,8 @@ public final class CatalogDescriber {
 				continue;
 			}
 			final String attributeName = attributeSchema.getName();
-			final boolean chained = Predecessor.class.equals(attributeSchema.getPlainType()) ||
-				ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType());
+			final boolean ownerList = ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType());
+			final boolean chained = Predecessor.class.equals(attributeSchema.getPlainType()) || ownerList;
 			// the prefetch route compares the values of a type that is not `Comparable` with the comparator of the
 			// entities and fails reading index objects as well, so it runs for comparable types only
 			final boolean prefetchable = Comparable.class.isAssignableFrom(attributeSchema.getPlainType());
@@ -701,18 +704,24 @@ public final class CatalogDescriber {
 					)
 				);
 			}
-			putOrder(
-				lines, orderPrefix + "traverse/" + attributeName,
-				queryOrder(
-					session, entityType, scope, null,
-					referenceProperty(
-						referenceName,
-						traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
-						attributeNatural(attributeName, OrderDirection.ASC)
-					),
-					DebugMode.PREFER_INDEX_SCAN
-				)
+			final String traversalPath = orderPrefix + "traverse/" + attributeName;
+			final OrderConstraint traversal = referenceProperty(
+				referenceName,
+				traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+				attributeNatural(attributeName, OrderDirection.ASC)
 			);
+			if (ownerList) {
+				final EvitaInvalidUsageException refusal = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> queryOrder(session, entityType, scope, null, traversal, DebugMode.PREFER_INDEX_SCAN)
+				);
+				lines.put(traversalPath, refusal.getMessage());
+			} else {
+				putOrder(
+					lines, traversalPath,
+					queryOrder(session, entityType, scope, null, traversal, DebugMode.PREFER_INDEX_SCAN)
+				);
+			}
 			if (!chained && hierarchyIndexed) {
 				// the hierarchy option of index selection supplies the planning set of the ordering - the partitions
 				// of the nodes, read virtually as handles

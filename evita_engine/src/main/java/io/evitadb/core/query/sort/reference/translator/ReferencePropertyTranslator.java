@@ -25,6 +25,7 @@ package io.evitadb.core.query.sort.reference.translator;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
+import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
@@ -69,6 +70,7 @@ import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeM
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.core.query.sort.reference.sorter.SequentialSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -581,39 +583,39 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	}
 
 	/**
-	 * Refuses an ordering constraint {@link #traverseChildConstraints} cannot translate - an {@link EntityProperty}
-	 * other than the one ordering by the primary key alone, and an {@link EntityGroupProperty}, at any depth. The
-	 * query is checked up front, before any child constraint is translated, so that it fails with this message whether
-	 * or not there is any data to order.
+	 * Checks reference ordering children against the declared schema before selecting any partitions.
 	 *
-	 * @param referenceProperty the ordering whose child constraints are checked
+	 * @param referenceProperty the ordering whose children are checked
+	 * @param referenceSchema schema of the ordered reference
 	 * @throws EvitaInvalidUsageException when a child constraint cannot be used within `referenceProperty`
 	 */
-	private static void assertChildConstraintsSupported(@Nonnull ReferenceProperty referenceProperty) {
-		for (OrderConstraint innerConstraint : referenceProperty.getOrderConstraints()) {
-			if (!(innerConstraint instanceof EntityProperty entityProperty && isPrimaryKeyOrdering(entityProperty))) {
-				assertNoEntityProperty(innerConstraint, referenceProperty);
+	private static void assertChildConstraintsSupported(
+		@Nonnull ReferenceProperty referenceProperty,
+		@Nonnull ReferenceSchema referenceSchema
+	) {
+		for (final OrderConstraint constraint : referenceProperty.getOrderConstraints()) {
+			if (!(constraint instanceof EntityProperty entityProperty && isPrimaryKeyOrdering(entityProperty))) {
+				assertChildConstraintSupported(constraint, referenceSchema);
 			}
 		}
 	}
 
 	/**
-	 * Refuses the passed constraint when it is an {@link EntityProperty} or an {@link EntityGroupProperty}, and
-	 * checks the children of a container the same way. A nested {@link ReferenceProperty} is left to its own
-	 * translator.
+	 * Checks ordering expressions that read attributes of this reference. A target ordering or nested reference
+	 * has its own schema and is checked by its translator.
 	 *
-	 * @param constraint        the constraint to check
-	 * @param referenceProperty the ordering the constraint is placed in, quoted in the error message
+	 * @param constraint child ordering expression
+	 * @param referenceSchema schema declaring the reference attributes
 	 * @throws EvitaInvalidUsageException when the constraint cannot be used within `referenceProperty`
 	 */
-	private static void assertNoEntityProperty(
+	private static void assertChildConstraintSupported(
 		@Nonnull OrderConstraint constraint,
-		@Nonnull ReferenceProperty referenceProperty
+		@Nonnull ReferenceSchema referenceSchema
 	) {
 		if (constraint instanceof EntityProperty || constraint instanceof EntityGroupProperty) {
 			throw new EvitaInvalidUsageException(
 				"Ordering constraint `" + constraint + "` cannot be used within `referenceProperty` of reference `" +
-					referenceProperty.getReferenceName() + "`: " +
+					referenceSchema.getName() + "`: " +
 					(constraint instanceof EntityProperty ?
 						"`entityProperty` is supported there only with `entityPrimaryKeyNatural` as its single " +
 							"child. " :
@@ -621,12 +623,23 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 					"The references themselves can be ordered by the properties of the referenced entity or its " +
 					"group in the `orderBy` of `referenceContent`."
 			);
-		} else if (
-			constraint instanceof ConstraintContainer<?> container && !(constraint instanceof ReferenceProperty)
-		) {
-			for (Object child : container.getChildren()) {
+		}
+		if (constraint instanceof AttributeConstraint<?> attributeOrder &&
+			referenceSchema.getAttribute(attributeOrder.getAttributeName())
+				.map(attribute -> ReferencedEntityPredecessor.class.equals(attribute.getPlainType()))
+				.orElse(false)) {
+			throw new EvitaInvalidUsageException(
+				"Attribute `" + attributeOrder.getAttributeName() + "` of reference `" + referenceSchema.getName() +
+					"` has type `ReferencedEntityPredecessor`. An owner's own list of referenced entities " +
+					"cannot order the owners in `referenceProperty`. Order the list with `referenceContent`."
+			);
+		}
+		if (constraint instanceof ConstraintContainer<?> container &&
+			!(constraint instanceof ReferenceProperty) &&
+			!(constraint instanceof ReferenceOrderingSpecification)) {
+			for (final Object child : container.getChildren()) {
 				if (child instanceof OrderConstraint orderConstraint) {
-					assertNoEntityProperty(orderConstraint, referenceProperty);
+					assertChildConstraintSupported(orderConstraint, referenceSchema);
 				}
 			}
 		}
@@ -1073,13 +1086,23 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		}
 	}
 
+	/**
+	 * Plans owner ordering, validating reference attributes before either route inspects the partitions.
+	 *
+	 * @param referenceProperty ordering by the reference of each owner
+	 * @param orderByVisitor planning context for this ordering
+	 * @return sorters for the selected reference ordering
+	 */
 	@Nonnull
 	@Override
-	public Stream<Sorter> createSorter(@Nonnull ReferenceProperty referenceProperty, @Nonnull OrderByVisitor orderByVisitor) {
-		assertChildConstraintsSupported(referenceProperty);
+	public Stream<Sorter> createSorter(
+		@Nonnull ReferenceProperty referenceProperty,
+		@Nonnull OrderByVisitor orderByVisitor
+	) {
 		final String referenceName = referenceProperty.getReferenceName();
 		final EntitySchema entitySchema = orderByVisitor.getSchema();
 		final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+		assertChildConstraintsSupported(referenceProperty, referenceSchema);
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		for (Scope scope : processingScope.getScopes()) {
 			if (!referenceSchema.isIndexedInScope(scope)) {

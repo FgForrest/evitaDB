@@ -33,6 +33,9 @@ import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.head.Label;
+import io.evitadb.api.query.order.AttributeNatural;
+import io.evitadb.api.query.order.EntityGroupProperty;
+import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
@@ -42,6 +45,9 @@ import io.evitadb.api.requestResponse.chunk.PageTransformer;
 import io.evitadb.api.requestResponse.chunk.StripTransformer;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -181,6 +187,7 @@ public class EvitaRequest {
 	 * narrower than what the query actually asked for - which drops references rather than merely decoding fewer.
 	 */
 	@Nullable private Map<String, int[]> referenceKeyNarrowing;
+	@Nullable private SchemaReferenceKeyNarrowing schemaReferenceKeyNarrowing;
 	@Nullable private Function<String, ChunkTransformer> referenceChunkTransformer;
 
 	/**
@@ -1732,6 +1739,114 @@ public class EvitaRequest {
 		}
 		return Objects.requireNonNullElse(this.referenceKeyNarrowing, Collections.emptyMap());
 	}
+
+	/**
+	 * Resolves the key narrowing used for decoding against the owner's schema. A reference ordered by a
+	 * referenced-entity predecessor needs every row of that name to resolve its order, even if the filter hides
+	 * some of those rows from the result.
+	 *
+	 * @param schema entity schema used to resolve the ordered attributes, or null when no schema is available
+	 * @return narrowed keys of the references that can be decoded by key
+	 */
+	@Nonnull
+	public Map<String, int[]> getReferenceKeyNarrowing(@Nullable EntitySchemaContract schema) {
+		return getReferenceKeyNarrowing(schema, getNamedReferenceEntityFetch());
+	}
+
+	/**
+	 * Resolves decode narrowing using the named requirements the reference fetcher will apply.
+	 * Enrichment can carry aliases from an earlier request alongside the ones declared by this request.
+	 *
+	 * @param schema current owner schema used to resolve the ordered attributes, or null without schema context
+	 * @param namedRequirements effective named requirements, including any aliases carried during enrichment
+	 * @return narrowed keys of the references that can be decoded by key
+	 */
+	@Nonnull
+	public Map<String, int[]> getReferenceKeyNarrowing(
+		@Nullable EntitySchemaContract schema,
+		@Nonnull Map<ReferenceContentKey, RequirementContext> namedRequirements
+	) {
+		final Map<String, int[]> narrowing = getReferenceKeyNarrowing();
+		if (schema == null || narrowing.isEmpty()) {
+			return narrowing;
+		}
+		final boolean cacheable = namedRequirements == getNamedReferenceEntityFetch();
+		final SchemaReferenceKeyNarrowing cached = this.schemaReferenceKeyNarrowing;
+		if (cacheable && cached != null && cached.schema() == schema) {
+			return cached.keys();
+		}
+		final Map<String, RequirementContext> unnamed = getReferenceEntityFetch();
+		Map<String, int[]> adjusted = null;
+		for (final String name : narrowing.keySet()) {
+			final ReferenceSchemaContract reference = schema.getReference(name).orElse(null);
+			if (reference != null && (requiresFullReferenceList(unnamed.get(name), reference) ||
+				requiresFullReferenceList(name, reference, namedRequirements))) {
+				if (adjusted == null) {
+					adjusted = new HashMap<>(narrowing);
+				}
+				adjusted.remove(name);
+			}
+		}
+		final Map<String, int[]> result = adjusted == null ? narrowing : Map.copyOf(adjusted);
+		if (cacheable) {
+			this.schemaReferenceKeyNarrowing = new SchemaReferenceKeyNarrowing(schema, result);
+		}
+		return result;
+	}
+
+	/**
+	 * Checks the effective aliases of a reference for predecessor ordering.
+	 *
+	 * @param name reference name whose decode narrowing is being resolved
+	 * @param reference schema declaring the reference attributes
+	 * @param namedRequirements effective named requirements for this fetch
+	 * @return true when an alias needs every row of the reference
+	 */
+	private static boolean requiresFullReferenceList(
+		@Nonnull String name,
+		@Nonnull ReferenceSchemaContract reference,
+		@Nonnull Map<ReferenceContentKey, RequirementContext> namedRequirements
+	) {
+		for (final Map.Entry<ReferenceContentKey, RequirementContext> entry : namedRequirements.entrySet()) {
+			if (name.equals(entry.getKey().referenceName()) && requiresFullReferenceList(entry.getValue(), reference)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Checks whether this reference content orders by an attribute carrying a referenced-entity predecessor.
+	 * Ordering inside entity or group properties uses a different schema.
+	 *
+	 * @param requirement reference content context, or null when the reference was not requested here
+	 * @param reference schema declaring the reference attributes
+	 * @return true when decoding must retain every row of the reference
+	 */
+	private static boolean requiresFullReferenceList(
+		@Nullable RequirementContext requirement,
+		@Nonnull ReferenceSchemaContract reference
+	) {
+		return requirement != null && requirement.orderBy() != null && !QueryUtils.findConstraints(
+			requirement.orderBy(),
+			constraint -> constraint instanceof AttributeNatural natural &&
+				reference.getAttribute(natural.getAttributeName())
+					.map(attribute -> ReferencedEntityPredecessor.class.equals(attribute.getPlainType()))
+					.orElse(false),
+			constraint -> constraint instanceof EntityProperty || constraint instanceof EntityGroupProperty
+		).isEmpty();
+	}
+
+	/**
+	 * Memoizes the decode narrowing for the schema used by the current fetch.
+	 *
+	 * @param schema entity schema whose attribute types determined the narrowing
+	 * @param keys narrowing by reference name
+	 */
+	private record SchemaReferenceKeyNarrowing(
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull Map<String, int[]> keys
+	) {}
 
 	/**
 	 * Works out which reference names every requirement asking for them bounds to an exact set of referenced entity

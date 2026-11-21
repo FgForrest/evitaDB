@@ -777,7 +777,7 @@ public final class EntityCollection implements
 			evitaRequest,
 			() -> applyReferenceFetcher(
 				evitaRequest,
-				enrichEntityInternal(entity, evitaRequest),
+				enrichEntityInternal(entity, evitaRequest, namedReferenceEntityFetch),
 				referenceFetcher
 			)
 		);
@@ -3683,12 +3683,29 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Enriches an entity using the named requirements declared by the request.
+	 *
+	 * @param sealedEntity the entity to be enriched
+	 * @param evitaRequest the request containing parameters for enriching the entity
+	 * @return an enriched decorator, or the same instance when the input already meets the request
+	 * @throws EntityAlreadyRemovedException if the entity has been removed
+	 */
+	@Nonnull
+	private ServerEntityDecorator enrichEntityInternal(
+		@Nonnull EntityContract sealedEntity,
+		@Nonnull EvitaRequest evitaRequest
+	) throws EntityAlreadyRemovedException {
+		return enrichEntityInternal(sealedEntity, evitaRequest, evitaRequest.getNamedReferenceEntityFetch());
+	}
+
+	/**
 	 * Enriches a given entity based on the specified request parameters. The method fetches additional data if they
 	 * are missing, but are known to exist in the underlying storage. Or it simply widens the predicate scope, if
 	 * the data are present, but are hidden by predicates.
 	 *
 	 * @param sealedEntity the entity to be enriched
 	 * @param evitaRequest the request containing parameters for enriching the entity
+	 * @param namedReferenceRequirements effective named requirements the fetcher will apply
 	 * @return an enriched ServerEntityDecorator instance based on the provided entity and request - possibly the very
 	 * instance that was passed in, when the request widens none of its predicates and its data are known to be
 	 * current
@@ -3699,7 +3716,8 @@ public final class EntityCollection implements
 	@Nonnull
 	private ServerEntityDecorator enrichEntityInternal(
 		@Nonnull EntityContract sealedEntity,
-		@Nonnull EvitaRequest evitaRequest
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull Map<ReferenceContentKey, RequirementContext> namedReferenceRequirements
 	) throws EntityAlreadyRemovedException {
 		final ServerEntityDecorator partiallyLoadedEntity = (ServerEntityDecorator) sealedEntity;
 		// an entity that demonstrably belongs to another catalog cannot be enriched here at all. The enrichment
@@ -3721,7 +3739,11 @@ public final class EntityCollection implements
 		final HierarchySerializablePredicate newHierarchyPredicate = partiallyLoadedEntity.createHierarchyPredicateRicherCopyWith(evitaRequest);
 		final AttributeValueSerializablePredicate newAttributePredicate = partiallyLoadedEntity.createAttributePredicateRicherCopyWith(evitaRequest);
 		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = partiallyLoadedEntity.createAssociatedDataPredicateRicherCopyWith(evitaRequest);
-		final ReferenceContractSerializablePredicate newReferenceContractPredicate = partiallyLoadedEntity.createReferencePredicateRicherCopyWith(evitaRequest);
+		final EntitySchema internalSchema = getInternalSchema();
+		final ReferenceContractSerializablePredicate newReferenceContractPredicate =
+			partiallyLoadedEntity.createReferencePredicateRicherCopyWith(
+				evitaRequest, evitaRequest.getReferenceKeyNarrowing(internalSchema, namedReferenceRequirements)
+			);
 		final PriceContractSerializablePredicate newPriceContractPredicate = partiallyLoadedEntity.createPricePredicateRicherCopyWith(evitaRequest);
 
 		// every `createRicherCopyWith` returns the very same instance when the request asks for nothing the entity
@@ -3759,8 +3781,6 @@ public final class EntityCollection implements
 		) {
 			return partiallyLoadedEntity;
 		}
-
-		final EntitySchema internalSchema = getInternalSchema();
 
 		final EntityWithFetchCount entityWithFetchCount = this.persistenceService.enrichEntity(
 			catalogVersion,
@@ -3959,7 +3979,12 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Wraps full entity into an {@link ServerEntityDecorator} that fulfills the requirements passed in input `evitaRequest`.
+	 * Wraps the loaded entity in a decorator that fulfils the request's fetch requirements.
+	 *
+	 * @param evitaRequest the fetch requirements
+	 * @param fullEntityWithCount loaded entity and its read statistics
+	 * @param contextAvailable whether a price context is available
+	 * @return decorated entity
 	 */
 	@Nonnull
 	private ServerEntityDecorator wrapToDecorator(
@@ -3975,7 +4000,7 @@ public final class EntityCollection implements
 			new HierarchySerializablePredicate(evitaRequest),
 			new AttributeValueSerializablePredicate(evitaRequest),
 			new AssociatedDataValueSerializablePredicate(evitaRequest),
-			new ReferenceContractSerializablePredicate(evitaRequest),
+			new ReferenceContractSerializablePredicate(evitaRequest, getInternalSchema()),
 			new PriceContractSerializablePredicate(evitaRequest, contextAvailable),
 			evitaRequest.getAlignedNow(),
 			// provenance of the data this read produced - recordable only from a committed snapshot, which a
