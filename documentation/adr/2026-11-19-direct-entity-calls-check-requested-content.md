@@ -1,7 +1,7 @@
 ---
 title: Direct entity calls check the requested content against the schema, as a planned query does
-date: 2026-11-17
-updated: 2026-11-19 18:33
+date: 2026-11-19
+updated: 2026-11-21 16:10
 status: accepted
 kind: fix
 issues: [1949]
@@ -185,3 +185,4 @@ wins only if a fetch by primary key starts planning anyway.
 
 - **2026-11-12** - split found during the nested-scope work, reproduced red, issue filed
 - **2026-11-17** - implemented and verified
+- **2026-11-19** - PR #2004 merged
