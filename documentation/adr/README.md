@@ -33,7 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
-| 2026-11-20 | [Inside referenceContent an inScope ordering applies to the owners of that scope, and the ordering is one chain of links walked by both fetch sites](2026-11-20-reference-owner-scope.md) | fix | accepted | #2045 |
+| 2026-11-20 | [Inside referenceContent an inScope ordering applies to the owners of that scope, and the ordering is one chain of links walked by both fetch sites](2026-11-20-reference-owner-scope.md) | fix | accepted | #2045, PR #2048 |
 | 2026-11-19 | [One histogram store per group](2026-11-19-one-histogram-store-per-group.md) | fix | accepted | #1924, PR #2001 |
 | 2026-11-18 | [Every engine mutation is tracked by its transaction id, its outcome retained as a compact record, and the GraphQL/REST system APIs expose blocking and asynchronous engine operations as a hard replace](2026-11-18-engine-mutation-progress-by-id.md) | feature | accepted | #995 |
 | 2026-11-17 | [Direct entity calls check the requested content against the schema, as a planned query does](2026-11-17-direct-entity-calls-check-requested-content.md) | fix | accepted | #1949, PR #2004 |

@@ -1,11 +1,11 @@
 ---
 title: Inside referenceContent an inScope ordering applies to the owners of that scope, and the ordering is one chain of links walked by both fetch sites
 date: 2026-11-20
-updated: 2026-11-21 13:20
+updated: 2026-11-21 13:40
 status: accepted
 kind: fix
 issues: [2045]
-prs: []
+prs: [2048]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure
   - evita_engine/src/main/java/io/evitadb/core/query/sort
