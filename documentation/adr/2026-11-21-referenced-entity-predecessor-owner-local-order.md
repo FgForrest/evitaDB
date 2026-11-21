@@ -1,11 +1,11 @@
 ---
 title: A referenced-entity predecessor orders only its owner's references from the owner's rows and is never indexed
 date: 2026-11-21
-updated: 2026-11-21 17:51
+updated: 2026-11-21 17:53
 status: accepted
 kind: fix
 issues: [1691]
-prs: []
+prs: [2052]
 areas:
   - evita_engine/src/main/java/io/evitadb/core/query/sort/attribute/comparator
   - evita_engine/src/main/java/io/evitadb/core/query/sort/attribute/translator
