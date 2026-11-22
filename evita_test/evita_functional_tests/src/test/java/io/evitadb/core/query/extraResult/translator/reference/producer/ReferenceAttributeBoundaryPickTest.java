@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.reference.producer;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceAttributeBoundaryTestSupport.Fixture;
@@ -170,7 +171,8 @@ class ReferenceAttributeBoundaryPickTest {
 
 			final ReferenceHistogramAccumulator.BoundaryPick pick =
 				ReferenceHistogramAccumulator.pickBoundaryPkFromReferenceAttribute(
-					fixture.filters(), fixture.indexes(), 10, List.of(fixture.owners()), null, fixture.scope(), null
+					fixture.filters(), fixture.indexes(), 10, List.of(fixture.owners()),
+					null, fixture.scope(), null, null, ReferenceHistogramAccumulator.BoundaryScopeOrder.UNRANKED
 				);
 
 			assertSame(alternative, pick.resolve(Map.of(1, alternative, 10, third)));
@@ -201,12 +203,11 @@ class ReferenceAttributeBoundaryPickTest {
 			verifyNoInteractions(owners);
 		}
 
-		/** Null owner filters retain every candidate; empty owners and baselines fall back globally. */
+		/** A bound keeps every candidate when the owner lookup or baseline intersection yields no owners. */
 		@Test
 		@DisplayName("should keep every candidate without owners and confine owners to the baseline")
-		void shouldPreserveNullOwnersAndBaselineIntersection() {
+		void shouldKeepEveryCandidateWhenNoOwnerCounts() {
 			final Fixture original = fixture(new int[][]{{1, 9}}, new int[][]{{9}}, 1, 9);
-			assertPick(new Fixture(original.filters(), original.indexes(), null, null, original.scope()), 1, null);
 			assertPick(new Fixture(original.filters(), original.indexes(), filter(Integer.class), null,
 				original.scope()), 1, null);
 			assertPick(new Fixture(original.filters(), original.indexes(), original.owners(),
@@ -283,10 +284,10 @@ class ReferenceAttributeBoundaryPickTest {
 			assertEquals(new ReferenceAttributeBoundaryOracle.Pair(9, 1), fixture.actual(6, null));
 		}
 
-		/** A type index maps its internal record IDs to different referenced PKs without owner confinement. */
+		/** An ungrouped bound maps type index records to referenced PKs and keeps them when no owner counts. */
 		@Test
-		@DisplayName("should map the records of a type index to referenced PKs without owner confinement")
-		void shouldRetainTypeIndexMappingWithoutOwnerFilter() {
+		@DisplayName("should map type index records to referenced PKs when no owner counts")
+		void shouldRetainTypeIndexMappingWhenNoOwnerCounts() {
 			final ReferencedTypeEntityIndex index = new ReferencedTypeEntityIndex(
 				1, "owner", new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, "brand")
 			);
@@ -295,16 +296,21 @@ class ReferenceAttributeBoundaryPickTest {
 			final OwnerFilterIndex candidates = filter(Integer.class);
 			candidates.addRecord(101, 10);
 			candidates.addRecord(102, 10);
-			assertPick(new Fixture(new FilterIndex[]{candidates}, new EntityIndex[]{index},
-				null, null, new BaseBitmap(1, 9)), 1, null);
+			final ReferenceHistogramAccumulator.BoundaryPick pick =
+				ReferenceHistogramAccumulator.pickBoundaryPkFromReferenceAttribute(
+					new FilterIndex[]{candidates}, new EntityIndex[]{index}, 10,
+					List.of(filter(Integer.class)), null, new BaseBitmap(1, 9), null,
+					mock(QueryPlanningContext.class), ReferenceHistogramAccumulator.BoundaryScopeOrder.UNRANKED
+				);
+			assertEquals(1, pick.pk());
+			assertNull(pick.alternativePk());
 		}
 
 		/**
-		 * A type index cannot tell the owners of a referenced entity, so a context confined to counted owners refuses
-		 * it once its candidate reaches the owner check, rather than admitting or dropping the candidate.
+		 * A grouped boundary context requires reduced group indexes. Its owner check refuses a type index.
 		 */
 		@Test
-		@DisplayName("should refuse a type index in a context confined to counted owners")
+		@DisplayName("should refuse a type index in a grouped boundary context")
 		void shouldRefuseTypeIndexInOwnerConfinedContext() {
 			final ReferencedTypeEntityIndex index = new ReferencedTypeEntityIndex(
 				1, "owner", new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, "brand")

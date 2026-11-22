@@ -621,7 +621,13 @@ histogramStatistics(
     <dt>requireConstraint:entityFetch?</dt>
     <dd>
         optional fetch describing how richly the **referenced (option) entities** that contributed to the histogram
-        should be loaded. In EvitaQL, place [`entityFetch`](fetching.md#entity-fetch) before or after the index names.
+        should be loaded.
+        The selection prefers candidates referenced by the entities the histogram counts.
+        Every candidate at the bound is eligible as a fallback when none of those candidates qualify or the preferred
+        entity cannot be loaded.
+        Candidates follow the query's `scope(...)` order, with unsearched scopes last, and ties within a scope use
+        the summary's facet ordering when available or the lowest primary key.
+        In EvitaQL, place [`entityFetch`](fetching.md#entity-fetch) before or after the index names.
         When the fetch comes before the names, the optional behavior may appear on either side of the fetch.
     </dd>
     <dt>argument:string!+</dt>
@@ -767,7 +773,8 @@ requirement either stands alone (when only one reference needs a summary) or coe
 total: nothing written on the generic constraint reaches the reference the per-reference variant names, so that
 variant has to define all of its own requirements. The generic constraint keeps governing every reference that has
 no per-reference variant, which is what lets you keep a one-line generic baseline and customise only the references
-that need it.
+that need it. A histogram declared in a reference-specific summary uses that summary's facet ordering, group
+filter and group fetch.
 
 <Note type="info">
 

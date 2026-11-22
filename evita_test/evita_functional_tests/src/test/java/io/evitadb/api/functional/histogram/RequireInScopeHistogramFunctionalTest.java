@@ -29,12 +29,15 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
+import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
@@ -118,6 +121,10 @@ class RequireInScopeHistogramFunctionalTest implements EvitaTestSupport {
 
 	private static final String FIXTURE = "requireInScopeHistogram";
 	private static final String WRITABLE_FIXTURE = "requireInScopeHistogramWritable";
+	private static final String COUNTED_BOUNDARY_FIXTURE = "requireInScopeHistogramCountedBoundary";
+	private static final String SORTED_BOUNDARY_FIXTURE = "requireInScopeHistogramSortedBoundary";
+	private static final String SCOPED_BOUNDARY_FIXTURE = "requireInScopeHistogramScopedBoundary";
+	private static final String GROUP_CONTROLS_FIXTURE = "requireInScopeHistogramGroupControls";
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_BRAND = "brand";
 	private static final String REF_BRAND = "brands";
@@ -127,6 +134,7 @@ class RequireInScopeHistogramFunctionalTest implements EvitaTestSupport {
 	private static final String REF_LABEL = "labels";
 	private static final String REF_MATERIAL = "materials";
 	private static final String SHARE_HISTOGRAM = "shareHistogram";
+	private static final String ARCHIVED_SHARE_HISTOGRAM = "archivedShareHistogram";
 	private static final String WEIGHT_HISTOGRAM = "weightHistogram";
 	private static final String WEIGHT_EXPRESSION = "$reference.referencedEntity?.attributes['weight']";
 	private static final String ENTITY_CATEGORY = "category";
@@ -146,8 +154,12 @@ class RequireInScopeHistogramFunctionalTest implements EvitaTestSupport {
 	private static final int CATEGORY_PK = 20;
 	private static final int GROUP_PK = 500;
 	private static final int OTHER_GROUP_PK = 501;
+	private static final int LOWER_MATERIAL_PK = 299;
 	private static final int LIVE_MATERIAL_PK = 300;
 	private static final int ARCHIVED_MATERIAL_PK = 301;
+	private static final int COUNTED_OWNER_PK = 3;
+	private static final int COUNTED_PARAM_PK = 102;
+	private static final int COUNTED_MATERIAL_PK = 302;
 
 	/**
 	 * Builds the fixture the read-only tests share. The catalog stays in warm-up, and the tests must not change it.
@@ -170,6 +182,108 @@ class RequireInScopeHistogramFunctionalTest implements EvitaTestSupport {
 	)
 	void setUpWritableFixture(@Nonnull Evita evita) {
 		buildFixture(evita);
+	}
+
+	/**
+	 * Adds a separate LIVE owner whose reference values tie with the existing LIVE owner's values.
+	 *
+	 * @param evita the engine to build the fixture in
+	 */
+	@DataSet(value = COUNTED_BOUNDARY_FIXTURE, expectedCatalogState = CatalogState.WARMING_UP, destroyAfterClass = true)
+	void setUpCountedBoundaryFixture(@Nonnull Evita evita) {
+		buildFixture(evita);
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.createNewEntity(ENTITY_PARAM, COUNTED_PARAM_PK).upsertVia(session);
+			session.createNewEntity(ENTITY_MATERIAL, COUNTED_MATERIAL_PK).setAttribute(ATTRIBUTE_WEIGHT, 2)
+				.upsertVia(session);
+			session.createNewEntity(ENTITY_PRODUCT, COUNTED_OWNER_PK)
+				.setPrice(3, PRICE_LIST, CURRENCY, new BigDecimal("10"), TAX_RATE, new BigDecimal("12.1"), true)
+				.setReference(REF_PARAM, COUNTED_PARAM_PK, whichIs -> whichIs.setAttribute("share", 3))
+				.setReference(REF_MATERIAL, COUNTED_MATERIAL_PK)
+				.upsertVia(session);
+		});
+	}
+
+	/**
+	 * Sets up a catalog in which the test can add ranks and a tied boundary without sharing its mutations.
+	 *
+	 * @param evita the engine to build the fixture in
+	 */
+	@DataSet(
+		value = SORTED_BOUNDARY_FIXTURE, expectedCatalogState = CatalogState.WARMING_UP, readOnly = false,
+		destroyAfterClass = true
+	)
+	void setUpSortedBoundaryFixture(@Nonnull Evita evita) {
+		buildFixture(evita);
+	}
+
+	/**
+	 * Ties LIVE and ARCHIVED targets at reference-share and material-weight boundaries of a LIVE product.
+	 *
+	 * @param evita the engine holding the catalog
+	 */
+	@DataSet(value = SCOPED_BOUNDARY_FIXTURE, expectedCatalogState = CatalogState.WARMING_UP, destroyAfterClass = true)
+	void setUpScopedBoundaryFixture(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			defineSchema(session);
+			seedData(session);
+			session.getEntity(ENTITY_PARAM, 100, attributeContentAll()).orElseThrow()
+				.openForWrite().setAttribute("rank", 9).upsertVia(session);
+			session.getEntity(ENTITY_PARAM, 101, attributeContentAll()).orElseThrow()
+				.openForWrite().setAttribute("rank", 1).upsertVia(session);
+			session.createNewEntity(ENTITY_PARAM, 99).setAttribute("rank", 2).upsertVia(session);
+			session.createNewEntity(ENTITY_PARAM, 102).setAttribute("rank", 8).upsertVia(session);
+			session.createNewEntity(ENTITY_MATERIAL, LOWER_MATERIAL_PK).setAttribute(ATTRIBUTE_WEIGHT, 2)
+				.upsertVia(session);
+			session.archiveEntity(ENTITY_PARAM, 99);
+			session.archiveEntity(ENTITY_PARAM, 101);
+			session.getEntity(ENTITY_PRODUCT, PRODUCT_LIVE_PK, referenceContentAll()).orElseThrow()
+				.openForWrite()
+				.setReference(REF_PARAM, 99, reference -> reference.setAttribute("share", 3))
+				.setReference(REF_PARAM, 102, reference -> reference.setAttribute("share", 3))
+				.setReference(REF_TAG, 99, reference -> reference.setGroup(ENTITY_GROUP, GROUP_PK)
+					.setAttribute("share", 3))
+				.setReference(REF_TAG, 102, reference -> reference.setGroup(ENTITY_GROUP, GROUP_PK)
+					.setAttribute("share", 3))
+				.setReference(REF_MATERIAL, LOWER_MATERIAL_PK)
+				.upsertVia(session);
+			session.archiveEntity(ENTITY_MATERIAL, LOWER_MATERIAL_PK);
+			session.getEntity(ENTITY_PRODUCT, PRODUCT_ARCHIVED_PK, referenceContentAll()).orElseThrow()
+				.openForWrite()
+				.setReference(REF_PARAM, 101, reference -> reference.setAttribute("share", 3))
+				.setReference(REF_TAG, 101, reference -> reference.setGroup(ENTITY_GROUP, GROUP_PK)
+					.setAttribute("share", 3))
+				.upsertVia(session);
+			session.archiveEntity(ENTITY_PRODUCT, PRODUCT_ARCHIVED_PK);
+		});
+	}
+
+	/**
+	 * Adds tied LIVE targets and two histogram groups with distinguishable content.
+	 *
+	 * @param evita the engine holding the catalog
+	 */
+	@DataSet(value = GROUP_CONTROLS_FIXTURE, expectedCatalogState = CatalogState.WARMING_UP, destroyAfterClass = true)
+	void setUpGroupControlsFixture(@Nonnull Evita evita) {
+		buildFixture(evita);
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(ENTITY_GROUP)
+				.withAttribute("name", String.class, attribute -> attribute.nullable())
+				.withAttribute("code", String.class, attribute -> attribute.nullable())
+				.updateVia(session);
+			session.getEntity(ENTITY_GROUP, GROUP_PK, attributeContentAll()).orElseThrow()
+				.openForWrite().setAttribute("name", "Selected").setAttribute("code", "selected").upsertVia(session);
+			session.getEntity(ENTITY_PARAM, 100, attributeContentAll()).orElseThrow()
+				.openForWrite().setAttribute("rank", 1).upsertVia(session);
+			session.createNewEntity(ENTITY_PARAM, 102).setAttribute("rank", 2).upsertVia(session);
+			session.getEntity(ENTITY_PRODUCT, PRODUCT_LIVE_PK, referenceContentAll()).orElseThrow()
+				.openForWrite()
+				.setReference(REF_TAG, 102, reference -> reference.setGroup(ENTITY_GROUP, GROUP_PK)
+					.setAttribute("share", 3))
+				.setReference(REF_TAG, 101, reference -> reference.setGroup(ENTITY_GROUP, OTHER_GROUP_PK)
+					.setAttribute("share", 6))
+				.upsertVia(session);
+		});
 	}
 
 	/**
@@ -205,7 +319,10 @@ class RequireInScopeHistogramFunctionalTest implements EvitaTestSupport {
 			.withHierarchy()
 			.withHierarchyIndexedInScope(Scope.values())
 			.updateVia(session);
-		session.defineEntitySchema(ENTITY_PARAM).withoutGeneratedPrimaryKey().updateVia(session);
+		session.defineEntitySchema(ENTITY_PARAM)
+			.withoutGeneratedPrimaryKey()
+			.withAttribute("rank", Integer.class, whichIs -> whichIs.nullable().sortableInScope(Scope.values()))
+			.updateVia(session);
 		session.defineEntitySchema(ENTITY_GROUP).withoutGeneratedPrimaryKey().updateVia(session);
 		session.defineEntitySchema(ENTITY_MATERIAL)
 			.withoutGeneratedPrimaryKey()
@@ -232,7 +349,9 @@ class RequireInScopeHistogramFunctionalTest implements EvitaTestSupport {
 				whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(Scope.values())
 			)
 			.withReferenceToEntity(REF_PARAM, ENTITY_PARAM, Cardinality.ZERO_OR_MORE,
-				RequireInScopeHistogramFunctionalTest::defineBucketedReference)
+				whichIs -> defineBucketedReference(whichIs).bucketedInScope(
+					ARCHIVED, ARCHIVED_SHARE_HISTOGRAM, ExpressionFactory.parse("$reference.attributes['share']")
+				))
 			.withReferenceToEntity(REF_TAG, ENTITY_PARAM, Cardinality.ZERO_OR_MORE,
 				whichIs -> defineBucketedReference(whichIs.withGroupTypeRelatedToEntity(ENTITY_GROUP)))
 			.withReferenceToEntity(REF_LABEL, ENTITY_PARAM, Cardinality.ZERO_OR_MORE,
@@ -1175,6 +1294,266 @@ class RequireInScopeHistogramFunctionalTest implements EvitaTestSupport {
 			assertNotNull(histogram);
 			assertReferenceHistogram(histogram, 2, 2, 8, LIVE_MATERIAL_PK, ARCHIVED_MATERIAL_PK);
 		}
+
+		/**
+		 * Ties two ungrouped boundary candidates while counting only the owner of the higher primary key.
+		 *
+		 * @param source the source of the histogram observation
+		 * @param evita the engine holding the tied boundary fixture
+		 */
+		@ParameterizedTest
+		@ValueSource(strings = {REF_PARAM, REF_MATERIAL})
+		@DisplayName("Uses the counted owner for a tied ungrouped histogram boundary")
+		@UseDataSet(COUNTED_BOUNDARY_FIXTURE)
+		void shouldUseCountedOwnerForUngroupedBoundary(@Nonnull String source, @Nonnull Evita evita) {
+			final boolean referenceAttribute = REF_PARAM.equals(source);
+			final String histogramName = referenceAttribute ? SHARE_HISTOGRAM : WEIGHT_HISTOGRAM;
+			final EvitaResponse<EntityReferenceContract> response = execute(
+				evita, new Scope[]{LIVE}, entityPrimaryKeyInSet(COUNTED_OWNER_PK), null, null,
+				referenceSummaryOfReferenceWithHistograms(
+					source, null, (EntityFetch) null, (EntityGroupFetch) null,
+					histogramStatistics(10, entityFetch(), histogramName)
+				)
+			);
+
+			assertEquals(List.of(COUNTED_OWNER_PK), returnedProducts(response));
+			final ReferenceSummary summary = response.getExtraResult(ReferenceSummary.class);
+			assertNotNull(summary);
+			final ReferenceGroupStatistics group = summary.getReferenceGroupStatistics(source);
+			assertNotNull(group);
+			final HistogramContract histogram = group.getHistogramStatistics(histogramName);
+			assertNotNull(histogram);
+			final int value = referenceAttribute ? 3 : 2;
+			final int boundary = referenceAttribute ? COUNTED_PARAM_PK : COUNTED_MATERIAL_PK;
+			assertReferenceHistogram(histogram, 1, value, value, boundary, boundary);
+		}
+
+		/**
+		 * Ties two ungrouped boundary candidates without any boundary fetch and expects the same boundary entity as
+		 * with an empty one.
+		 *
+		 * @param source the source of the histogram observation
+		 * @param evita the engine holding the tied boundary fixture
+		 */
+		@ParameterizedTest
+		@ValueSource(strings = {REF_PARAM, REF_MATERIAL})
+		@DisplayName("Uses the counted owner for a tied ungrouped histogram boundary without a boundary fetch")
+		@UseDataSet(COUNTED_BOUNDARY_FIXTURE)
+		void shouldUseCountedOwnerForUngroupedBoundaryWithoutFetch(@Nonnull String source, @Nonnull Evita evita) {
+			final boolean referenceAttribute = REF_PARAM.equals(source);
+			final String histogramName = referenceAttribute ? SHARE_HISTOGRAM : WEIGHT_HISTOGRAM;
+			final EvitaResponse<EntityReferenceContract> response = execute(
+				evita, new Scope[]{LIVE}, entityPrimaryKeyInSet(COUNTED_OWNER_PK), null, null,
+				referenceSummaryOfReferenceWithHistograms(
+					source, null, (EntityFetch) null, (EntityGroupFetch) null,
+					histogramStatistics(10, histogramName)
+				)
+			);
+
+			final ReferenceSummary summary = response.getExtraResult(ReferenceSummary.class);
+			assertNotNull(summary);
+			final ReferenceGroupStatistics group = summary.getReferenceGroupStatistics(source);
+			assertNotNull(group);
+			final HistogramContract histogram = group.getHistogramStatistics(histogramName);
+			assertNotNull(histogram);
+			assertTrue(histogram.getMinReferencedEntity().isPresent(), "a boundary entity is returned without a fetch");
+			final int value = referenceAttribute ? 3 : 2;
+			final int boundary = referenceAttribute ? COUNTED_PARAM_PK : COUNTED_MATERIAL_PK;
+			assertReferenceHistogram(histogram, 1, value, value, boundary, boundary);
+		}
+
+		/**
+		 * Resolves tied boundary targets by requested scope, then the facet order or primary key.
+		 *
+		 * @param referenceName the grouped or ungrouped reference to test
+		 * @param firstScope the first scope in the query filter
+		 * @param sorted whether to request a facet sorter
+		 * @param expectedPk the winning entity in the first scope
+		 * @param evita the engine holding targets in both scopes
+		 */
+		@ParameterizedTest
+		@CsvSource({
+			REF_PARAM + ", LIVE, true, 102", REF_PARAM + ", ARCHIVED, true, 101",
+			REF_PARAM + ", LIVE, false, 100", REF_PARAM + ", ARCHIVED, false, 99",
+			REF_TAG + ", LIVE, true, 102", REF_TAG + ", ARCHIVED, true, 101",
+			REF_TAG + ", LIVE, false, 100", REF_TAG + ", ARCHIVED, false, 99"
+		})
+		@DisplayName("Picks tied boundary entities in the query's scope order")
+		@UseDataSet(SCOPED_BOUNDARY_FIXTURE)
+		void shouldPickBoundaryByRequestedScopeOrder(
+			@Nonnull String referenceName,
+			@Nonnull Scope firstScope,
+			boolean sorted,
+			int expectedPk,
+			@Nonnull Evita evita
+		) {
+			final Scope[] scopes = {firstScope, firstScope == LIVE ? ARCHIVED : LIVE};
+			final EvitaResponse<EntityReferenceContract> response = execute(
+				evita, scopes, null, null, null,
+				referenceSummaryOfReferenceWithHistograms(
+					referenceName, FacetStatisticsDepth.NONE, null, null,
+					sorted ? orderBy(attributeNatural("rank")) : null, null, null, null,
+					histogramStatistics(10, entityFetch(), SHARE_HISTOGRAM)
+				)
+			);
+			final HistogramContract histogram = REF_TAG.equals(referenceName) ?
+				referenceHistogramOf(response, referenceName, GROUP_PK) : referenceHistogramOf(response, referenceName);
+			assertReferenceHistogram(histogram, 2, 3, 3, expectedPk, expectedPk);
+		}
+
+		/**
+		 * Uses the query's scope order even when only LIVE products supply histogram observations.
+		 *
+		 * @param evita the engine with a LIVE owner referencing an ARCHIVED boundary target
+		 */
+		@Test
+		@DisplayName("Uses the query's target scope order for a histogram wrapped in LIVE")
+		@UseDataSet(SCOPED_BOUNDARY_FIXTURE)
+		void shouldUseQueryScopeOrderForWrappedBoundary(@Nonnull Evita evita) {
+			final RequireConstraint histogram = inScope(LIVE, referenceSummaryOfReferenceWithHistograms(
+				REF_TAG, FacetStatisticsDepth.NONE, null, null, histogramStatistics(10, entityFetch(), SHARE_HISTOGRAM)
+			));
+			final HistogramContract liveFirst = referenceHistogramOf(
+				execute(evita, new Scope[]{LIVE, ARCHIVED}, null, null, null, histogram), REF_TAG, GROUP_PK
+			);
+			final HistogramContract archivedFirst = referenceHistogramOf(
+				execute(evita, new Scope[]{ARCHIVED, LIVE}, null, null, null, histogram), REF_TAG, GROUP_PK
+			);
+
+			assertAll(
+				() -> assertReferenceHistogram(liveFirst, 1, 3, 3, 100, 100),
+				() -> assertReferenceHistogram(archivedFirst, 1, 3, 3, 99, 99)
+			);
+		}
+
+		/**
+		 * Prefers an in-scope target when the lowest target PK belongs to an unsearched scope.
+		 *
+		 * @param evita the engine with a LIVE owner referencing both LIVE and ARCHIVED targets at the bound
+		 */
+		@Test
+		@DisplayName("Picks an in-scope boundary when the query searches LIVE only")
+		@UseDataSet(SCOPED_BOUNDARY_FIXTURE)
+		void shouldPreferSearchedScopeForSingleScopeBoundary(@Nonnull Evita evita) {
+			final EvitaResponse<EntityReferenceContract> response = execute(
+				evita, new Scope[]{LIVE}, null, null, null, referenceHistogram(REF_TAG)
+			);
+
+			final HistogramContract histogram = referenceHistogramOf(response, REF_TAG, GROUP_PK);
+			assertTrue(histogram.getMinReferencedEntity().isPresent(), "LIVE boundary entity must be present");
+			assertReferenceHistogram(histogram, 1, 3, 3, 100, 100);
+		}
+
+		/**
+		 * Prefers the LIVE material over an ARCHIVED material with the same weight and a lower primary key.
+		 *
+		 * @param evita the engine with a LIVE owner referencing both materials
+		 */
+		@Test
+		@DisplayName("Prefers the LIVE material for a tied weight boundary in a LIVE-only query")
+		@UseDataSet(SCOPED_BOUNDARY_FIXTURE)
+		void shouldPreferSearchedScopeForReferencedEntityAttributeBoundary(@Nonnull Evita evita) {
+			final EvitaResponse<EntityReferenceContract> response = execute(
+				evita, new Scope[]{LIVE}, null, null, null,
+				referenceSummaryOfReferenceWithHistograms(
+					REF_MATERIAL, FacetStatisticsDepth.NONE, null, null,
+					histogramStatistics(10, entityFetch(), WEIGHT_HISTOGRAM)
+				)
+			);
+			final ReferenceSummary summary = response.getExtraResult(ReferenceSummary.class);
+			assertNotNull(summary);
+			final ReferenceGroupStatistics group = summary.getReferenceGroupStatistics(REF_MATERIAL);
+			assertNotNull(group);
+			final HistogramContract histogram = group.getHistogramStatistics(WEIGHT_HISTOGRAM);
+			assertNotNull(histogram);
+			assertReferenceHistogram(histogram, 1, 2, 2, LIVE_MATERIAL_PK, LIVE_MATERIAL_PK);
+		}
+
+		/**
+		 * Applies specific ordering, filtering and group content to a histogram requested by the generic summary.
+		 *
+		 * @param evita the engine with tied boundaries and two groups
+		 */
+		@Test
+		@DisplayName("Uses the reference-specific controls for a histogram requested by the generic summary")
+		@UseDataSet(GROUP_CONTROLS_FIXTURE)
+		void shouldUseSpecificControlsForGenericHistogram(@Nonnull Evita evita) {
+			final EvitaResponse<EntityReferenceContract> response = execute(
+				evita, new Scope[]{LIVE}, null, null, null,
+				referenceSummaryWithHistograms(
+					FacetStatisticsDepth.NONE, null, filterGroupBy(entityPrimaryKeyInSet(GROUP_PK, OTHER_GROUP_PK)),
+					orderBy(entityPrimaryKeyNatural(OrderDirection.ASC)), null, null,
+					entityGroupFetch(attributeContent("code")),
+					histogramStatistics(10, entityFetch(), SHARE_HISTOGRAM)
+				),
+				referenceSummaryOfReference(
+					REF_TAG, FacetStatisticsDepth.NONE, filterGroupBy(entityPrimaryKeyInSet(GROUP_PK)),
+					orderBy(attributeNatural("rank", OrderDirection.DESC)), entityGroupFetch(attributeContent("name"))
+				)
+			);
+			final ReferenceSummary summary = response.getExtraResult(ReferenceSummary.class);
+			assertNotNull(summary);
+			final ReferenceGroupStatistics group = summary.getReferenceGroupStatistics(REF_TAG, GROUP_PK);
+			assertNotNull(group);
+			final SealedEntity groupEntity = assertInstanceOf(SealedEntity.class, group.getGroupEntity());
+			assertAll(
+				() -> assertReferenceHistogram(group.getHistogramStatistics(SHARE_HISTOGRAM), 1, 3, 3, 102, 102),
+				() -> assertNull(summary.getReferenceGroupStatistics(REF_TAG, OTHER_GROUP_PK)),
+				() -> assertEquals("Selected", groupEntity.getAttribute("name")),
+				() -> assertFalse(groupEntity.getAttributeNames().contains("code"))
+			);
+		}
+
+		/**
+		 * Keeps the LIVE histogram and its sorter independent of an ARCHIVED sibling in either position.
+		 *
+		 * @param evita the engine holding a writable fixture
+		 */
+		@Test
+		@DisplayName("Keeps a histogram's boundary sort order when a sibling summary requests another scope")
+		@UseDataSet(SORTED_BOUNDARY_FIXTURE)
+		void shouldKeepHistogramBoundarySortOrderAcrossSiblingScopes(@Nonnull Evita evita) {
+			final int sortedParam = 102;
+			evita.updateCatalog(TEST_CATALOG, session -> {
+				session.getEntity(ENTITY_PARAM, 100, attributeContentAll()).orElseThrow()
+					.openForWrite().setAttribute("rank", 9).upsertVia(session);
+				session.createNewEntity(ENTITY_PARAM, sortedParam).setAttribute("rank", 1).upsertVia(session);
+				session.getEntity(ENTITY_PARAM, 101, attributeContentAll()).orElseThrow()
+					.openForWrite().setAttribute("rank", 2).upsertVia(session);
+				session.archiveEntity(ENTITY_PARAM, 101);
+				session.getEntity(ENTITY_PRODUCT, PRODUCT_LIVE_PK, referenceContentAll()).orElseThrow()
+					.openForWrite()
+					.setReference(REF_PARAM, sortedParam, whichIs -> whichIs.setAttribute("share", 3))
+					.upsertVia(session);
+			});
+			final OrderBy facetOrder = orderBy(attributeNatural("rank"));
+			final RequireConstraint live = inScope(LIVE, referenceSummaryOfReferenceWithHistograms(
+				REF_PARAM, null, null, null, facetOrder, null, null, null,
+				histogramStatistics(10, entityFetch(), SHARE_HISTOGRAM)
+			));
+			final RequireConstraint archived = inScope(ARCHIVED, referenceSummaryOfReferenceWithHistograms(
+				REF_PARAM, null, null, null, facetOrder, null, null, null,
+				histogramStatistics(10, entityFetch(), ARCHIVED_SHARE_HISTOGRAM)
+			));
+			final HistogramContract single = referenceHistogramOf(
+				execute(evita, Scope.values(), null, null, null, live), REF_PARAM
+			);
+			final HistogramContract liveFirst = referenceHistogramOf(
+				execute(evita, Scope.values(), null, null, null, live, archived), REF_PARAM
+			);
+			final HistogramContract liveLast = referenceHistogramOf(
+				execute(evita, Scope.values(), null, null, null, archived, live), REF_PARAM
+			);
+
+			assertReferenceHistogram(single, 1, 3, 3, sortedParam, sortedParam);
+			assertAll(
+				() -> assertArrayEquals(single.getBuckets(), liveFirst.getBuckets(), "LIVE summary listed first"),
+				() -> assertArrayEquals(single.getBuckets(), liveLast.getBuckets(), "LIVE summary listed last"),
+				() -> assertReferenceHistogram(liveFirst, 1, 3, 3, sortedParam, sortedParam),
+				() -> assertReferenceHistogram(liveLast, 1, 3, 3, sortedParam, sortedParam)
+			);
+		}
+
 	}
 
 	/**

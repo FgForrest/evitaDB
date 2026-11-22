@@ -192,7 +192,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			final Head head = buildHead(environment, arguments);
 		    final FilterBy filterBy = buildFilterBy(arguments);
 			final OrderBy orderBy = buildOrderBy(arguments);
-			final Require require = buildRequire(environment, arguments, extractDesiredLocale(filterBy));
+			final Require require = buildRequire(environment, arguments, filterBy);
 			return query(head, filterBy, orderBy, require);
 		});
 		log.debug("Generated evitaDB query for entity query fetch of type `{}` is `{}`.", this.entitySchema.getName(), query);
@@ -256,10 +256,21 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		);
 	}
 
+	/**
+	 * Builds record and extra-result requirements using the resolved query filter.
+	 *
+	 * @param environment the selection set and request context
+	 * @param arguments the arguments supplied to the query field
+	 * @param filterBy the resolved filter at the queried entity level
+	 * @return the combined requirements for the Java query
+	 */
 	@Nonnull
-	private Require buildRequire(@Nonnull DataFetchingEnvironment environment,
-	                             @Nonnull Arguments arguments,
-	                             @Nullable Locale desiredLocale) {
+	private Require buildRequire(
+		@Nonnull DataFetchingEnvironment environment,
+		@Nonnull Arguments arguments,
+		@Nullable FilterBy filterBy
+	) {
+		final Locale desiredLocale = extractDesiredLocale(filterBy);
 		final List<RequireConstraint> requireConstraints = new LinkedList<>();
 
 		// build explicit require container
@@ -332,7 +343,9 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 
 		requireConstraints.addAll(this.attributeHistogramResolver.resolve(extraResultsSelectionSet));
 		requireConstraints.add(this.priceHistogramResolver.resolve(extraResultsSelectionSet).orElse(null));
-		requireConstraints.addAll(this.referenceSummaryResolver.resolve(extraResultsSelectionSet, desiredLocale));
+		requireConstraints.addAll(
+			this.referenceSummaryResolver.resolve(extraResultsSelectionSet, filterBy, desiredLocale)
+		);
 		requireConstraints.addAll(this.hierarchyOfResolver.resolve(extraResultsSelectionSet, desiredLocale));
 		requireConstraints.add(this.queryTelemetryResolver.resolve(extraResultsSelectionSet).orElse(null));
 

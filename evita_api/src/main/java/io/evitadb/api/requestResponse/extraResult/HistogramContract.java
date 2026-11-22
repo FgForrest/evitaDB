@@ -130,10 +130,13 @@ public interface HistogramContract extends Serializable {
 	/**
 	 * Returns the referenced entity whose value anchors the minimum bucket of this histogram.
 	 *
-	 * Only populated for histograms computed over references (see
-	 * {@link ReferenceSummary.ReferenceGroupStatistics#getHistogramStatistics()}) and only when the
-	 * query requests an entity fetch for the associated reference. In all other cases — and on the
-	 * contract defaults — the returned optional is empty.
+	 * Histograms computed over references populate both boundary entities when both bounds resolve to loadable entities
+	 * (see {@link ReferenceSummary.ReferenceGroupStatistics#getHistogramStatistics()}). Both are empty when either
+	 * bound has no resolved pick or none of its picks can be loaded. The entity carries the content requested by the
+	 * histogram's `entityFetch`. With no content requirements it carries the entity's identity and standard metadata.
+	 *
+	 * @return the minimum boundary entity, or an empty optional for an unresolved pair, a non-reference histogram,
+	 *         or the default implementation
 	 */
 	@Nonnull
 	default Optional<SealedEntity> getMinReferencedEntity() {

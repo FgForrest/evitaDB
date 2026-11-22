@@ -24,27 +24,54 @@
 package io.evitadb.core.query.extraResult.translator.reference.producer;
 
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
+import io.evitadb.core.expression.trigger.HistogramValueSource;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanningContext;
+import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
+import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramComputer;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceAttributeBoundaryTestSupport.Fixture;
+import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer.HistogramRequest;
+import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer.RegisteredHistogram;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.invocation.Invocation;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import static io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceAttributeBoundaryTestSupport.*;
 import static io.evitadb.test.TestTags.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
@@ -62,6 +89,124 @@ import static org.mockito.Mockito.*;
 @Tag(HISTOGRAM)
 @Tag(REFERENCE)
 class ReferenceAttributeBoundaryCallCountTest {
+	/**
+	 * Ranks the LIVE candidate first and fetches it once when the lowest PK lies outside the searched scope.
+	 */
+	@Test
+	@DisplayName("Fetches the LIVE boundary once when the lowest candidate lies outside the searched scope")
+	void shouldFetchInScopeBoundaryOnceWhenLowestCandidateLiesOutsideScope() {
+		assertUngroupedBoundaryLookups(true, true);
+	}
+
+	/**
+	 * An in-scope candidate that lacks the requested locale leaves the boundary unresolved with a single fetch.
+	 */
+	@Test
+	@DisplayName("Fetches only once when the chosen boundary cannot load")
+	void shouldFetchOnlyOnceWhenInScopeCandidateCannotLoad() {
+		assertUngroupedBoundaryLookups(false, false);
+	}
+
+	/**
+	 * Counts owner and partition lookups per ungrouped bound and the fetch and scope-index reads they share.
+	 *
+	 * @param lowestOutsideScope whether the lowest candidate is absent from the searched scope
+	 * @param boundaryLoads whether the chosen candidate's body is available in the requested form
+	 */
+	private static void assertUngroupedBoundaryLookups(boolean lowestOutsideScope, boolean boundaryLoads) {
+		final ReferenceSchemaContract reference = mock(ReferenceSchemaContract.class);
+		final EntitySchema ownerSchema = mock(EntitySchema.class);
+		final SealedEntitySchema sealedOwnerSchema = mock(SealedEntitySchema.class);
+		final AttributeSchemaContract attribute = mock(AttributeSchemaContract.class);
+		when(reference.getName()).thenReturn("targets");
+		when(reference.getReferencedEntityType()).thenReturn("target");
+		when(reference.isReferencedEntityTypeManaged()).thenReturn(true);
+		when(reference.getAttribute("score")).thenReturn(Optional.of(attribute));
+		when(reference.isIndexedInScope(Scope.LIVE)).thenReturn(true);
+		when(reference.getIndexedComponents(Scope.LIVE))
+			.thenReturn(Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY));
+		when(attribute.getName()).thenReturn("score");
+		doReturn(Integer.class).when(attribute).getPlainType();
+		final HistogramValueDescriptor descriptor = new HistogramValueDescriptor(
+			HistogramValueSource.REFERENCE_ATTRIBUTE, null, "score", Integer.class, false, false, null, null, 0
+		);
+		final HistogramRequest request = new HistogramRequest(
+			reference, "scores", 10, HistogramBehavior.STANDARD, null, Set.of(Scope.LIVE), descriptor, null, Map.of()
+		);
+
+		final QueryExecutionContext context = mock(QueryExecutionContext.class);
+		final QueryPlanningContext planning = mock(QueryPlanningContext.class);
+		final EntityCollection collection = mock(EntityCollection.class);
+		final EvitaRequest evitaRequest = mock(EvitaRequest.class);
+		final GlobalEntityIndex liveTargets = mock(GlobalEntityIndex.class);
+		final Bitmap candidates = new BaseBitmap(11, 12);
+		final int expectedPk = lowestOutsideScope ? 12 : 11;
+		when(context.getEvitaRequest()).thenReturn(evitaRequest);
+		when(evitaRequest.getScopesAsArray()).thenReturn(new Scope[]{Scope.LIVE});
+		when(planning.getGlobalEntityIndexIfExists("target", Scope.LIVE)).thenReturn(Optional.of(liveTargets));
+		when(liveTargets.getAllPrimaryKeys()).thenReturn(lowestOutsideScope ? new BaseBitmap(12) : candidates);
+		final SealedEntity boundary = mock(SealedEntity.class);
+		when(boundary.getPrimaryKeyOrThrowException()).thenReturn(expectedPk);
+		when(context.fetchEntities(eq("target"), eq(new int[]{expectedPk}), any()))
+			.thenReturn(boundaryLoads ? List.of(boundary) : List.of());
+		when(context.getQueryContext()).thenReturn(planning);
+		when(planning.getEntityType()).thenReturn("owner");
+		when(planning.getSchema()).thenReturn(ownerSchema);
+		when(context.getEntityCollectionOrThrowException(eq("owner"), anyString())).thenReturn(collection);
+		when(collection.getSchema()).thenReturn(sealedOwnerSchema);
+
+		final ReferencedTypeEntityIndex typeIndex = mock(ReferencedTypeEntityIndex.class);
+		final OwnerFilterIndex histogramIndex = spy(filter(Integer.class));
+		histogramIndex.addRecord(7, 10);
+		histogramIndex.addRecord(7, 20);
+		final OwnerFilterIndex valueIndex = spy(filter(Integer.class));
+		valueIndex.addRecord(71, 10);
+		valueIndex.addRecord(72, 20);
+		when(planning.getEntityIndex(
+			"owner", new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, "targets"),
+			ReferencedTypeEntityIndex.class
+		)).thenReturn(Optional.of(typeIndex));
+		when(typeIndex.getHistogramFilterIndex("scores", null)).thenReturn(histogramIndex);
+		when(typeIndex.getIndexPrimaryKeys(any())).thenReturn(EmptyBitmap.INSTANCE);
+		when(typeIndex.getFilterIndex(reference, attribute, null)).thenReturn(valueIndex);
+		when(typeIndex.getReferencedPrimaryKeysForIndexPks(any())).thenReturn(candidates);
+		when(typeIndex.getAllReferencedPrimaryKeys()).thenReturn(candidates);
+
+		final CacheableHistogramContract cacheable = mock(CacheableHistogramContract.class);
+		when(cacheable.getRawMin()).thenReturn(10);
+		when(cacheable.getRawMax()).thenReturn(20);
+		final HistogramContract histogram = mock(HistogramContract.class);
+		when(cacheable.convertToHistogram(any())).thenReturn(histogram);
+		when(cacheable.convertToHistogram(any(), same(boundary), same(boundary))).thenReturn(histogram);
+		when(context.analyse(any(AttributeHistogramComputer.class))).thenReturn(() -> cacheable);
+
+		final RegisteredHistogram registration = new RegisteredHistogram(request, null, null, null, null);
+		ReferenceHistogramAccumulator.injectHistograms(
+			Map.of(), Map.of("targets", List.of(registration)), null, context, ReferenceSummaryAdapter.INSTANCE
+		);
+
+		final ArgumentCaptor<int[]> fetchedPks = ArgumentCaptor.forClass(int[].class);
+		verify(context).fetchEntities(eq("target"), fetchedPks.capture(), any());
+		assertArrayEquals(new int[]{expectedPk}, fetchedPks.getValue());
+		if (boundaryLoads) {
+			verify(cacheable).convertToHistogram(any(), same(boundary), same(boundary));
+		} else {
+			verify(cacheable).convertToHistogram(any());
+		}
+		verify(valueIndex).getRecordsEqualTo(10);
+		verify(valueIndex).getRecordsEqualTo(20);
+		verify(typeIndex, times(2)).getReferencedPrimaryKeysForIndexPks(any());
+		verify(typeIndex).getAllReferencedPrimaryKeys();
+		verify(planning).getGlobalEntityIndexIfExists("target", Scope.LIVE);
+		verify(planning, never()).getGlobalEntityIndexIfExists("target", Scope.ARCHIVED);
+		verify(liveTargets).getAllPrimaryKeys();
+		verify(histogramIndex).getRecordsEqualTo(10);
+		verify(histogramIndex).getRecordsEqualTo(20);
+		verify(histogramIndex, times(2)).getRecordsEqualTo(any());
+		verify(typeIndex, times(2)).getIndexPrimaryKeys(any());
+		verify(planning, never()).resolvePartition(anyInt());
+	}
+
 	/** The first successful witness stops both the producing-index checks and the global candidate merge. */
 	@Test
 	@DisplayName("should stop at the first candidate whose owner check passes")

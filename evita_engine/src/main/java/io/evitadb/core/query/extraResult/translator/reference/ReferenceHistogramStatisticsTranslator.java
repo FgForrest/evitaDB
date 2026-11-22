@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.reference;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ReferenceHistogramStatistics;
+import io.evitadb.api.query.require.ReferenceSummaryOfReference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
@@ -102,6 +103,8 @@ public class ReferenceHistogramStatisticsTranslator implements RequireConstraint
 	 * After validation, {@link #extractRequestedBucketRanges} is called to extract the optional filter range used
 	 * to flag per-bucket {@code requested} at fabrication time.
 	 *
+	 * @param constraint the histogram requirement to resolve
+	 * @param extraResultPlanner the active planning visitor
 	 * @return the same {@link ReferenceSummaryProducer} that was found, enriched with the new histogram request
 	 */
 	@Nonnull
@@ -199,7 +202,8 @@ public class ReferenceHistogramStatisticsTranslator implements RequireConstraint
 					descriptor,
 					entityFetch,
 					requestedRangesByGroupPk
-				)
+				),
+				processingScope.requirement() instanceof ReferenceSummaryOfReference
 			);
 		}
 
@@ -274,6 +278,13 @@ public class ReferenceHistogramStatisticsTranslator implements RequireConstraint
 	 * Resolves a consistent {@link HistogramValueDescriptor} across all active scopes. The schema validates that
 	 * the same histogram name defined in multiple scopes points to compatible expressions; here we verify this
 	 * still holds and return the single canonical descriptor the computer will use at fabrication time.
+	 *
+	 * @param referenceSchema the reference whose schema defines the index
+	 * @param referenceName the name used to identify the reference in validation messages
+	 * @param histogramName the histogram requested by the query
+	 * @param scopes the processing scopes of the enclosing summary
+	 * @param extraResultPlanner the planner supplying schemas for expressions
+	 * @return the canonical descriptor used to compute the histogram
 	 */
 	@Nonnull
 	private static HistogramValueDescriptor resolveDescriptor(

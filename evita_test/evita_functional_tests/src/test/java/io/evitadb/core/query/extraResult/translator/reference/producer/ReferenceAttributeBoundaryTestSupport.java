@@ -112,27 +112,33 @@ final class ReferenceAttributeBoundaryTestSupport {
 	 *
 	 * @param filters  the reference attribute's filter index of each index, `null` where the index has none
 	 * @param indexes  the indexes of the boundary context
-	 * @param owners   the owner filter telling the owners the histogram counts at a value, `null` to keep every
-	 *                 candidate
+	 * @param owners   the histogram filter index holding counted owners by value
 	 * @param baseline the baseline the counted owners are confined to, `null` for none
 	 * @param scope    the referenced PKs in scope
 	 */
 	record Fixture(
 		@Nonnull FilterIndex[] filters,
 		@Nonnull EntityIndex[] indexes,
-		@Nullable FilterIndex owners,
+		@Nonnull FilterIndex owners,
 		@Nullable Formula baseline,
 		@Nonnull Bitmap scope
 	) {
-		/** Calls the actual package-local production picker and exposes its pair. */
+		/**
+		 * Calls the grouped production picker and exposes its pair.
+		 *
+		 * @param value the boundary value to resolve
+		 * @param sorter sorts tied candidates, or null to use PK order
+		 * @return the selected and alternative boundary primary keys
+		 */
 		@Nonnull
 		ReferenceAttributeBoundaryOracle.Pair actual(
 			@Nonnull Serializable value, @Nullable NestedContextSorter sorter
 		) {
 			final ReferenceHistogramAccumulator.BoundaryPick result =
 				ReferenceHistogramAccumulator.pickBoundaryPkFromReferenceAttribute(
-					this.filters, this.indexes, value, this.owners == null ? List.of() : List.of(this.owners),
-					this.baseline, this.scope, sorter
+					this.filters, this.indexes, value, List.of(this.owners),
+					this.baseline, this.scope, sorter, null,
+					ReferenceHistogramAccumulator.BoundaryScopeOrder.UNRANKED
 				);
 			return new ReferenceAttributeBoundaryOracle.Pair(result.pk(), result.alternativePk());
 		}
