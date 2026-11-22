@@ -1,7 +1,7 @@
 ---
 title: One histogram store per group
 date: 2026-11-19
-updated: 2026-11-20 01:45
+updated: 2026-11-22 21:54
 status: accepted
 kind: fix
 issues: [1924]
@@ -164,8 +164,10 @@ permits the global fallback. Equal primary and alternative become a single pick;
 All raw lookups, mappings and producer heads are prepared before selection can stop.
 
 With a sorter, retain the exhaustive steps. Sorting an owned subset need not preserve its order within the full
-candidate set: a limited segment or seeded shuffle depends on the set it sorts. The no-owner-filter path also
-retains its exhaustive implementation. Referenced-entity-attribute boundary resolution is a separate path.
+candidate set: a limited segment or seeded shuffle depends on the set it sorts. Referenced-entity-attribute boundary
+resolution is a separate path. Since #2035 every pick has an owner filter, ungrouped ones included; an ungrouped
+pick checks every tied candidate through its reference partitions instead of this merge
+(`2026-11-05-nested-inscope-requested-scopes`, Option AA).
 
 - **Candidate-by-index walk (declined). Rejected because:** walking the scoped union and testing every candidate
   against every context slot creates candidate-count × index-count membership probes. On 200 disjoint producing
