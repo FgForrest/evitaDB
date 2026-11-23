@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-23 15:08
+updated: 2026-11-23 15:43
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917, 1920, 2035]
@@ -1060,11 +1060,10 @@ into the same pull request.
   entity type evitaDB does not manage returns the histogram without boundary entities, where the whole query failed
   with `EntityCollectionRequiredException`. An `entityFetch` inside such a histogram is refused at planning.
 - **Open, left by #2035** - found by its adversarial code reviews, outside the change:
-  - **Shown by a probe, decision pending:** a reference whose group type is unmanaged loses its histogram. The index
-    writer stores it under the group's primary key (`ReferenceIndexMutator`), but the accumulator reads such a
-    reference as ungrouped (`ReferenceHistogramAccumulator#computeForReference` treats only a managed group as
-    grouped), so the group comes back with its facets and without the histogram. Neither side is changed by #2035;
-    the probe test was not kept.
+  - #2062: a reference whose group type is unmanaged loses its histogram - the group comes back with its facets and
+    without the histogram. Shown red; the routing behind it (the index writer stores the values under the group's
+    primary key, `ReferenceHistogramAccumulator#computeForReference` reads only a managed group per group) is read
+    from the code. Neither side is changed by #2035.
   - **Suspected:** a managed referenced type whose collection does not exist yet - allowed until the schema is
     validated when the session closes - would fail the boundary fetch the way an unmanaged one did.
   - #2053: a `histogramHaving` keeps no scope, so `or(inScope(LIVE, histogramHaving(…)), inScope(ARCHIVED,
@@ -1142,4 +1141,4 @@ into the same pull request.
   accepted that unstored referenced entities rank last. #2053 filed from the review's `histogramHaving` finding.
 - **2026-11-23** — The external API descriptions of the boundary entities corrected to what the APIs return. A
   histogram over a reference to an unmanaged entity type, suspected while checking them, reproduced as a failing query
-  and was fixed in the same pull request (Option AG); its review found the unmanaged-group gap left open above.
+  and was fixed in the same pull request (Option AG); its review found the unmanaged-group gap, filed as #2062.
