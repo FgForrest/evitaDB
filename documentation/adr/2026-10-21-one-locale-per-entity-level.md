@@ -1,7 +1,7 @@
 ---
 title: A filter names one locale per entity level, and a level without one inherits from its enclosing level
 date: 2026-10-21
-updated: 2026-11-10 22:40
+updated: 2026-11-21 16:10
 status: accepted
 kind: fix
 issues: [925]
@@ -23,7 +23,7 @@ areas:
 supersedes: []
 superseded-by: []
 relates: [2026-10-20-reference-content-filter-row-by-row, 2026-10-08-scope-faithful-planning-and-facet-summary-parity,
-  2026-11-05-nested-inscope-requested-scopes]
+  2026-11-05-nested-inscope-requested-scopes, 2026-11-19-direct-entity-calls-check-requested-content]
 ---
 
 # A filter names one locale per entity level, and a level without one inherits from its enclosing level
@@ -269,6 +269,9 @@ Known, not part of this change:
   - its suspicion that "a nested query ignores its own filter's `entityLocaleEquals`" is confirmed and fixed here.
 - `2026-10-08-scope-faithful-planning-and-facet-summary-parity`: facet-only filters keep their pooled-reference
   semantics and group relations; the owner guard is added beside them, never inside the facet selection.
+- `2026-11-19-direct-entity-calls-check-requested-content`: the direct entity calls (`getEntity` and the others that
+  plan no query) derive each fetch level's locale by this record's rule in a walk of their own, so a change to the
+  rule changes that walk and `ExtraResultPlanningVisitor#getEntityFetchRequest` together.
 
 ## Timeline
 
