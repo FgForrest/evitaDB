@@ -727,8 +727,8 @@ other filter surfaces (facet buttons, the price slider, etc.).
 
 ### How evitaDB applies the relaxation
 
-evitaDB classifies every child of [`userFilter`](../filtering/behavioral.md#user-filter) into one of three
-mutually exclusive *filter surfaces*:
+Three families of filters inside [`userFilter`](../filtering/behavioral.md#user-filter) participate in baseline
+relaxation:
 
 1. **Attribute range sliders** — [`attributeBetween`](../filtering/comparable.md#attribute-between) and
    [`histogramHaving`](../filtering/references.md#histogram-having). These drive attribute histograms, both on
@@ -738,9 +738,8 @@ mutually exclusive *filter surfaces*:
 3. **Price range** — [`priceBetween`](../filtering/price.md#price-between). This drives the price histogram.
 
 When an extra-result projection (attribute histogram, facet summary impact, price histogram) is computed, evitaDB
-peels away **only the surface that projection belongs to** and leaves the other two applied. The main entity page
-returned by the query is still narrowed by **all three** surfaces — the relaxation applies strictly to the
-`[min, max]` spans and bucket distributions of the extra-result projections.
+peels away **only the filter family for that projection**. The other filters, including those outside the three
+families, stay in the baseline. All filters still apply to the main entity page.
 
 ### Worked example
 

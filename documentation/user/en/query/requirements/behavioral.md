@@ -86,7 +86,7 @@ use the `inScope` container and limit these calculations to only those scopes wh
 
 <NoteTitle toggles="true">
 
-##### The result of requested facet summary and price histogram only for entities in live scope
+##### Price histogram requested for entities in the LIVE scope
 </NoteTitle>
 
 As you can see, the result contains calculations for the data that the engine can calculate.
