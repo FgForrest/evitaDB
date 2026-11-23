@@ -1,7 +1,7 @@
 ---
 title: Self-reference work runs on the entity executor
 date: 2026-11-23
-updated: 2026-11-23 17:28
+updated: 2026-11-23 18:10
 status: accepted
 kind: fix
 issues: [2002]
@@ -117,7 +117,8 @@ before the second pair applies anything. A scheduling mistake now fails before i
 
 ## Consequences & open follow-ups
 
-The 2026.3 decision is to ship the fix with the following wrong counts tracked under #1925. The release decision
+The 2026.3 decision is to ship the fix with the following wrong counts documented. The first two are tracked
+under #1925; the facet shape gets its own issue once this fix is merged. The release decision
 omits the `breaking change` label because the 2026.3 default newly refuses zero of the measured writes.
 
 - **Restore of reflected references.** Restoring a self mirror adds two histogram units. The local index finish
@@ -131,7 +132,8 @@ omits the `breaking change` label because the 2026.3 default newly refuses zero 
   rows correctly but leaves one histogram unit per owner in the measured case. The non-self control clears
   both units on both builds. **Suspected, not proven**. A delayed self recount adds the other owner's contribution
   after its local index finish. The baseline refused the self removals, so whether the fix introduced the final
-  residue remains **Suspected, not proven**.
+  residue remains **Suspected, not proven**. It is filed as its own issue after this fix merges, from a
+  re-run on the merged `dev`.
 - **Existing damaged data.** The fix and the `dev` control gave identical results on all three seeded shapes,
   including a member left `ARCHIVED` by a prior restore.
 - **Second-executor guard.** Current implicit mutation producers cannot reach it through the public API.
