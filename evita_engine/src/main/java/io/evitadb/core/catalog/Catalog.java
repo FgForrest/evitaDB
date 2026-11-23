@@ -532,11 +532,13 @@ public final class Catalog
 	 */
 	@Nonnull private final AtomicInteger warmUpFlushState = new AtomicInteger();
 	/**
-	 * Makes the publication of a warm-up flush and the beginning of this instance's termination exclusive. A flush
-	 * holds it from its check that the termination has not begun to the end of its header write; the termination takes
-	 * it to set {@link #WARM_UP_TERMINATION_BEGUN}. The termination therefore either begins first - and the flush
-	 * publishes nothing - or begins once the header write is over, and never closes the storage in the middle of a
-	 * bootstrap write. Held within one thread at a time, never across the hand-off to the executor.
+	 * Makes every bootstrap write of this warming-up instance and the beginning of its termination exclusive. The last
+	 * step of a flush holds it from its check that the termination has not begun to the end of its header write;
+	 * {@link #goLive()} holds it through its ALIVE bootstrap write, and {@link #replace} through the whole handover of
+	 * a rename; the termination takes it to set {@link #WARM_UP_TERMINATION_BEGUN}. The termination therefore either
+	 * begins first - and the write is refused before it starts - or begins once the write is over, and never closes
+	 * the storage in the middle of a bootstrap write. Held within one thread at a time, never across the hand-off to
+	 * the executor.
 	 */
 	@Nonnull private final ReentrantLock warmUpPublicationLock = new ReentrantLock();
 
@@ -1519,6 +1521,11 @@ public final class Catalog
 	 * this method acts on `this`, so it must be the newest instance and no round may still have data to publish. A
 	 * round in its schema notification may still be running, since that writes nothing to storage.
 	 *
+	 * The handover runs under {@link #warmUpPublicationLock}: a termination of a warming-up instance either begins
+	 * first - and the returned future fails before anything is relabelled, with {@link InstanceTerminatedException},
+	 * or with the {@link CatalogUnpublishableException} of a barrier raised earlier - or waits for the handover to
+	 * finish.
+	 *
 	 * @param updatedSchema schema carrying the resulting name
 	 * @param catalogToBeReplaced optional catalog whose contents are discarded
 	 * @return progress of the handover
@@ -1533,92 +1540,102 @@ public final class Catalog
 			// use "virtual" percentage to indicate progress
 			100,
 			theFuture -> {
-				// `replaceWith` writes a bootstrap record of its own, so a catalog whose in-memory state can no
-				// longer be published must not reach it - and the refusal has to happen before the irreversible
-				// handover below rather than in the middle of it
-				assertPublishable();
-				final long catalogVersion = getVersion();
-				// Read before the handover, because `exchangeCatalogSchema` below rewrites what `getName()`
-				// answers - so a failure past that point would otherwise report the new name as the old one.
-				final String currentCatalogName = getName();
-				final CatalogSchema renamedSchema = CatalogSchema._internalBuild(updatedSchema);
-				final CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader> newIoService =
-					this.persistenceService.replaceWith(
-						catalogVersion,
-						updatedSchema.getName(),
-						updatedSchema.getNameVariants(),
-						renamedSchema,
-						this.dataStoreBuffer,
-						// recalculate to percentages
-						(done, total) -> theFuture.updateProgress((int) (((double) done / total) * 100))
-					);
-				// **Everything below is as irreversible as `replaceWith` itself, and is marked to say so.** By
-				// the time that call returns, the folder has been relabelled *and* the service that served this
-				// catalog has been closed - so a failure in the rebuild that follows leaves `this` catalog, the
-				// one still published under the name being renamed away from, holding a closed persistence
-				// service in a folder whose stored identity no longer agrees with engine state. Left unmarked,
-				// such a failure takes the operator's ordinary compensating path, which resumes session
-				// admission and hands callers exactly that catalog: the failure mode the marker exists to
-				// prevent, reached by a route that never enters `replaceWith`.
+				// Held to the end of the handover - see `warmUpPublicationLock`: a termination of a warming-up instance
+				// either begins first, and the rename is refused before it relabels anything, or waits for the handover
+				// to finish, and never closes the storage the rename is relabelling.
+				this.warmUpPublicationLock.lock();
 				try {
-					final long catalogVersionAfterRename = newIoService.getLastCatalogVersion();
-					final CatalogState catalogState = getCatalogState();
-					final List<EntityCollection> newCollections = this.entityCollections
-						.values()
-						.stream()
-						.map(
-							it -> new EntityCollection(
-								updatedSchema.getName(),
-								catalogVersionAfterRename,
-								catalogState,
-								it,
-								newIoService,
-								this.sequenceService
-							)
-						)
-						.toList();
-
-					this.transactionManager.advanceVersion(catalogVersionAfterRename);
-					// Exchanged **here**, not before the handover above, and this ordering is load-bearing. The
-					// exchange mutates *this* catalog - the one still published under the name it is being
-					// renamed away from - so performed early it hands a live catalog a schema naming a rename
-					// that has not happened yet, and a failure between the two leaves it there. The damage is
-					// not cosmetic: the commit pipeline looks a catalog up by the name its schema reports
-					// (`ExpandedEngineState#replaceCatalogReference`), so a write accepted afterwards is
-					// appended to the write-ahead log and then dies against a name the engine state has never
-					// heard of - and the next boot fails replaying it. That matters most for the failures that
-					// are *compensable*, where the catalog goes on serving; past the relabel the marker below
-					// keeps it from serving at all.
-					exchangeCatalogSchema(renamedSchema, getInternalSchema());
-					return new Catalog(
-						catalogVersionAfterRename,
-						catalogState,
-						this.catalogIndex.createShallowCopyWithResetDirtyFlag(),
-						this.archiveCatalogIndex.get() == null ?
-							null :
-							this.archiveCatalogIndex.get().createShallowCopyWithResetDirtyFlag(),
-						newCollections,
-						newIoService,
-						this,
-						true
-					);
-				} catch (Throwable ex) {
-					// The replacement service never reached a catalog that could close it, so it is closed
-					// here or its handles into the folder outlive the operation - and the folder is one a
-					// later drop or replace will want to delete. Suppressed rather than propagated: the
-					// failure being reported is the one worth reporting.
+					// `replaceWith` writes a bootstrap record of its own, so a catalog whose in-memory state can no
+					// longer be published must not reach it - and the refusal has to happen before the irreversible
+					// handover below rather than in the middle of it. Checked before the termination for the reason
+					// `goLive()` gives: the barrier's deactivation terminates this instance, and the barrier names why
+					assertPublishable();
+					assertWarmUpTerminationNotBegun();
+					final long catalogVersion = getVersion();
+					// Read before the handover, because `exchangeCatalogSchema` below rewrites what `getName()`
+					// answers - so a failure past that point would otherwise report the new name as the old one.
+					final String currentCatalogName = getName();
+					final CatalogSchema renamedSchema = CatalogSchema._internalBuild(updatedSchema);
+					final CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader>
+						newIoService = this.persistenceService.replaceWith(
+							catalogVersion,
+							updatedSchema.getName(),
+							updatedSchema.getNameVariants(),
+							renamedSchema,
+							this.dataStoreBuffer,
+							// recalculate to percentages
+							(done, total) -> theFuture.updateProgress((int) (((double) done / total) * 100))
+						);
+					// **Everything below is as irreversible as `replaceWith` itself, and is marked to say so.** By
+					// the time that call returns, the folder has been relabelled *and* the service that served this
+					// catalog has been closed - so a failure in the rebuild that follows leaves `this` catalog, the
+					// one still published under the name being renamed away from, holding a closed persistence
+					// service in a folder whose stored identity no longer agrees with engine state. Left unmarked,
+					// such a failure takes the operator's ordinary compensating path, which resumes session
+					// admission and hands callers exactly that catalog: the failure mode the marker exists to
+					// prevent, reached by a route that never enters `replaceWith`.
 					try {
-						newIoService.close();
-					} catch (Throwable suppressed) {
-						// `Throwable`, so that an `Error` raised while closing cannot *replace* the marked
-						// failure below - which would send the operator down the compensating path for a
-						// handover that has already relabelled the folder.
-						ex.addSuppressed(suppressed);
+						final long catalogVersionAfterRename = newIoService.getLastCatalogVersion();
+						final CatalogState catalogState = getCatalogState();
+						final List<EntityCollection> newCollections = this.entityCollections
+							.values()
+							.stream()
+							.map(
+								it -> new EntityCollection(
+									updatedSchema.getName(),
+									catalogVersionAfterRename,
+									catalogState,
+									it,
+									newIoService,
+									this.sequenceService
+								)
+							)
+							.toList();
+
+						this.transactionManager.advanceVersion(catalogVersionAfterRename);
+						// Exchanged **here**, not before the handover above, and this ordering is load-bearing. The
+						// exchange mutates *this* catalog - the one still published under the name it is being
+						// renamed away from - so performed early it hands a live catalog a schema naming a rename
+						// that has not happened yet, and a failure between the two leaves it there. The damage is
+						// not cosmetic: the commit pipeline looks a catalog up by the name its schema reports
+						// (`ExpandedEngineState#replaceCatalogReference`), so a write accepted afterwards is
+						// appended to the write-ahead log and then dies against a name the engine state has never
+						// heard of - and the next boot fails replaying it. That matters most for the failures that
+						// are *compensable*, where the catalog goes on serving; past the relabel the marker below
+						// keeps it from serving at all.
+						exchangeCatalogSchema(renamedSchema, getInternalSchema());
+						return new Catalog(
+							catalogVersionAfterRename,
+							catalogState,
+							this.catalogIndex.createShallowCopyWithResetDirtyFlag(),
+							this.archiveCatalogIndex.get() == null ?
+								null :
+								this.archiveCatalogIndex.get().createShallowCopyWithResetDirtyFlag(),
+							newCollections,
+							newIoService,
+							this,
+							true
+						);
+					} catch (Throwable ex) {
+						// The replacement service never reached a catalog that could close it, so it is closed
+						// here or its handles into the folder outlive the operation - and the folder is one a
+						// later drop or replace will want to delete. Suppressed rather than propagated: the
+						// failure being reported is the one worth reporting.
+						try {
+							newIoService.close();
+						} catch (Throwable suppressed) {
+							// `Throwable`, so that an `Error` raised while closing cannot *replace* the marked
+							// failure below - which would send the operator down the compensating path for a
+							// handover that has already relabelled the folder.
+							ex.addSuppressed(suppressed);
+						}
+						// `Throwable` above rather than `RuntimeException` for the same reason the storage layer
+						// uses it: past the relabel an `Error` leaves the identical disagreement behind, and
+						// compensating for it is the wrong answer however unsurvivable it is.
+						throw new CatalogHandoverFailedException(currentCatalogName, updatedSchema.getName(), ex);
 					}
-					// `Throwable` above rather than `RuntimeException` for the same reason the storage layer
-					// uses it: past the relabel an `Error` leaves the identical disagreement behind, and
-					// compensating for it is the wrong answer however unsurvivable it is.
-					throw new CatalogHandoverFailedException(currentCatalogName, updatedSchema.getName(), ex);
+				} finally {
+					this.warmUpPublicationLock.unlock();
 				}
 			}
 		);
@@ -1655,9 +1672,18 @@ public final class Catalog
 	 * catalog's name (the go-live operator's undo) therefore gets a catalog that serves readers but refuses every
 	 * write and every flush, until the deactivation that mark schedules settles the name.
 	 *
+	 * **It runs under {@link #warmUpPublicationLock}, from the check that the termination of this instance has not
+	 * begun to the end of the method**, so a termination either begins first - and the go-live is refused before it
+	 * writes anything - or waits for the go-live to finish, and never closes the storage in the middle of the ALIVE
+	 * bootstrap write. A go-live that finishes bars the instance it supersedes from publishing again, without
+	 * scheduling a deactivation: a termination of that instance, which engine shutdown may still run, must not store a
+	 * warm-up header after the ALIVE record.
+	 *
 	 * @return the ALIVE catalog instance that supersedes this one
 	 * @throws CatalogUnpublishableException when an earlier warm-up failure already bars this instance from
-	 *                                      publishing anything
+	 *                                      publishing anything - even once the deactivation that failure scheduled
+	 *                                      has terminated it
+	 * @throws InstanceTerminatedException  when the termination of this instance has begun and nothing bars it
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException
 	 *                                      when this catalog is already alive, or another `goLive` call is in
 	 *                                      progress on it
@@ -1665,6 +1691,7 @@ public final class Catalog
 	@Nonnull
 	@Override
 	public Catalog goLive() {
+		this.warmUpPublicationLock.lock();
 		try {
 			Assert.isTrue(
 				this.goingLive.compareAndSet(false, true),
@@ -1674,8 +1701,11 @@ public final class Catalog
 			Assert.isTrue(this.state == CatalogState.WARMING_UP, "Catalog has already alive state!");
 			// go-live publishes a bootstrap record of its own and then mints an ALIVE catalog that SHARES these
 			// indexes, which would carry untrustworthy state past every warm-up guard there is. The flush the
-			// go-live operator runs first is a no-op when nothing changed, so it cannot be relied on to refuse here
+			// go-live operator runs first is a no-op when nothing changed, so it cannot be relied on to refuse here.
+			// Checked before the termination, because the barrier schedules a deactivation that terminates this
+			// instance: a caller still holding it must be told about the failure, not only about its consequence
 			assertPublishable();
+			assertWarmUpTerminationNotBegun();
 			final List<EntityCollection> newCollections = this.entityCollections
 				.values()
 				.stream()
@@ -1722,6 +1752,13 @@ public final class Catalog
 				} else {
 					log.info("Catalog `{}` is now alive!", newCatalog.getName());
 				}
+				// superseded for good - see this method's documentation
+				this.unpublishableCause.compareAndSet(
+					null,
+					new EvitaInvalidUsageException(
+						"Catalog `" + newCatalog.getName() + "` went live; its warm-up instance publishes nothing more."
+					)
+				);
 				return newCatalog;
 			} catch (Throwable ex) {
 				// `Throwable`, because an `Error` past the publication leaves exactly the same superseded instance
@@ -1753,6 +1790,7 @@ public final class Catalog
 			}
 		} finally {
 			this.goingLive.set(false);
+			this.warmUpPublicationLock.unlock();
 		}
 	}
 
@@ -3009,6 +3047,20 @@ public final class Catalog
 	}
 
 	/**
+	 * Refuses the caller once the termination of this warming-up instance has begun. Every step that writes a
+	 * bootstrap record of a warming-up instance calls it under {@link #warmUpPublicationLock} - the last step of a
+	 * flush, go-live and a rename - so that a termination either begins before the step and the step writes nothing,
+	 * or waits for the step to finish.
+	 *
+	 * @throws InstanceTerminatedException when the termination has begun
+	 */
+	private void assertWarmUpTerminationNotBegun() {
+		if ((this.warmUpFlushState.get() & WARM_UP_TERMINATION_BEGUN) != 0) {
+			throw new InstanceTerminatedException("catalog `" + getName() + "`");
+		}
+	}
+
+	/**
 	 * The step {@link #flush()} ends with once every collection has been written: installs the collections whose write
 	 * replaced them and, when anything changed, publishes through
 	 * {@link #publishWarmUpState(TrappedChanges, List, IntConsumer)}.
@@ -3040,9 +3092,9 @@ public final class Catalog
 	) {
 		this.warmUpPublicationLock.lock();
 		try {
-			if ((this.warmUpFlushState.get() & WARM_UP_TERMINATION_BEGUN) != 0) {
-				throw new InstanceTerminatedException("catalog `" + getName() + "`");
-			}
+			// the termination first here, unlike in `goLive()` and the rename: a barrier raised before this flush
+			// began was refused at its entry, and a termination meeting it in progress raises the barrier itself
+			assertWarmUpTerminationNotBegun();
 			assertPublishable();
 			final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(collectionOfHeaders.size());
 			// start with the changeOccurred flag, which is true is schema was changed or if we are going live
@@ -4411,8 +4463,9 @@ public final class Catalog
 	}
 
 	/**
-	 * Begins the termination of this warming-up instance as far as its warm-up flushes are concerned: once this
-	 * returns, no flush starts and none still in progress publishes - see {@link #warmUpFlushState}.
+	 * Begins the termination of this warming-up instance as far as its bootstrap writes are concerned: once this
+	 * returns, no flush starts and none still in progress publishes - see {@link #warmUpFlushState} - and neither a
+	 * go-live nor a rename starts either.
 	 *
 	 * Taken under {@link #warmUpPublicationLock}, so it waits for a header write already under way rather than letting
 	 * the storage be closed beneath it. When a flush is in progress the instance is barred from publishing here, under

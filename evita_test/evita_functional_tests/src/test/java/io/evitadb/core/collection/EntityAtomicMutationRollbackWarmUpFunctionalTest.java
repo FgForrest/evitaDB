@@ -23,6 +23,7 @@
 
 package io.evitadb.core.collection;
 
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.filter.FilterBy;
@@ -46,8 +47,11 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.InstanceTerminatedException;
@@ -887,6 +891,57 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 				CatalogUnpublishableException.class,
 				catalog::goLive,
 				"A catalog that can no longer publish must refuse to go live."
+			);
+		}
+
+		/**
+		 * The barrier schedules a deactivation that terminates this very instance, so a caller still holding it can
+		 * reach go-live after the termination began. The refusal must stay the barrier's, which names the failure
+		 * that raised it - the termination is only its consequence. Terminated directly here, so the test does not
+		 * depend on when the scheduled deactivation lands.
+		 */
+		@Test
+		@DisplayName("Going live is refused by the barrier even once the catalog is terminated")
+		void shouldRefuseToGoLiveWithBarrierOnceTerminated() {
+			final Catalog catalog = unpublishableCatalog();
+			catalog.terminate();
+			final CatalogUnpublishableException refusal = assertThrows(
+				CatalogUnpublishableException.class,
+				catalog::goLive,
+				"A terminated catalog that can no longer publish must refuse to go live with the barrier's refusal."
+			);
+			assertEquals(
+				SIMULATED_FAILURE, refusal.getCause().getMessage(),
+				"The refusal must carry the failure that raised the barrier."
+			);
+		}
+
+		/**
+		 * The rename of a warming-up catalog writes a bootstrap record of its own, so it is refused like go-live - and
+		 * for the same reason the refusal stays the barrier's once the scheduled deactivation has terminated the
+		 * instance.
+		 */
+		@Test
+		@DisplayName("Renaming is refused by the barrier even once the catalog is terminated")
+		void shouldRefuseToRenameWithBarrierOnceTerminated() {
+			final Catalog catalog = unpublishableCatalog();
+			final CatalogSchemaContract renamedSchema = new ModifyCatalogSchemaNameMutation(
+				TEST_CATALOG, TEST_CATALOG + "Renamed", false
+			)
+				.mutate(catalog.getSchema())
+				.updatedCatalogSchema();
+			catalog.terminate();
+
+			final ProgressingFuture<CatalogContract> renaming = catalog.replace(renamedSchema, null);
+			renaming.execute(Runnable::run);
+			final Throwable refusal = renaming.handle((result, ex) -> ex).join();
+			assertInstanceOf(
+				CatalogUnpublishableException.class, refusal,
+				"A terminated catalog that can no longer publish must refuse to rename with the barrier's refusal."
+			);
+			assertEquals(
+				SIMULATED_FAILURE, refusal.getCause().getMessage(),
+				"The refusal must carry the failure that raised the barrier."
 			);
 		}
 
