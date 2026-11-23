@@ -31,8 +31,9 @@ inScope(
     </dd>
 </dl>
 
-The `inScope` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filtering/FilterInScope.java</SourceClass></LS>
-<LS to="c"><SourceClass>EvitaDB.Client/Queries/Filtering/FilterInScope.cs</SourceClass></LS>) filter container is used 
+The `inScope` (<LS to="e,j,r,g">
+<SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/FilterInScope.java</SourceClass></LS>
+<LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/FilterInScope.cs</SourceClass></LS>) filter container is used
 to restrict filter conditions so that they only apply to a specific scope.
 
 The evitaDB query engine is strict about indexes and does not allow you to filter or sort on data (attributes, references,
