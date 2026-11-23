@@ -23,16 +23,21 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
+import java.util.Arrays;
 import java.util.Comparator;
 
 /**
- * Reference comparator allows to sort {@link ReferenceDecorator} instances within {@link EntityContract}.
- * This comparator is used solely by {@link ReferenceFetcher} implementations.
+ * Ranks references within an {@link EntityContract}. Each comparator ranks the rows it has data for and leaves
+ * the remaining rows for the next link in the ordering.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -44,25 +49,17 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 	 */
 	ReferenceComparator DEFAULT = new ReferenceComparator() {
 
-		@Nonnull
+		/**
+		 * Compares rows by referenced primary key, using the internal reference key to break ties.
+		 *
+		 * @param o1 first row
+		 * @param o2 second row
+		 * @return the order of the rows
+		 */
 		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-			throw new UnsupportedOperationException("Default implementation doesn't allow sub-sorting!");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return null;
-		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			return 0;
-		}
-
-		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
+		public int compare(
+			@Nullable ReferenceContract o1, @Nullable ReferenceContract o2
+		) {
 			if (o1 == null && o2 == null) {
 				return 0;
 			} else if (o1 != null && o2 == null) {
@@ -72,8 +69,10 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 			} else {
 				final int firstComparison = Integer.compare(o1.getReferencedPrimaryKey(), o2.getReferencedPrimaryKey());
 				if (firstComparison == 0) {
-					// in case of equality, we fall back to comparing by reference type
-					return Integer.compare(o1.getReferenceKey().internalPrimaryKey(), o2.getReferenceKey().internalPrimaryKey());
+					// Keep duplicate rows in their internal key order.
+					return Integer.compare(
+						o1.getReferenceKey().internalPrimaryKey(), o2.getReferenceKey().internalPrimaryKey()
+					);
 				} else {
 					return firstComparison;
 				}
@@ -82,43 +81,160 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 	};
 
 	/**
-	 * Returns references to all entities that were lacking the data we were sort along - in other words such values was
-	 * evaluated to NULL. Such entities need to be propagated to further evaluation.
+	 * Sorts admitted rows in place, advancing to the next applicable link with the unranked suffix.
+	 * The same walk is used before fetching reference bodies and when ordering the decorated rows. A link whose
+	 * scope does not admit the owner is skipped without being prepared, and the rows no applicable link ranks are
+	 * ordered by {@link #DEFAULT} last.
 	 *
-	 * Method will produce result after {@link #compare(Object, Object)} was called on all the entities.
+	 * @param comparator head of the ordering chain
+	 * @param ownerPrimaryKey primary key of the entity owning the rows
+	 * @param ownerScope scope of the entity owning the rows
+	 * @param references array of reference rows
+	 * @param from inclusive start of the admitted rows
+	 * @param to exclusive end of the admitted rows
 	 */
-	int getNonSortedReferenceCount();
+	@Internal("shared by reference prefetch and decoration")
+	static void sort(
+		@Nonnull ReferenceComparator comparator,
+		int ownerPrimaryKey,
+		@Nonnull Scope ownerScope,
+		@Nonnull ReferenceContract[] references,
+		int from,
+		int to
+	) {
+		ReferenceContract[] unranked = null;
+		ReferenceComparator current = comparator;
+		while (from < to && current != DEFAULT) {
+			final Link link = current instanceof Link stage ? stage : null;
+			final boolean appliesToOwner = link == null || link.ownerScope == null || link.ownerScope == ownerScope;
+			if (appliesToOwner) {
+				current.prepareOwner(ownerPrimaryKey, ownerScope);
 
-	/**
-	 * Method allows creating combined comparator from this instance and passed instance.
-	 * Creates new comparator that first sorts by this instance order and for rest records, that cannot be sorted by this
-	 * sorter, the passed sorter will be used.
-	 */
-	@Nonnull
-	ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords);
-
-	/**
-	 * Method returns next sorter in the sort chain. I.e. the sorter that will be applied on entity keys, that couldn't
-	 * have been sorted by this sorter (due to lack of information).
-	 */
-	@Nullable
-	ReferenceComparator getNextComparator();
-
-	/**
-	 * This interface defines a comparator that is aware of an entity's primary key.
-	 * Implementations of this interface can receive and store the primary key of an entity,
-	 * which can be used later in the comparison logic.
-	 */
-	interface EntityPrimaryKeyAwareComparator {
-
-		/**
-		 * Sets the primary key for an actual entity. This method is called before the comparison is made and everytime
-		 * the entity has been exchanged.
-		 *
-		 * @param entityPrimaryKey the primary key of the entity to be set
-		 */
-		void setEntityPrimaryKey(int entityPrimaryKey);
-
+				// Scan the ranked prefix and the first unranked run in place. A mixed suffix needs one buffer,
+				// reused by later links, to preserve the order of the unranked rows as ranked rows move forward.
+				int rankedEnd = from;
+				while (rankedEnd < to && current.canRank(references[rankedEnd])) {
+					rankedEnd++;
+				}
+				if (rankedEnd < to) {
+					int next = rankedEnd + 1;
+					while (next < to && !current.canRank(references[next])) {
+						next++;
+					}
+					if (next < to) {
+						if (unranked == null) {
+							unranked = new ReferenceContract[to - from];
+						}
+						int unrankedCount = next - rankedEnd;
+						System.arraycopy(references, rankedEnd, unranked, 0, unrankedCount);
+						references[rankedEnd++] = references[next++];
+						for (; next < to; next++) {
+							final ReferenceContract row = references[next];
+							if (current.canRank(row)) {
+								references[rankedEnd++] = row;
+							} else {
+								unranked[unrankedCount++] = row;
+							}
+						}
+						System.arraycopy(unranked, 0, references, rankedEnd, unrankedCount);
+					}
+				}
+				Arrays.sort(references, from, rankedEnd, current);
+				from = rankedEnd;
+			}
+			current = link == null || link.next == null ? DEFAULT : link.next;
+		}
+		Arrays.sort(references, from, to, DEFAULT);
 	}
 
+	/**
+	 * Prepares the comparator for the owner it is about to rank. Stateless comparators need no preparation.
+	 * {@link #sort} calls it once per owner and link before any {@link #canRank} or {@link #compare} of that owner's
+	 * rows, so an implementation may keep per-owner state until the next call.
+	 *
+	 * @param ownerPrimaryKey primary key of the entity owning the references
+	 * @param ownerScope scope of the entity owning the references
+	 */
+	default void prepareOwner(int ownerPrimaryKey, @Nonnull Scope ownerScope) {
+	}
+
+	/**
+	 * Determines whether this comparator can rank an admitted reference. Unranked rows go to the next link.
+	 * {@link #compare} is called only for rows this method accepted, so the two must agree on which rows rank.
+	 *
+	 * @param reference the row to classify
+	 * @return whether the comparator can rank the row
+	 */
+	default boolean canRank(@Nonnull ReferenceContract reference) {
+		return true;
+	}
+
+	/**
+	 * A delegate and its successor in the ordering of a reference set. A link can apply to all owners or only to
+	 * owners in the scope of its enclosing `inScope` container.
+	 */
+	@Internal("assembles reference orderings during translation")
+	@NotThreadSafe
+	final class Link implements ReferenceComparator {
+		@Nullable private final Scope ownerScope;
+		@Nonnull private final ReferenceComparator delegate;
+		@Nullable private Link next;
+
+		/**
+		 * Creates a link in a reference ordering.
+		 *
+		 * @param ownerScope scope the link applies to, or `null` for all owners
+		 * @param delegate comparator that ranks the references
+		 */
+		public Link(@Nullable Scope ownerScope, @Nonnull ReferenceComparator delegate) {
+			this.ownerScope = ownerScope;
+			this.delegate = delegate;
+		}
+
+		/**
+		 * Appends the successor during ordering translation.
+		 *
+		 * @param successor link for the rows this link leaves unranked
+		 */
+		public void append(@Nonnull Link successor) {
+			if (this.next != null) {
+				throw new GenericEvitaInternalError("The reference comparator link already has a successor.");
+			}
+			this.next = successor;
+		}
+
+		/**
+		 * Prepares this link's delegate for the current owner.
+		 *
+		 * @param ownerPrimaryKey primary key of the entity owning the references
+		 * @param ownerScope scope of the entity owning the references
+		 */
+		@Override
+		public void prepareOwner(int ownerPrimaryKey, @Nonnull Scope ownerScope) {
+			this.delegate.prepareOwner(ownerPrimaryKey, ownerScope);
+		}
+
+		/**
+		 * Checks whether the delegate has enough data to rank this row.
+		 *
+		 * @param reference row to classify
+		 * @return whether the delegate can rank the row
+		 */
+		@Override
+		public boolean canRank(@Nonnull ReferenceContract reference) {
+			return this.delegate.canRank(reference);
+		}
+
+		/**
+		 * Compares two rows using this link's delegate.
+		 *
+		 * @param first first ranked row
+		 * @param second second ranked row
+		 * @return the order of the rows
+		 */
+		@Override
+		public int compare(@Nonnull ReferenceContract first, @Nonnull ReferenceContract second) {
+			return this.delegate.compare(first, second);
+		}
+	}
 }

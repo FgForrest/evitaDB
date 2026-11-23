@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-23 13:23
+updated: 2026-11-23 15:08
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917, 1920, 2035]
@@ -24,7 +24,8 @@ superseded-by: []
 relates: [2026-10-08-scope-faithful-planning-and-facet-summary-parity,
   2026-10-20-reference-content-filter-row-by-row, 2026-10-21-one-locale-per-entity-level,
   2026-11-19-direct-entity-calls-check-requested-content, 2026-05-06-reference-histogram-statistics,
-  2026-11-19-one-histogram-store-per-group, 2026-09-05-duplicate-content-requirements-reduction]
+  2026-11-19-one-histogram-store-per-group, 2026-09-05-duplicate-content-requirements-reduction,
+  2026-11-20-reference-owner-scope]
 ---
 
 # A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
@@ -1095,6 +1096,9 @@ into the same pull request.
   through its partitions, outside the merge that record describes.
 - `2026-09-05-duplicate-content-requirements-reduction` — the rule that a reference-specific summary governs its
   reference entirely, which the controls per histogram keep for a histogram the generic summary declares.
+- `2026-11-20-reference-owner-scope` — the `referenceContent` ordering's `inScope` gates by the owner's scope; its
+  refusals (nested orderings across gates, a reflected chain over several scopes) follow this record's "decide before
+  any row" rule.
 
 ## Timeline
 

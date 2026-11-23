@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.ReferenceComparator.EntityPrimaryKeyAwareComparator;
+import io.evitadb.api.requestResponse.data.structure.ReferenceComparator.Link;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
@@ -53,20 +53,19 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.Serial;
-import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static io.evitadb.test.TestTags.COMPARATOR;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.HIERARCHY;
 import static io.evitadb.test.TestTags.REFERENCE;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -84,10 +83,10 @@ import static org.mockito.Mockito.when;
 class EntityDecoratorTest {
 
 	/**
-	 * Builds a minimal `ReferenceDecorator` stub whose only behavioural surface is `exists()` and
-	 * `getReferenceName()` — the only methods `ReferenceContractSerializablePredicate` calls during
-	 * `sortAndFilterSubList`'s in-place filtering phase. The comparator fakes used below never touch the
-	 * references themselves (they return 0 / record metadata), so no further stubbing is required.
+	 * Builds a reference stub with the fields used by the filtering predicate.
+	 *
+	 * @param name reference name
+	 * @return the reference stub
 	 */
 	@Nonnull
 	private static ReferenceDecorator stubReference(@Nonnull String name) {
@@ -98,187 +97,79 @@ class EntityDecoratorTest {
 	}
 
 	/**
-	 * Comparator fake that is NOT `EntityPrimaryKeyAwareComparator` and whose only job is to:
-	 * - return 0 for every pair (no actual reordering — `Arrays.sort` becomes a no-op);
-	 * - simulate a real comparator that accumulates `nonSortedCount` additional unsorted
-	 *   references during the just-finished sort pass, so the chain-advance loop in
-	 *   `sortAndFilterSubList` sees a positive delta and moves on to the next link.
-	 *
-	 * The cumulative semantic mirrors concrete comparators such as
-	 * `EntityNestedQueryComparator` whose `nonSortedReferences` set only grows. The first
-	 * call (the "before sort" snapshot) returns 0; subsequent calls return `nonSortedCount`,
-	 * so the per-pass delta equals `nonSortedCount`.
+	 * Ranks a predefined set of rows, preserving source order among them.
 	 */
-	private static final class HeadFakeComparator implements ReferenceComparator, Serializable {
-		@Serial private static final long serialVersionUID = -1761005013461764433L;
+	private static final class RankedRowsComparator implements ReferenceComparator {
+		private final Set<ReferenceContract> rankedRows;
 
-		@Nullable private final ReferenceComparator next;
-		private final int nonSortedCount;
-		private int invocationIndex;
-
-		HeadFakeComparator(@Nullable ReferenceComparator next, int nonSortedCount) {
-			this.next = next;
-			this.nonSortedCount = nonSortedCount;
+		/**
+		 * Sets the rows that can be ranked.
+		 *
+		 * @param rankedRows rows to rank
+		 */
+		RankedRowsComparator(@Nonnull Set<ReferenceContract> rankedRows) {
+			this.rankedRows = rankedRows;
 		}
 
+		/**
+		 * Checks whether the row is in the ranked set.
+		 *
+		 * @param reference row to classify
+		 * @return whether the row can be ranked
+		 */
 		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
+		public boolean canRank(@Nonnull ReferenceContract reference) {
+			return this.rankedRows.contains(reference);
+		}
+
+		/**
+		 * Preserves the source order of ranked rows.
+		 *
+		 * @param first first ranked row
+		 * @param second second ranked row
+		 * @return zero
+		 */
+		@Override
+		public int compare(@Nonnull ReferenceContract first, @Nonnull ReferenceContract second) {
 			return 0;
-		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			// first call mimics the "before sort" snapshot (no accumulator entries yet),
-			// subsequent calls mimic the cumulative reading after the sort pass populated
-			// the comparator's `nonSortedReferences` set
-			final int value = this.invocationIndex == 0 ? 0 : this.nonSortedCount;
-			this.invocationIndex++;
-			return value;
-		}
-
-		@Nonnull
-		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator other) {
-			throw new UnsupportedOperationException("Test fake — chain is hand-wired");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return this.next;
 		}
 	}
 
 	/**
-	 * Comparator fake whose `getNonSortedReferenceCount()` grows monotonically across calls,
-	 * mimicking a real comparator (e.g. `EntityNestedQueryComparator`) that maintains a
-	 * lazy-init `nonSortedReferences` set and never resets it between sort passes. Used to
-	 * exercise the case where `sortAndFilterSubList` reads the comparator's counter as if it
-	 * were a per-pass reading but the implementation keeps an absolute, cumulative value.
-	 *
-	 * The comparator chains to `next` so the chain-advance loop will iterate at least twice
-	 * — that's where the absolute-vs-delta confusion shows up as out-of-range sort indices.
+	 * Records owner preparation while preserving the order of the rows it ranks.
 	 */
-	private static final class GrowingNonSortedCountComparator implements ReferenceComparator, Serializable {
-		@Serial private static final long serialVersionUID = -8316411802194620181L;
+	private static final class RecordingOwnerComparator implements ReferenceComparator {
+		final List<Integer> ownerKeys = new ArrayList<>();
+		final List<Scope> ownerScopes = new ArrayList<>();
 
-		@Nullable private final ReferenceComparator next;
-		private final int[] reportedCountsPerInvocation;
-		private int invocationIndex;
-
-		GrowingNonSortedCountComparator(
-			@Nullable ReferenceComparator next,
-			@Nonnull int[] reportedCountsPerInvocation
-		) {
-			this.next = next;
-			this.reportedCountsPerInvocation = reportedCountsPerInvocation;
+		/**
+		 * Records the owner passed to this comparator.
+		 *
+		 * @param ownerPrimaryKey primary key of the owner
+		 * @param ownerScope scope of the owner
+		 */
+		@Override
+		public void prepareOwner(int ownerPrimaryKey, @Nonnull Scope ownerScope) {
+			this.ownerKeys.add(ownerPrimaryKey);
+			this.ownerScopes.add(ownerScope);
 		}
 
+		/**
+		 * Preserves the source order.
+		 *
+		 * @param first first row
+		 * @param second second row
+		 * @return zero
+		 */
 		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
+		public int compare(@Nonnull ReferenceContract first, @Nonnull ReferenceContract second) {
 			return 0;
-		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			final int index = Math.min(this.invocationIndex, this.reportedCountsPerInvocation.length - 1);
-			final int value = this.reportedCountsPerInvocation[index];
-			this.invocationIndex++;
-			return value;
-		}
-
-		@Nonnull
-		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator other) {
-			throw new UnsupportedOperationException("Test fake — chain is hand-wired");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return this.next;
 		}
 	}
 
 	/**
-	 * Comparator fake whose `getNonSortedReferenceCount()` returns the same value on every call,
-	 * representing a well-behaved comparator that does NOT accumulate state across sort passes.
-	 * Used as the control case to confirm correctly-behaving comparators are not regressed.
+	 * Exercises reference row admission, owner preparation, and fall-through between ordering links.
 	 */
-	private static final class StableNonSortedCountComparator implements ReferenceComparator, Serializable {
-		@Serial private static final long serialVersionUID = -7193620345109248123L;
-
-		@Nullable private final ReferenceComparator next;
-		private final int stableCount;
-
-		StableNonSortedCountComparator(@Nullable ReferenceComparator next, int stableCount) {
-			this.next = next;
-			this.stableCount = stableCount;
-		}
-
-		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
-			return 0;
-		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			return this.stableCount;
-		}
-
-		@Nonnull
-		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator other) {
-			throw new UnsupportedOperationException("Test fake — chain is hand-wired");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return this.next;
-		}
-	}
-
-	/**
-	 * Comparator fake that IS `EntityPrimaryKeyAwareComparator` and records every
-	 * `setEntityPrimaryKey(int)` invocation so the test can assert whether the caller honored its
-	 * EPK-aware contract.
-	 */
-	private static final class RecordingEpkAwareComparator
-		implements ReferenceComparator, EntityPrimaryKeyAwareComparator, Serializable {
-
-		@Serial private static final long serialVersionUID = 5914405464059833314L;
-
-		final List<Integer> setEntityPrimaryKeyCalls = new ArrayList<>();
-
-		@Override
-		public void setEntityPrimaryKey(int entityPrimaryKey) {
-			this.setEntityPrimaryKeyCalls.add(entityPrimaryKey);
-		}
-
-		@Override
-		public int compare(ReferenceContract o1, ReferenceContract o2) {
-			return 0;
-		}
-
-		@Override
-		public int getNonSortedReferenceCount() {
-			return 0;
-		}
-
-		@Nonnull
-		@Override
-		public ReferenceComparator andThen(@Nonnull ReferenceComparator other) {
-			throw new UnsupportedOperationException("Test fake — chain is hand-wired");
-		}
-
-		@Nullable
-		@Override
-		public ReferenceComparator getNextComparator() {
-			return null;
-		}
-	}
-
 	@Nested
 	@DisplayName("sortAndFilterSubList")
 	@Tag(REFERENCE)
@@ -286,203 +177,104 @@ class EntityDecoratorTest {
 	class SortAndFilterSubListTest {
 
 		/**
-		 * Pins the contract that `sortAndFilterSubList` must invoke `setEntityPrimaryKey` on
-		 * EVERY `EntityPrimaryKeyAwareComparator` it visits while walking the comparator chain
-		 * via `getNextComparator()` — not only the chain head.
-		 *
-		 * A query like
-		 * `orderBy(attributeNatural("plain", ASC), attributeNatural("predecessor_attr", ASC))`
-		 * produces exactly the chain shape under test: the plain-attribute comparator lands at
-		 * the head and the EPK-aware `ReferencePredecessorComparator` becomes link #1.
-		 *
-		 * Without this guarantee, a non-head EPK-aware link is left without an entity scope and
-		 * either produces an NPE (auto-unboxed `null` primary key) or a silently wrong sort.
+		 * Verifies that a fallback comparator is prepared when the head leaves rows unranked.
 		 */
 		@Test
-		@DisplayName("Should propagate entity primary key to EPK-aware comparator located deeper in the chain")
-		void shouldSetEntityPrimaryKeyOnEpkAwareLinkWhenItIsNotHeadOfChain() {
-			final RecordingEpkAwareComparator epkAwareLink = new RecordingEpkAwareComparator();
-			// head reports two unsorted references so the chain-advance loop hands off to the next link
-			final HeadFakeComparator nonEpkAwareHead = new HeadFakeComparator(epkAwareLink, 2);
-
-			final ReferenceDecorator[] references = new ReferenceDecorator[] {
-				stubReference("any"),
-				stubReference("any"),
-				stubReference("any")
-			};
-
-			final int entityPrimaryKey = 42;
+		@DisplayName("Should prepare a fallback comparator with the owner's key and scope")
+		void shouldPrepareFallbackComparatorForOwner() {
+			final RecordingOwnerComparator fallback = new RecordingOwnerComparator();
+			final ReferenceDecorator ranked = stubReference("any");
+			final ReferenceDecorator[] references = {stubReference("any"), ranked, stubReference("any")};
+			final Link head = new Link(null, new RankedRowsComparator(Set.of(ranked)));
+			head.append(new Link(Scope.ARCHIVED, fallback));
 
 			EntityDecorator.sortAndFilterSubList(
-				entityPrimaryKey,
-				references,
-				new ReferenceContractSerializablePredicate(),
-				null,
-				nonEpkAwareHead,
-				0,
-				references.length
+				42, Scope.ARCHIVED, references, new ReferenceContractSerializablePredicate(),
+				null, head, 0, references.length
 			);
 
-			assertEquals(
-				List.of(entityPrimaryKey),
-				epkAwareLink.setEntityPrimaryKeyCalls,
-				"EPK-aware comparator located as a non-head link in the chain must still receive " +
-					"setEntityPrimaryKey(entityPrimaryKey)."
-			);
+			assertEquals(List.of(42), fallback.ownerKeys);
+			assertEquals(List.of(Scope.ARCHIVED), fallback.ownerScopes);
+			assertSame(ranked, references[0]);
 		}
 
 		/**
-		 * Companion control: when the EPK-aware comparator IS at the head, `setEntityPrimaryKey`
-		 * does get called — confirming the test fixture is wired correctly and isolating the bug to
-		 * the non-head case.
+		 * Verifies that the head prepares once for an applicable owner and is skipped for another scope.
 		 */
 		@Test
-		@DisplayName("Should propagate entity primary key to EPK-aware comparator at the chain head")
-		void shouldSetEntityPrimaryKeyOnEpkAwareHeadOfChain() {
-			final RecordingEpkAwareComparator epkAwareHead = new RecordingEpkAwareComparator();
-
-			final ReferenceDecorator[] references = new ReferenceDecorator[] {
-				stubReference("any"),
-				stubReference("any")
-			};
-
-			final int entityPrimaryKey = 7;
+		@DisplayName("Should prepare the head only for owners in its scope")
+		void shouldPrepareHeadOnlyForOwnersInItsScope() {
+			final RecordingOwnerComparator headComparator = new RecordingOwnerComparator();
+			final RecordingOwnerComparator fallback = new RecordingOwnerComparator();
+			final Link head = new Link(Scope.LIVE, headComparator);
+			head.append(new Link(null, fallback));
+			final ReferenceDecorator[] references = {stubReference("any"), stubReference("any")};
 
 			EntityDecorator.sortAndFilterSubList(
-				entityPrimaryKey,
-				references,
-				new ReferenceContractSerializablePredicate(),
-				null,
-				epkAwareHead,
-				0,
-				references.length
+				7, Scope.LIVE, references, new ReferenceContractSerializablePredicate(),
+				null, head, 0, references.length
+			);
+			EntityDecorator.sortAndFilterSubList(
+				8, Scope.ARCHIVED, references, new ReferenceContractSerializablePredicate(),
+				null, head, 0, references.length
 			);
 
-			assertEquals(
-				List.of(entityPrimaryKey),
-				epkAwareHead.setEntityPrimaryKeyCalls,
-				"setEntityPrimaryKey must be invoked exactly once for the source entity when the " +
-					"EPK-aware comparator is the chain head."
-			);
+			assertEquals(List.of(7), headComparator.ownerKeys);
+			assertEquals(List.of(Scope.LIVE), headComparator.ownerScopes);
+			assertEquals(List.of(8), fallback.ownerKeys);
+			assertEquals(List.of(Scope.ARCHIVED), fallback.ownerScopes);
 		}
 
 		/**
-		 * `sortAndFilterSubList` reads `referenceComparator.getNonSortedReferenceCount()` against
-		 * a per-pass snapshot taken before `Arrays.sort`. Concrete comparators (e.g.
-		 * `EntityNestedQueryComparator`) maintain a lazy-init `nonSortedReferences` set that ONLY
-		 * grows — it is never reset between sort passes. The chain-advance arithmetic must use
-		 * the per-pass delta (and clamp it to the current window) so that reusing the same
-		 * comparator instance across multiple `sortAndFilterSubList` invocations — the normal
-		 * case when an earlier pre-sort step has already mutated the comparator — cannot drive
-		 * `start` out of the valid `[0, sortEnd]` range and trip the next `Arrays.sort` with a
-		 * backwards range.
+		 * Verifies that reusing the chain recomputes the unranked window for each owner.
 		 */
 		@Test
-		@DisplayName("Should keep sort window within bounds when comparator non-sorted count accumulates across invocations")
-		void shouldKeepSortWindowWithinBoundsWhenComparatorNonSortedCountAccumulatesAcrossInvocations() {
-			// growing counts simulate a comparator whose getNonSortedReferenceCount() value keeps
-			// climbing across sort passes; the second `sortAndFilterSubList` call sees a snapshot
-			// (200) that is far larger than the sort window (3), so the implementation must clamp
-			// the per-pass delta to keep `start` inside [0, sortEnd]
-			final GrowingNonSortedCountComparator growingHead = new GrowingNonSortedCountComparator(
-				new RecordingEpkAwareComparator(),
-				new int[]{1, 200}
-			);
+		@DisplayName("Should classify each owner's window when the comparator is reused")
+		void shouldClassifyEachOwnersWindowWhenComparatorIsReused() {
+			final ReferenceDecorator ranked = stubReference("any");
+			final ReferenceDecorator unranked = stubReference("any");
+			final RecordingOwnerComparator fallback = new RecordingOwnerComparator();
+			final Link head = new Link(null, new RankedRowsComparator(Set.of(ranked)));
+			head.append(new Link(null, fallback));
 
-			final ReferenceDecorator[] firstWindow = new ReferenceDecorator[] {
-				stubReference("any"),
-				stubReference("any"),
-				stubReference("any")
-			};
-			final ReferenceDecorator[] secondWindow = new ReferenceDecorator[] {
-				stubReference("any"),
-				stubReference("any"),
-				stubReference("any")
-			};
+			final ReferenceDecorator[] firstWindow = {unranked, stubReference("any"), ranked};
+			final ReferenceDecorator[] secondWindow = {unranked, ranked};
 
-			// First invocation establishes the comparator's accumulated counter; this call itself
-			// must not throw — the per-pass delta is still small (1) so the window stays in range.
 			EntityDecorator.sortAndFilterSubList(
-				1,
-				firstWindow,
-				new ReferenceContractSerializablePredicate(),
-				null,
-				growingHead,
-				0,
-				firstWindow.length
+				1, Scope.LIVE, firstWindow, new ReferenceContractSerializablePredicate(),
+				null, head, 0, firstWindow.length
+			);
+			EntityDecorator.sortAndFilterSubList(
+				2, Scope.LIVE, secondWindow, new ReferenceContractSerializablePredicate(),
+				null, head, 0, secondWindow.length
 			);
 
-			// Second invocation reuses the same comparator instance — the absolute counter (200)
-			// is now far larger than the sort window (3). The delta-snapshot pattern must clamp
-			// the per-pass delta to `sortEnd - start` so the subsequent chain-link sort does not
-			// receive a backwards range.
-			assertDoesNotThrow(
-				() -> EntityDecorator.sortAndFilterSubList(
-					1,
-					secondWindow,
-					new ReferenceContractSerializablePredicate(),
-					null,
-					growingHead,
-					0,
-					secondWindow.length
-				),
-				"Per-pass delta of getNonSortedReferenceCount() must be clamped to the current " +
-					"sort window so cumulative comparator counters cannot drive `start` out of " +
-					"the [0, sortEnd] range."
-			);
+			assertSame(ranked, firstWindow[0]);
+			assertArrayEquals(new ReferenceDecorator[]{ranked, unranked}, secondWindow);
+			assertEquals(List.of(1, 2), fallback.ownerKeys);
 		}
 
 		/**
-		 * Control: a comparator whose `getNonSortedReferenceCount()` returns the same value on
-		 * every call (i.e., it does NOT accumulate across sort passes) must let
-		 * `sortAndFilterSubList` complete successfully across multiple invocations. Pinned so a
-		 * future tightening of the delta-snapshot math cannot regress the common, well-behaved case.
+		 * Verifies that partitioning preserves row order within both parts of the window.
 		 */
 		@Test
-		@DisplayName("Should complete successfully when comparator non-sorted count is stable across invocations")
-		void shouldCompleteSuccessfullyWhenComparatorNonSortedCountIsStableAcrossInvocations() {
-			// stable counter (1) is well below the sort window (3) on every call; the math always
-			// produces a valid `start` in [0, sortEnd] regardless of how many times the comparator
-			// is reused.
-			final StableNonSortedCountComparator stableHead = new StableNonSortedCountComparator(
-				new RecordingEpkAwareComparator(),
-				1
+		@DisplayName("Should preserve source order within each stable partition")
+		void shouldPreserveSourceOrderWithinEachStablePartition() {
+			final ReferenceDecorator firstRanked = stubReference("any");
+			final ReferenceDecorator secondRanked = stubReference("any");
+			final ReferenceDecorator firstUnranked = stubReference("any");
+			final ReferenceDecorator secondUnranked = stubReference("any");
+			final Link head = new Link(null, new RankedRowsComparator(Set.of(firstRanked, secondRanked)));
+			head.append(new Link(null, new RecordingOwnerComparator()));
+
+			final ReferenceDecorator[] window = {firstUnranked, firstRanked, secondUnranked, secondRanked};
+			EntityDecorator.sortAndFilterSubList(
+				1, Scope.LIVE, window, new ReferenceContractSerializablePredicate(),
+				null, head, 0, window.length
 			);
 
-			final ReferenceDecorator[] firstWindow = new ReferenceDecorator[] {
-				stubReference("any"),
-				stubReference("any"),
-				stubReference("any")
-			};
-			final ReferenceDecorator[] secondWindow = new ReferenceDecorator[] {
-				stubReference("any"),
-				stubReference("any"),
-				stubReference("any")
-			};
-
-			assertDoesNotThrow(
-				() -> {
-					EntityDecorator.sortAndFilterSubList(
-						1,
-						firstWindow,
-						new ReferenceContractSerializablePredicate(),
-						null,
-						stableHead,
-						0,
-						firstWindow.length
-					);
-					EntityDecorator.sortAndFilterSubList(
-						1,
-						secondWindow,
-						new ReferenceContractSerializablePredicate(),
-						null,
-						stableHead,
-						0,
-						secondWindow.length
-					);
-				},
-				"A comparator that does not accumulate non-sorted count across calls must let " +
-					"sortAndFilterSubList complete in the same way on every invocation."
+			assertArrayEquals(
+				new ReferenceDecorator[]{firstRanked, secondRanked, firstUnranked, secondUnranked}, window
 			);
 		}
 	}

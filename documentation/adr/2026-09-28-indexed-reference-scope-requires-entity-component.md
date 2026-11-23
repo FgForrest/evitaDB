@@ -1,7 +1,7 @@
 ---
 title: Every scope a reference is indexed in must carry REFERENCED_ENTITY; a stored catalog lacking it loads, and every query and schema change over it refuses loudly
 date: 2026-09-28
-updated: 2026-10-14 22:34
+updated: 2026-11-21 11:10
 status: accepted
 kind: fix
 issues: [1601, 1583]
@@ -9,7 +9,7 @@ prs: [1657]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReflectedReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/filter/FilterByVisitor.java, evita_engine/src/main/java/io/evitadb/core/query/QueryPlanningContext.java, evita_engine/src/main/java/io/evitadb/core/query/sort, evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference/producer, evita_engine/src/main/java/io/evitadb/index/mutation/ReevaluateExpressionExecutor.java, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/exception/ReferenceComponentNotIndexedException.java]
 supersedes: []
 superseded-by: []
-relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite]
+relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-11-20-reference-owner-scope]
 ---
 
 # Every scope a reference is indexed in must carry `REFERENCED_ENTITY`, and a stored catalog lacking it refuses loudly
@@ -198,6 +198,8 @@ that silently drops one scope's rows looks exactly like a complete answer.
   tightens to "every queried scope", and filed #1601.
 - `2026-09-15-bidirectional-reference-counterpart-rewrite` - filed #1583 and pinned it with the rows this record
   un-disables; its rewriter now declines on a widened scope lacking the entity component.
+- `2026-11-20-reference-owner-scope` - chain orderings of `referenceContent` make this check at translation, for every
+  scope a link applies to, instead of at the first chain lookup.
 
 ## Timeline
 

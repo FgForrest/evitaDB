@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.sort.entity.comparator;
 
-import com.carrotsearch.hppc.IntContainer;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.LongIntHashMap;
@@ -55,14 +54,13 @@ import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * This comparator allows sorting {@link ReferenceDecorator} according properties on referenced entities.
@@ -72,16 +70,13 @@ import static java.util.Optional.ofNullable;
  * - {@link #setSorters(QueryExecutionContext, Collection)} or {@link #setGroupSorters(QueryExecutionContext, Collection)} which initializes
  * the sorted provided by nested {@link QueryPlan}
  * - {@link #setFilteredEntities(int[], int[], Function, boolean)}  which initializes filtered referenced records and
- * allows to prepare all internal datastructures required form efficient comparisons
+ * prepares the positions used for classification and comparison
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@NotThreadSafe
 @SuppressWarnings("ComparatorNotSerializable")
 public class EntityNestedQueryComparator implements ReferenceComparator {
-	/**
-	 * Next comparator to be used for sorting {@link #nonSortedReferences}.
-	 */
-	@Nullable private final ReferenceComparator nextComparator;
 	/**
 	 * The ordering constraint that should be used when preparing nested {@link QueryPlan}. We need to propagate this
 	 * constraint later to this point of execution.
@@ -98,6 +93,12 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 * primary key order has no sorter of its own: it is the default sorter closing the plan's sorters.
 	 */
 	private boolean groupOrderByPrimaryKey;
+	/**
+	 * TRUE when {@link #orderBy} orders the referenced entities by their primary key - every entity then has a value
+	 * to be ordered by, so the entity sorters rank all of them although the ascending primary key order has no sorter
+	 * of its own (see {@link #groupOrderByPrimaryKey}).
+	 */
+	private boolean orderByPrimaryKey;
 	/**
 	 * Locale valid for nested scope (if set on particular scope level).
 	 */
@@ -133,27 +134,28 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 */
 	@Nullable private LongIntHashMap groupedReferencePositions;
 	/**
-	 * Array of references that were not found by the {@link Sorter}.
+	 * Number of leading positions the sorters of this stage ranked. The positions after it belong to the references
+	 * lacking every value the stage orders by - {@link #canRank(ReferenceContract)} leaves those to the next ordering.
 	 */
-	private IntSet nonSortedReferences;
+	private int rankedPositionCount;
 
 	/**
 	 * Sorts the passed entities by the sorters of the passed tuple.
 	 *
 	 * @param filteredEntities the entity primary keys to sort
-	 * @param sortersTuple     the sorters to sort by, NULL keeps the passed order
+	 * @param sortersTuple     the sorters to sort by, NULL keeps the passed order and ranks none of the entities
 	 * @param appendUnsorted   TRUE to append the entities no sorter ranked - those lacking every value the sorters
 	 *                         order by - after the ranked ones, FALSE to leave them out of the result
-	 * @return the sorted entity primary keys
+	 * @return the sorted entity primary keys and the number of leading ones the sorters ranked
 	 */
 	@Nonnull
-	private static int[] getSortedEntities(
+	private static SortedEntities getSortedEntities(
 		@Nonnull int[] filteredEntities,
 		@Nullable SortersTuple sortersTuple,
 		boolean appendUnsorted
 	) {
 		if (sortersTuple == null) {
-			return filteredEntities;
+			return new SortedEntities(filteredEntities, 0);
 		} else {
 			// if the input filtered entities contains duplicates, this will make distinct bitmap
 			final Formula input = ArrayUtils.isEmpty(filteredEntities) ?
@@ -166,37 +168,34 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 				0, inputSize,
 				0, 0
 			);
+			int rankedCount = -1;
 			for (Sorter sorter : sortersTuple.sorters()) {
-				if (!appendUnsorted && sorter instanceof NoSorter) {
-					// the plan closes its sorters with the default one, which ranks what the others left unranked
-					break;
+				if (sorter instanceof NoSorter) {
+					// the plan closes its sorters with the default one, which only appends what the others left
+					// unranked - the entities placed so far are the ranked ones
+					if (rankedCount < 0) {
+						rankedCount = sortingContext.peak();
+					}
+					if (!appendUnsorted) {
+						break;
+					}
 				}
 				sortingContext = sorter.sortAndSlice(sortingContext, result,null);
+			}
+			if (rankedCount < 0) {
+				rankedCount = sortingContext.peak();
 			}
 
 			// append the rest of the records if not all are sorted
 			if (sortingContext.peak() < result.length) {
 				if (!appendUnsorted) {
-					return Arrays.copyOf(result, sortingContext.peak());
+					return new SortedEntities(Arrays.copyOf(result, sortingContext.peak()), rankedCount);
 				}
 				NoSorter.INSTANCE.sortAndSlice(sortingContext, result, null);
 			}
 
-			return result;
+			return new SortedEntities(result, rankedCount);
 		}
-	}
-
-	public EntityNestedQueryComparator() {
-		this.nextComparator = null;
-	}
-
-	public EntityNestedQueryComparator(@Nonnull EntityNestedQueryComparator base, @Nullable ReferenceComparator nextComparator) {
-		this.nextComparator = nextComparator;
-		this.orderBy = base.orderBy;
-		this.groupOrderBy = base.groupOrderBy;
-		this.groupOrderByPrimaryKey = base.groupOrderByPrimaryKey;
-		this.sorter = base.sorter;
-		this.groupSorter = base.groupSorter;
 	}
 
 	public void setOrderBy(@Nonnull EntityProperty orderBy, @Nonnull Set<Scope> scope) {
@@ -205,6 +204,12 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 			"The constraint `entityProperty` could be used only once within `referenceProperty` parent container!"
 		);
 		this.orderBy = new EntityPropertyWithScopes(orderBy, scope);
+		for (final OrderConstraint entityOrdering : orderBy.getChildren()) {
+			if (entityOrdering instanceof EntityPrimaryKeyNatural) {
+				this.orderByPrimaryKey = true;
+				break;
+			}
+		}
 	}
 
 	public void setGroupOrderBy(@Nonnull EntityGroupProperty groupOrderBy, @Nonnull Set<Scope> scope) {
@@ -250,6 +255,16 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	}
 
 	/**
+	 * Returns how many leading entities of the entity order the entity sorters ranked.
+	 *
+	 * @param sortedEntities the referenced entities sorted by {@link #sorter}
+	 * @return all of them for an ordering by the primary key, otherwise the count the sorters ranked
+	 */
+	private int getEntityRankedCount(@Nonnull SortedEntities sortedEntities) {
+		return this.orderByPrimaryKey ? sortedEntities.entities().length : sortedEntities.rankedCount();
+	}
+
+	/**
 	 * Combines the group and the referenced entity primary key into the key of {@link #groupedReferencePositions}.
 	 *
 	 * @param groupPrimaryKey            primary key of the group the reference holds
@@ -279,6 +294,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		boolean groupAssignmentVaries
 	) {
 		this.groupedReferencePositions = null;
+		this.rankedPositionCount = 0;
 		this.entitiesFound = filteredEntities;
 		// the field shares the array, which the sorting below reorders in place
 		final int[] sortedEntityIndexes = new int[filteredEntities.length];
@@ -288,8 +304,9 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		this.sortedEntityIndexes = sortedEntityIndexes;
 		if (!ArrayUtils.isEmpty(filteredEntities)) {
 			if (this.groupSorter == null) {
-				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter, true);
-				ArrayUtils.sortSecondAlongFirstArray(sortedEntities, sortedEntityIndexes);
+				final SortedEntities sortedEntities = getSortedEntities(filteredEntities, this.sorter, true);
+				this.rankedPositionCount = getEntityRankedCount(sortedEntities);
+				ArrayUtils.sortSecondAlongFirstArray(sortedEntities.entities(), sortedEntityIndexes);
 			} else if (groupAssignmentVaries) {
 				setFilteredEntitiesByGroupedReference(
 					filteredEntities, filteredEntityGroups, groupToReferencedEntityIdTranslator, sortedEntityIndexes
@@ -300,8 +317,10 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 				// the primary key leaves no group without a value
 				final int[] sortedGroupEntities = getSortedEntities(
 					filteredEntityGroups, this.groupSorter, this.groupOrderByPrimaryKey
-				);
-				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter, true);
+				).entities();
+				final SortedEntities sortedEntityOrder = getSortedEntities(filteredEntities, this.sorter, true);
+				final int[] sortedEntities = sortedEntityOrder.entities();
+				final int entityRankedCount = getEntityRankedCount(sortedEntityOrder);
 				final IntSet filteredEntitySet = new IntHashSet(filteredEntities.length);
 				for (int entityPk : filteredEntities) {
 					filteredEntitySet.add(entityPk);
@@ -319,17 +338,24 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 						}
 					}
 				}
+				// every entity an ordered group reached is ranked
+				int rankedPositionCount = peek + 1;
 				// the entities no ordered group reached - they have no group, their group was filtered out, or it has
 				// no value to be ordered by - lack the value the groups are ordered by, so they follow all grouped
 				// ones in the order of the entities; left unset, their zero slots would sort first and shift the
 				// position of every entity
 				if (peek < combinedSortedEntities.length - 1) {
-					for (int entityPk : sortedEntities) {
-						if (filteredEntitySet.removeAll(entityPk) > 0) {
-							combinedSortedEntities[++peek] = entityPk;
+					for (int i = 0; i < sortedEntities.length; i++) {
+						if (filteredEntitySet.removeAll(sortedEntities[i]) > 0) {
+							combinedSortedEntities[++peek] = sortedEntities[i];
+							// the entities the entity sorters ranked come first, so the ranked positions stay a prefix
+							if (i < entityRankedCount) {
+								rankedPositionCount = peek + 1;
+							}
 						}
 					}
 				}
+				this.rankedPositionCount = rankedPositionCount;
 				ArrayUtils.sortSecondAlongFirstArray(combinedSortedEntities, sortedEntityIndexes);
 			}
 		}
@@ -355,8 +381,9 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	) {
 		final int[] sortedGroupEntities = getSortedEntities(
 			filteredEntityGroups, this.groupSorter, this.groupOrderByPrimaryKey
-		);
-		final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter, true);
+		).entities();
+		final SortedEntities sortedEntityOrder = getSortedEntities(filteredEntities, this.sorter, true);
+		final int[] sortedEntities = sortedEntityOrder.entities();
 		final LongIntHashMap positions = new LongIntHashMap(filteredEntities.length);
 		int position = 0;
 		for (int sortedGroupEntity : sortedGroupEntities) {
@@ -373,22 +400,23 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		for (int i = 0; i < sortedEntityIndexes.length; i++) {
 			sortedEntityIndexes[i] += position;
 		}
+		// the grouped positions are ranked, and so are the entity positions the entity sorters ranked
+		this.rankedPositionCount = position + getEntityRankedCount(sortedEntityOrder);
 		this.groupedReferencePositions = positions;
 	}
 
 	/**
-	 * Returns the position of the reference in the requested order, or -1 when the comparator cannot rank it.
+	 * Returns the position of the reference in the prepared order, or -1 when it has none.
 	 *
-	 * @param reference           the reference to locate, may be NULL
-	 * @param entitiesFound       the array {@link #entitiesFound} holds
-	 * @param sortedEntityIndexes the array {@link #sortedEntityIndexes} holds
+	 * @param reference the reference to locate, or `null`
 	 * @return the position of the reference, or -1
 	 */
-	private int getPosition(
-		@Nullable ReferenceContract reference,
-		@Nonnull int[] entitiesFound,
-		@Nonnull int[] sortedEntityIndexes
-	) {
+	private int getPosition(@Nullable ReferenceContract reference) {
+		final int[] entitiesFound = this.entitiesFound;
+		final int[] sortedEntityIndexes = this.sortedEntityIndexes;
+		Assert.isPremiseValid(
+			entitiesFound != null && sortedEntityIndexes != null, "The comparator is not initialized!"
+		);
 		if (reference == null) {
 			return -1;
 		}
@@ -408,61 +436,31 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		return index < 0 ? -1 : sortedEntityIndexes[index];
 	}
 
+	/**
+	 * Checks whether the sorters of this stage ranked the reference. A reference whose referenced entity and group
+	 * both lack the values the stage orders by is positioned after the ranked ones, and is left to the next ordering.
+	 *
+	 * @param reference row to classify
+	 * @return whether the position of the reference was ranked
+	 */
 	@Override
-	public int getNonSortedReferenceCount() {
-		return ofNullable(this.nonSortedReferences)
-			.map(IntContainer::size)
-			.orElse(0);
+	public boolean canRank(@Nonnull ReferenceContract reference) {
+		final int position = getPosition(reference);
+		return position >= 0 && position < this.rankedPositionCount;
 	}
 
-	@Nonnull
+	/**
+	 * Compares references by their prepared positions, with unranked rows at the end.
+	 *
+	 * @param o1 first row
+	 * @param o2 second row
+	 * @return the order of the rows
+	 */
 	@Override
-	public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-		return new EntityNestedQueryComparator(this, comparatorForUnknownRecords);
-	}
-
-	@Nullable
-	@Override
-	public ReferenceComparator getNextComparator() {
-		return this.nextComparator;
-	}
-
-	@Override
-	public int compare(ReferenceContract o1, ReferenceContract o2) {
-		final int[] entitiesFound = this.entitiesFound;
-		final int[] sortedEntityIndexes = this.sortedEntityIndexes;
-		Assert.isPremiseValid(
-			entitiesFound != null && sortedEntityIndexes != null, "The comparator is not initialized!"
-		);
-		final int o1Position = getPosition(o1, entitiesFound, sortedEntityIndexes);
-		final int o2Position = getPosition(o2, entitiesFound, sortedEntityIndexes);
-		if (o1Position >= 0 && o2Position >= 0) {
-			return Integer.compare(o1Position, o2Position);
-		} else if (o1Position < 0 && o2Position >= 0) {
-			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
-				.orElseGet(IntHashSet::new);
-			if (o1 != null) {
-				this.nonSortedReferences.add(o1.getReferencedPrimaryKey());
-			}
-			return 1;
-		} else if (o1Position >= 0) {
-			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
-				.orElseGet(IntHashSet::new);
-			if (o2 != null) {
-				this.nonSortedReferences.add(o2.getReferencedPrimaryKey());
-			}
-			return -1;
-		} else {
-			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
-				.orElseGet(IntHashSet::new);
-			if (o1 != null) {
-				this.nonSortedReferences.add(o1.getReferencedPrimaryKey());
-			}
-			if (o2 != null) {
-				this.nonSortedReferences.add(o2.getReferencedPrimaryKey());
-			}
-			return 0;
-		}
+	public int compare(@Nullable ReferenceContract o1, @Nullable ReferenceContract o2) {
+		final int first = getPosition(o1);
+		final int second = getPosition(o2);
+		return Integer.compare(first < 0 ? Integer.MAX_VALUE : first, second < 0 ? Integer.MAX_VALUE : second);
 	}
 
 	/**
@@ -476,6 +474,18 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		@Nonnull Collection<Sorter> sorters
 	) {
 
+	}
+
+	/**
+	 * Entity primary keys in the order of the sorters, with the ranked ones as a prefix.
+	 *
+	 * @param entities    the sorted entity primary keys
+	 * @param rankedCount the number of leading entities the sorters ranked; the rest lack every value they order by
+	 */
+	private record SortedEntities(
+		@Nonnull int[] entities,
+		int rankedCount
+	) {
 	}
 
 	/**
