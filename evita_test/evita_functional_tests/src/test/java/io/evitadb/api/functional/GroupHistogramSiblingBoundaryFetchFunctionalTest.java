@@ -93,10 +93,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * keeps only the anchor product, so its brands must not anchor anything while a brand of the anchor product can.
  *
  * One more narrowed scenario stores no entity for the brand 11, lets the anchor product reference it with the share
- * 10, and lets the product reference the brand 10 alone. Without an order the smallest share is then picked at the
- * brand 11, which the query cannot load, and the share histogram is anchored there at the brand 10 - the brand picked
- * among every brand holding the share, which no other histogram resolves - fetched with the share histogram's own
- * requirement. The weight histogram is anchored as in the other scenarios: the brand 11 has no weight.
+ * 10, and lets the product reference the brand 10 alone. The referenced LIVE brands 12 and 14 have scope priority
+ * over the unstored brand, so the anchor is still brand 12 without an order and brand 14 with descending PK order.
+ * Each histogram still fetches the boundary with its own requirement.
  *
  * Each scenario is checked after the owners are stored, in both catalog states, and again after a restart; without an
  * order and with the descending order of primary keys; each histogram requested alone and both together, in both orders
@@ -121,8 +120,8 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 	 */
 	private static final String[] HISTOGRAM_NAMES = {HISTOGRAM_SHARE, HISTOGRAM_WEIGHT};
 	/**
-	 * The brand the product of the narrowed scenarios references with the share 20 - except in the scenario whose pick
-	 * cannot be loaded, where no entity is stored for it and the anchor product references it with the share 10.
+	 * The brand the product references with the share 20 in narrowed scenarios. The missing-candidate scenario
+	 * stores no entity for it and the anchor product references it with the share 10.
 	 */
 	private static final int OTHER_SHARE_BRAND_PK = 11;
 	/**
@@ -322,14 +321,14 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 
 	/**
 	 * A case of requirements, whether the query keeps only the anchor product while the product references other
-	 * brands, and whether the smallest share is picked at a brand the query cannot load.
+	 * brands, and whether an unstored brand ties at the smallest share.
 	 *
 	 * @param fetchCase      the requirements of the histograms
 	 * @param narrowed       TRUE to store the product too and keep only the anchor product in the query
-	 * @param unloadablePick TRUE to store no entity for the brand 11 and let the anchor product reference it with the
-	 *                       share 10, while the product references the brand 10 alone; only with `narrowed`
+	 * @param missingCandidate TRUE to leave brand 11 unstored and give it share 10 on the anchor product's reference,
+	 *                         while the product references brand 10 alone; only with `narrowed`
 	 */
-	private record Scenario(@Nonnull FetchCase fetchCase, boolean narrowed, boolean unloadablePick) {
+	private record Scenario(@Nonnull FetchCase fetchCase, boolean narrowed, boolean missingCandidate) {
 
 		/**
 		 * Creates a scenario whose picks can all be loaded.
@@ -342,25 +341,6 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 		}
 
 		/**
-		 * Returns the brand anchoring the smallest value of the histogram `histogramName`. The brands 12 and 14 tie
-		 * there, so the brand 12 anchors it without an order and the brand 14 with the descending order of primary
-		 * keys. When the smallest share is picked at a brand the query cannot load, the share histogram is anchored
-		 * without an order at the brand 10 instead: the brand 11, picked among the brands the anchor product
-		 * references, does not load, and the brand 10 is the one picked among every brand holding the share 10. With
-		 * the descending order the brand 14 is picked among both, so nothing changes there.
-		 *
-		 * @param histogramName the name of the histogram
-		 * @param descending    TRUE for the descending order of primary keys, FALSE for no order
-		 * @return the primary key of the brand anchoring the smallest value
-		 */
-		int smallestValueBrandPk(@Nonnull String histogramName, boolean descending) {
-			if (descending) {
-				return TIED_BRAND_PK;
-			}
-			return this.unloadablePick && HISTOGRAM_SHARE.equals(histogramName) ? BRAND_PK : FIRST_ANCHOR_BRAND_PK;
-		}
-
-		/**
 		 * Returns the name of the scenario, which the parameterized test shows as the name of its case.
 		 *
 		 * @return the name of the scenario
@@ -369,7 +349,7 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 		@Override
 		public String toString() {
 			return this.fetchCase + (this.narrowed ? "_NARROWED" : "_UNNARROWED") +
-				(this.unloadablePick ? "_PICK_NOT_LOADABLE" : "");
+				(this.missingCandidate ? "_MISSING_CANDIDATE" : "");
 		}
 	}
 
@@ -418,8 +398,7 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 	/**
 	 * The scenarios whose histograms ask for their boundary entities differently, see
 	 * {@link #shouldFetchBoundaryEntitiesByRequirementOfEachHistogramWhenRequirementsDiffer}. One narrowed scenario
-	 * more picks the smallest share at a brand the query cannot load, so the share histogram is anchored there at the
-	 * brand picked among every brand holding the value, which no other histogram asks for.
+	 * includes an unstored brand tied at the smallest share.
 	 *
 	 * @return arguments of the test: the catalog state and the scenario
 	 */
@@ -554,6 +533,7 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 		for (final boolean descending : new boolean[]{false, true}) {
 			final OrderBy order = descending ? orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)) : null;
 			final String moment = stage + (descending ? ", descending by primary key" : ", without order");
+			final int minBrandPk = descending ? TIED_BRAND_PK : FIRST_ANCHOR_BRAND_PK;
 
 			final Map<String, HistogramView> alone = createHashMap(HISTOGRAM_NAMES.length);
 			for (final String name : HISTOGRAM_NAMES) {
@@ -565,7 +545,7 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 					final HistogramView view = viewOf(result, name);
 					alone.put(name, view);
 					final String expected = expectedHistogram(
-						name, fetchCase.contentOf(name), scenario.smallestValueBrandPk(name, descending)
+						name, fetchCase.contentOf(name), minBrandPk
 					);
 					checks.add(() -> assertEquals(expected, view.compact(), what));
 				}
@@ -582,7 +562,7 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 				for (final String name : HISTOGRAM_NAMES) {
 					final HistogramView view = viewOf(result, name);
 					final String expected = expectedHistogram(
-						name, fetchCase.contentOf(name), scenario.smallestValueBrandPk(name, descending)
+						name, fetchCase.contentOf(name), minBrandPk
 					);
 					checks.add(() -> assertEquals(expected, view.compact(), what + ", " + name));
 					final HistogramView viewAlone = alone.get(name);
@@ -727,8 +707,7 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 	 *
 	 * @param histogramName the name of the histogram
 	 * @param content       the content the histogram asks for
-	 * @param minBrandPk    the brand anchoring the smallest value under the order of the query, see
-	 *                      {@link Scenario#smallestValueBrandPk}
+	 * @param minBrandPk    the brand anchoring the smallest value under the order of the query
 	 * @return the expected compact description, see {@link HistogramView#compact()}
 	 */
 	@Nonnull
@@ -810,8 +789,7 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 
 	/**
 	 * Defines the schemas with both histograms on the brand reference, and stores the group and the brands with their
-	 * weights and codes - every brand but the brand 11 when the scenario picks its smallest share at a brand the query
-	 * cannot load.
+	 * weights and codes. The missing-candidate scenario leaves brand 11 unstored.
 	 *
 	 * @param session  the session of the catalog in warm-up
 	 * @param scenario the scenario
@@ -840,7 +818,7 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 		for (final int brandPk : new int[]{
 			BRAND_PK, OTHER_SHARE_BRAND_PK, FIRST_ANCHOR_BRAND_PK, SECOND_ANCHOR_BRAND_PK, TIED_BRAND_PK
 		}) {
-			if (scenario.unloadablePick() && brandPk == OTHER_SHARE_BRAND_PK) {
+			if (scenario.missingCandidate() && brandPk == OTHER_SHARE_BRAND_PK) {
 				continue;
 			}
 			final EntityBuilder brand = session.createNewEntity(ENTITY_BRAND, brandPk);
@@ -852,10 +830,9 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 
 	/**
 	 * Stores the anchor product with its references to the brands 12, 13 and 14, and in the narrowed scenarios the
-	 * product with its references to the brands 10 and 11 - all in the group 1 at the first rank. When the scenario
-	 * picks its smallest share at a brand the query cannot load, the anchor product references the brand 11 with the
-	 * share 10 too, and the product references the brand 10 alone: a reference of the product to the brand 11 with the
-	 * share 20 would make the brand 11, which the anchor product references as well, the pick of the largest share.
+	 * product with its references to the brands 10 and 11 - all in the group 1 at the first rank. In the
+	 * missing-candidate scenario, the anchor product references brand 11 with share 10 and the other product
+	 * references brand 10 alone.
 	 *
 	 * @param session  the session to write in
 	 * @param scenario the scenario
@@ -865,14 +842,14 @@ class GroupHistogramSiblingBoundaryFetchFunctionalTest implements EvitaTestSuppo
 		addReference(anchor, FIRST_ANCHOR_BRAND_PK, GROUP_PK, FIRST_RANK, ANCHOR_VALUE);
 		addReference(anchor, SECOND_ANCHOR_BRAND_PK, GROUP_PK, FIRST_RANK, SECOND_ANCHOR_VALUE);
 		addReference(anchor, TIED_BRAND_PK, GROUP_PK, FIRST_RANK, ANCHOR_VALUE);
-		if (scenario.unloadablePick()) {
+		if (scenario.missingCandidate()) {
 			addReference(anchor, OTHER_SHARE_BRAND_PK, GROUP_PK, FIRST_RANK, ANCHOR_VALUE);
 		}
 		anchor.upsertVia(session);
 		if (scenario.narrowed()) {
 			final EntityBuilder product = session.createNewEntity(ENTITY_PRODUCT, PRODUCT_PK);
 			addReference(product, BRAND_PK, GROUP_PK, FIRST_RANK, ANCHOR_VALUE);
-			if (!scenario.unloadablePick()) {
+			if (!scenario.missingCandidate()) {
 				addReference(product, OTHER_SHARE_BRAND_PK, GROUP_PK, FIRST_RANK, SECOND_ANCHOR_VALUE);
 			}
 			product.upsertVia(session);

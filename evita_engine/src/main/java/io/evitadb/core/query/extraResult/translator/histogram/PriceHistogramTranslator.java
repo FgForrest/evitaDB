@@ -24,28 +24,32 @@
 package io.evitadb.core.query.extraResult.translator.histogram;
 
 import io.evitadb.api.exception.EntityHasNoPricesException;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.exception.PriceNotIndexedException;
+import io.evitadb.core.query.QueryPlanningContext;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
-import io.evitadb.api.query.require.HistogramBehavior;
-import io.evitadb.core.query.sort.price.FilteredPricesSorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.EntityIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link PriceHistogram} to
@@ -57,10 +61,9 @@ import static java.util.Optional.ofNullable;
  * By the time this translator runs, every outer {@link LowestPriceTerminationFormula} in the filtering tree
  * has already been constructed with its per-inner-record side-output enabled — the filter planner reads
  * {@code QueryPlanningContext.isPriceHistogramRequested()} at LP-construction time and sets the flag on each
- * LP built outside {@code userFilter} scope. The translator therefore does NOT rewrite the tree; it just
- * hands the filtering formula and the optional sorter result straight to the producer. The producer relaxes
- * the tree (price-between carriers peeled) at fabrication time and harvests the histogram-aware accessors
- * from that single relaxed view — no separate strip pass is needed at planning.
+ * LP built outside {@code userFilter} scope. The producer receives the query's filtering formula, intersected
+ * with the processing scopes if they are narrower, and relaxes the price-between carriers at fabrication time.
+ * It harvests the histogram-aware accessors from that relaxed tree.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -90,11 +93,6 @@ public class PriceHistogramTranslator implements RequireConstraintTranslator<Pri
 			schema, Capability.PRICED, scopes
 		);
 
-		// find FilteredPricesSorter among the sorters (if any)
-		final Optional<FilteredPricesSorter> filteredPricesSorter = ofNullable(
-			extraResultPlanner.findSorter(FilteredPricesSorter.class)
-		);
-
 		// there is a single price histogram slot in the response, so a second `priceHistogram` requirement either
 		// asks for exactly what the first one did - and is redundant - or contradicts it. Deciding that here rather
 		// than in `EvitaRequest#isPriceHistogramRequested` is what makes the verdict independent of the query plan:
@@ -103,6 +101,12 @@ public class PriceHistogramTranslator implements RequireConstraintTranslator<Pri
 		final PriceHistogramProducer existingProducer =
 			extraResultPlanner.findExistingProducer(PriceHistogramProducer.class);
 		if (existingProducer != null) {
+			if (!existingProducer.getScopes().equals(scopes)) {
+				throw new EvitaInvalidUsageException(
+					"The price histogram was requested for different scope sets " +
+						existingProducer.getScopes() + " and " + scopes + "."
+				);
+			}
 			final int bucketCount = priceHistogram.getRequestedBucketCount();
 			final HistogramBehavior behavior = priceHistogram.getBehavior();
 			if (existingProducer.getBucketCount() != bucketCount || existingProducer.getBehavior() != behavior) {
@@ -118,16 +122,44 @@ public class PriceHistogramTranslator implements RequireConstraintTranslator<Pri
 			return existingProducer;
 		}
 
-		// create price histogram producer that computes the result
+		final QueryPlanningContext queryContext = extraResultPlanner.getQueryContext();
 		return new PriceHistogramProducer(
 			priceHistogram.getRequestedBucketCount(),
 			priceHistogram.getBehavior(),
-			extraResultPlanner.getQueryContext(),
-			extraResultPlanner.getFilteringFormula(),
-			filteredPricesSorter
-				.map(FilteredPricesSorter::getPriceRecordsLookupResult)
-				.orElse(null)
+			queryContext,
+			restrictToScopes(queryContext, extraResultPlanner.getFilteringFormula(), scopes),
+			// an enum set keeps the declaration order, so a refusal message names the scopes alike on every run
+			Collections.unmodifiableSet(EnumSet.copyOf(scopes))
 		);
+	}
+
+	/**
+	 * Restricts the query's filtering formula to the entities of the histogram's scopes.
+	 *
+	 * @param queryContext     the planning context of the query
+	 * @param filteringFormula the query's filtering formula
+	 * @param scopes           the processing scopes of the histogram
+	 * @return the filtering formula itself when the scopes are the query's scopes, otherwise the formula intersected
+	 *         with all entities of the scopes
+	 */
+	@Nonnull
+	private static Formula restrictToScopes(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull Formula filteringFormula,
+		@Nonnull Set<Scope> scopes
+	) {
+		if (scopes.equals(queryContext.getScopes())) {
+			return filteringFormula;
+		}
+		final Formula scopeEntities = FormulaFactory.or(
+			scopes.stream()
+				.map(queryContext::getGlobalEntityIndexIfExists)
+				.flatMap(Optional::stream)
+				.map(EntityIndex::getAllPrimaryKeysFormula)
+				.toArray(Formula[]::new)
+		);
+		// Preserve the memoized root and keep the scope restriction outside the price carriers relaxed later.
+		return new AndFormula(filteringFormula, scopeEntities);
 	}
 
 }

@@ -62,8 +62,12 @@ public class Histogram implements HistogramContract {
 	 */
 	private final int overallCount;
 	/**
-	 * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
-	 * histograms computed over references when the query requests an entity fetch for the reference.
+	 * Referenced entity whose value anchors the minimum bucket of a histogram computed over references.
+	 * Both boundary entities are present when both bounds resolve to loadable entities. Both fields
+	 * are `null` when either bound has no resolved pick or none of its picks can be loaded, or for
+	 * histograms over other sources. The entity carries the content requested by the histogram's `entityFetch`.
+	 * With no content requirements it carries the entity's identity and standard metadata.
+	 *
 	 * Excluded from equals/hashCode because two histograms with identical buckets/max must compare
 	 * equal even when the in-memory entity instances differ (e.g. different attribute scopes).
 	 */

@@ -38,7 +38,6 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
-import lombok.Getter;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -87,11 +86,6 @@ public class FilteredPricesSorter implements Sorter {
 	 * Contains comparator that will be used for sorting price records (initialized in constructor).
 	 */
 	private final Comparator<PriceRecordContract> priceRecordComparator;
-	/**
-	 * Contains DTO that holds array of all {@link PriceRecord} that match entity primary keys produced by filtering
-	 * formula and also array of entity primary keys that are not linked to any price.
-	 */
-	@Getter private FilteredPriceRecordsLookupResult priceRecordsLookupResult;
 
 	public FilteredPricesSorter(
 		@Nonnull OrderDirection sortOrder,
@@ -123,24 +117,25 @@ public class FilteredPricesSorter implements Sorter {
 		final PersistentRoaringBitmap computeResultBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(sortingContext.nonSortedKeys());
 		// collect price records from the filtering formulas
 		final QueryExecutionContext queryContext = sortingContext.queryContext();
-		this.priceRecordsLookupResult = new FilteredPriceRecordsCollector(
-			computeResultBitmap, this.filteredPriceRecordAccessors, queryContext
-		).getResult();
+		final FilteredPriceRecordsLookupResult priceRecordsLookupResult =
+			new FilteredPriceRecordsCollector(
+				computeResultBitmap, this.filteredPriceRecordAccessors, queryContext
+			).getResult();
 
 		// initialize the comparator with the lookup result
 		if (this.priceRecordComparator instanceof PriceRecordsLookupResultAware priceRecordsLookupResultAware) {
 			priceRecordsLookupResultAware.setPriceRecordsLookupResult(
-				queryContext, computeResultBitmap, this.priceRecordsLookupResult
+				queryContext, computeResultBitmap, priceRecordsLookupResult
 			);
 		}
 
 		// now sort filtered prices by passed comparator
-		final PriceRecordContract[] translatedResult = this.priceRecordsLookupResult.getPriceRecords();
+		final PriceRecordContract[] translatedResult = priceRecordsLookupResult.getPriceRecords();
 		Arrays.sort(translatedResult, getPriceRecordComparator());
 
 		// determine the count and set of non-found (not-sorted) entities - the entities without any price record are
 		// not among the sorted price records at all, the ones the comparator cannot sort are sorted after the others
-		final Bitmap entitiesWithoutPrice = this.priceRecordsLookupResult.getNotFoundEntities();
+		final Bitmap entitiesWithoutPrice = priceRecordsLookupResult.getNotFoundEntities();
 		Bitmap notFoundEntities = entitiesWithoutPrice;
 		if (this.priceRecordComparator instanceof NonSortedRecordsProvider notSortedRecordsProvider && notSortedRecordsProvider.getNonSortedRecords() != null) {
 			if (notFoundEntities == null) {

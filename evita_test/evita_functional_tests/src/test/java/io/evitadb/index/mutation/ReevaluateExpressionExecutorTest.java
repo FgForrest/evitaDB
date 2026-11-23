@@ -33,6 +33,7 @@ import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.visitor.FinderVisitor;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -42,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.exception.ReferenceComponentNotIndexedException;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
@@ -63,6 +65,8 @@ import io.evitadb.index.mutation.ReevaluateExpressionExecutor.AffectedEntityReso
 import io.evitadb.index.mutation.ReevaluateExpressionExecutor.AffectedReferenceEntry;
 import io.evitadb.index.mutation.ReevaluateExpressionExecutor.AffectedReferenceGroup;
 import io.evitadb.index.mutation.ReevaluateExpressionExecutor.ConditionalSplit;
+import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
+import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -78,6 +82,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -2069,11 +2074,13 @@ class ReevaluateExpressionExecutorTest {
 		@Test
 		@DisplayName("captured state survives on the mutation without changing its identity")
 		void shouldCarryCapturedStateWithoutChangingIdentity() {
-			final ReevaluateExpressionMutation bare = ReevaluateExpressionMutation.withoutOldValues(
-				REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+			final Map<String, Map<Locale, Serializable>> sourceValues = Map.of("width", Map.of(Locale.ENGLISH, 5));
+			final ReevaluateExpressionMutation bare = new ReevaluateExpressionMutation(
+				REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE, sourceValues
 			);
-			final ReevaluateExpressionMutation enriched = bare.withPreviouslyIndexedOwnerPKs(
-				Map.of(HISTOGRAM_NAME, ContributionVerdicts.ownerLevel(new BaseBitmap(100)))
+			final ContainerizedLocalMutationExecutor storageAccessor = createStorageAccessor();
+			final ReevaluateExpressionMutation enriched = bare.withPreMutationState(
+				Map.of(HISTOGRAM_NAME, ContributionVerdicts.ownerLevel(new BaseBitmap(100))), storageAccessor
 			);
 
 			assertEquals(
@@ -2082,8 +2089,17 @@ class ReevaluateExpressionExecutorTest {
 			);
 			assertEquals(bare.hashCode(), enriched.hashCode());
 			assertNull(bare.previouslyIndexedOwnerPKs());
+			assertNull(bare.storageAccessor());
 			assertArrayEquals(
 				new int[]{100}, enriched.previouslyIndexedOwnerPKs().get(HISTOGRAM_NAME).allOwnerPKs().getArray()
+			);
+			assertSame(
+				storageAccessor, enriched.storageAccessor(),
+				"the dispatch reads stored values through the executor the copy carries"
+			);
+			assertSame(
+				sourceValues, enriched.preMutationSourceValues(),
+				"the copy must keep the pre-mutation values the mutation was created with"
 			);
 		}
 
@@ -2182,6 +2198,31 @@ class ReevaluateExpressionExecutorTest {
 			when(trigger.getHistogramIndexName()).thenReturn(HISTOGRAM_NAME);
 			when(trigger.hasFilterByConstraint()).thenReturn(false);
 			return trigger;
+		}
+
+		/**
+		 * Creates a real storage-part executor of a product that is not stored, over a warm-up buffer whose persistence
+		 * service finds nothing. The test only carries the executor on a mutation and never reads through it.
+		 *
+		 * @return the executor
+		 */
+		@Nonnull
+		private ContainerizedLocalMutationExecutor createStorageAccessor() {
+			final WarmUpDataStoreMemoryBuffer buffer = new WarmUpDataStoreMemoryBuffer(
+				mock(StoragePartPersistenceService.class)
+			);
+			final EntitySchema schema = EntitySchema._internalBuild(ENTITY_TYPE);
+			return new ContainerizedLocalMutationExecutor(
+				buffer, buffer, 1L, 100, EntityExistence.MAY_EXIST,
+				() -> {
+					throw new UnsupportedOperationException("The catalog schema is not consulted by this test.");
+				},
+				() -> schema,
+				entityType -> null,
+				(entityType, entityPrimaryKey) -> null,
+				() -> 1,
+				false
+			);
 		}
 	}
 

@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverri
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerFilterIndex;
@@ -43,14 +44,17 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.ToIntFunction;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.HISTOGRAM;
@@ -279,38 +283,6 @@ class AttributeHistogramProducerTest {
 	}
 
 	@Test
-	@DisplayName("registering one attribute twice widens the index set it is computed from")
-	void shouldWidenIndexSetWhenOneAttributeIsRegisteredTwice() {
-		final AttributeHistogramProducer producer = producer();
-		final FilterIndex first = filterIndex();
-		final FilterIndex second = filterIndex();
-
-		register(producer, first);
-		register(producer, second);
-
-		assertEquals(
-			List.of(first, second),
-			producer.getHistogramRequests().get(ATTRIBUTE_NAME).attributeIndexes()
-		);
-	}
-
-	@Test
-	@DisplayName("a repeat that adds no new index leaves the registered request untouched")
-	void shouldKeepRegisteredRequestWhenRepeatWidensNothing() {
-		final AttributeHistogramProducer producer = producer();
-		final FilterIndex first = filterIndex();
-		final FilterIndex second = filterIndex();
-
-		register(producer, first, second);
-		final AttributeHistogramProducer.AttributeHistogramRequest registered = producer.getHistogramRequests().get(ATTRIBUTE_NAME);
-		register(producer, second);
-
-		// identity, not equality - a repeat that widens nothing must not even rebuild the request
-		assertSame(registered, producer.getHistogramRequests().get(ATTRIBUTE_NAME));
-		assertEquals(List.of(first, second), registered.attributeIndexes());
-	}
-
-	@Test
 	@DisplayName("one attribute occupies one result slot, so two different bucket counts are refused")
 	void shouldRefuseOneAttributeRequestedWithTwoBucketCounts() {
 		final AttributeHistogramProducer producer = producer();
@@ -334,6 +306,46 @@ class AttributeHistogramProducerTest {
 		);
 	}
 
+	/**
+	 * Verifies that the scope set alone decides the refusal: both repeats ask for the same bucket count and behavior.
+	 */
+	@Test
+	@DisplayName("one attribute requested for two different scope sets is refused, even with equal parameters")
+	void shouldRefuseOneAttributeRequestedWithDifferentScopeSets() {
+		final AttributeHistogramProducer producer = producer();
+		register(producer, 20, HistogramBehavior.STANDARD, Set.of(Scope.LIVE), filterIndex());
+
+		final EvitaInvalidUsageException archived = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> register(producer, 20, HistogramBehavior.STANDARD, Set.of(Scope.ARCHIVED), filterIndex())
+		);
+		final EvitaInvalidUsageException both = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> register(producer, 20, HistogramBehavior.STANDARD, Set.of(Scope.values()), filterIndex())
+		);
+
+		assertTrue(archived.getMessage().contains(ATTRIBUTE_NAME), archived::getMessage);
+		assertTrue(archived.getMessage().contains("[LIVE]"), archived::getMessage);
+		assertTrue(archived.getMessage().contains("[ARCHIVED]"), archived::getMessage);
+		assertTrue(both.getMessage().contains("[LIVE]"), both::getMessage);
+	}
+
+	/**
+	 * Verifies that an identical repeat is accepted and that the scope sets compare by value, not by their type.
+	 */
+	@Test
+	@DisplayName("one attribute requested twice for an equal scope set and equal parameters is accepted")
+	void shouldAcceptOneAttributeRequestedTwiceWithEqualScopeSets() {
+		final AttributeHistogramProducer producer = producer();
+		register(producer, 20, HistogramBehavior.STANDARD, Set.of(Scope.LIVE, Scope.ARCHIVED), filterIndex());
+
+		assertDoesNotThrow(
+			() -> register(
+				producer, 20, HistogramBehavior.STANDARD, EnumSet.of(Scope.ARCHIVED, Scope.LIVE), filterIndex()
+			)
+		);
+	}
+
 	@Nonnull
 	private static AttributeHistogramProducer producer() {
 		return new AttributeHistogramProducer(new ConstantFormula(new BaseBitmap(1, 2, 3)));
@@ -349,15 +361,38 @@ class AttributeHistogramProducerTest {
 		);
 	}
 
-	private static void register(@Nonnull AttributeHistogramProducer producer, @Nonnull FilterIndex... indexes) {
-		register(producer, 20, HistogramBehavior.STANDARD, indexes);
+	/**
+	 * Registers a histogram request for the test attribute in the live scope.
+	 *
+	 * @param producer    the producer to register the request with
+	 * @param bucketCount the requested bucket count
+	 * @param behavior    the requested histogram behavior
+	 * @param indexes     the filter indexes holding the attribute values
+	 */
+	private static void register(
+		@Nonnull AttributeHistogramProducer producer,
+		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
+		@Nonnull FilterIndex... indexes
+	) {
+		register(producer, bucketCount, behavior, Set.of(Scope.LIVE), indexes);
 	}
 
+	/**
+	 * Registers a histogram request for the test attribute in the given scopes.
+	 *
+	 * @param producer    the producer to register the request with
+	 * @param bucketCount the requested bucket count
+	 * @param behavior    the requested histogram behavior
+	 * @param scopes      the processing scopes of the request
+	 * @param indexes     the filter indexes holding the attribute values
+	 */
 	@SuppressWarnings("unchecked")
 	private static void register(
 		@Nonnull AttributeHistogramProducer producer,
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
+		@Nonnull Set<Scope> scopes,
 		@Nonnull FilterIndex... indexes
 	) {
 		producer.addAttributeHistogramRequest(
@@ -367,7 +402,8 @@ class AttributeHistogramProducerTest {
 			bucketCount,
 			behavior,
 			Comparator.naturalOrder(),
-			List.of(indexes)
+			List.of(indexes),
+			scopes
 		);
 	}
 
