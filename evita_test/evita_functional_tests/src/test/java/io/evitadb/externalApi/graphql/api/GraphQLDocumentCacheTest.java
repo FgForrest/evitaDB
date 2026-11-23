@@ -53,6 +53,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -125,7 +126,7 @@ class GraphQLDocumentCacheTest {
 	@Nonnull
 	private static GraphQLOptions optionsWithDocumentCache(long documentCacheSizeInBytes) {
 		return new GraphQLOptions(
-			null, ":5555", null, null, null, null, null, documentCacheSizeInBytes, null
+			null, ":5555", null, null, null, null, null, documentCacheSizeInBytes, null, null, null
 		);
 	}
 
@@ -288,7 +289,7 @@ class GraphQLDocumentCacheTest {
 		void shouldUseDefaultBudgetWhenNotConfigured() {
 			assertEquals(
 				GraphQLOptions.DEFAULT_DOCUMENT_CACHE_SIZE_IN_BYTES,
-				new GraphQLOptions(null, ":5555", null, null, null, null, null, null, null)
+				new GraphQLOptions(null, ":5555", null, null, null, null, null, null, null, null, null)
 					.getDocumentCacheSizeInBytes()
 			);
 		}
@@ -313,14 +314,212 @@ class GraphQLDocumentCacheTest {
 	class MetricsTest {
 
 		/**
+		 * Upper bound of any duration measured in these in-process tests - a duration computed from a phase that never
+		 * started is the current epoch time in milliseconds, many orders of magnitude above it.
+		 */
+		private static final long DURATION_BOUND_MILLIS = 60_000L;
+		private static final String VARIABLE_QUERY = "query variableProbe($name: String) { hello(name: $name) }";
+
+		/**
+		 * Builds an instance with the metrics instrumentation and the document cache.
+		 */
+		@Nonnull
+		private static GraphQL createInstrumentedGraphQL() {
+			return GraphQL.newGraphQL(createSchema())
+				.instrumentation(new RequestMetricInstrumentation("testCatalog"))
+				.preparsedDocumentProvider(new GraphQLDocumentCache(1024 * 1024))
+				.build();
+		}
+
+		/**
+		 * Executes the input against the instance with a fresh metric event in the GraphQL context and finishes the
+		 * event the way the HTTP handler does (result serialization in a `finally`, then
+		 * {@link ExecutedEvent#finish()}). The request is expected to fail before its operation starts executing.
+		 */
+		@Nonnull
+		private static ExecutedEvent executeFailing(
+			@Nonnull GraphQL graphQL,
+			@Nonnull ExecutionInput.Builder inputBuilder
+		) {
+			final ExecutedEvent event = new ExecutedEvent(GraphQLInstanceType.DATA);
+			event.finishInputDeserialization();
+			final ExecutionInput executionInput = inputBuilder
+				.graphQLContext(Map.of(GraphQLContextKey.METRIC_EXECUTED_EVENT, event))
+				.build();
+			final ExecutionResult result = graphQL.executeAsync(executionInput).join();
+			event.finishResultSerialization();
+			event.finish();
+			assertFalse(result.getErrors().isEmpty(), "The request is expected to fail.");
+			assertEquals(0L, event.getOperationExecutionStarted(), "The operation is not expected to execute.");
+			return event;
+		}
+
+		/**
+		 * Asserts that no measured duration of the event was computed from a phase that never started.
+		 */
+		private static void assertDurationsBounded(@Nonnull ExecutedEvent event) {
+			final long[] durations = {
+				event.getInputDeserializationDurationMilliseconds(),
+				event.getPreparationDurationMilliseconds(),
+				event.getParseDurationMilliseconds(),
+				event.getValidationDurationMilliseconds(),
+				event.getOperationExecutionDurationMilliseconds(),
+				event.getResultSerializationDurationMilliseconds(),
+				event.getExecutionDurationMilliseconds()
+			};
+			for (long duration : durations) {
+				assertTrue(
+					duration >= 0 && duration < DURATION_BOUND_MILLIS,
+					() -> "Duration out of bounds: " + Arrays.toString(durations)
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("does not measure execution of a query failing to parse")
+		void shouldNotMeasureExecutionOfQueryFailingToParse() {
+			final ExecutedEvent event = executeFailing(
+				createInstrumentedGraphQL(), ExecutionInput.newExecutionInput("query { hello(")
+			);
+			assertDurationsBounded(event);
+			assertEquals(0L, event.getOperationExecutionDurationMilliseconds());
+			assertFalse(event.isDocumentCached());
+		}
+
+		@Test
+		@DisplayName("does not measure execution of a query failing validation")
+		void shouldNotMeasureExecutionOfQueryFailingValidation() {
+			final ExecutedEvent event = executeFailing(
+				createInstrumentedGraphQL(), ExecutionInput.newExecutionInput("query { unknownField }")
+			);
+			assertDurationsBounded(event);
+			assertEquals(0L, event.getOperationExecutionDurationMilliseconds());
+			assertFalse(event.isDocumentCached());
+		}
+
+		@Test
+		@DisplayName("does not measure execution of a parsed document with an unknown operation name")
+		void shouldNotMeasureExecutionOfUnknownOperationName() {
+			final ExecutedEvent event = executeFailing(
+				createInstrumentedGraphQL(),
+				ExecutionInput.newExecutionInput(VARIABLE_QUERY).operationName("unknownOperation")
+			);
+			assertDurationsBounded(event);
+			assertTrue(event.getParseStarted() > 0);
+			assertEquals(0L, event.getOperationExecutionDurationMilliseconds());
+			assertFalse(event.isDocumentCached());
+		}
+
+		@Test
+		@DisplayName("reports a cached document of a request failing with an unknown operation name")
+		void shouldReportCachedDocumentOfRequestFailingWithUnknownOperationName() {
+			final GraphQL graphQL = createInstrumentedGraphQL();
+			// the first, successful request caches the document
+			assertFalse(execute(graphQL, VARIABLE_QUERY, Map.of("name", "world")).isDocumentCached());
+
+			final ExecutedEvent event = executeFailing(
+				graphQL, ExecutionInput.newExecutionInput(VARIABLE_QUERY).operationName("unknownOperation")
+			);
+			assertTrue(event.isDocumentCached());
+			assertDurationsBounded(event);
+			assertEquals(0L, event.getParseStarted());
+			assertEquals(0L, event.getOperationExecutionDurationMilliseconds());
+		}
+
+		@Test
+		@DisplayName("reports a cached document of a request failing on variable coercion")
+		void shouldReportCachedDocumentOfRequestFailingOnVariableCoercion() {
+			final GraphQL graphQL = createInstrumentedGraphQL();
+			// the first, successful request caches the document
+			assertFalse(execute(graphQL, VARIABLE_QUERY, Map.of("name", "world")).isDocumentCached());
+
+			final ExecutedEvent event = executeFailing(
+				graphQL,
+				ExecutionInput.newExecutionInput(VARIABLE_QUERY).variables(Map.of("name", Map.of("not", "a string")))
+			);
+			assertTrue(event.isDocumentCached());
+			assertDurationsBounded(event);
+			assertEquals(0L, event.getOperationExecutionDurationMilliseconds());
+		}
+
+		@Test
+		@DisplayName("attributes the time of a request failing during parse to the parse phase")
+		void shouldAttributeTimeOfRequestFailingDuringParseToParsePhase() throws InterruptedException {
+			final ExecutedEvent event = new ExecutedEvent(GraphQLInstanceType.DATA);
+			event.finishInputDeserialization();
+			event.finishPreparation();
+			// detection widener only - a slower machine makes the measured duration longer, never shorter
+			Thread.sleep(5);
+			event.finishOperationExecution();
+			assertTrue(event.getParseDurationMilliseconds() > 0);
+			assertEquals(0L, event.getValidationDurationMilliseconds());
+			assertEquals(0L, event.getOperationExecutionDurationMilliseconds());
+		}
+
+		@Test
+		@DisplayName("attributes the time of a request failing during validation to the validation phase")
+		void shouldAttributeTimeOfRequestFailingDuringValidationToValidationPhase() throws InterruptedException {
+			final ExecutedEvent event = new ExecutedEvent(GraphQLInstanceType.DATA);
+			event.finishInputDeserialization();
+			event.finishPreparation();
+			event.finishParse();
+			// detection widener only - a slower machine makes the measured duration longer, never shorter
+			Thread.sleep(5);
+			event.finishOperationExecution();
+			assertTrue(event.getValidationDurationMilliseconds() > 0);
+			assertEquals(0L, event.getOperationExecutionDurationMilliseconds());
+		}
+
+		@Test
+		@DisplayName("attributes the time of a cached request failing before execution to the preparation phase")
+		void shouldAttributeTimeOfCachedRequestFailingBeforeExecutionToPreparationPhase()
+			throws InterruptedException {
+			final ExecutedEvent event = new ExecutedEvent(GraphQLInstanceType.DATA);
+			event.finishInputDeserialization();
+			event.markDocumentCached();
+			// detection widener only - a slower machine makes the measured duration longer, never shorter
+			Thread.sleep(5);
+			event.finishOperationExecution();
+			assertTrue(event.getPreparationDurationMilliseconds() > 0);
+			assertEquals(0L, event.getParseDurationMilliseconds());
+			assertEquals(0L, event.getOperationExecutionDurationMilliseconds());
+		}
+
+		@Test
+		@DisplayName("does not measure result serialization that never started")
+		void shouldNotMeasureResultSerializationThatNeverStarted() {
+			// the system API installs no request metric instrumentation, so the handler finishes the result
+			// serialization of an event whose execution phases were never driven
+			final ExecutedEvent event = new ExecutedEvent(GraphQLInstanceType.SYSTEM);
+			event.finishInputDeserialization();
+			event.finishResultSerialization();
+			event.finish();
+			assertDurationsBounded(event);
+			assertEquals(0L, event.getResultSerializationDurationMilliseconds());
+		}
+
+		/**
 		 * Executes the query against the instance with a fresh metric event in the GraphQL context, the same way
 		 * the HTTP and WebSocket handlers do.
 		 */
 		@Nonnull
 		private static ExecutedEvent execute(@Nonnull GraphQL graphQL, @Nonnull String query) {
+			return execute(graphQL, query, Map.of());
+		}
+
+		/**
+		 * Executes the query with the given variables, see {@link #execute(GraphQL, String)}.
+		 */
+		@Nonnull
+		private static ExecutedEvent execute(
+			@Nonnull GraphQL graphQL,
+			@Nonnull String query,
+			@Nonnull Map<String, Object> variables
+		) {
 			final ExecutedEvent event = new ExecutedEvent(GraphQLInstanceType.DATA);
 			event.finishInputDeserialization();
 			final ExecutionInput executionInput = ExecutionInput.newExecutionInput(query)
+				.variables(variables)
 				.graphQLContext(Map.of(GraphQLContextKey.METRIC_EXECUTED_EVENT, event))
 				.build();
 			final CompletableFuture<ExecutionResult> future = graphQL.executeAsync(executionInput);

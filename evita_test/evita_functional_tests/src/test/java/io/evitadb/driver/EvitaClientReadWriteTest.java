@@ -888,7 +888,10 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		// subscriber requested 2 events, this is third one, so it should be ignored
 		evitaClient.defineCatalog("newCatalog6");
 
-		// subscriber received one requested event
+		// the captures arrive asynchronously, so all requested ones are awaited at once: the demand is
+		// 2 + 4 + 4 = 10 and each `defineCatalog` yields 2 captures (transaction and create catalog mutation)
+		assertEquals(10, subscriber.getReceived(30, TimeUnit.SECONDS, 10));
+		// subscriber received the requested events
 		assertEquals(1, subscriber.getCatalogCreated("newCatalog1"));
 		assertEquals(1, subscriber.getCatalogCreated("newCatalog2"));
 		assertEquals(1, subscriber.getCatalogCreated("newCatalog3"));
@@ -1128,15 +1131,16 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 		evitaClient.defineCatalog("newCatalog1");
 
+		// the captures arrive asynchronously, so the expected count is awaited
+		assertEquals(
+			2,
+			subscriber1.getReceived(30, TimeUnit.SECONDS, 2)
+		); // at least 2 events should be received (transaction and create catalog mutation)
 		assertEquals(
 			0,
 			subscriber1.getCatalogCreated("newCatalog1")
 		); // subscriber1 is subscribed to HEADER content, so it cannot recognize catalog name
-		assertEquals(
-			2,
-			subscriber1.getReceived()
-		); // at least 2 events should be received (transaction and create catalog mutation)
-		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1", 10, TimeUnit.SECONDS, 1));
+		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1", 30, TimeUnit.SECONDS, 1));
 
 		evitaClient.deleteCatalogIfExists("newCatalog1");
 	}

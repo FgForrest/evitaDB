@@ -423,7 +423,13 @@ of the reference filter encloses it, followed by the reference filter's locale a
 A `dataInLocales` requirement also supplies a locale context: the one in the body's own fetch, or, when that fetch
 names none, the one of the enclosing fetch. Entity and group bodies are separate levels: `entityHaving` does not
 supply the group's locale. Named localized attributes and associated data require a resolved locale or a
-`dataInLocales` that reaches their fetch level.
+`dataInLocales` that reaches their fetch level. Otherwise, fetching a named localized attribute or associated data
+throws `EntityLocaleMissingException` (attributes unique in any requested scope retain the implicit-locale exemption).
+This rule also applies to direct `getEntity` calls, fetching mutations, reference attributes at the owner's level,
+and hierarchy parent bodies. Unknown attribute, associated data and reference names are rejected even when no entity
+or reference row exists. Bulk `attributeContentAll()` and `associatedDataContentAll()` without a locale are accepted
+and return only non-localized data. A named localized leaf beside bulk content still requires a locale; validation
+checks the requirements as written.
 
 <Note type="info">
 
@@ -1015,6 +1021,22 @@ the parent entities in the required width. The [`attributeContent`](#attribute-c
 you to access the attributes of the parent entities, etc. Not every parent is guaranteed to be able to provide the body
 you ask for, though - the [hierarchy parents behaviour](#hierarchy-parents-behaviour) argument decides what the chain
 looks like when one of them can't.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Which hierarchy is traversed for entities in different scopes?
+</NoteTitle>
+
+The direct parent is read from the entity itself, the parents above it from the hierarchy index of the
+[scope](../filtering/constant.md#scope) the entity lives in. An entity living in a scope that doesn't index
+the hierarchy therefore reports its direct parent only. A query that spans several scopes fetches the hierarchy
+placement of every entity in its own scope and needs no `inScope` container for it - only the filter of a `stopAt`
+`node` constraint is evaluated in every traversed scope, so an attribute filterable in one scope only must be
+wrapped in the [`inScope`](../filtering/behavioral.md#in-scope) container there.
+
+</Note>
 
 To fetch an entity with basic hierarchy information, use the following query:
 
@@ -2150,7 +2172,14 @@ entities hold any reference to filter.
 The `entityHaving` and `groupHaving` constraints read the referenced entity and the group entity, so the entity types
 must be managed by evitaDB, otherwise the query is refused. A filter outside of any `inScope` container is applied to
 the references of the entities in all the queried scopes; wrap its part in [`inScope`](../filtering/behavioral.md#in-scope)
-to apply it to the references of the entities living in a single scope only.
+to apply it to the references of the entities living in a single scope only. Such a filter is evaluated on
+the fetched references themselves and doesn't need the references or their attributes to be indexed in the scope of
+their owner - but the referenced entities an `entityHaving` filters by are searched in every scope the owners are
+queried in. An `entityHaving` by an attribute filterable in one scope only is therefore refused, unless it names
+that scope in its own `scope` constraint, which searches the referenced entities in that scope for the owners of
+every scope, or it is wrapped in `inScope`, which applies it to the references of the owners in that scope only.
+An ordering of references that aren't indexed in every queried scope is accepted only inside
+an [`inScope`](../ordering/behavioral.md#in-scope) container of the ordering.
 
 The referenced entities fetched by `entityFetch` are fetched in the [`scope`](../filtering/constant.md#scope) named
 by an `entityHaving` of the filter that no `or`, `not` or `inScope` encloses, and the groups fetched by

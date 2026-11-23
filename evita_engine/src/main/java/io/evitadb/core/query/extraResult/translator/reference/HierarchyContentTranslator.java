@@ -87,10 +87,10 @@ public class HierarchyContentTranslator implements RequireConstraintTranslator<H
 	 * ({@link ExtraResultPlanningVisitor#getEntityFetchRequest}), and the schema capabilities it requests are passed on
 	 * to the owner's planning context, which records them for the query.
 	 *
-	 * The parents are walked in the processing scopes, unless an enclosing `referenceContent` resolves an explicit
-	 * scope pair for the bodies it fetches ({@link ReferenceContentTranslator#resolveOwnerScope}): the parents of those
-	 * bodies are walked in the scopes the pair searches, and an `inScope` of the node filter may name the scopes it
-	 * admits, as in the fetch. A deeper level that inherits keeps the pair of the outer one.
+	 * The default for walking parents is the processing scopes, which below the main fetch are the query's searched
+	 * scopes. An explicit pair from an enclosing `referenceContent` supplies the scopes searched by the walk and the
+	 * scopes the node filter may name in `inScope` ({@link ReferenceContentTranslator#resolveOwnerScope}).
+	 * A deeper inheriting level retains the outer pair.
 	 *
 	 * @param hierarchyContent           the requirement whose bound is checked
 	 * @param entitySchema               the schema of the entity whose parents are fetched

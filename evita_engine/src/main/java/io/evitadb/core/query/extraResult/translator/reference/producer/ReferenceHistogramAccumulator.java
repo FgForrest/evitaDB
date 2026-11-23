@@ -248,7 +248,8 @@ final class ReferenceHistogramAccumulator {
 		// RTEI's group count and clamp to a sanity cap against pathological group counts.
 		final int pendingEstimate;
 		if (grouped) {
-			int groupsProbe = 0;
+			// long, so neither the sum over scopes nor its product with the request count can overflow
+			long groupsProbe = 0;
 			for (final Scope scope : scopes) {
 				final EntityIndexKey probeKey = new EntityIndexKey(
 					EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
@@ -260,9 +261,8 @@ final class ReferenceHistogramAccumulator {
 					groupsProbe += probe.getAllReferencedPrimaryKeys().size();
 				}
 			}
-			pendingEstimate = Math.min(
-				Math.max(requests.size() * scopes.size(), requests.size() * groupsProbe),
-				PENDING_SANITY_CAP
+			pendingEstimate = (int) Math.min(
+				requests.size() * Math.max(scopes.size(), groupsProbe), PENDING_SANITY_CAP
 			);
 		} else {
 			pendingEstimate = Math.min(requests.size() * scopes.size(), PENDING_SANITY_CAP);
@@ -907,6 +907,14 @@ final class ReferenceHistogramAccumulator {
 	 * along as the alternative the bound falls back to when the entity of the fourth step does not load (see
 	 * {@link BoundaryPick}); it reuses the candidates of the second step and reads no index again.
 	 *
+	 * The steps run as written with a sorter, or without {@code ownerFilterIndex}. Without a sorter and with
+	 * {@code ownerFilterIndex}, {@link #pickLowestOwnedBoundaryPk} makes the identical pick, alternative included,
+	 * by merging producing-index iterators in unsigned PK order, without owned subsets or candidate unions. Equal PKs
+	 * are checked in index-position order. A sorter keeps the steps as written, because the order it gives the
+	 * set-apart PKs need not be their order among every candidate sorted - a limited segment or a seeded shuffle
+	 * depends on what else it sorts. The method is package-private so that tests can compare its pick with an
+	 * independent exhaustive implementation.
+	 *
 	 * The mapping of the second step differs by the kind of index: the type index keys its filter index on its own
 	 * reduced-index PKs, which only it can translate, while a reduced group index keys it on referenced entity PKs
 	 * and the mapping keeps those it tracks. The owners are read from the group store at the first index holding a
@@ -930,7 +938,7 @@ final class ReferenceHistogramAccumulator {
 	 * @return the pick of the bound, {@link BoundaryPick#NONE} when no reference of the context carries the value
 	 */
 	@Nonnull
-	private static BoundaryPick pickBoundaryPkFromReferenceAttribute(
+	static BoundaryPick pickBoundaryPkFromReferenceAttribute(
 		@Nonnull FilterIndex[] referenceAttributeFilterIndexes,
 		@Nonnull EntityIndex[] boundaryContext,
 		@Nonnull Serializable value,
@@ -939,6 +947,12 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull Bitmap inScope,
 		@Nullable NestedContextSorter facetSorter
 	) {
+		if (facetSorter == null && ownerFilterIndex != null) {
+			return pickLowestOwnedBoundaryPk(
+				referenceAttributeFilterIndexes, boundaryContext, value, ownerFilterIndex, baselineFormula, inScope
+			);
+		}
+
 		// read at the first index holding a candidate, so a bound without one reads no owners
 		PersistentRoaringBitmap ownersRoaring = null;
 		Bitmap referencedPkCandidates = EmptyBitmap.INSTANCE;
@@ -977,6 +991,143 @@ final class ReferenceHistogramAccumulator {
 			// no candidate of the whole context passes the owner check, so the bound keeps every candidate
 		}
 		return BoundaryPick.of(intersectAndPickBoundaryPk(referencedPkCandidates, inScope, facetSorter));
+	}
+
+	/**
+	 * Makes the pick of {@link #pickBoundaryPkFromReferenceAttribute} for a context confined to the owners
+	 * `ownerFilterIndex` counts, without a sorter: the lowest candidate in scope that a counted owner references in an
+	 * index whose filter index produced it, with the lowest candidate in scope as its alternative - or that lowest
+	 * candidate alone when no candidate has such an owner.
+	 *
+	 * The pick is the one the steps of {@link #pickBoundaryPkFromReferenceAttribute} make with the lowest-PK rule, but
+	 * a primitive-array heap merges the producing indexes' candidate iterators in unsigned PK order, the order
+	 * {@code first()} uses, with ties broken by original index position. Each popped candidate is checked for scope
+	 * before its owner predicate is evaluated in its producing index only. The first candidate in scope supplies the
+	 * alternative; the first passing owner predicate supplies the owned minimum and ends the merge. No candidate
+	 * unions or owned subsets are built, and failed producers of the same PK remain independent.
+	 *
+	 * @param referenceAttributeFilterIndexes the reference attribute's filter index of each index of the
+	 *                                        context, at the same position; {@code null} where the index has none
+	 * @param boundaryContext                 the indexes tracking the references the histogram covers
+	 * @param value                           the boundary value
+	 * @param ownerFilterIndex                the filter index of the group store telling the owners the histogram
+	 *                                        counts at the value
+	 * @param baselineFormula                 the baseline formula the histogram is computed against, or `null` for
+	 *                                        none
+	 * @param inScope                         the referenced entity PKs tracked by the context
+	 * @return the pick of the bound, {@link BoundaryPick#NONE} when no reference of the context carries the value or
+	 *         no candidate is in scope
+	 */
+	@Nonnull
+	private static BoundaryPick pickLowestOwnedBoundaryPk(
+		@Nonnull FilterIndex[] referenceAttributeFilterIndexes,
+		@Nonnull EntityIndex[] boundaryContext,
+		@Nonnull Serializable value,
+		@Nonnull FilterIndex ownerFilterIndex,
+		@Nullable Formula baselineFormula,
+		@Nonnull Bitmap inScope
+	) {
+		final PeekableIntIterator[] iterators = new PeekableIntIterator[boundaryContext.length];
+		final int[] heapPks = new int[boundaryContext.length];
+		final int[] heapIndexes = new int[boundaryContext.length];
+		int heapSize = 0;
+		PersistentRoaringBitmap ownersRoaring = null;
+		for (int i = 0; i < boundaryContext.length; i++) {
+			final FilterIndex referenceAttributeFilterIndex = referenceAttributeFilterIndexes[i];
+			if (referenceAttributeFilterIndex == null) {
+				continue;
+			}
+			final Bitmap indexPkCandidates = resolveBoundaryCandidates(referenceAttributeFilterIndex, value);
+			if (!indexPkCandidates.isEmpty()) {
+				final Bitmap referencedPks =
+					referencedPrimaryKeysForIndexPks(boundaryContext[i], indexPkCandidates);
+				if (!referencedPks.isEmpty()) {
+					final PeekableIntIterator iterator =
+						RoaringBitmapBackedBitmap.getRoaringBitmap(referencedPks).getIntIterator();
+					iterators[i] = iterator;
+					heapPks[heapSize] = iterator.next();
+					heapIndexes[heapSize++] = i;
+				}
+				// Read at the first nonempty raw lookup, even if mapping or scope removes every candidate.
+				if (ownersRoaring == null) {
+					ownersRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(
+						countedOwners(ownerFilterIndex, value, baselineFormula)
+					);
+				}
+			}
+		}
+		// Every live producer contributes exactly one head; build the unsigned, index-stable minimum heap.
+		for (int i = (heapSize >>> 1) - 1; i >= 0; i--) {
+			siftBoundaryCandidateDown(heapPks, heapIndexes, heapSize, i);
+		}
+		boolean hasCandidateInScope = false;
+		int unrestrictedPk = 0;
+		while (heapSize > 0) {
+			final int referencedPk = heapPks[0];
+			final int producingIndex = heapIndexes[0];
+			if (inScope.contains(referencedPk)) {
+				if (!hasCandidateInScope) {
+					unrestrictedPk = referencedPk;
+					hasCandidateInScope = true;
+				}
+				// ownersRoaring is never null here: every head was pushed in the branch that read the owners
+				if (isReferencedByCountedOwner(boundaryContext[producingIndex], referencedPk, ownersRoaring)) {
+					return referencedPk == unrestrictedPk ?
+						BoundaryPick.of(referencedPk) : BoundaryPick.of(referencedPk, unrestrictedPk);
+				}
+			}
+			// Advance only the popped producer; another producer of this PK still gets its own owner check.
+			final PeekableIntIterator iterator = iterators[producingIndex];
+			if (iterator.hasNext()) {
+				heapPks[0] = iterator.next();
+			} else {
+				heapPks[0] = heapPks[--heapSize];
+				heapIndexes[0] = heapIndexes[heapSize];
+			}
+			if (heapSize > 0) {
+				siftBoundaryCandidateDown(heapPks, heapIndexes, heapSize, 0);
+			}
+		}
+		// No scoped producer passed; only the first scoped candidate can supply the global fallback.
+		return hasCandidateInScope ? BoundaryPick.of(unrestrictedPk) : BoundaryPick.NONE;
+	}
+
+	/**
+	 * Restores the minimum-heap invariant after replacing one head, ordering unsigned PKs then index positions.
+	 * Parallel primitive arrays retain producer provenance without allocating a pair for each candidate.
+	 *
+	 * @param pks     the candidate PKs at heap positions
+	 * @param indexes the producing context positions at the same heap positions
+	 * @param size    the number of live heads
+	 * @param root    the replaced head, whose children already root valid heaps
+	 */
+	private static void siftBoundaryCandidateDown(
+		@Nonnull int[] pks, @Nonnull int[] indexes, int size, int root
+	) {
+		final int pk = pks[root];
+		final int index = indexes[root];
+		int position = root;
+		while (position < (size >>> 1)) {
+			int child = (position << 1) + 1;
+			final int right = child + 1;
+			if (right < size && boundaryCandidatePrecedes(pks[right], indexes[right], pks[child], indexes[child])) {
+				child = right;
+			}
+			if (!boundaryCandidatePrecedes(pks[child], indexes[child], pk, index)) {
+				break;
+			}
+			pks[position] = pks[child];
+			indexes[position] = indexes[child];
+			position = child;
+		}
+		pks[position] = pk;
+		indexes[position] = index;
+	}
+
+	/** Returns whether the first producing pair precedes the second in unsigned PK and index-position order. */
+	private static boolean boundaryCandidatePrecedes(int pk, int index, int otherPk, int otherIndex) {
+		final int comparison = Integer.compareUnsigned(pk, otherPk);
+		return comparison < 0 || (comparison == 0 && index < otherIndex);
 	}
 
 	/**
@@ -1195,7 +1346,7 @@ final class ReferenceHistogramAccumulator {
 			// with no candidate of the group passing the owner check, the bound keeps every candidate
 			return BoundaryPick.of(pickBoundaryPkAmong(candidatesInGroup, facetSorter));
 		}
-		final Integer ownedPk = pickBoundaryPkAmong(ownedCandidates, facetSorter);
+		final int ownedPk = pickBoundaryPkAmongNonEmpty(ownedCandidates, facetSorter);
 		// every candidate of the group passing means one set, so the pick among every candidate is the same one
 		return ownedCandidates.getLongCardinality() == candidatesInGroup.getLongCardinality() ?
 			BoundaryPick.of(ownedPk) :
@@ -1235,9 +1386,21 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull PersistentRoaringBitmap candidates,
 		@Nullable NestedContextSorter facetSorter
 	) {
-		if (candidates.isEmpty()) {
-			return null;
-		}
+		return candidates.isEmpty() ? null : pickBoundaryPkAmongNonEmpty(candidates, facetSorter);
+	}
+
+	/**
+	 * Picks a single PK of final candidates the caller knows to be non-empty — via the reference's configured sorter
+	 * when available (honouring the user's `orderBy`), or the lowest-valued PK otherwise.
+	 *
+	 * @param candidates  the final candidate referenced entity PKs, at least one
+	 * @param facetSorter the reference's sorter deciding ties, or {@code null} for the lowest-PK rule
+	 * @return the boundary PK
+	 */
+	private static int pickBoundaryPkAmongNonEmpty(
+		@Nonnull PersistentRoaringBitmap candidates,
+		@Nullable NestedContextSorter facetSorter
+	) {
 		// short-circuit when only one PK survives the intersection — the sorter cannot reorder a
 		// single element, so skipping the allocation + sortAndSlice call is a straight win
 		if (candidates.getLongCardinality() == 1L) {
@@ -1575,7 +1738,7 @@ final class ReferenceHistogramAccumulator {
 	 * @param alternativePk the referenced entity picked among every candidate of the bound, or `null` when it is `pk`
 	 *                      or the bound was picked among every candidate in the first place
 	 */
-	private record BoundaryPick(@Nullable Integer pk, @Nullable Integer alternativePk) {
+	record BoundaryPick(@Nullable Integer pk, @Nullable Integer alternativePk) {
 		/**
 		 * The pick of a bound no candidate qualifies for.
 		 */

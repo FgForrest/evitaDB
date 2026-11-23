@@ -185,7 +185,7 @@ class Migration_2026_3_RangeUniqueUpgradeRoundTripTest implements EvitaTestSuppo
 					paged ? new ValueToRecordBitmap[0] : buckets, old.getRangeIndex(), 0, paged, paged ? 2 : -1,
 					paged ? new int[]{0, 1, 2} : new int[0], false, -1, new int[0], old.getStoragePartPK()));
 				final AtomicBoolean published = new AtomicBoolean();
-				final Runnable migration = () -> Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_7(
+				final Runnable migration = () -> Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_9(
 					header, catalogParts, ignored -> collectionService, ignored -> published.set(true));
 				if (refused) {
 					final String message = LegacyRepresentativeKeyPreflightTest.refusal(

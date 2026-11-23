@@ -26,6 +26,7 @@ package io.evitadb.api.functional.fetch;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
@@ -43,6 +44,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -147,6 +149,58 @@ class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest 
 				);
 				assertThrows(
 					ContextMissingException.class, () -> enrichedProduct.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Verifies that `enrichEntity` and `enrichOrLimitEntity` accept a requirement array whose runtime component type
+	 * is narrower than `EntityContentRequire` while still propagating the locale of the enriched entity.
+	 *
+	 * @param evita            the instance holding the catalog with the hundred products
+	 * @param originalProducts the generated products, read back with all their content, as the expected values
+	 */
+	@DisplayName("Localized attributes can be lazy loaded with a narrower requirement array")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldLazyLoadLocalizedAttributesWithNarrowerRequirementArray(
+		@Nonnull Evita evita, @Nonnull List<SealedEntity> originalProducts
+	) {
+		final SealedEntity originalProduct = originalProducts.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH) != null)
+			.findFirst()
+			.orElseThrow();
+		final String expectedName = originalProduct.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(originalProduct.getPrimaryKey()),
+							entityLocaleEquals(LOCALE_CZECH)
+						),
+						require(entityFetch())
+					)
+				).orElseThrow();
+				assertProduct(product, originalProduct.getPrimaryKey(), false, false, false, false);
+				final AttributeContent[] requirements = {attributeContent(ATTRIBUTE_NAME)};
+
+				assertAll(
+					() -> {
+						final SealedEntity enrichedProduct = session.enrichEntity(product, requirements);
+						assertEquals(expectedName, enrichedProduct.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH));
+						assertEquals(expectedName, enrichedProduct.getAttribute(ATTRIBUTE_NAME));
+					},
+					() -> {
+						final SealedEntity enrichedProduct = session.enrichOrLimitEntity(product, requirements);
+						assertEquals(expectedName, enrichedProduct.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH));
+						assertEquals(expectedName, enrichedProduct.getAttribute(ATTRIBUTE_NAME));
+					}
+				);
 				return null;
 			}
 		);

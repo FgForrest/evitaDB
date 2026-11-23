@@ -53,16 +53,28 @@ public class SystemOptions extends AbstractApiOptions implements ApiWithSpecific
 	 */
 	@Getter private final String prefix;
 
+	/**
+	 * Creates enabled options listening on all network interfaces at {@link #DEFAULT_SYSTEM_PORT}, with `tlsMode`
+	 * {@link TlsMode#FORCE_NO_TLS}.
+	 */
 	public SystemOptions() {
-		super(true, "0.0.0.0:" + DEFAULT_SYSTEM_PORT, null, TlsMode.FORCE_NO_TLS.name(), null, null);
+		super(true, ":" + DEFAULT_SYSTEM_PORT, TlsMode.FORCE_NO_TLS);
 		this.prefix = BASE_SYSTEM_PATH;
 	}
 
+	/**
+	 * Creates enabled options listening on `host` (comma-separated `hostname:port` definitions), with `tlsMode`
+	 * {@link TlsMode#FORCE_NO_TLS}.
+	 */
 	public SystemOptions(@Nonnull String host) {
-		super(true, host, null, TlsMode.FORCE_NO_TLS.name(), null, null);
+		super(true, host, TlsMode.FORCE_NO_TLS);
 		this.prefix = BASE_SYSTEM_PATH;
 	}
 
+	/**
+	 * Creates the options from a configuration file. A missing `tlsMode` resolves to {@link TlsMode#FORCE_NO_TLS},
+	 * the same default as the other constructors, because the endpoint serves the server certificate over plain HTTP.
+	 */
 	@JsonCreator
 	public SystemOptions(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                     @Nonnull @JsonProperty("host") String host,
@@ -72,7 +84,7 @@ public class SystemOptions extends AbstractApiOptions implements ApiWithSpecific
 	                     @Nullable @JsonProperty("prefix") String prefix,
 	                     @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
-		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
+		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration, TlsMode.FORCE_NO_TLS);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_SYSTEM_PATH);
 	}
 }

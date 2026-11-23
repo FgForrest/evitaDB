@@ -24,29 +24,45 @@
 package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.PickFirstByEntityProperty;
 import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.order.TraversalMode;
+import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
+import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.time.DayOfWeek;
+import java.util.Currency;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.ORDER;
@@ -60,6 +76,158 @@ import static io.evitadb.test.TestTags.ORDER;
 @Tag(QUERY)
 @Tag(ORDER)
 class EvitaQLOrderConstraintVisitorTest {
+
+	/**
+	 * Verifies Java factory parity and type validation for exact attribute ordering.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Exact attribute ordering values")
+	class ExplicitAttributeOrderValues {
+
+		/**
+		 * Provides pairs of values in the exact order requested by the query.
+		 *
+		 * @return the accepted value pairs
+		 */
+		@Nonnull
+		static Stream<Arguments> attributeValues() {
+			return Stream.of(
+				Arguments.of(Currency.getInstance("USD"), Currency.getInstance("EUR")),
+				Arguments.of(Locale.GERMAN, Locale.ENGLISH),
+				Arguments.of(HistogramBehavior.OPTIMIZED, HistogramBehavior.EQUALIZED),
+				Arguments.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY),
+				Arguments.of(1.5d, 2.0d),
+				Arguments.of(1.5f, 2.5f)
+			);
+		}
+
+		/**
+		 * Checks scalar, list and separately bound ordering values in both binding modes.
+		 *
+		 * @param first first attribute value
+		 * @param second second attribute value
+		 */
+		@ParameterizedTest
+		@MethodSource("attributeValues")
+		@DisplayName("Order by a bound scalar or a list of attribute values")
+		void shouldParseExactOrderWithBoundValues(@Nonnull Serializable first, @Nonnull Serializable second) {
+			final OrderConstraint single = attributeSetExact("a", first);
+			final OrderConstraint multiple = attributeSetExact("a", first, second);
+			final List<Serializable> values = List.of(first, second);
+			assertAll(
+				() -> assertEquals(single, parseOrderConstraint("attributeSetExact(?, ?)", "a", first)),
+				() -> assertEquals(
+					single, parseOrderConstraint("attributeSetExact(@name, @v)", Map.of("name", "a", "v", first))
+				),
+				() -> assertEquals(multiple, parseOrderConstraint("attributeSetExact(?, ?)", "a", values)),
+				() -> assertEquals(
+					multiple, parseOrderConstraint("attributeSetExact(@name, @v)", Map.of("name", "a", "v", values))
+				),
+				() -> assertEquals(multiple, parseOrderConstraint("attributeSetExact(?, ?, ?)", "a", first, second)),
+				() -> assertEquals(
+					multiple,
+					parseOrderConstraint(
+						"attributeSetExact(@name, @v1, @v2)", Map.of("name", "a", "v1", first, "v2", second)
+					)
+				)
+			);
+		}
+
+		/**
+		 * Checks an array of ordering values in both binding modes.
+		 *
+		 * @param values the typed array to bind
+		 */
+		@ParameterizedTest
+		@MethodSource("orderingValueArrays")
+		@DisplayName("Expand a typed array in the exact order list")
+		void shouldParseExactOrderWithArrayOfValues(@Nonnull Serializable[] values) {
+			final OrderConstraint expected = attributeSetExact("a", values);
+			assertAll(
+				() -> assertEquals(expected, parseOrderConstraint("attributeSetExact(?, ?)", "a", values)),
+				() -> assertEquals(
+					expected, parseOrderConstraint("attributeSetExact(@name, @v)", Map.of("name", "a", "v", values))
+				)
+			);
+		}
+
+		/**
+		 * Supplies typed Java varargs arrays for exact ordering.
+		 *
+		 * @return arrays to bind as the entire ordering list
+		 */
+		@Nonnull
+		static Stream<Arguments> orderingValueArrays() {
+			return Stream.of(
+				Arguments.of((Object) new String[]{"a", "b"}),
+				Arguments.of((Object) new Double[]{1.5d, 2.0d}),
+				Arguments.of((Object) new Float[]{1.5f, 2.5f}),
+				Arguments.of((Object) new HistogramBehavior[]{HistogramBehavior.OPTIMIZED, HistogramBehavior.EQUALIZED})
+			);
+		}
+
+		/** Checks that unsafe enum literals supply ordinary enum names to the ordering. */
+		@Test
+		@DisplayName("Use enum names in unsafe ordering literals")
+		void shouldParseEnumLiteralsInExactOrder() {
+			assertEquals(
+				attributeSetExact("a", DayOfWeek.MONDAY, DayOfWeek.TUESDAY),
+				parseOrderConstraintUnsafe("attributeSetExact('a', MONDAY, TUESDAY)")
+			);
+		}
+
+
+		/** Checks positional and named wrapped arrays against the equivalent flat list in Java. */
+		@Test
+		@DisplayName("Expand sole array items in positional and named exact order lists")
+		void shouldExpandWrappedAttributeSetExactValues() {
+			final int[] numbers = {2, 1};
+			final String[] words = {"b", null, "a"};
+			assertAll(
+				() -> assertEquals(attributeSetExact("code", 2, 1),
+					parseOrderConstraint("attributeSetExact(?, ?)", "code", new Serializable[]{numbers})),
+				() -> assertEquals(attributeSetExact("code", "b", "a"),
+					parseOrderConstraint("attributeSetExact(@name, @values)",
+						Map.of("name", "code", "values", List.of((Object) words)))),
+				() -> assertEquals(Query.query(collection("Product")),
+					DefaultQueryParser.getInstance().parseQuery(
+						"query(collection(?), orderBy(attributeSetExact(?, ?)))",
+						"Product", "code", List.of((Object) new String[]{null})
+					))
+			);
+		}
+
+		/** Checks the diagnostics for values unsupported by the exact ordering list. */
+		@Test
+		@DisplayName("Name unsupported ordering value types in syntax errors")
+		void shouldRefuseUnsupportedExactOrderValues() {
+			assertAll(
+				() -> assertUnsupportedType(Predecessor.class, Predecessor.HEAD),
+				() -> assertUnsupportedType(Double.class, List.of(Double.NaN)),
+				() -> assertUnsupportedType(Float.class, List.of(Float.POSITIVE_INFINITY)),
+				() -> assertUnsupportedType(String[].class, List.of("a", new String[]{"a", "b"})),
+				() -> assertUnsupportedType(ReferencedEntityPredecessor.class,
+					List.of((Object) new ReferencedEntityPredecessor[]{ReferencedEntityPredecessor.HEAD}))
+			);
+		}
+
+		/**
+		 * Checks that a named exact-order binding fails with a syntax error naming its unsupported type.
+		 *
+		 * @param type the class expected in the error
+		 * @param value the unsupported value or a list containing it
+		 */
+		private void assertUnsupportedType(@Nonnull Class<?> type, @Nonnull Object value) {
+			final EvitaSyntaxException error = assertThrows(
+				EvitaSyntaxException.class,
+				() -> parseOrderConstraint("attributeSetExact(@name, @v)", Map.of("name", "a", "v", value))
+			);
+			assertTrue(error.getMessage().contains(type.getTypeName()), error::getMessage);
+		}
+
+	}
 
     @Test
     void shouldParseOrderByConstraint() {

@@ -28,6 +28,13 @@
             a single owner of a reference indexed `FOR_FILTERING` has none and is a row of the
             registry of single-owner partitions instead.
         </dd>
+        <dt>Group Histogram Entity Index</dt>
+        <dd>
+            The histogram-only GroupHistogramEntityIndex of one reference name, scope and assigned group PK.
+            Bucket bitmaps contain each owner once per value; counters retain contribution multiplicity.
+            It holds no entity rows and uses no representative tuple. Reduced group indexes provide its boundary
+            candidates. Local and cross-entity sweeps drop empty stores.
+        </dd>
         <dt>reference partition</dt>
         <dd>
             What the engine indexes about the owners of one Representative Reference Key in one
@@ -174,6 +181,7 @@ new immutable snapshot of each modified index
 | `ReferencePartitions` | evita_engine | The single resolver of partitions -- object-only, read, owner-read and write resolution |
 | `VirtualReferencePartitionIndex` | evita_engine | The <Term>registry of single-owner partitions</Term> carried by `ReferencedTypeEntityIndex` |
 | `VirtualReferencePartitionWriter` | evita_engine | Keeps the registry rows in step with owner-count transitions and with the sort values and chain predecessors written into a partition |
+| `GroupHistogramEntityIndex` | evita_engine | Histogram-only store per reference name, scope and assigned group PK |
 | `CatalogExpressionTriggerRegistryImpl` | evita_engine | Singleton registry for expression-based index triggers (facet + histogram) |
 | `AbstractExpressionIndexTriggerImpl` | evita_engine | Shared base for `FacetExpressionTriggerImpl` and `HistogramExpressionTriggerImpl` |
 | `FacetExpressionTriggerFactory` | evita_engine | Builds facet triggers from `facetedPartially` expressions |
@@ -205,7 +213,8 @@ entities that reference a specific target entity; a
 <Term name="reference attribute">reference-attribute</Term> filter data across all targets of a
 given reference name, and carries the <Term>registry of single-owner partitions</Term> that stands
 in for a `ReducedEntityIndex` of a partition with a single owner of a reference indexed
-`FOR_FILTERING`.
+`FOR_FILTERING`. A <Term name="Group Histogram Entity Index">`GroupHistogramEntityIndex`</Term> holds the
+histogram contributions of one assigned group and has empty membership, independently of its reduced indexes.
 
 See [Index Hierarchy](index-hierarchy.md#global) for the full taxonomy.
 
@@ -225,8 +234,9 @@ Each `EntityIndex` composes several inner data structures:
   in ReferencedType (see [data-structures.md](data-structures.md#price-indexes))
 - **CardinalityIndexes** -- `ReferenceTypeCardinalityIndex` and `AttributeCardinalityIndex`
   in ReferencedType (see [data-structures.md](data-structures.md#cardinality-indexes))
-- **HistogramIndex** -- `FilterIndex`-based bucketed histogram data in ReducedGroupEntityIndex
-  and ReferencedTypeEntityIndex (see [data-structures.md](data-structures.md#histogram-indexes))
+- **HistogramIndex** -- `FilterIndex`-based bucketed histogram data in `GroupHistogramEntityIndex` for assigned
+  groups and `ReferencedTypeEntityIndex` for contributions without a group
+  (see [data-structures.md](data-structures.md#histogram-indexes))
 
 The `FilterIndex`, `SortIndex`, and `UniqueIndex` are themselves built on a shared low-level
 data-structure engine -- a family of transactional B+ trees with columnar value columns -- documented
@@ -261,11 +271,13 @@ graph TD
         REI["ReducedEntityIndex"]
         RGEI["ReducedGroupEntityIndex"]
         RTEI["ReferencedTypeEntityIndex"]
+        GHI["GroupHistogramEntityIndex<br/><i>histograms only; empty base structures</i>"]
     end
 
     EI --> GEI
     EI --> AREI
     EI --> RTEI
+    EI --> GHI
     AREI --> REI
     AREI --> RGEI
 
@@ -311,7 +323,7 @@ graph TD
         HACI["AttributeCardinalityIndex<br/><i>(value cardinality tracking)</i>"]
     end
 
-    RGEI --> HII
+    GHI --> HII
     RTEI --> HII
     HII --> HFI
     HII --> HACI
@@ -335,6 +347,7 @@ graph TD
         T3["REFERENCED_ENTITY"]
         T4["REFERENCED_GROUP_ENTITY_TYPE"]
         T5["REFERENCED_GROUP_ENTITY"]
+        T6["REFERENCED_GROUP_HISTOGRAM"]
     end
 
     T1 -. "keys" .-> GEI
@@ -342,6 +355,7 @@ graph TD
     T3 -. "keys" .-> REI
     T4 -. "keys" .-> RTEI
     T5 -. "keys" .-> RGEI
+    T6 -. "keys" .-> GHI
 ```
 
 
@@ -354,6 +368,9 @@ The `entityIds` bitmap in each index type holds **different kinds of primary key
 | <Term name="Global Entity Index">`GlobalEntityIndex`</Term> | <Term name="owning entity">Owning entity</Term> PKs | All product PKs in the collection |
 | <Term name="Reduced Entity Index">`ReducedEntityIndex`</Term> | <Term name="owning entity">Owning entity</Term> PKs | PKs of products that reference brand #42 |
 | <Term name="Referenced Type Entity Index">`ReferencedTypeEntityIndex`</Term> | Partition PKs (one per reference partition, cardinality-guarded) | PKs of all brand-specific partitions, reduced indexes and registry rows alike |
+
+`GroupHistogramEntityIndex` has an empty `entityIds` bitmap and empty language membership. Histogram bucket
+bitmaps hold owning entity PKs; the group PK belongs to the store's key.
 
 <Term name="Global Entity Index">`GlobalEntityIndex`</Term> and
 <Term name="Reduced Entity Index">`ReducedEntityIndex`</Term> both store the primary keys of the
@@ -389,7 +406,7 @@ See [schema-settings.md](schema-settings.md#reference-index-type) for the full i
 
 | Document | Description |
 |----------|-------------|
-| [Index Hierarchy](index-hierarchy.md) | `EntityIndexType`, <Term name="Entity Index Key">`EntityIndexKey`</Term>, the three concrete index classes, and the two forms of a <Term>reference partition</Term> |
+| [Index Hierarchy](index-hierarchy.md) | Index types, keys, five concrete classes and reference partitions |
 | [Data Structures](data-structures.md) | Attribute, price, hierarchy, facet, and cardinality indexes |
 | [B+ Trees & Bucket Store](bplus-tree-bucket-store.md) | The transactional B+ tree family, columnar value columns, and scaled-int decimal keys that back the attribute indexes |
 | [Schema Settings](schema-settings.md) | How schema configuration controls index creation and lifecycle |

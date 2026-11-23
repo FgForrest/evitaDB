@@ -42,8 +42,8 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.LinkedList;
-import java.util.List;
+import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
 
@@ -58,64 +58,25 @@ import java.util.Set;
 public class AttributeContentTranslator implements RequireConstraintTranslator<AttributeContent> {
 
 	/**
-	 * Verifies if the attributes in the given attributeContent are known in the schema.
-	 *
-	 * @param attributeNames  The attribute content to verify.
-	 * @param schema          The attribute schema provider.
-	 * @param referenceSchema The optional reference schema.
-	 * @param entitySchema    The entity schema for attribute validation.
+	 * Every scope, read once - `Scope.values()` copies the array on each call.
 	 */
-	private static void verifyAttributesKnown(
-		@Nonnull String[] attributeNames,
-		@Nonnull AttributeSchemaProvider<?> schema,
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull EntitySchemaContract entitySchema
-	) {
-		for (String attributeName : attributeNames) {
-			Assert.isTrue(
-				schema.getAttribute(attributeName).isPresent(),
-				() -> referenceSchema == null ?
-					new AttributeNotFoundException(attributeName, entitySchema):
-					new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
-			);
-		}
-	}
+	private static final Scope[] SCOPES = Scope.values();
 
 	/**
-	 * Verifies if the attributes in the given attributeContent are known in the schema and not localized.
+	 * Returns true when the attribute is unique in any of the scopes - such an attribute can provide an implicit
+	 * locale, so naming it without a locale is not refused.
 	 *
-	 * @param attributeNames  The attribute content to verify.
-	 * @param schema          The attribute schema provider.
-	 * @param referenceSchema The optional reference schema.
-	 * @param entitySchema    The entity schema for attribute validation.
+	 * @param attribute the localized attribute
+	 * @param scopes    the scopes the uniqueness counts in
+	 * @return true when the attribute is unique in at least one of the scopes
 	 */
-	private static void verifyAttributesKnownAndNotLocalized(
-		@Nonnull String[] attributeNames,
-		@Nonnull AttributeSchemaProvider<? extends AttributeSchemaContract> schema,
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull Set<Scope> requestedScopes
-	) {
-		final List<String> missingLocalizedAttributes = new LinkedList<>();
-		for (String attributeName : attributeNames) {
-			final Optional<? extends AttributeSchemaContract> attributeSchema = schema.getAttribute(attributeName);
-			Assert.isTrue(
-				attributeSchema.isPresent(),
-				() -> referenceSchema == null ?
-					new AttributeNotFoundException(attributeName, entitySchema):
-					new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
-			);
-			// unique attributes could provide implicit locale
-			final AttributeSchemaContract as = attributeSchema.get();
-			if (as.isLocalized() && requestedScopes.stream().noneMatch(as::isUniqueInScope)) {
-				missingLocalizedAttributes.add(attributeName);
+	private static boolean isUniqueInAnyScope(@Nonnull AttributeSchemaContract attribute, @Nonnull Set<Scope> scopes) {
+		for (final Scope scope : SCOPES) {
+			if (scopes.contains(scope) && attribute.isUniqueInScope(scope)) {
+				return true;
 			}
 		}
-
-		if (!missingLocalizedAttributes.isEmpty()) {
-			throw new EntityLocaleMissingException(missingLocalizedAttributes.toArray(new String[0]));
-		}
-
+		return false;
 	}
 
 	@Nullable
@@ -176,6 +137,7 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 	/**
 	 * Validates named attributes against the given request - used by callers that derive the request of the body
 	 * themselves, such as the summary translators, whose bodies take their locale from the summary filter.
+	 * The uniqueness exemption uses the processing scopes, which below the main fetch are the query's searched scopes.
 	 *
 	 * @param entitySchema               the entity schema for attribute validation
 	 * @param referenceSchema            the optional reference schema
@@ -195,16 +157,56 @@ public class AttributeContentTranslator implements RequireConstraintTranslator<A
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor,
 		@Nonnull EvitaRequest evitaRequest
 	) {
-		final String[] attributeNames = attributeContent.getAttributeNames();
-		if (!ArrayUtils.isEmpty(attributeNames)) {
-			if (evitaRequest.getRequiredLocales() == null && evitaRequest.getImplicitLocale() == null) {
-				verifyAttributesKnownAndNotLocalized(
-					attributeNames, schema, referenceSchema, entitySchema,
-					extraResultPlanningVisitor.getProcessingScope().getScopes()
-				);
-			} else {
-				verifyAttributesKnown(attributeNames, schema, referenceSchema, entitySchema);
+		verifyAttributes(
+			entitySchema, referenceSchema, schema, attributeContent,
+			evitaRequest.getRequiredLocales() != null || evitaRequest.getImplicitLocale() != null,
+			extraResultPlanningVisitor.getProcessingScope().getScopes()
+		);
+	}
+
+	/**
+	 * Checks named attributes without deriving a body request or allocating on a successful lookup.
+	 * A localized attribute unique in any of the supplied scopes can supply an implicit locale.
+	 *
+	 * @param entitySchema the owning entity schema
+	 * @param referenceSchema the reference schema, or NULL for entity attributes
+	 * @param schema the provider of the attributes being checked
+	 * @param attributeContent the client content requirement as written
+	 * @param localeAvailable whether a locale is available at this level - the body's own, one inherited from an
+	 *                        enclosing fetch, or one resolved from the reference filter
+	 * @param scopes the scopes checked for a uniqueness index
+	 * @throws AttributeNotFoundException when a named attribute is unknown
+	 * @throws EntityLocaleMissingException when named localized attributes require a locale
+	 */
+	public static void verifyAttributes(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaProvider<?> schema,
+		@Nonnull AttributeContent attributeContent,
+		boolean localeAvailable,
+		@Nonnull Set<Scope> scopes
+	) {
+		final Serializable[] names = attributeContent.getArguments();
+		String[] missing = null;
+		int missingCount = 0;
+		for (int i = 0; i < names.length; i++) {
+			final String name = (String) names[i];
+			final AttributeSchemaContract attribute = schema.getAttributes().get(name);
+			if (attribute == null) {
+				throw referenceSchema == null ? new AttributeNotFoundException(name, entitySchema) :
+					new AttributeNotFoundException(name, referenceSchema, entitySchema);
 			}
+			if (!localeAvailable && attribute.isLocalized() && !isUniqueInAnyScope(attribute, scopes)) {
+				if (missing == null) {
+					missing = new String[names.length];
+				}
+				if (!ArrayUtils.contains(missing, name)) {
+					missing[missingCount++] = name;
+				}
+			}
+		}
+		if (missing != null) {
+			throw new EntityLocaleMissingException(Arrays.copyOf(missing, missingCount));
 		}
 	}
 

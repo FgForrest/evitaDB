@@ -41,8 +41,17 @@ import javax.annotation.Nonnull;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Async data fetcher which executes the logic of delegate fetcher in the future. Should be used only for reading data fetchers
- * as mutating data fetcher shouldn't be run in parallel anyway.
+ * Hands the work of a delegate data fetcher to an evitaDB executor instead of running it on the thread that executes
+ * the GraphQL request: a {@link ReadDataFetcher} goes to the request executor, a {@link WriteDataFetcher} to the
+ * transaction executor, and this fetcher returns a {@link CompletableFuture} of the delegate's result. Sibling query
+ * fields wrapped this way can therefore be fetched concurrently, while the GraphQL engine still executes mutation
+ * fields one after another. The current tracing context is carried over into the task, and the task is cancelled
+ * when the request is cancelled. When the `parallelize` option of {@link GraphQLOptions} is disabled, the delegate
+ * runs synchronously on the calling thread instead. Any other delegate type is rejected at construction.
+ *
+ * Wrap only fetchers of root fields. The fields nested in a mutation's response are completed by the query strategy,
+ * so wrapped nested fetchers would run in parallel, but they read through the mutation's read-write session, which
+ * rejects a second thread calling it concurrently.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

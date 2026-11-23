@@ -134,11 +134,11 @@
 		<java.release>${java.version}</java.release>
 		<java.driver.release>17</java.driver.release>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<slf4j.version>2.0.18</slf4j.version>
+		<slf4j.version>2.0.20</slf4j.version>
 		<logback.version>1.6.1</logback.version>
 		<kryo.version>5.6.2</kryo.version>
-		<jackson.version>2.22.4</jackson.version>
-		<jackson.annotations.version>2.22</jackson.annotations.version>
+		<jackson.version>2.23.0</jackson.version>
+		<jackson.annotations.version>2.23</jackson.annotations.version>
 		<snakeyaml.version>2.7</snakeyaml.version>
 		<roaringbitmap.version>1.6.29</roaringbitmap.version>
 		<junit.jupiter.version>6.1.3</junit.jupiter.version>
@@ -154,7 +154,7 @@
 		<prometheus.version>1.10.0</prometheus.version>
 		<micrometer.version>1.17.2</micrometer.version>
 		<byteBuddy.version>1.18.17</byteBuddy.version>
-		<graphql.version>25.0</graphql.version>
+		<graphql.version>26.0</graphql.version>
 		<caffeine.version>3.3.1</caffeine.version>
 		<okhttp.version>5.5.0</okhttp.version>
 		<opentelemetry.version>1.67.0</opentelemetry.version>
@@ -216,6 +216,11 @@
 
 	<dependencyManagement>
 		<dependencies>
+			<dependency>
+				<groupId>com.github.ben-manes.caffeine</groupId>
+				<artifactId>caffeine</artifactId>
+				<version>${caffeine.version}</version>
+			</dependency>
 			<dependency>
 				<groupId>com.esotericsoftware</groupId>
 				<artifactId>kryo</artifactId>

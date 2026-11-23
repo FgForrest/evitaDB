@@ -41,4 +41,12 @@ public interface CatalogsHeaderDescriptor {
 			""")
 		.type(nonNull(String.class))
 		.build();
+	PropertyDescriptor NEW_NAME = PropertyDescriptor.builder()
+		.name("newName")
+		.description("""
+			Second catalog name of a catalog action: the name of the new catalog for `duplicate`, the name of the
+			catalog to be replaced for `replace`.
+			""")
+		.type(nonNull(String.class))
+		.build();
 }

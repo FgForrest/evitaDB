@@ -621,7 +621,8 @@ histogramStatistics(
     <dt>requireConstraint:entityFetch?</dt>
     <dd>
         optional fetch describing how richly the **referenced (option) entities** that contributed to the histogram
-        should be loaded; mirrors the standard [`entityFetch`](fetching.md#entity-fetch)
+        should be loaded. In EvitaQL, place [`entityFetch`](fetching.md#entity-fetch) before or after the index names.
+        When the fetch comes before the names, the optional behavior may appear on either side of the fetch.
     </dd>
     <dt>argument:string!+</dt>
     <dd>

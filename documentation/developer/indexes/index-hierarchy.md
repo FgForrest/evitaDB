@@ -1,8 +1,9 @@
 # The EntityIndex Hierarchy
 
 This document describes the `EntityIndex` class hierarchy, the `EntityIndexType` enum, the
-`EntityIndexKey` addressing scheme, the three concrete index implementations:
-`GlobalEntityIndex`, `ReducedEntityIndex`, and `ReferencedTypeEntityIndex`, and the two forms a
+`EntityIndexKey` addressing scheme, the five concrete index implementations:
+`GlobalEntityIndex`, `ReducedEntityIndex`, `ReducedGroupEntityIndex`, `ReferencedTypeEntityIndex` and
+`GroupHistogramEntityIndex`, and the two forms a
 reference partition takes -- a `ReducedEntityIndex`, or a row of the registry of single-owner partitions
 (see [Reference Partitions](#reference-partitions-and-the-registry-of-single-owner-partitions)).
 
@@ -176,6 +177,23 @@ Key behavioral differences from `ReducedEntityIndex`:
 primary key, and representative attribute values.
 
 
+### REFERENCED_GROUP_HISTOGRAM
+
+A histogram-only `GroupHistogramEntityIndex` for one reference name, scope and assigned group primary key.
+`GroupHistogramEntityIndex#keyOf` constructs its key with the group PK and an empty representative tuple.
+It holds each admitted histogram contribution once, with counters per value and owner, independently of the
+number of reduced group indexes. Local and cross-entity writers use the same destination.
+
+Entity and language bitmaps, attributes, facets, hierarchy and prices stay empty; row mutators refuse.
+The store is not a reference partition and is not advertised by the group-type index. An admitted value creates
+it, and local or cross-entity sweeps remove it when its histogram map is empty. Its reload plan refuses persisted
+membership or a manifest naming non-histogram data.
+
+Grouped histogram computation reads this store. Boundary resolution uses all reduced indexes listed for the
+group, so the group-type index must track the group before a histogram value is inserted.
+
+**Discriminator:** `RepresentativeReferenceKey(referenceName, groupPk)`, without representative values.
+
 ## EntityIndexKey
 
 <Term location="/documentation/developer/indexes/overview.md" name="Entity Index Key">`EntityIndexKey`</Term>
@@ -199,6 +217,7 @@ public record EntityIndexKey(
 | `REFERENCED_ENTITY` | LIVE or ARCHIVED | `RepresentativeReferenceKey` | `(REF_ENTITY, LIVE, {brand/42, []})` |
 | `REFERENCED_GROUP_ENTITY_TYPE` | LIVE or ARCHIVED | `String` | `(REF_GROUP_TYPE, LIVE, "category")` |
 | `REFERENCED_GROUP_ENTITY` | LIVE or ARCHIVED | `RepresentativeReferenceKey` | `(REF_GROUP, LIVE, {brand/42, []})` |
+| `REFERENCED_GROUP_HISTOGRAM` | LIVE or ARCHIVED | `RepresentativeReferenceKey` | `keyOf("brand", 7, LIVE)` |
 
 ### Constructor validation
 
@@ -208,7 +227,7 @@ The constructor enforces strict type-safety between the `EntityIndexType` and th
   `GenericEvitaInternalError`.
 - **`REFERENCED_ENTITY_TYPE`** and **`REFERENCED_GROUP_ENTITY_TYPE`** require a `String`
   discriminator (the reference name).
-- **`REFERENCED_ENTITY`** and **`REFERENCED_GROUP_ENTITY`** require a
+- **`REFERENCED_ENTITY`**, **`REFERENCED_GROUP_ENTITY`** and **`REFERENCED_GROUP_HISTOGRAM`** require a
   <Term location="/documentation/developer/indexes/overview.md" name="Representative Reference Key">`RepresentativeReferenceKey`</Term>
   discriminator.
 - Any other discriminator type throws `GenericEvitaInternalError`.
@@ -223,7 +242,7 @@ The constructor enforces strict type-safety between the `EntityIndexType` and th
      <Term location="/documentation/developer/indexes/overview.md" name="scope">`Scope`</Term>
      ordinal
    - `*_TYPE` variants: lexicographic by the `String` discriminator
-   - `*_ENTITY` variants: by `RepresentativeReferenceKey.compareTo()`
+   - `RepresentativeReferenceKey` variants: by `RepresentativeReferenceKey.compareTo()`
 
 
 ## RepresentativeReferenceKey
@@ -292,6 +311,13 @@ classDiagram
         +removePrimaryKey(int, int) bool
     }
 
+    class GroupHistogramEntityIndex {
+        -VoidPriceIndex priceIndex
+        -TransactionalMap histogramIndexes
+        +keyOf(String, int, Scope)$ EntityIndexKey
+        +isEmpty() bool
+    }
+
     class ReferencedTypeEntityIndex {
         -VoidPriceIndex priceIndex
         -ReferenceTypeCardinalityIndex indexPrimaryKeyCardinality
@@ -304,6 +330,7 @@ classDiagram
     EntityIndex <|-- GlobalEntityIndex
     EntityIndex <|-- AbstractReducedEntityIndex
     EntityIndex <|-- ReferencedTypeEntityIndex
+    EntityIndex <|-- GroupHistogramEntityIndex
     AbstractReducedEntityIndex <|-- ReducedEntityIndex
     AbstractReducedEntityIndex <|-- ReducedGroupEntityIndex
 ```
@@ -318,7 +345,10 @@ classDiagram
 | `REFERENCED_ENTITY` | `ReducedEntityIndex` | `RepresentativeReferenceKey` | `PriceRefIndex` | No | Per-target partitioned view for fast lookups |
 | `REFERENCED_GROUP_ENTITY_TYPE` | `ReferencedTypeEntityIndex` | `String` | `VoidPriceIndex` | Yes | Group-level reference attribute filters |
 | `REFERENCED_GROUP_ENTITY` | `ReducedGroupEntityIndex` | `RepresentativeReferenceKey` | `PriceRefIndex` | Yes (PK + attribute) | Per-group partitioned view with cardinality tracking |
+| `REFERENCED_GROUP_HISTOGRAM` | `GroupHistogramEntityIndex` | RRK | Void | Value/owner | Group histograms |
 
+For the histogram store, RRK denotes `RepresentativeReferenceKey(referenceName, groupPk)` with an empty tuple,
+and Void denotes `VoidPriceIndex`. It carries no entity rows.
 
 ## GlobalEntityIndex -- Deep Dive
 
@@ -428,6 +458,9 @@ Asserting that every locale removal must succeed would produce false negatives.
 **cardinality tracking** for primary keys and filter attributes. It handles
 `REFERENCED_GROUP_ENTITY` indexes and is created when a reference schema has
 `ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY` enabled.
+
+The group's histograms live in the separate [group store](#referenced_group_histogram); the reduced index supplies
+reference-attribute filters and owner mappings for boundary resolution.
 
 ### Why cardinality tracking is needed
 

@@ -1,0 +1,1 @@
+POST /rest/system/catalogs-async/evita/actions/duplicate/evitaAsyncCopy

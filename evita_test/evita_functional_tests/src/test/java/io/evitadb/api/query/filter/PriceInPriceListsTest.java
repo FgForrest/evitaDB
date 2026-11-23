@@ -90,15 +90,48 @@ class PriceInPriceListsTest {
 		}
 
 		/**
-		 * A null item is an undefined value and is dropped; the filter stays and matches nothing instead of widening
-		 * the result.
+		 * Omits the filter when a single value is undefined.
 		 */
 		@Test
-		@DisplayName("should match nothing for a null value item")
-		void shouldMatchNothingWhenValueItemIsNull() {
-			final String nullString = null;
+		@DisplayName("should leave the constraint out for a null variable")
+		void shouldReturnNullForNullVariable() {
+			final String value = null;
 
-			assertArrayEquals(new String[0], priceInPriceLists(nullString).getPriceLists());
+			assertNull(priceInPriceLists(value));
+		}
+
+		/**
+		 * Keeps the filter applicable with no matches when an explicit list contains only nulls.
+		 */
+		@Test
+		@DisplayName("should match nothing for a list of only nulls")
+		void shouldMatchNothingWhenValueItemIsNull() {
+			assertArrayEquals(new String[0], priceInPriceLists(new String[]{null}).getPriceLists());
+			assertArrayEquals(new String[0], priceInPriceLists(null, null).getPriceLists());
+		}
+
+		/**
+		 * Compares a defined single value with a one-item list of the same value.
+		 */
+		@Test
+		@DisplayName("should produce equal constraints for a single value and a one-item list")
+		void shouldMatchOneItemListForSingleValue() {
+			assertEquals(priceInPriceLists(new String[]{"basic"}), priceInPriceLists("basic"));
+		}
+
+		/**
+		 * Omits the filter for blank variables and literals.
+		 */
+		@Test
+		@DisplayName("should leave the constraint out for a blank price list")
+		void shouldReturnNullForBlankPriceList() {
+			final String priceList = " ";
+
+			assertAll(
+				() -> assertNull(priceInPriceLists(priceList)),
+				() -> assertNull(priceInPriceLists(" ")),
+				() -> assertNull(priceInPriceLists(""))
+			);
 		}
 
 		@Test

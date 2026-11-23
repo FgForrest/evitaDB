@@ -65,7 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Covers the audit half of the v6 to v7 upgrade: the part that does not repair anything, but tells the operator
+ * Covers the audit half of the v6 to v9 upgrade: the part that does not repair anything, but tells the operator
  * that a reindex is needed and — just as importantly — when it could not tell them anything at all.
  *
  * {@link Migration_2026_3_Test} pins the counter re-key as a pure transform and
@@ -81,7 +81,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Migration_2026_3 — pre-existing damage audit (v6→v7)")
+@DisplayName("Migration_2026_3 — pre-existing damage audit (v6→v9)")
 @Tag(STORAGE)
 @Tag(INDEXING)
 @SuppressWarnings("removal") // the migration interface is @Deprecated(forRemoval); testing it is the point

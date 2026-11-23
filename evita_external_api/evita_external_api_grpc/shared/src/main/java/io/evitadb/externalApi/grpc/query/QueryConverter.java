@@ -167,6 +167,8 @@ public final class QueryConverter {
 			return toTraversalMode(GrpcQueryParam.getTraversalMode());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.HIERARCHYPARENTSBEHAVIOUR) {
 			return toHierarchyParentsBehaviour(GrpcQueryParam.getHierarchyParentsBehaviour());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.QUERYTELEMETRYCONTENT) {
+			return toQueryTelemetryContent(GrpcQueryParam.getQueryTelemetryContent());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.EXPRESSIONVALUE) {
 			return GrpcQueryParam.getExpressionValue();
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STRINGARRAYVALUE) {
@@ -330,6 +332,8 @@ public final class QueryConverter {
 			builder.setTraversalMode(EvitaEnumConverter.toGrpcTraversalMode(traversalMode));
 		} else if (parameter instanceof final HierarchyParentsBehaviour hierarchyParentsBehaviour) {
 			builder.setHierarchyParentsBehaviour(EvitaEnumConverter.toGrpcHierarchyParentsBehaviour(hierarchyParentsBehaviour));
+		} else if (parameter instanceof final QueryTelemetryContent queryTelemetryContent) {
+			builder.setQueryTelemetryContent(toGrpcQueryTelemetryContent(queryTelemetryContent));
 		} else if (parameter instanceof Expression expression) {
 			// the receiving side parses the text; toString() would quote it into a string constant
 			builder.setExpressionValue(expression.toExpressionString());

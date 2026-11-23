@@ -109,6 +109,7 @@ import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.extraResult.translator.reference.EntityFetchContentVerifier;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.response.ServerEntityDecorator;
@@ -670,11 +671,30 @@ public final class EntityCollection implements
 	 * Creates the collector of a new root entity mutation applied to this collection. The collector is then shared by
 	 * every implicit and reflected mutation the root mutation spawns, in this collection or in another one.
 	 *
+	 * The collector carries the catalog's configured {@link MissingHistogramValueBehavior}, which is the behavior of
+	 * session writes; the replay of a committed mutation through {@link #applyMutation(EntityMutation)} uses
+	 * {@link MissingHistogramValueBehavior#REPORT} instead.
+	 *
 	 * @return a fresh collector for one root entity mutation
 	 */
 	@Nonnull
 	LocalMutationExecutorCollector createLocalMutationExecutorCollector() {
-		return new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader);
+		return createLocalMutationExecutorCollector(this.catalog.getMissingHistogramValueBehavior());
+	}
+
+	/**
+	 * Creates the root collector, which supplies the effective policy to every nested executor.
+	 *
+	 * @param missingHistogramValueBehavior the effective policy for missing histogram values
+	 * @return a fresh collector for this root mutation
+	 */
+	@Nonnull
+	private LocalMutationExecutorCollector createLocalMutationExecutorCollector(
+		@Nonnull MissingHistogramValueBehavior missingHistogramValueBehavior
+	) {
+		return new LocalMutationExecutorCollector(
+			this.catalog, this.persistenceService, this.dataStoreReader, missingHistogramValueBehavior
+		);
 	}
 
 	/**
@@ -705,9 +725,11 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public Optional<SealedEntity> getEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		// a fetch is not planned, so the structural rules `QueryPlanner#planQuery` checks for a query are checked here
-		// - the reference content filters of the requirements are evaluated directly by the reference fetcher
+		// a fetch is not planned, so the structural rules `QueryPlanner#planQuery` checks for a query are checked here,
+		// and so are the names and the locales of the content it asks for - the reference content filters of the
+		// requirements are evaluated directly by the reference fetcher
 		assertScopeUsageValid(evitaRequest);
+		EntityFetchContentVerifier.verifyEntityFetchContent(evitaRequest, getSchema(), this.catalog.getSchema());
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 
 		// record query information
@@ -723,6 +745,7 @@ public final class EntityCollection implements
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		// see `getEntity` - an enrichment is not planned either
 		assertScopeUsageValid(evitaRequest);
+		EntityFetchContentVerifier.verifyEntityFetchContent(evitaRequest, getSchema(), this.catalog.getSchema());
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		// enrichment adds and never subtracts, so the named sets this entity already carries have to survive a
 		// request that does not mention them. They are fetched again rather than carried over: this read may land on
@@ -778,28 +801,6 @@ public final class EntityCollection implements
 		return new InitialEntityBuilder(getSchema(), primaryKey);
 	}
 
-	/**
-	 * Same method as {@link #upsertEntity(EvitaSessionContract, EntityMutation)}, but in internal API that doesn't
-	 * require session in the input. This method is used from transactional replayer that doesn't have session available.
-	 */
-	@Nonnull
-	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		return upsertEntityInternal(
-			null,
-			entityMutation,
-			entityMutation.getEntityPrimaryKey() == null ? this.defaultMinimalQuery : null,
-			EntityReference.class
-		).orElseThrow(
-			() -> new EntityMissingException(
-				getEntityType(),
-				entityMutation.getEntityPrimaryKey() == null ?
-					ArrayUtils.EMPTY_INT_ARRAY :
-					new int[]{entityMutation.getEntityPrimaryKey()},
-				null
-			)
-		);
-	}
-
 	@Override
 	@Nonnull
 	public EntityReferenceContract upsertEntity(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException {
@@ -826,7 +827,8 @@ public final class EntityCollection implements
 		@Nonnull EntityMutation entityMutation,
 		@Nonnull EvitaRequest evitaRequest
 	) {
-		// refused before the mutation - the reference fetcher evaluating the requirements runs only after it
+		// refused before the mutation - the reference fetcher evaluating the requirements runs only after it; the
+		// content it asks for is checked in `upsertEntityInternal`, against the schema the mutation may evolve
 		assertScopeUsageValid(evitaRequest);
 		final ServerEntityDecorator internalEntity =
 			wrapToDecorator(
@@ -867,6 +869,7 @@ public final class EntityCollection implements
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		// see `upsertAndFetchEntity` - refused before the entity is removed
 		assertScopeUsageValid(evitaRequest);
+		EntityFetchContentVerifier.verifyEntityFetchContent(evitaRequest, getSchema(), this.catalog.getSchema());
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -915,6 +918,7 @@ public final class EntityCollection implements
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		// see `upsertAndFetchEntity` - refused before any entity of the hierarchy is removed
 		assertScopeUsageValid(evitaRequest);
+		EntityFetchContentVerifier.verifyEntityFetchContent(evitaRequest, getSchema(), this.catalog.getSchema());
 		final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 		if (globalIndex != null) {
 			final int[] primaryKeys = evitaRequest.getPrimaryKeys();
@@ -993,6 +997,7 @@ public final class EntityCollection implements
 	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		// see `upsertAndFetchEntity` - refused before the entity changes its scope
 		assertScopeUsageValid(evitaRequest);
+		EntityFetchContentVerifier.verifyEntityFetchContent(evitaRequest, getSchema(), this.catalog.getSchema());
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -1027,6 +1032,7 @@ public final class EntityCollection implements
 	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
 		// see `upsertAndFetchEntity` - refused before the entity changes its scope
 		assertScopeUsageValid(evitaRequest);
+		EntityFetchContentVerifier.verifyEntityFetchContent(evitaRequest, getSchema(), this.catalog.getSchema());
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalArchiveIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -1069,16 +1075,22 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Same method as {@link #applyMutation(EvitaSessionContract, EntityMutation)}, but in internal API that doesn't
-	 * require session in the input. This method is used from transactional replayer that doesn't have session available.
+	 * Replays a committed entity mutation. Missing histogram values are reported so WAL incorporation can proceed.
+	 *
+	 * @param entityMutation the entity mutation to apply
+	 * @throws InvalidMutationException when the mutation type is unsupported
 	 */
 	public void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		applyMutationInternal(null, entityMutation);
+		applyMutationInternal(
+			null, entityMutation, createLocalMutationExecutorCollector(MissingHistogramValueBehavior.REPORT)
+		);
 	}
 
 	@Override
-	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException {
-		applyMutationInternal(session, entityMutation);
+	public void applyMutation(
+		@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation
+	) throws InvalidMutationException {
+		applyMutationInternal(session, entityMutation, createLocalMutationExecutorCollector());
 	}
 
 	@Nonnull
@@ -2305,8 +2317,8 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Applies limit & enrich logic on provided collection of entities fetched in unknown richness so that they conform
-	 * to passed fetch request. For deep fetching of references, the reference fetcher is used.
+	 * Applies limit and enrich logic on provided collection of entities fetched in unknown richness so that they
+	 * conform to passed fetch request. For deep fetching of references, the reference fetcher is used.
 	 *
 	 * @param entities The collection of sealed entities to be processed.
 	 * @param fetchRequest The request containing the parameters for fetching and limiting the entities.
@@ -2718,17 +2730,21 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Applies an entity mutation internally by assessing the type of mutation
-	 * and performing the appropriate operation.
+	 * Applies the root mutation using its collector, also shared by its implicit and reflected mutations.
 	 *
-	 * @param session the Evita session that may be involved in the transaction; can be null.
-	 * @param entityMutation the mutation operation to be applied to an entity; must not be null.
-	 * @throws InvalidMutationException if an unsupported mutation type is encountered.
+	 * @param session the session, or null for internal replay
+	 * @param entityMutation the mutation to apply
+	 * @param collector the root collector carrying the effective histogram policy
+	 * @throws InvalidMutationException if the mutation type is unsupported
 	 */
-	private void applyMutationInternal(@Nullable EvitaSessionContract session, @Nonnull EntityMutation entityMutation) {
+	private void applyMutationInternal(
+		@Nullable EvitaSessionContract session,
+		@Nonnull EntityMutation entityMutation,
+		@Nonnull LocalMutationExecutorCollector collector
+	) {
 		switch (entityMutation) {
 			case EntityUpsertMutation upsertMutation ->
-				upsertEntityInternal(session, upsertMutation, null, Void.class);
+				upsertEntityInternal(session, upsertMutation, null, Void.class, collector);
 			case ServerEntityRemoveMutation removeMutation -> applyMutations(
 				session,
 				removeMutation,
@@ -2736,7 +2752,7 @@ public final class EntityCollection implements
 				removeMutation.shouldVerifyConsistency(),
 				null,
 				removeMutation.getImplicitMutationsBehavior(),
-				createLocalMutationExecutorCollector(),
+				collector,
 				Void.class
 			);
 			case EntityRemoveMutation entityRemoveMutation -> applyMutations(
@@ -2746,7 +2762,7 @@ public final class EntityCollection implements
 				true,
 				null,
 				EnumSet.noneOf(ImplicitMutationBehavior.class),
-				createLocalMutationExecutorCollector(),
+				collector,
 				Void.class
 			);
 			default -> throw new InvalidMutationException(
@@ -3975,6 +3991,19 @@ public final class EntityCollection implements
 
 	/**
 	 * Creates or updates entity and returns its primary key.
+	 *
+	 * The content an `upsertAndFetchEntity` asks for is checked against the schema after the mutation evolved it and
+	 * before the mutation is applied, as a planned query checks it: a refused call writes no entity. The refusal does
+	 * not revert the evolved schema, or a collection created for the entity - they share the fate of the session's
+	 * transaction, which the session marks rollback-only when the refusal escapes its outermost call, and they stay
+	 * in a catalog in warm-up. A plain upsert and the transactional replay fetch nothing, so they check nothing.
+	 *
+	 * @param <T> requested mutation result: a fetched body with I/O counts, an entity reference, or `Void`
+	 * @param session active caller used for schema evolution and mutation processing; `null` during WAL replay
+	 * @param entityMutation changes to validate against the current schema and apply to the entity
+	 * @param returnUpdatedEntity fetch requirements for the updated body; `null` when no body is requested
+	 * @param returnType selects a fetched body with I/O counts, an entity reference, or `Void` for no result
+	 * @return the requested mutation result, or an empty optional when `returnType` is `Void`
 	 */
 	@Nonnull
 	private <T> Optional<T> upsertEntityInternal(
@@ -3982,6 +4011,30 @@ public final class EntityCollection implements
 		@Nonnull EntityMutation entityMutation,
 		@Nullable EvitaRequest returnUpdatedEntity,
 		@Nonnull Class<T> returnType
+	) {
+		return upsertEntityInternal(
+			session, entityMutation, returnUpdatedEntity, returnType, createLocalMutationExecutorCollector()
+		);
+	}
+
+	/**
+	 * Validates and applies an upsert with the collector of its root mutation.
+	 *
+	 * @param session the session, or null for internal replay
+	 * @param entityMutation the entity upsert
+	 * @param returnUpdatedEntity the requested returned content, or null
+	 * @param returnType the result type
+	 * @param collector the root collector carrying the effective histogram policy
+	 * @param <T> the returned result type
+	 * @return the requested result when present
+	 */
+	@Nonnull
+	private <T> Optional<T> upsertEntityInternal(
+		@Nullable EvitaSessionContract session,
+		@Nonnull EntityMutation entityMutation,
+		@Nullable EvitaRequest returnUpdatedEntity,
+		@Nonnull Class<T> returnType,
+		@Nonnull LocalMutationExecutorCollector collector
 	) {
 		// verify mutation against schema
 		// it was already executed when mutation was created, but there are two reasons to do it again
@@ -4029,6 +4082,13 @@ public final class EntityCollection implements
 
 		// check the existence of the primary key and report error when unexpectedly (not) provided
 		final SealedEntitySchema currentSchema = getSchema();
+		// the content a fetching upsert asks for is checked here - against the schema evolved above, and before the
+		// mutation is applied
+		if (returnType == EntityWithFetchCount.class && returnUpdatedEntity != null) {
+			EntityFetchContentVerifier.verifyEntityFetchContent(
+				returnUpdatedEntity, currentSchema, this.catalog.getSchema()
+			);
+		}
 
 		final EntityMutation entityMutationToUpsert;
 		if (entityMutation instanceof ServerEntityUpsertMutation veum) {
@@ -4040,7 +4100,7 @@ public final class EntityCollection implements
 				veum.shouldVerifyConsistency(),
 				returnUpdatedEntity,
 				veum.getImplicitMutationsBehavior(),
-				createLocalMutationExecutorCollector(),
+				collector,
 				returnType
 			);
 		} else {
@@ -4052,7 +4112,7 @@ public final class EntityCollection implements
 				true,
 				returnUpdatedEntity,
 				EnumSet.allOf(ImplicitMutationBehavior.class),
-				createLocalMutationExecutorCollector(),
+				collector,
 				returnType
 			);
 		}
@@ -4172,7 +4232,7 @@ public final class EntityCollection implements
 			// their counters belong to the catalog rather than to whichever collection happened to write one
 			this.catalog.getUsageRegistry(),
 			this.catalog.isUsageStatisticsTracked(),
-			this.entityIndexCreator.getMissingHistogramValueBehavior(),
+			localMutationExecutorCollector.getMissingHistogramValueBehavior(),
 			// the collector is shared by the whole root mutation, so its executors share the reservations too
 			localMutationExecutorCollector.getPartitionReservations()
 		);
@@ -5090,15 +5150,6 @@ public final class EntityCollection implements
 			final EntityCollection sourceCollection = EntityCollection.this.catalog
 				.getCollectionForEntityOrThrowException(entityType);
 			return sourceCollection.getInternalSchema().getLocales();
-		}
-
-		/**
-		 * Answers the catalog's behavior, so every executor of the collection reads the one value.
-		 */
-		@Nonnull
-		@Override
-		public MissingHistogramValueBehavior getMissingHistogramValueBehavior() {
-			return EntityCollection.this.catalog.getMissingHistogramValueBehavior();
 		}
 
 		/**

@@ -35,6 +35,8 @@ server:                                           # [see Server configuration](#
   readOnly: false
   quiet: false
   usageStatisticsTracking: true
+  engineMutationProgressRetentionInSeconds: 300
+  engineMutationProgressRetentionLimit: 100
   trafficRecording:
     enabled: false
     sourceQueryTracking: false
@@ -144,6 +146,8 @@ api:                                              # [see API configuration](#api
       keepAlive: null
       parallelize: true
       documentCacheSizeInBytes: 16MB
+      maxQueryDepth: 100
+      maxQueryFieldsCount: 100000
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -183,7 +187,7 @@ api:                                              # [see API configuration](#api
       enabled: null
       host: null
       exposeOn: null
-      tlsMode: null
+      tlsMode: FORCE_NO_TLS
       keepAlive: null
       tracing:
         serviceName: evitaDB
@@ -506,6 +510,26 @@ This section contains general settings for the evitaDB server. It allows configu
            what changes is that each row reports itself as **not measured** instead of reporting zeros. Treat that
            distinction as load-bearing: a zero request count against a live observation window reads as *"nothing uses
            this flag, drop it"*, which is a destructive conclusion to draw when the truth is that nobody was counting.</p>
+    </dd>
+    <dt>engineMutationProgressRetentionInSeconds</dt>
+    <dd>
+        <p>**Default:** `300` (5 minutes); `0` forgets the outcome immediately</p>
+        <p>Every engine-level operation (creating, renaming, replacing, duplicating, activating, deactivating, deleting
+           a catalog, switching it alive or changing its mutability) is tracked under a progress id. The GraphQL and
+           REST system APIs hand the id to the client of a `...WithProgress` / asynchronous call, and the client
+           subscribes to the progress of the operation with it. This setting specifies how long, counted from its
+           completion, the outcome of a finished operation stays available, so that a client which subscribes after
+           the operation has finished still learns how it ended. Running operations are never forgotten.</p>
+        <p>The outcomes are kept in memory only: after a server restart, or on another node of a cluster, the id is
+           unknown and the client has to read the state of the catalog instead.</p>
+    </dd>
+    <dt>engineMutationProgressRetentionLimit</dt>
+    <dd>
+        <p>**Default:** `100`; `0` retains no outcome</p>
+        <p>Maximum number of finished operation outcomes retained at once (see
+           `engineMutationProgressRetentionInSeconds`). Running operations never count towards the limit. The limit is
+           shared by all clients and all APIs (including gRPC and the Java API), so a burst of engine operations issued by
+           other clients may evict an outcome before a slow client subscribes to it.</p>
     </dd>
 </dl>
 
@@ -1295,7 +1319,15 @@ provide an unsecured connection for security reasons.
 ### Default endpoint configuration
 
 Default endpoint settings are used as the basis for all endpoints unless overridden in the specific endpoint.
-This allows you to set common settings for all endpoints in one place.
+This allows you to set common settings for all endpoints in one place. The server merges user configuration over
+its bundled configuration, then fills every missing or `null` endpoint key from `api.endpointDefaults`. An unquoted
+empty YAML value (for example, `tlsMode:`) is also `null` and follows this rule. Setting only
+`api.endpoints.system.tlsMode: null` therefore inherits the shared `FORCE_TLS` value; use `FORCE_NO_TLS` to keep
+that endpoint on plain HTTP.
+
+When both the shared and endpoint `tlsMode` are `null`, the options use the endpoint's own default: `FORCE_TLS`
+for GraphQL, REST, gRPC and evitaLab, and `FORCE_NO_TLS` for system and observability. These defaults also apply
+when constructing endpoint options programmatically without a TLS mode.
 
 <dl>
     <dt>enabled</dt>
@@ -1332,6 +1364,12 @@ This allows you to set common settings for all endpoints in one place.
             <li>`FORCE_NO_TLS`: Only unencrypted (non-TLS) communication is allowed.</li>
             <li>`RELAXED`: Both variants will be available, depending on the client's choice.</li>
         </ol>
+        <p>Names are case-sensitive and must exactly match `FORCE_TLS`, `FORCE_NO_TLS` or `RELAXED`.
+        Any other non-null value an endpoint ends up with, whether set on the endpoint or inherited from
+        `api.endpointDefaults`, fails server startup with a configuration error identifying the invalid value and
+        accepted names. This includes a quoted empty string (`""`). A shared value that no endpoint inherits, because
+        every endpoint sets its own, is never used and therefore not checked. A `null` value follows the inheritance
+        rule above.</p>
     </dd>
     <dt>keepAlive</dt>
     <dd>
@@ -1371,12 +1409,17 @@ This allows you to set common settings for all endpoints in one place.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
+        <p>Accepted values: `FORCE_TLS`, `FORCE_NO_TLS`, `RELAXED`; unknown names fail startup.</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>parallelize</dt>
     <dd>
         <p>**Default:** `true`</p>
-        <p>Controls whether queries that fetch data from evitaDB engine will be executed in parallel.</p>
+        <p>Controls whether GraphQL queries and mutations are executed asynchronously on the evitaDB engine thread
+        pools - queries on the `requestThreadPool`, mutations on the `transactionThreadPool` (see
+        [server configuration](#server-configuration)) - which lets the top-level fields of a single query be fetched
+        concurrently. When `false`, they run on the thread that processes the request. Subscriptions are not
+        affected.</p>
     </dd>
     <dt>documentCacheSizeInBytes</dt>
     <dd>
@@ -1392,6 +1435,24 @@ This allows you to set common settings for all endpoints in one place.
         are dominated by a fixed cost of several hundred bytes). The cache of a catalog is
         discarded whenever its GraphQL schema is rebuilt (e.g. after a catalog schema change).</p>
         <p>Set to `0` to disable the cache. Negative values are rejected.</p>
+    </dd>
+    <dt>maxQueryDepth</dt>
+    <dd>
+        <p>**Default:** `100`</p>
+        <p>Maximum depth of field selections in a GraphQL query, with fragments expanded. A deeper query is rejected
+        with a validation error before it is executed. The limit is checked on the query document sent by the
+        client, so it does not depend on the size of the catalog schema or of the result.</p>
+        <p>Introspection queries are additionally capped by graphql-java to a depth of 20 and 500 fields, whatever
+        the configured limits are.</p>
+        <p>The value must be positive.</p>
+    </dd>
+    <dt>maxQueryFieldsCount</dt>
+    <dd>
+        <p>**Default:** `100000`</p>
+        <p>Maximum number of fields in a GraphQL query, counted with every fragment spread expanded. A query with more
+        fields is rejected with a validation error before it is executed. Like `maxQueryDepth`, the limit protects
+        the server against needlessly expensive documents and applies to the query document, not to the result.</p>
+        <p>The value must be positive.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>
@@ -1426,6 +1487,7 @@ This allows you to set common settings for all endpoints in one place.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
+        <p>Accepted values: `FORCE_TLS`, `FORCE_NO_TLS`, `RELAXED`; unknown names fail startup.</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>mTls.enabled</dt>
@@ -1461,6 +1523,7 @@ This allows you to set common settings for all endpoints in one place.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
+        <p>Accepted values: `FORCE_TLS`, `FORCE_NO_TLS`, `RELAXED`; unknown names fail startup.</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>exposeDocsService</dt>
@@ -1530,6 +1593,7 @@ more information. Client certificates and private keys are not distributed in cu
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_NO_TLS`</p>
+        <p>Accepted values: `FORCE_TLS`, `FORCE_NO_TLS`, `RELAXED`; unknown names fail startup.</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>mTls.enabled</dt>
@@ -1570,6 +1634,7 @@ of other APIs.
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_TLS`</p>
+        <p>Accepted values: `FORCE_TLS`, `FORCE_NO_TLS`, `RELAXED`; unknown names fail startup.</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>gui</dt>
@@ -1631,6 +1696,7 @@ for scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
     <dt>tlsMode</dt>
     <dd>
         <p>**Default:** `FORCE_NO_TLS`</p>
+        <p>Accepted values: `FORCE_TLS`, `FORCE_NO_TLS`, `RELAXED`; unknown names fail startup.</p>
         <p>See [default endpoint configuration](#default-endpoint-configuration)</p>
     </dd>
     <dt>tracing.serviceName</dt>

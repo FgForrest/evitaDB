@@ -219,7 +219,50 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		}
 		// notify all subscriptions that the catalog is now present in the live view
 		// each active subscription is notified to pull new data asynchronously from this instance
-		for (DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription : this.subscribers.values()) {
+		wakeIdleSubscribers();
+	}
+
+	/**
+	 * Advances this publisher to a catalog published since its creation. The observer calls this after inserting a
+	 * newly created publisher into its map, to catch a publication missed during creation.
+	 *
+	 * While this publisher still holds the catalog it was created with, it adopts the offered catalog whatever its
+	 * version: the observer reads it after the insertion, so it is that publication or a later one. That covers a
+	 * rename, which republishes the same version as a new instance and closes the storage behind the old one. Once
+	 * the publisher holds any other catalog, it adopts only a strictly newer version, so a delayed catch-up never
+	 * moves it backwards.
+	 *
+	 * This method leaves the ring buffer untouched. A publisher that missed a publication also missed that
+	 * commit's mutations: {@link #processMutation(CatalogBoundMutation)} starts its ring buffer only at the
+	 * leading {@link TransactionMutation} of a later commit. Subscribers read the missed versions from the WAL.
+	 * Another subscriber may have joined after insertion but before this catch-up, so when the version advances,
+	 * every unfinished subscriber is woken. One with outstanding demand and an empty queue then fills it from the WAL
+	 * up to the new catalog version; the others ignore the wake.
+	 *
+	 * @param createdWith the catalog this publisher was created with, held by the caller only
+	 * @param catalog     the catalog currently present in the live view
+	 */
+	void catchUpWith(@Nonnull Catalog createdWith, @Nonnull Catalog catalog) {
+		final Catalog previous = this.currentCatalog.getAndAccumulate(
+			catalog,
+			(held, offered) -> (held == createdWith || offered.getVersion() > held.getVersion()) ? offered : held
+		);
+		// a same-version instance, such as a rename, brings no new version to deliver
+		if (previous.getVersion() < catalog.getVersion()) {
+			wakeIdleSubscribers();
+		}
+	}
+
+	/**
+	 * Wakes unfinished subscriptions that have outstanding demand and an empty delivery queue.
+	 *
+	 * Publications and the observer's periodic cleaner share this path, so even an idle stream retries a refused
+	 * or lost wake-up. {@link DefaultChangeCaptureSubscription#notifySubscriber()} checks eligibility and catches
+	 * executor refusals; the next cleaner tick retries them. Filling remains bounded by the published version,
+	 * and the subscription's existing lock serializes concurrent delivery attempts. No publisher lock is held here.
+	 */
+	public void wakeIdleSubscribers() {
+		for (final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription : this.subscribers.values()) {
 			if (!subscription.isFinished()) {
 				subscription.notifySubscriber();
 			}

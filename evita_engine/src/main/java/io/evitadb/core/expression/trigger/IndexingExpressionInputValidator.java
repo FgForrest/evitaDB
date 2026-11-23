@@ -79,14 +79,17 @@ import java.util.Objects;
  * expressions read, and adding it again afterwards (see
  * `documentation/adr/2026-11-11-reference-histogram-net-change-per-run.md`). A
  * withdrawal asserts that the contribution it removes is in the index, so an expression reading data that no hook
- * withdraws on - or data evitaDB changes on its own - eventually makes a write fail. The histogram slots
+ * withdraws on - or data evitaDB changes on its own - lets the index drift from the entities: the value computed
+ * before the change stays in the index, and a later withdrawal finds the value it computes from the changed data
+ * missing, which a session write reports or refuses by the configured policy. The histogram slots
  * (`bucketedPartially`, `assignedWhen` and the value expression) therefore admit only reads that are constant,
  * withdrawn on by an owner-side hook, or dispatched by the cross-entity path; everything else is refused. The facet
- * slot (`facetedPartially`) is checked against a reject list only: facet removals are presence-aware, so an untracked
- * facet input cannot cause the refused withdrawal the histogram rules prevent (facet writes can still fail for other
- * reasons), and only reads that can never be meaningful there - data evitaDB maintains itself, an unstable locale
- * order, `random()`, prices, properties that do not exist, names that are not constants or are applied to a container
- * that is the result of `??` or `*?`, reads that are always `null` and unknown variables - are refused.
+ * slot (`facetedPartially`) is checked against a reject list only: facet removals are presence-aware and skip an
+ * absent entry, so an untracked facet input never meets the asserted withdrawal the histogram rules protect (facet
+ * writes can still fail for other reasons), and only reads that can never be meaningful there - data evitaDB
+ * maintains itself, an unstable locale order, `random()`, prices, properties that do not exist, names that are not
+ * constants or are applied to a container that is the result of `??` or `*?`, reads that are always `null` and
+ * unknown variables - are refused.
  *
  * The check walks the expression tree itself, every operand and every step of every access chain included, never a
  * flattened list of accessed paths, so that a read nested in a predicate, a key, a spread mapping or on the right of

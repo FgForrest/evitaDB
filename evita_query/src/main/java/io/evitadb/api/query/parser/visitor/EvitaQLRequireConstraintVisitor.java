@@ -38,7 +38,7 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -48,6 +48,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -95,12 +96,21 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		Long.class
 	);
 	protected final EvitaQLValueTokenVisitor localeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Locale.class);
-	protected final EvitaQLValueTokenVisitor managedReferenceBehaviourValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-		ManagedReferencesBehaviour.class,
-		String.class,
-		String[].class,
-		Iterable.class
-	);
+	/**
+	 * Parses a leading value that may be a reference name or a managed-references behaviour.
+	 */
+	@Nonnull
+	protected final EvitaQLValueTokenVisitor managedReferenceBehaviourValueTokenVisitor =
+		EvitaQLValueTokenVisitor.withAllowedTypes(
+			ManagedReferencesBehaviour.class, String.class, String[].class, Iterable.class
+		);
+
+	/**
+	 * Parses a lone attribute-name argument, which can supply the entire list.
+	 */
+	@Nonnull
+	private final EvitaQLValueTokenVisitor attributeNamesValueTokenVisitor =
+		EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Object[].class, Iterable.class);
 	protected final EvitaQLOrderConstraintVisitor orderConstraintVisitor = new EvitaQLOrderConstraintVisitor();
 	protected final EvitaQLValueTokenVisitor priceContentModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(PriceContentMode.class);
 	protected final EvitaQLValueTokenVisitor facetGroupRelationLevelValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetGroupRelationLevel.class);
@@ -113,24 +123,15 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			StatisticsBase.class, StatisticsType.class, StatisticsType[].class, Iterable.class
 		);
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
+	/**
+	 * Parses a list of strings. A bound array or collection is the whole list only when it is bound to a lone
+	 * parameter, so it is not an allowed item of a longer sequence.
+	 */
+	@Nonnull
 	protected final EvitaQLValueTokenVisitor stringValueListTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-		String.class,
-		String[].class,
-		Iterable.class
+		String.class
 	);
 	protected final EvitaQLValueTokenVisitor scopeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(Scope.class);
-
-	@Nonnull
-	private static ManagedReferencesBehaviour toManagedReferencesBehaviour(@Nonnull Serializable arg) {
-		if (arg instanceof ManagedReferencesBehaviour theEnum) {
-			return theEnum;
-		} else if (arg instanceof EnumWrapper theEnumWrapper && theEnumWrapper.canBeMappedTo(ManagedReferencesBehaviour.class)) {
-			return theEnumWrapper.toEnum(ManagedReferencesBehaviour.class);
-		} else {
-			// return default
-			return ManagedReferencesBehaviour.ANY;
-		}
-	}
 
 	@Override
 	public RequireConstraint visitRequireContainerConstraint(RequireContainerConstraintContext ctx) {
@@ -304,1216 +305,716 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		);
 	}
 
+	/**
+	 * Parses reference content for all reference names.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
 	@Override
-	public RequireConstraint visitAllRefsReferenceContentConstraint(AllRefsReferenceContentConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				if (ctx.args == null) {
-					return new ReferenceContent();
-				}
-				final ManagedReferencesBehaviour managedReferencesBehaviour = getManagedReferencesBehaviourAsEnum(
-					ctx.args.managedReferencesBehaviour
-				);
-				if (ctx.args.requirement != null) {
-					final RequireConstraint require = visitChildConstraint(ctx.args.requirement, EntityFetchRequire.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-					if (require instanceof final EntityFetch entityFetch) {
-						return new ReferenceContent(
-							managedReferencesBehaviour, entityFetch, null
-						);
-					} else if (require instanceof final EntityGroupFetch entityGroupFetch) {
-						return new ReferenceContent(
-							managedReferencesBehaviour, null, entityGroupFetch
-						);
-					} else if (require instanceof final ChunkingRequireConstraint chunk) {
-						return new ReferenceContent(
-							managedReferencesBehaviour, (EntityFetch) null, null, chunk
-						);
-					} else {
-						throw new GenericEvitaInternalError("Should never happen!");
-					}
-				} else {
-					final RequireConstraint requirement1 = ctx.args.entityRequirement == null ? null : visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-					final RequireConstraint requirement2 = ctx.args.groupEntityRequirement == null ? null : visitChildConstraint(ctx.args.groupEntityRequirement, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-					if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof EntityGroupFetch entityGroupFetch) {
-						return new ReferenceContent(
-							managedReferencesBehaviour, entityFetch, entityGroupFetch
-						);
-					} else if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-						return new ReferenceContent(
-							managedReferencesBehaviour, entityFetch, null, chunk
-						);
-					} else if (requirement1 instanceof EntityGroupFetch entityGroupFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-						return new ReferenceContent(
-							managedReferencesBehaviour, null, entityGroupFetch, chunk
-						);
-					} else {
-						return new ReferenceContent(managedReferencesBehaviour);
-					}
-				}
+	public RequireConstraint visitAllRefsReferenceContentConstraint(
+		@Nonnull AllRefsReferenceContentConstraintContext ctx
+	) {
+		return parse(ctx, () -> {
+			if (ctx.args == null) {
+				return new ReferenceContent();
 			}
+			return parseAllRefsReferenceContent(
+				ctx.args.managedReferencesBehaviour, false,
+				ctx.args.requirement, ctx.args.entityRequirement, ctx.args.groupEntityRequirement
+			);
+		});
+	}
+
+	/**
+	 * Parses variadic reference names and their fetch requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitMultipleRefsReferenceContentConstraint(
+		@Nonnull MultipleRefsReferenceContentConstraintContext ctx
+	) {
+		return parse(ctx, () -> {
+			final ValueTokenContext leading = ctx.args.managedReferencesBehaviour;
+			final Object firstArg = leading == null ? null :
+				leading.accept(this.managedReferenceBehaviourValueTokenVisitor).getActualValue();
+			final ManagedReferencesBehaviour behaviour = leading == null || firstArg instanceof String
+				? ManagedReferencesBehaviour.ANY
+				: toManagedReferencesBehaviour(leading, firstArg);
+			final String[] classifiers = ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArray();
+			final String[] referenceNames = firstArg instanceof String name
+				? ArrayUtils.mergeArrays(new String[]{name}, classifiers)
+				: classifiers;
+			ConstraintArguments.requireNonNullItems(referenceNames, "referenceNames");
+
+			final ReferenceContentRequirements requirements = parseReferenceContentRequirements(
+				false, ctx.args.requirement, ctx.args.entityRequirement, ctx.args.groupEntityRequirement
+			);
+			return new ReferenceContent(
+				behaviour, referenceNames, requirements.entityFetch(), requirements.entityGroupFetch(),
+				requirements.chunk()
+			);
+		});
+	}
+
+	/**
+	 * Parses a single reference name with an optional managed-references behaviour.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContent1Constraint(
+		@Nonnull SingleRefReferenceContent1ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			null, null, false
+		));
+	}
+
+	/**
+	 * Parses a single reference name and multiple fetch or chunking requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContent2Constraint(
+		@Nonnull SingleRefReferenceContent2ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			null, null, false, ctx.args.entityRequirement, ctx.args.groupEntityRequirement, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses filtered reference content with an optional fetch or chunking requirement.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContent3Constraint(
+		@Nonnull SingleRefReferenceContent3ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			ctx.args.filterBy, null, false, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses filtered reference content with multiple fetch or chunking requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContent4Constraint(
+		@Nonnull SingleRefReferenceContent4ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			ctx.args.filterBy, null, false,
+			ctx.args.entityRequirement, ctx.args.groupEntityRequirement, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses ordered reference content with an optional fetch or chunking requirement.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContent5Constraint(
+		@Nonnull SingleRefReferenceContent5ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			null, ctx.args.orderBy, false, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses ordered reference content with multiple fetch or chunking requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContent6Constraint(
+		@Nonnull SingleRefReferenceContent6ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			null, ctx.args.orderBy, false,
+			ctx.args.entityRequirement, ctx.args.groupEntityRequirement, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses filtered and ordered reference content with an optional fetch or chunking requirement.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContent7Constraint(
+		@Nonnull SingleRefReferenceContent7ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			ctx.args.filterBy, ctx.args.orderBy, false, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses filtered and ordered reference content with multiple fetch or chunking requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContent8Constraint(
+		@Nonnull SingleRefReferenceContent8ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			ctx.args.filterBy, ctx.args.orderBy, false,
+			ctx.args.entityRequirement, ctx.args.groupEntityRequirement, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses all reference names with attributes and at most one child requirement.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitAllRefsWithAttributesReferenceContent1Constraint(
+		@Nonnull AllRefsWithAttributesReferenceContent1ConstraintContext ctx
+	) {
+		return parse(ctx, () -> {
+			if (ctx.args == null) {
+				return new ReferenceContent(AttributeContent.ALL_ATTRIBUTES);
+			}
+			return parseAllRefsReferenceContent(ctx.args.managedReferencesBehaviour, true, ctx.args.requirement);
+		});
+	}
+
+	/**
+	 * Parses all reference names with attributes and two child requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitAllRefsWithAttributesReferenceContent2Constraint(
+		@Nonnull AllRefsWithAttributesReferenceContent2ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseAllRefsReferenceContent(
+			ctx.args.managedReferencesBehaviour, true, ctx.args.requirement1, ctx.args.requirement2
+		));
+	}
+
+	/**
+	 * Parses all reference names with attributes and three or four child requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitAllRefsWithAttributesReferenceContent3Constraint(
+		@Nonnull AllRefsWithAttributesReferenceContent3ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseAllRefsReferenceContent(
+			ctx.args.managedReferencesBehaviour, true,
+			ctx.args.attributeContent, ctx.args.entityRequirement, ctx.args.groupEntityRequirement, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses reference content with attributes and a single child requirement.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes0Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes0ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			null, null, true, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses the scalar overloads for a reference name and optional attribute names.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes1Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes1ConstraintContext ctx
+	) {
+		return parse(ctx, () -> {
+			final ValueTokenContext first = ctx.args.first;
+			final List<ValueTokenContext> values = ctx.args.values;
+			if (values.isEmpty()) {
+				return QueryConstraints.referenceContentWithAttributes(parseReferenceName(first));
+			}
+
+			final Object firstArg = first.accept(this.managedReferenceBehaviourValueTokenVisitor).getActualValue();
+			if (firstArg instanceof String name) {
+				final String referenceName = validateName(first, name, "referenceName");
+				return QueryConstraints.referenceContentWithAttributes(
+					referenceName, parseReferenceAttributeNames(values)
+				);
+			}
+
+			final ManagedReferencesBehaviour behaviour = toManagedReferencesBehaviour(first, firstArg);
+			final String referenceName = parseReferenceName(values.get(0));
+			return values.size() == 1
+				? QueryConstraints.referenceContentWithAttributes(behaviour, referenceName)
+				: QueryConstraints.referenceContentWithAttributes(
+					behaviour, referenceName, parseReferenceAttributeNames(values.subList(1, values.size()))
+				);
+		});
+	}
+
+	/**
+	 * Parses reference content with attributes and two child requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes2Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes2ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			null, null, true, ctx.args.requirement1, ctx.args.requirement2
+		));
+	}
+
+	/**
+	 * Parses reference content with attributes and three or four child requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes3Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes3ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			null, null, true,
+			ctx.args.attributeContent, ctx.args.entityRequirement, ctx.args.groupEntityRequirement, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses filtered reference content with attributes and an optional child requirement.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes4Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes4ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			ctx.args.filterBy, null, true, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses filtered reference content with attributes and two child requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes5Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes5ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			ctx.args.filterBy, null, true, ctx.args.requirement1, ctx.args.requirement2
+		));
+	}
+
+	/**
+	 * Parses filtered reference content with attributes and three or four child requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes6Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes6ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			ctx.args.filterBy, null, true,
+			ctx.args.attributeContent, ctx.args.entityRequirement, ctx.args.groupEntityRequirement, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses ordered reference content with attributes and an optional child requirement.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes7Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes7ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			null, ctx.args.orderBy, true, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses ordered reference content with attributes and two child requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes8Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes8ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			null, ctx.args.orderBy, true, ctx.args.requirement1, ctx.args.requirement2
+		));
+	}
+
+	/**
+	 * Parses ordered reference content with attributes and three or four child requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes9Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes9ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			null, ctx.args.orderBy, true,
+			ctx.args.attributeContent, ctx.args.entityRequirement, ctx.args.groupEntityRequirement, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses filtered and ordered reference content with attributes and an optional child requirement.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes10Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes10ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			ctx.args.filterBy, ctx.args.orderBy, true, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses filtered and ordered reference content with attributes and two child requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes11Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes11ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			ctx.args.filterBy, ctx.args.orderBy, true, ctx.args.requirement1, ctx.args.requirement2
+		));
+	}
+
+	/**
+	 * Parses filtered and ordered reference content with attributes and three or four child requirements.
+	 *
+	 * @param ctx reference requirement syntax
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	@Override
+	public RequireConstraint visitSingleRefReferenceContentWithAttributes12Constraint(
+		@Nonnull SingleRefReferenceContentWithAttributes12ConstraintContext ctx
+	) {
+		return parse(ctx, () -> parseSingleReferenceContent(
+			ctx.args.managedReferencesBehaviour, ctx.args.classifier,
+			ctx.args.filterBy, ctx.args.orderBy, true,
+			ctx.args.attributeContent, ctx.args.entityRequirement, ctx.args.groupEntityRequirement, ctx.args.requirement
+		));
+	}
+
+	/**
+	 * Parses the leading values followed by the filter, order, and children of a single-reference requirement.
+	 *
+	 * @param behaviourArg optional managed-references behaviour
+	 * @param classifier reference name token
+	 * @param filterArg optional reference filter
+	 * @param orderArg optional reference order
+	 * @param withAttributes whether to fetch reference attributes
+	 * @param children the child requirement contexts in query order
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	private ReferenceContent parseSingleReferenceContent(
+		@Nullable ValueTokenContext behaviourArg,
+		@Nonnull ValueTokenContext classifier,
+		@Nullable FilterConstraintContext filterArg,
+		@Nullable OrderConstraintContext orderArg,
+		boolean withAttributes,
+		@Nonnull RequireConstraintContext... children
+	) {
+		final ManagedReferencesBehaviour behaviour;
+		if (behaviourArg == null) {
+			behaviour = ManagedReferencesBehaviour.ANY;
+		} else {
+			final Object firstArg = behaviourArg.accept(this.managedReferenceBehaviourValueTokenVisitor)
+				.getActualValue();
+			if (firstArg instanceof String) {
+				throw new EvitaSyntaxException(
+					classifier, "Unexpected second value `" + classifier.getText()
+						+ "`: a single reference name is required before these constraints."
+				);
+			}
+			behaviour = toManagedReferencesBehaviour(behaviourArg, firstArg);
+		}
+		final String referenceName = parseReferenceName(classifier);
+		final FilterBy filterBy = filterArg == null ? null :
+			visitChildConstraint(this.filterConstraintVisitor, filterArg, FilterBy.class);
+		final OrderBy orderBy = orderArg == null ? null :
+			visitChildConstraint(this.orderConstraintVisitor, orderArg, OrderBy.class);
+		final ReferenceContentRequirements requirements = parseReferenceContentRequirements(withAttributes, children);
+		return new ReferenceContent(
+			behaviour, referenceName, filterBy, orderBy, requirements.attributes(),
+			requirements.entityFetch(), requirements.entityGroupFetch(), requirements.chunk()
 		);
 	}
 
-	@Override
-	public RequireConstraint visitMultipleRefsReferenceContentConstraint(MultipleRefsReferenceContentConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String[] referenceNames = firstArg instanceof String firstArgAsString ?
-					ArrayUtils.mergeArrays(
-						new String[]{firstArgAsString},
-						ctx.args.classifiers
-							.accept(this.stringValueListTokenVisitor)
-							.asStringArray()
-					) :
-					ctx.args.classifiers
-						.accept(this.stringValueListTokenVisitor)
-						.asStringArray();
-				ConstraintArguments.requireNonNullItems(referenceNames, "referenceNames");
-
-				if (ctx.args.requirement == null && ctx.args.entityRequirement == null && ctx.args.groupEntityRequirement == null) {
-					return new ReferenceContent(managedReferencesBehaviour, referenceNames);
-				} else if (ctx.args.requirement != null) {
-					final RequireConstraint require = visitChildConstraint(ctx.args.requirement, EntityFetchRequire.class, ChunkingRequireConstraint.class, ChunkingRequireConstraint.class);
-					if (require instanceof final EntityFetch entityFetch) {
-						return new ReferenceContent(
-							managedReferencesBehaviour, referenceNames, entityFetch, null
-						);
-					} else if (require instanceof final EntityGroupFetch entityGroupFetch) {
-						return new ReferenceContent(
-							managedReferencesBehaviour, referenceNames, null, entityGroupFetch
-						);
-					} else if (require instanceof final ChunkingRequireConstraint chunk) {
-						return new ReferenceContent(
-							managedReferencesBehaviour, referenceNames, null, null, chunk
-						);
-					} else {
-						throw new GenericEvitaInternalError("Should never happen!");
-					}
-				} else {
-					final RequireConstraint requirement1 = ofNullable(ctx.args.entityRequirement).map(c -> (RequireConstraint) visitChildConstraint(c, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class)).orElse(null);
-					final RequireConstraint requirement2 = ofNullable(ctx.args.groupEntityRequirement).map(c -> (RequireConstraint) visitChildConstraint(c, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class)).orElse(null);
-					if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof EntityGroupFetch entityGroupFetch) {
-						return new ReferenceContent(
-							managedReferencesBehaviour,
-							referenceNames,
-							entityFetch,
-							entityGroupFetch
-						);
-					} else if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-						return new ReferenceContent(
-							managedReferencesBehaviour,
-							referenceNames,
-							entityFetch,
-							null,
-							chunk
-						);
-					} else if (requirement1 instanceof EntityGroupFetch entityGroupFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-						return new ReferenceContent(
-							managedReferencesBehaviour,
-							referenceNames,
-							null,
-							entityGroupFetch,
-							chunk
-						);
-					} else {
-						return new ReferenceContent(managedReferencesBehaviour, referenceNames);
-					}
-				}
-			}
+	/**
+	 * Parses the behaviour and child requirements of an all-references requirement.
+	 *
+	 * @param behaviourArg optional managed-references behaviour
+	 * @param withAttributes whether to fetch reference attributes
+	 * @param children the child requirement contexts in query order
+	 * @return parsed reference content requirement
+	 */
+	@Nonnull
+	private ReferenceContent parseAllRefsReferenceContent(
+		@Nullable ValueTokenContext behaviourArg,
+		boolean withAttributes,
+		@Nonnull RequireConstraintContext... children
+	) {
+		final ManagedReferencesBehaviour behaviour = behaviourArg == null ? ManagedReferencesBehaviour.ANY :
+			toManagedReferencesBehaviour(
+				behaviourArg, behaviourArg.accept(this.managedReferenceBehaviourValueTokenVisitor).getActualValue()
+			);
+		final ReferenceContentRequirements requirements = parseReferenceContentRequirements(withAttributes, children);
+		return new ReferenceContent(
+			behaviour, requirements.attributes(), requirements.entityFetch(), requirements.entityGroupFetch(),
+			requirements.chunk()
 		);
 	}
 
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent1Constraint(SingleRefReferenceContent1ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				return new ReferenceContent(
-					managedReferencesBehaviour,
-					referenceName, null, null, (EntityFetch) null, null, null
+	/**
+	 * Visits each present child in query order. Factory overloads place attribute content, entity fetch,
+	 * group fetch and chunking in that order, with at most one of each kind.
+	 *
+	 * @param withAttributes whether attribute content is supported and defaults to all attributes
+	 * @param children child contexts in query order, including nulls for absent grammar arguments
+	 * @return the visited child requirements
+	 */
+	@Nonnull
+	private ReferenceContentRequirements parseReferenceContentRequirements(
+		boolean withAttributes,
+		@Nonnull RequireConstraintContext... children
+	) {
+		AttributeContent attributes = null;
+		EntityFetch entityFetch = null;
+		EntityGroupFetch entityGroupFetch = null;
+		ChunkingRequireConstraint chunk = null;
+		for (final RequireConstraintContext child : children) {
+			if (child == null) {
+				continue;
+			}
+			final String childName = child.getStart().getText();
+			if (chunk != null) {
+				throw new EvitaSyntaxException(
+					child, "Unexpected requirement `" + childName + "` after paging constraint `"
+						+ chunk.getName() + "`."
 				);
 			}
+			if (child instanceof AttributeContentConstraintContext && withAttributes
+				&& attributes == null && entityFetch == null && entityGroupFetch == null) {
+				attributes = visitChildConstraint(child, AttributeContent.class);
+			} else if (child instanceof EntityFetchConstraintContext
+				&& entityFetch == null && entityGroupFetch == null) {
+				entityFetch = visitChildConstraint(child, EntityFetch.class);
+			} else if (child instanceof EntityGroupFetchConstraintContext && entityGroupFetch == null) {
+				entityGroupFetch = visitChildConstraint(child, EntityGroupFetch.class);
+			} else if (child instanceof PageConstraintContext || child instanceof StripConstraintContext) {
+				chunk = visitChildConstraint(child, ChunkingRequireConstraint.class);
+			} else {
+				throw new EvitaSyntaxException(
+					child, "Unexpected requirement `" + childName + "` in reference content."
+				);
+			}
+		}
+		return new ReferenceContentRequirements(
+			withAttributes && attributes == null ? AttributeContent.ALL_ATTRIBUTES : attributes,
+			entityFetch, entityGroupFetch, chunk
 		);
 	}
 
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent2Constraint(SingleRefReferenceContent2ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-
-				if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof EntityGroupFetch entityGroupFetch) {
-					final ChunkingRequireConstraint chunk = ctx.args.requirement == null ?
-						null : visitChildConstraint(ctx.args.requirement, ChunkingRequireConstraint.class);
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null,
-						entityFetch, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null,
-						entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof EntityGroupFetch entityGroupFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null,
-						null, entityGroupFetch, chunk
-					);
-				} else {
-					throw new GenericEvitaInternalError("Should never happen!");
-				}
-			}
+	/**
+	 * Resolves the leading value as a managed-references behaviour.
+	 *
+	 * @param arg syntax of the behaviour value
+	 * @param value visited argument, including null for the default
+	 * @return behaviour selected by the argument
+	 */
+	@Nonnull
+	private static ManagedReferencesBehaviour toManagedReferencesBehaviour(
+		@Nonnull ValueTokenContext arg,
+		@Nullable Object value
+	) {
+		if (value == null) {
+			return ManagedReferencesBehaviour.ANY;
+		} else if (value instanceof ManagedReferencesBehaviour behaviour) {
+			return behaviour;
+		} else if (value instanceof EnumWrapper wrapper && wrapper.canBeMappedTo(ManagedReferencesBehaviour.class)) {
+			return wrapper.toEnum(ManagedReferencesBehaviour.class);
+		}
+		throw new EvitaSyntaxException(
+			arg, "Unexpected argument `" + arg.getText() + "`: expected a managed-references behaviour."
 		);
 	}
 
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent3Constraint(SingleRefReferenceContent3ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-
-				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
-					.map(c -> (RequireConstraint) visitChildConstraint(c, EntityFetchRequire.class, ChunkingRequireConstraint.class))
-					.orElse(null);
-
-				if (requirement == null) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, (EntityFetch) null, null, null
-					);
-				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, entityFetch, null, null
-					);
-				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, null, entityGroupFetch, null
-					);
-				} else if (requirement instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, null, null, chunk
-					);
-				} else {
-					throw new GenericEvitaInternalError("Should never happen!");
-				}
-			}
-		);
+	/**
+	 * Visits a value token and validates it as a required reference name.
+	 *
+	 * @param classifier reference name token
+	 * @return parsed reference name
+	 */
+	@Nonnull
+	private String parseReferenceName(@Nonnull ValueTokenContext classifier) {
+		return validateName(classifier, classifier.accept(this.stringValueTokenVisitor).asString(), "referenceName");
 	}
 
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent4Constraint(SingleRefReferenceContent4ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-
-				if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof EntityGroupFetch entityGroupFetch) {
-					final ChunkingRequireConstraint chunk = ctx.args.requirement == null ?
-						null : visitChildConstraint(ctx.args.requirement, ChunkingRequireConstraint.class);
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, entityFetch, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof EntityGroupFetch entityGroupFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, null, entityGroupFetch, chunk
-					);
-				} else {
-					throw new GenericEvitaInternalError("Should never happen!");
-				}
-			}
-		);
+	/**
+	 * Applies the Java factory's name validation and reports an invalid name at the value token.
+	 *
+	 * @param arg syntax of the name
+	 * @param name parsed name
+	 * @param argumentName name of the Java factory parameter
+	 * @return validated name
+	 */
+	@Nonnull
+	private static String validateName(
+		@Nonnull ValueTokenContext arg,
+		@Nullable String name,
+		@Nonnull String argumentName
+	) {
+		try {
+			return ConstraintArguments.requireName(name, argumentName);
+		} catch (EvitaInvalidUsageException ex) {
+			throw new EvitaSyntaxException(arg, ex.getPublicMessage());
+		}
 	}
 
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent5Constraint(SingleRefReferenceContent5ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final RequireConstraint requirement = (RequireConstraint) ofNullable(ctx.args.requirement)
-					.map(c -> visitChildConstraint(c, EntityFetchRequire.class, ChunkingRequireConstraint.class))
-					.orElse(null);
-
-				if (requirement == null) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, (EntityFetch) null, null, null
-					);
-				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, entityFetch, null, null
-					);
-				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, null, entityGroupFetch, null
-					);
-				} else if (requirement instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, null, null, chunk
-					);
-				} else {
-					throw new GenericEvitaInternalError("Should never happen!");
-				}
+	/**
+	 * Parses the attribute names after the reference name. A lone parameter can bind the entire list.
+	 *
+	 * @param values attribute name tokens in query order
+	 * @return selected attribute names
+	 */
+	@Nonnull
+	private String[] parseReferenceAttributeNames(@Nonnull List<ValueTokenContext> values) {
+		if (values.size() == 1) {
+			final ValueTokenContext arg = values.get(0);
+			final Object value = arg.accept(this.attributeNamesValueTokenVisitor).getActualValue();
+			final String[] names = this.stringValueListTokenVisitor
+				.parseVariadicArguments(arg, value).asStringArray();
+			try {
+				ConstraintArguments.requireNonNullItems(names, "attributeNames");
+			} catch (EvitaInvalidUsageException ex) {
+				throw new EvitaSyntaxException(arg, ex.getPublicMessage());
 			}
-		);
+			return names;
+		}
+		final String[] names = new String[values.size()];
+		for (int i = 0; i < names.length; i++) {
+			final ValueTokenContext arg = values.get(i);
+			names[i] = validateName(arg, arg.accept(this.stringValueTokenVisitor).asString(), "attributeName");
+		}
+		return names;
 	}
 
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent6Constraint(SingleRefReferenceContent6ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-
-				if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof EntityGroupFetch entityGroupFetch) {
-					final ChunkingRequireConstraint chunk = ctx.args.requirement == null ?
-						null : visitChildConstraint(ctx.args.requirement, ChunkingRequireConstraint.class);
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, entityFetch, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof EntityGroupFetch entityGroupFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, null, entityGroupFetch, chunk
-					);
-				} else {
-					throw new GenericEvitaInternalError("Should never happen!");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent7Constraint(SingleRefReferenceContent7ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
-					.map(c -> (RequireConstraint) visitChildConstraint(c, EntityFetchRequire.class, ChunkingRequireConstraint.class))
-					.orElse(null);
-
-				if (requirement == null) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, (EntityFetch) null, null, null
-					);
-				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, entityFetch, null, null
-					);
-				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, null, entityGroupFetch, null
-					);
-				} else if (requirement instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, null, null, chunk
-					);
-				} else {
-					throw new GenericEvitaInternalError("Should never happen!");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContent8Constraint(SingleRefReferenceContent8ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-
-				if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof EntityGroupFetch entityGroupFetch) {
-					final ChunkingRequireConstraint chunk = ctx.args.requirement == null ?
-						null : visitChildConstraint(ctx.args.requirement, ChunkingRequireConstraint.class);
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy,
-						entityFetch, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy,
-						entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof EntityGroupFetch entityGroupFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy,
-						null, entityGroupFetch, chunk
-					);
-				} else {
-					throw new GenericEvitaInternalError("Should never happen!");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitAllRefsWithAttributesReferenceContent1Constraint(AllRefsWithAttributesReferenceContent1ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				if (ctx.args == null) {
-					return new ReferenceContent(AttributeContent.ALL_ATTRIBUTES);
-				}
-
-				final ManagedReferencesBehaviour managedReferencesBehaviour = getManagedReferencesBehaviourAsEnum(
-					ctx.args.managedReferencesBehaviour
-				);
-
-				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
-					.map(c -> (RequireConstraint) visitChildConstraint(c, AttributeContent.class,
-						EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class))
-					.orElse(null);
-
-				if (requirement == null) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES, null, null
-					);
-				} else if (requirement instanceof final AttributeContent attributeContent) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, attributeContent, null, null
-					);
-				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES, entityFetch, null
-					);
-				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES, null, entityGroupFetch
-					);
-				} else if (requirement instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES, null, null, chunk
-					);
-				} else {
-					throw new GenericEvitaInternalError("Should never happen!");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitAllRefsWithAttributesReferenceContent2Constraint(AllRefsWithAttributesReferenceContent2ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final ManagedReferencesBehaviour managedReferencesBehaviour = getManagedReferencesBehaviourAsEnum(
-					ctx.args.managedReferencesBehaviour
-				);
-
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-				Assert.isTrue(
-					requirement1 == null || requirement2 == null ||
-					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
-				);
-
-				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES, entityFetch, entityGroupFetch, null
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, attributeContent, entityFetch, null
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, attributeContent, null, entityGroupFetch
-					);
-				} else if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES, entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof final EntityGroupFetch entityGroupFetch && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, AttributeContent.ALL_ATTRIBUTES, null, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, attributeContent, null, null, chunk
-					);
-				} else {
-					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitAllRefsWithAttributesReferenceContent3Constraint(AllRefsWithAttributesReferenceContent3ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final ManagedReferencesBehaviour managedReferencesBehaviour = getManagedReferencesBehaviourAsEnum(
-					ctx.args.managedReferencesBehaviour
-				);
-				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-
-				if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof EntityGroupFetch entityGroupFetch) {
-					final ChunkingRequireConstraint chunk = ctx.args.requirement == null ?
-						null : visitChildConstraint(ctx.args.requirement, ChunkingRequireConstraint.class);
-					return new ReferenceContent(managedReferencesBehaviour, attributeContent, entityFetch, entityGroupFetch, chunk);
-				} else if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(managedReferencesBehaviour, attributeContent, entityFetch, null, chunk);
-				} else if (requirement1 instanceof EntityGroupFetch entityGroupFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(managedReferencesBehaviour, attributeContent, null, entityGroupFetch, chunk);
-				} else {
-					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes0Constraint(SingleRefReferenceContentWithAttributes0ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final RequireConstraint requirement = visitChildConstraint(ctx.args.requirement, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-
-				if (requirement instanceof  AttributeContent attributeContent) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, attributeContent, null, null, null
-					);
-				} else if (requirement instanceof EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, AttributeContent.ALL_ATTRIBUTES, entityFetch, null, null
-					);
-				} else if (requirement instanceof EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, AttributeContent.ALL_ATTRIBUTES, null, entityGroupFetch, null
-					);
-				} else if (requirement instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, AttributeContent.ALL_ATTRIBUTES, null, null, chunk
-					);
-				} else {
-					throw new GenericEvitaInternalError("Should never happen!");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes1Constraint(SingleRefReferenceContentWithAttributes1ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				return new ReferenceContent(
-					managedReferencesBehaviour, referenceName, null, null, AttributeContent.ALL_ATTRIBUTES, null, null, null
-				);
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes2Constraint(SingleRefReferenceContentWithAttributes2ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-				Assert.isTrue(
-					requirement1 == null || requirement2 == null ||
-					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
-				);
-
-				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, AttributeContent.ALL_ATTRIBUTES, entityFetch, entityGroupFetch, null
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, attributeContent, entityFetch, null, null
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, attributeContent, null, entityGroupFetch, null
-					);
-				} else if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, AttributeContent.ALL_ATTRIBUTES, entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof final EntityGroupFetch entityGroupFetch && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, AttributeContent.ALL_ATTRIBUTES, null, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, attributeContent, null, null, chunk
-					);
-				} else {
-					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes3Constraint(SingleRefReferenceContentWithAttributes3ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.groupEntityRequirement, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-
-				if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof EntityGroupFetch entityGroupFetch) {
-					final ChunkingRequireConstraint chunk = ctx.args.requirement == null ?
-						null : visitChildConstraint(ctx.args.requirement, ChunkingRequireConstraint.class);
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, attributeContent, entityFetch, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, attributeContent, entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof EntityGroupFetch entityGroupFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, null, attributeContent, null, entityGroupFetch, chunk
-					);
-				} else {
-					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes4Constraint(SingleRefReferenceContentWithAttributes4ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-
-				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
-					.map(c -> (RequireConstraint) visitChildConstraint(c, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class))
-					.orElse(null);
-
-				if (requirement == null) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, AttributeContent.ALL_ATTRIBUTES, null, null, null
-					);
-				} else if (requirement instanceof final AttributeContent attributeContent) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, attributeContent, null, null, null
-					);
-				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, AttributeContent.ALL_ATTRIBUTES, entityFetch, null, null
-					);
-				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, AttributeContent.ALL_ATTRIBUTES, null, entityGroupFetch, null
-					);
-				} else if (requirement instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, AttributeContent.ALL_ATTRIBUTES, null, null, chunk
-					);
-				} else {
-					throw new GenericEvitaInternalError("Should never happen!");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes5Constraint(SingleRefReferenceContentWithAttributes5ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-				Assert.isTrue(
-					requirement1 == null || requirement2 == null ||
-					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
-				);
-
-				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, AttributeContent.ALL_ATTRIBUTES, entityFetch, entityGroupFetch, null
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, attributeContent, entityFetch, null, null
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, attributeContent, null, entityGroupFetch, null
-					);
-				} else if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, AttributeContent.ALL_ATTRIBUTES, entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof final EntityGroupFetch entityGroupFetch && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, AttributeContent.ALL_ATTRIBUTES, null, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, attributeContent, null, null, chunk
-					);
-				} else {
-					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes6Constraint(SingleRefReferenceContentWithAttributes6ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-
-				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-
-				if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof EntityGroupFetch entityGroupFetch) {
-					final ChunkingRequireConstraint chunk = ctx.args.requirement == null ?
-						null : visitChildConstraint(ctx.args.requirement, ChunkingRequireConstraint.class);
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, attributeContent, entityFetch, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, attributeContent, entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof EntityGroupFetch entityGroupFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, null, attributeContent, null, entityGroupFetch, chunk
-					);
-				} else {
-					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes7Constraint(SingleRefReferenceContentWithAttributes7ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
-					.map(c -> (RequireConstraint) visitChildConstraint(c, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class))
-					.orElse(null);
-
-				if (requirement == null) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, AttributeContent.ALL_ATTRIBUTES, null, null, null
-					);
-				} else if (requirement instanceof final AttributeContent attributeContent) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, attributeContent, null, null, null
-					);
-				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, AttributeContent.ALL_ATTRIBUTES, entityFetch, null, null
-					);
-				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, AttributeContent.ALL_ATTRIBUTES, null, entityGroupFetch, null
-					);
-				} else if (requirement instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, AttributeContent.ALL_ATTRIBUTES, null, null, chunk
-					);
-				} else {
-					throw new GenericEvitaInternalError("Should never happen!");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes8Constraint(SingleRefReferenceContentWithAttributes8ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class, ChunkingRequireConstraint.class);
-				Assert.isTrue(
-					requirement1 == null || requirement2 == null ||
-					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
-				);
-
-				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, AttributeContent.ALL_ATTRIBUTES, entityFetch, entityGroupFetch, null
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, attributeContent, entityFetch, null, null
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, attributeContent, null, entityGroupFetch, null
-					);
-				} else if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, AttributeContent.ALL_ATTRIBUTES, entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof final EntityGroupFetch entityGroupFetch && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, AttributeContent.ALL_ATTRIBUTES, null, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, attributeContent, null, null, chunk
-					);
-				} else {
-					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes9Constraint(SingleRefReferenceContentWithAttributes9ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-
-				if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof EntityGroupFetch entityGroupFetch) {
-					final ChunkingRequireConstraint chunk = ctx.args.requirement == null ?
-						null : visitChildConstraint(ctx.args.requirement, ChunkingRequireConstraint.class);
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, attributeContent, entityFetch, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, attributeContent, entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof EntityGroupFetch entityGroupFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, null, orderBy, attributeContent, null, entityGroupFetch, chunk
-					);
-				} else {
-					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes10Constraint(SingleRefReferenceContentWithAttributes10ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
-					.map(c -> (RequireConstraint) visitChildConstraint(c, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class))
-					.orElse(null);
-
-				if (requirement == null) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, AttributeContent.ALL_ATTRIBUTES,null, null, null
-					);
-				} else if (requirement instanceof final AttributeContent attributeContent) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, attributeContent, null, null, null
-					);
-				} else if (requirement instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, AttributeContent.ALL_ATTRIBUTES, entityFetch, null, null
-					);
-				} else if (requirement instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, AttributeContent.ALL_ATTRIBUTES, null, entityGroupFetch, null
-					);
-				} else if (requirement instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, AttributeContent.ALL_ATTRIBUTES, null, null, chunk
-					);
-				} else {
-					throw new GenericEvitaInternalError("Should never happen!");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes11Constraint(SingleRefReferenceContentWithAttributes11ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.requirement1, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.requirement2, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-				Assert.isTrue(
-					requirement1 == null || requirement2 == null ||
-					!requirement1.getClass().equals(requirement2.getClass()),
-					() -> new EvitaSyntaxException(ctx, "Each requirement must be of a different type.")
-				);
-
-				if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, AttributeContent.ALL_ATTRIBUTES, entityFetch, entityGroupFetch, null
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityFetch entityFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, attributeContent, entityFetch, null, null
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final EntityGroupFetch entityGroupFetch) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, attributeContent, null, entityGroupFetch, null
-					);
-				} else if (requirement1 instanceof final EntityFetch entityFetch && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, AttributeContent.ALL_ATTRIBUTES, entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof final EntityGroupFetch entityGroupFetch && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, AttributeContent.ALL_ATTRIBUTES, null, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof final AttributeContent attributeContent && requirement2 instanceof final ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, attributeContent, null, null, chunk
-					);
-				} else {
-					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitSingleRefReferenceContentWithAttributes12Constraint(SingleRefReferenceContentWithAttributes12ConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final Serializable firstArg = getManagedReferencesBehaviour(
-					ctx.args.managedReferencesBehaviour
-				);
-				final ManagedReferencesBehaviour managedReferencesBehaviour = toManagedReferencesBehaviour(firstArg);
-
-				final String referenceName = firstArg instanceof String firstArgAsString ?
-					firstArgAsString :
-					ctx.args.classifier
-						.accept(this.stringValueTokenVisitor)
-						.asString();
-				ConstraintArguments.requireName(referenceName, "referenceName");
-
-				final FilterBy filterBy = visitChildConstraint(this.filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
-				final OrderBy orderBy = visitChildConstraint(this.orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
-
-				final AttributeContent attributeContent = visitChildConstraint(ctx.args.attributeContent, AttributeContent.class);
-				final RequireConstraint requirement1 = visitChildConstraint(ctx.args.entityRequirement, EntityFetch.class, ChunkingRequireConstraint.class);
-				final RequireConstraint requirement2 = visitChildConstraint(ctx.args.groupEntityRequirement, EntityGroupFetch.class, ChunkingRequireConstraint.class);
-
-				if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof EntityGroupFetch entityGroupFetch) {
-					final ChunkingRequireConstraint chunk = ctx.args.requirement == null ?
-						null : visitChildConstraint(ctx.args.requirement, ChunkingRequireConstraint.class);
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, attributeContent, entityFetch, entityGroupFetch, chunk
-					);
-				} else if (requirement1 instanceof EntityFetch entityFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, attributeContent, entityFetch, null, chunk
-					);
-				} else if (requirement1 instanceof EntityGroupFetch entityGroupFetch && requirement2 instanceof ChunkingRequireConstraint chunk) {
-					return new ReferenceContent(
-						managedReferencesBehaviour, referenceName, filterBy, orderBy, attributeContent, null, entityGroupFetch, chunk
-					);
-				} else {
-					throw new EvitaSyntaxException(ctx, "Invalid combination of requirements.");
-				}
-			}
-		);
-	}
+	/**
+	 * The parsed children of a reference content requirement.
+	 *
+	 * @param attributes reference attribute selection, or null for plain reference content
+	 * @param entityFetch referenced entity fetch, when requested
+	 * @param entityGroupFetch referenced group entity fetch, when requested
+	 * @param chunk paging constraint, when requested
+	 */
+	private record ReferenceContentRequirements(
+		@Nullable AttributeContent attributes,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable ChunkingRequireConstraint chunk
+	) {}
 
 	@Override
 	public RequireConstraint visitEmptyHierarchyContentConstraint(EmptyHierarchyContentConstraintContext ctx) {
@@ -1595,11 +1096,11 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			() -> {
 				if (ctx.args.values == null) {
 					return QueryConstraints.accompanyingPriceContent(
-						ctx.args.classifier.accept(this.stringValueListTokenVisitor).asString()
+						ctx.args.classifier.accept(this.stringValueTokenVisitor).asString()
 					);
 				} else {
 					return QueryConstraints.accompanyingPriceContent(
-						ctx.args.classifier.accept(this.stringValueListTokenVisitor).asString(),
+						ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 						ctx.args.values.accept(this.stringValueListTokenVisitor).asStringArray()
 					);
 				}
@@ -2067,23 +1568,35 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		);
 	}
 
+	/**
+	 * Parses histogram statistics without an entity fetch.
+	 *
+	 * @param ctx histogram statistics constraint
+	 * @return parsed histogram statistics, or null when no index names are provided
+	 */
+	@Nullable
 	@Override
-	public RequireConstraint visitHistogramStatistics1Constraint(HistogramStatistics1ConstraintContext ctx) {
+	public RequireConstraint visitHistogramStatistics1Constraint(@Nonnull HistogramStatistics1ConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> buildHistogramStatistics(ctx, ctx.args.requestedBucketCount, null, ctx.args.values)
+			() -> buildHistogramStatistics(ctx, ctx.args.requestedBucketCount, null, null, ctx.args.values, null)
 		);
 	}
 
+	/**
+	 * Parses histogram statistics with an entity fetch on either side of the index names.
+	 *
+	 * @param ctx histogram statistics constraint
+	 * @return parsed histogram statistics, or null when no index names are provided
+	 */
+	@Nullable
 	@Override
-	public RequireConstraint visitHistogramStatistics2Constraint(HistogramStatistics2ConstraintContext ctx) {
+	public RequireConstraint visitHistogramStatistics2Constraint(@Nonnull HistogramStatistics2ConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> buildHistogramStatistics(
-				ctx,
-				ctx.args.requestedBucketCount,
-				visitChildConstraint(ctx.args.entityFetch, EntityFetch.class),
-				ctx.args.values
+				ctx, ctx.args.requestedBucketCount, ctx.args.behavior, ctx.args.fetchBeforeValues,
+				ctx.args.values, ctx.args.fetchAfterValues
 			)
 		);
 	}
@@ -2091,17 +1604,34 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	/**
 	 * Common builder for {@link ReferenceHistogramStatistics}. The variadic value list may carry an
 	 * optional {@link HistogramBehavior} enum as its first element (matching the in-memory constructor
-	 * shape shared with {@link AttributeHistogram}), followed by histogram index names. An empty bound list
-	 * omits the requirement. A leading null in an explicit argument sequence stands for the default behaviour.
+	 * shape shared with {@link AttributeHistogram}), followed by histogram index names. The behavior can also
+	 * precede a fetch that comes before the index names. An empty bound list omits the requirement. A leading null
+	 * in an explicit argument sequence stands for the default behavior.
+	 * The arguments are visited in the order they appear in the query, because each positional parameter takes the
+	 * next bound value when it is visited.
+	 *
+	 * @param ctx histogram statistics constraint
+	 * @param requestedBucketCountArg requested bucket count token
+	 * @param behaviorArg optional behavior token preceding the fetch
+	 * @param fetchBeforeValuesArg optional fetch preceding the value list
+	 * @param valuesArg optional behavior followed by histogram index names
+	 * @param fetchAfterValuesArg optional fetch following the value list
+	 * @return the histogram statistics requirement, or null when no index names are provided
 	 */
 	@Nullable
 	private ReferenceHistogramStatistics buildHistogramStatistics(
 		@Nonnull RequireConstraintContext ctx,
 		@Nonnull ValueTokenContext requestedBucketCountArg,
-		@Nullable EntityFetch entityFetch,
-		@Nonnull VariadicValueTokensContext valuesArg
+		@Nullable ValueTokenContext behaviorArg,
+		@Nullable RequireConstraintContext fetchBeforeValuesArg,
+		@Nonnull VariadicValueTokensContext valuesArg,
+		@Nullable RequireConstraintContext fetchAfterValuesArg
 	) {
 		final int requestedBucketCount = requestedBucketCountArg.accept(this.intValueTokenVisitor).asRequiredInt();
+		final HistogramBehavior explicitBehavior = behaviorArg == null ? null :
+			behaviorArg.accept(this.histogramBehaviorValueTokenVisitor).asEnum(HistogramBehavior.class);
+		final EntityFetch fetchBeforeValues = fetchBeforeValuesArg == null ?
+			null : visitChildConstraint(fetchBeforeValuesArg, EntityFetch.class);
 
 		final LinkedList<Serializable> args = Arrays.stream(valuesArg
 				.accept(this.attributeHistogramArgValueTokenVisitor)
@@ -2109,19 +1639,26 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			.collect(Collectors.toCollection(LinkedList::new));
 
 		final HistogramBehavior behavior;
-		final boolean hasNullBehavior = consumeLeadingNullEnumDefault(valuesArg, args);
-		final Serializable firstArgument = args.peekFirst();
-		if (firstArgument instanceof HistogramBehavior) {
-			behavior = castArgument(ctx, args.pop(), HistogramBehavior.class);
-		} else if (firstArgument instanceof EnumWrapper enumWrapper && enumWrapper.canBeMappedTo(HistogramBehavior.class)) {
-			behavior = castArgument(ctx, args.pop(), EnumWrapper.class).toEnum(HistogramBehavior.class);
+		if (behaviorArg != null) {
+			behavior = explicitBehavior;
 		} else {
-			behavior = null;
+			consumeLeadingNullEnumDefault(valuesArg, args);
+			final Serializable firstArgument = args.peekFirst();
+			if (firstArgument instanceof HistogramBehavior histogramBehavior) {
+				behavior = histogramBehavior;
+				args.pop();
+			} else if (firstArgument instanceof EnumWrapper enumWrapper &&
+				enumWrapper.canBeMappedTo(HistogramBehavior.class)) {
+				behavior = enumWrapper.toEnum(HistogramBehavior.class);
+				args.pop();
+			} else {
+				behavior = null;
+			}
 		}
 
-		final String[] indexNames = parseVariadicTail(ctx, args,
-			EvitaQLValueTokenVisitor.withAllowedTypes(String.class), hasNullBehavior || behavior != null)
-			.asStringArray();
+		final String[] indexNames = parseVariadicTail(ctx, args, this.stringValueTokenVisitor).asStringArray();
+		final EntityFetch entityFetch = fetchAfterValuesArg == null ?
+			fetchBeforeValues : visitChildConstraint(fetchAfterValuesArg, EntityFetch.class);
 
 		return QueryConstraints.histogramStatistics(requestedBucketCount, behavior, entityFetch, indexNames);
 	}
@@ -2193,8 +1730,15 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		);
 	}
 
+	/**
+	 * Parses the histogram bucket count, optional behavior and attribute names.
+	 *
+	 * @param ctx attribute histogram constraint
+	 * @return the histogram requirement, or null when no attribute names are provided
+	 */
+	@Nullable
 	@Override
-	public RequireConstraint visitAttributeHistogramConstraint(AttributeHistogramConstraintContext ctx) {
+	public RequireConstraint visitAttributeHistogramConstraint(@Nonnull AttributeHistogramConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -2207,18 +1751,20 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.collect(Collectors.toCollection(LinkedList::new));
 
 				final HistogramBehavior behavior;
-				final boolean hasNullBehavior = consumeLeadingNullEnumDefault(ctx.args.values, args);
+				consumeLeadingNullEnumDefault(ctx.args.values, args);
 				final Serializable secondArgument = args.peekFirst();
-				if (secondArgument instanceof HistogramBehavior) {
-					behavior = castArgument(ctx, args.pop(), HistogramBehavior.class);
-				} else if (secondArgument instanceof EnumWrapper enumWrapper && enumWrapper.canBeMappedTo(HistogramBehavior.class)) {
-					behavior = castArgument(ctx, args.pop(), EnumWrapper.class).toEnum(HistogramBehavior.class);
+				if (secondArgument instanceof HistogramBehavior histogramBehavior) {
+					behavior = histogramBehavior;
+					args.pop();
+				} else if (secondArgument instanceof EnumWrapper enumWrapper &&
+					enumWrapper.canBeMappedTo(HistogramBehavior.class)) {
+					behavior = enumWrapper.toEnum(HistogramBehavior.class);
+					args.pop();
 				} else {
 					behavior = null;
 				}
 
-				final String[] attributesNames = parseVariadicTail(ctx, args,
-					EvitaQLValueTokenVisitor.withAllowedTypes(String.class), hasNullBehavior || behavior != null)
+				final String[] attributesNames = parseVariadicTail(ctx, args, this.stringValueTokenVisitor)
 					.asStringArray();
 
 				return QueryConstraints.attributeHistogram(
@@ -2275,8 +1821,15 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		);
 	}
 
+	/**
+	 * Parses the optional statistics base and the remaining statistics types.
+	 *
+	 * @param ctx hierarchy statistics constraint
+	 * @return the statistics requirement
+	 */
+	@Nonnull
 	@Override
-	public RequireConstraint visitHierarchyStatisticsConstraint(HierarchyStatisticsConstraintContext ctx) {
+	public RequireConstraint visitHierarchyStatisticsConstraint(@Nonnull HierarchyStatisticsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -2290,22 +1843,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final boolean hasNullBase = consumeLeadingNullEnumDefault(ctx.args.settings, settings);
 				final Serializable first = hasNullBase ? null : settings.peekFirst();
 				final StatisticsBase base;
-				final boolean hasBase;
 				if (first instanceof StatisticsBase statisticsBase) {
+					settings.removeFirst();
 					base = statisticsBase;
-					hasBase = true;
 				} else if (first instanceof EnumWrapper wrapper && wrapper.canBeMappedTo(StatisticsBase.class)) {
+					settings.removeFirst();
 					base = wrapper.toEnum(StatisticsBase.class);
-					hasBase = true;
 				} else {
 					base = StatisticsBase.WITHOUT_USER_FILTER;
-					hasBase = hasNullBase;
-				}
-				if (hasBase && !hasNullBase) {
-					settings.removeFirst();
 				}
 				return QueryConstraints.statistics(base, parseVariadicTail(ctx, settings,
-					EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsType.class, EnumWrapper.class), hasBase)
+					EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsType.class, EnumWrapper.class))
 					.asEnumArray(StatisticsType.class));
 			}
 		);
@@ -2687,24 +2235,6 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 						.asEnum(QueryTelemetryContent.class)
 				)
 		);
-	}
-
-	@Nullable
-	private Serializable getManagedReferencesBehaviour(@Nullable ValueTokenContext managedReferencesBehaviour) {
-		return managedReferencesBehaviour == null || managedReferencesBehaviour.isEmpty() ?
-			ManagedReferencesBehaviour.ANY :
-			managedReferencesBehaviour
-				.accept(this.managedReferenceBehaviourValueTokenVisitor)
-				.asSerializable();
-	}
-
-	@Nullable
-	private ManagedReferencesBehaviour getManagedReferencesBehaviourAsEnum(@Nullable ValueTokenContext managedReferencesBehaviour) {
-		return managedReferencesBehaviour == null || managedReferencesBehaviour.isEmpty() ?
-			ManagedReferencesBehaviour.ANY :
-			managedReferencesBehaviour
-				.accept(this.managedReferenceBehaviourValueTokenVisitor)
-				.asEnum(ManagedReferencesBehaviour.class);
 	}
 
 	/**

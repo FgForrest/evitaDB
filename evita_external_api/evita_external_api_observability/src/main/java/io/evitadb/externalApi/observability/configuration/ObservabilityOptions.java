@@ -29,6 +29,7 @@ import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
+import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.observability.metric.PrometheusLabelNames;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -105,8 +106,12 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 	 */
 	@Getter @Nonnull private final ErrorOriginLogging errorOriginLogging;
 
+	/**
+	 * Creates enabled options listening on all network interfaces at {@link #DEFAULT_OBSERVABILITY_PORT}, with
+	 * `tlsMode` {@link TlsMode#FORCE_NO_TLS}.
+	 */
 	public ObservabilityOptions() {
-		super(true, "0.0.0.0:" + DEFAULT_OBSERVABILITY_PORT, null, null, null, null);
+		super(true, ":" + DEFAULT_OBSERVABILITY_PORT, TlsMode.FORCE_NO_TLS);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
@@ -114,8 +119,12 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 		this.errorOriginLogging = ErrorOriginLogging.INTERNAL;
 	}
 
+	/**
+	 * Creates enabled options listening on `host` (comma-separated `hostname:port` definitions), with `tlsMode`
+	 * {@link TlsMode#FORCE_NO_TLS}.
+	 */
 	public ObservabilityOptions(@Nonnull String host) {
-		super(true, host, null, null, null, null);
+		super(true, host, TlsMode.FORCE_NO_TLS);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
@@ -123,6 +132,10 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 		this.errorOriginLogging = ErrorOriginLogging.INTERNAL;
 	}
 
+	/**
+	 * Creates options from configuration; a missing `tlsMode` resolves to {@link TlsMode#FORCE_NO_TLS} and an unknown
+	 * name fails.
+	 */
 	@JsonCreator
 	public ObservabilityOptions(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                            @Nonnull @JsonProperty("host") String host,
@@ -136,7 +149,7 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 	                            @Nullable @JsonProperty("errorOriginLogging") ErrorOriginLogging errorOriginLogging,
 	                            @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
-		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
+		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration, TlsMode.FORCE_NO_TLS);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_OBSERVABILITY_PATH);
 		this.tracing = Optional.ofNullable(tracing).orElse(new TracingConfig());
 		this.allowedEvents = allowedEvents;

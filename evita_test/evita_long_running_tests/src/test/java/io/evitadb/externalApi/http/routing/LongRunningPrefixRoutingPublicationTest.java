@@ -30,6 +30,7 @@ import io.netty.util.AttributeKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,6 +52,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * probabilistic by nature: removing `volatile` need not fail on every JVM; this is no Java memory model proof.
  * Worker failures are retained and asserted on the test thread, after all workers have stopped.
  *
+ * The class is {@link Isolated}: this module runs test classes concurrently, and the thresholds above assume the
+ * sweep has the CPU to itself. Run next to the soak tests on 4-vCPU CI runners, each reader completed about 1,600
+ * iterations in 25 seconds, against about 240,000 on an idle developer machine. It then caught the second B
+ * handler, which stays visible only until the next publication, one to four times, and on Linux none of its reads
+ * fell between two publications. JUnit's fork-join executor runs isolated classes only after every concurrent class
+ * has finished, so isolation adds no more than this sweep's own duration to the run.
+ *
  * Calibration mutations (the expected timings are estimates). In `PrefixRoutingService#change`, immediately
  * before `this.table = new PrefixRoutingTable(exactPaths, prefixes);`, insert exactly
  * `this.table = new PrefixRoutingTable(Map.of(), Map.of());`. Expect A/B 404 within the default 25-second
@@ -68,6 +76,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Tag(EXTERNAL_API)
 @Tag(MANAGEMENT)
+@Isolated
 @DisplayName("Long-running prefix routing publication")
 class LongRunningPrefixRoutingPublicationTest {
 	private static final AttributeKey<HttpService> REACHED =

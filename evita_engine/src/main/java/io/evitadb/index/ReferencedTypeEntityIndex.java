@@ -399,6 +399,15 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 					bundles.get(LoadedComponentBundle.VirtualReferencePartitions.class);
 			final io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart manifest =
 				context.entityIndexStoragePart();
+			// the histograms of an ungrouped reference live in its referenced-type index, those of a group in the
+			// group's histogram store: no current writer lists histogram keys on a group-type manifest and the storage
+			// migration removes the legacy ones, so keys there mean an image that bypassed that migration
+			Assert.isPremiseValid(
+				manifest.getEntityIndexKey().type() != EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE ||
+					manifest.getHistogramIndexes().isEmpty(),
+				() -> "Index " + manifest.getPrimaryKey() + " (`" + manifest.getEntityIndexKey() +
+					"`) contains legacy histogram keys " + manifest.getHistogramIndexes() + " - refusing to load it."
+			);
 			return new ReferencedTypeEntityIndex(
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),

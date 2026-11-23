@@ -36,6 +36,10 @@
 
 	<dependencies>
 		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_common</artifactId>
 			<version>${project.parent.version}</version>

@@ -252,7 +252,11 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 		return this.graphQL.get()
 			.executeAsync(executionInput)
 			.handle((result, error) -> {
-				// close potential tracing block (created by OperationTracingInstrumentation)
+				// close potential tracing block (created by OperationTracingInstrumentation) - this runs on whichever
+				// thread completed the operation; once the operation was dispatched, the instrumentation has already
+				// released the block's thread-bound scope on the dispatching thread, so closing here just ends the span;
+				// when an exception skipped the dispatch, the returned future is already complete and this runs on the
+				// thread that created the block, so closing here releases the scope as well
 				final TracingBlockReference blockReference =
 					executionInput.getGraphQLContext().get(GraphQLContextKey.OPERATION_TRACING_BLOCK);
 				if (blockReference != null) {

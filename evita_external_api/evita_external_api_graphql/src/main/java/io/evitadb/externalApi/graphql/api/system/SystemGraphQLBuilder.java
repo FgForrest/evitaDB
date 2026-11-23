@@ -24,11 +24,13 @@
 package io.evitadb.externalApi.graphql.api.system;
 
 import graphql.GraphQL;
+import graphql.execution.instrumentation.ChainedInstrumentation;
 import graphql.execution.instrumentation.Instrumentation;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.GraphQLDocumentCache;
+import io.evitadb.externalApi.graphql.api.QueryComplexityLimitsInstrumentation;
 import io.evitadb.externalApi.graphql.api.tracing.OperationTracingInstrumentation;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
@@ -49,7 +51,10 @@ public class SystemGraphQLBuilder implements GraphQLBuilder {
 
     @Override
     public GraphQL build(@Nonnull GraphQLOptions config) {
-        final Instrumentation instrumentation = new OperationTracingInstrumentation();
+        final Instrumentation instrumentation = new ChainedInstrumentation(
+            new QueryComplexityLimitsInstrumentation(config),
+            new OperationTracingInstrumentation()
+        );
 
         final EvitaDataFetcherExceptionHandler dataFetcherExceptionHandler = new EvitaDataFetcherExceptionHandler();
 

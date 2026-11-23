@@ -514,9 +514,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Completes the provided source query by appending either positional or named query parameters,
-	 * based on which collection contains values. If both the positional and named query parameter collections
-	 * are empty, the source query is returned unchanged.
+	 * Completes the provided source query by appending every query parameter the request carried. The query string
+	 * is followed by a line break and then one line per parameter: the positional parameters first, as
+	 * {@code Param <n>: <value>} numbered from one, then the named parameters as {@code <name>: <value>}. If both
+	 * the positional and named query parameter collections are empty, the source query is returned unchanged.
 	 *
 	 * @param sourceQuery               the base query string to be completed with additional parameters
 	 * @param positionalQueryParamsList a list of positional query parameters to be included in the output
@@ -531,30 +532,28 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	) {
 		if (positionalQueryParamsList.isEmpty() && namedQueryParamsMap.isEmpty()) {
 			return sourceQuery;
-		} else if (namedQueryParamsMap.isEmpty()) {
-			final StringBuilder sb = new StringBuilder(sourceQuery);
-			sb.append("\n");
-			for (int i = 0; i < positionalQueryParamsList.size(); i++) {
-				final Object param = positionalQueryParamsList.get(i);
-				sb.append("Param ").append(i + 1).append(": ").append(
-					EvitaDataTypes.formatValue(param instanceof Serializable ser ? ser : "N/Serializable")).append(
-					"\n");
-			}
-			return sb.toString();
-		} else {
-			final StringBuilder sb = new StringBuilder(sourceQuery);
-			for (Entry<String, Object> entry : namedQueryParamsMap.entrySet()) {
-				sb.append(entry.getKey())
-					.append(": ")
-					.append(
-						EvitaDataTypes.formatValue(
-							entry.getValue() instanceof Serializable ser ? ser : "N/Serializable"
-						)
-					)
-					.append("\n");
-			}
-			return sb.toString();
 		}
+		final StringBuilder sb = new StringBuilder(
+			sourceQuery.length() + 32 * (positionalQueryParamsList.size() + namedQueryParamsMap.size())
+		);
+		sb.append(sourceQuery).append("\n");
+		for (int i = 0; i < positionalQueryParamsList.size(); i++) {
+			final Object param = positionalQueryParamsList.get(i);
+			sb.append("Param ").append(i + 1).append(": ").append(
+				EvitaDataTypes.formatValue(param instanceof Serializable ser ? ser : "N/Serializable")).append(
+				"\n");
+		}
+		for (Entry<String, Object> entry : namedQueryParamsMap.entrySet()) {
+			sb.append(entry.getKey())
+				.append(": ")
+				.append(
+					EvitaDataTypes.formatValue(
+						entry.getValue() instanceof Serializable ser ? ser : "N/Serializable"
+					)
+				)
+				.append("\n");
+		}
+		return sb.toString();
 	}
 
 	/**

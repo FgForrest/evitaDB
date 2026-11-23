@@ -6082,7 +6082,9 @@ class EvitaTest implements EvitaTestSupport {
 					formerServerOptions.trafficRecording(),
 					formerServerOptions.readOnly(),
 					formerServerOptions.quiet(),
-					formerServerOptions.usageStatisticsTracking()
+					formerServerOptions.usageStatisticsTracking(),
+					formerServerOptions.engineMutationProgressRetentionInSeconds(),
+					formerServerOptions.engineMutationProgressRetentionLimit()
 				),
 				formerConfiguration.storage(),
 				formerConfiguration.transaction(),

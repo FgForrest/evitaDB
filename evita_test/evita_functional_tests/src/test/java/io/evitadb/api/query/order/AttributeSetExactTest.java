@@ -26,6 +26,8 @@ package io.evitadb.api.query.order;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Tag;
 
@@ -57,6 +60,41 @@ class AttributeSetExactTest {
 	@Nested
 	@DisplayName("Construction and factory methods")
 	class ConstructionTest {
+
+		/** Checks that a sole wrapped array supplies the order and that null items still disappear. */
+		@Test
+		@DisplayName("Expand a sole wrapped array into exact order values")
+		void shouldExpandSoleArrayValue() {
+			final Serializable strings = new String[]{"b", null, "a"};
+			final Serializable allNull = new Integer[]{null};
+			final Serializable empty = new int[0];
+			final Serializable numbers = new int[]{2, 1};
+			assertAll(
+				() -> assertEquals(attributeSetExact("code", "b", "a"), attributeSetExact("code", strings)),
+				() -> assertEquals(attributeSetExact("code", 2, 1), attributeSetExact("code", numbers)),
+				() -> assertNull(attributeSetExact("code", allNull)),
+				() -> assertNull(attributeSetExact("code", empty))
+			);
+		}
+
+		/** Checks that mixed and deeper nesting, and both predecessor types, fail during construction. */
+		@Test
+		@DisplayName("Reject nested arrays and predecessor types in exact ordering")
+		void shouldRejectUnsupportedListItems() {
+			final Serializable array = new String[]{"a", "b"};
+			final Serializable nested = new String[][]{{"a"}};
+			for (final Serializable value : List.of(array, Predecessor.HEAD, ReferencedEntityPredecessor.HEAD)) {
+				final EvitaInvalidUsageException error = assertThrows(
+					EvitaInvalidUsageException.class, () -> attributeSetExact("code", "a", value)
+				);
+				assertTrue(error.getMessage().contains(value.getClass().getTypeName()), error::getMessage);
+				assertTrue(error.getMessage().contains("`code`"), error::getMessage);
+			}
+			final EvitaInvalidUsageException error = assertThrows(
+				EvitaInvalidUsageException.class, () -> attributeSetExact("code", nested)
+			);
+			assertTrue(error.getMessage().contains("java.lang.String[]"), error::getMessage);
+		}
 
 		@Test
 		@DisplayName("should create with attribute name and values")

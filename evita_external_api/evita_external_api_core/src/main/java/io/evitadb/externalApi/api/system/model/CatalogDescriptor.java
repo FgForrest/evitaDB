@@ -95,7 +95,7 @@ public interface CatalogDescriptor extends CatalogContractDescriptor {
             connected with single client. In the e-commerce world catalog means "single e-shop" although it may not be the truth
             in every case. Catalog manages set of entity collection uniquely identified by their name.
             """)
-        .staticProperties(List.of(CATALOG_ID, NAME, NAME_VARIANTS, VERSION, CATALOG_STATE, SUPPORTS_TRANSACTION, ENTITY_TYPES,
+        .staticProperties(List.of(CATALOG_ID, NAME, NAME_VARIANTS, VERSION, CATALOG_STATE, READ_ONLY, SUPPORTS_TRANSACTION, ENTITY_TYPES,
                               UNUSABLE
         ))
         .build();

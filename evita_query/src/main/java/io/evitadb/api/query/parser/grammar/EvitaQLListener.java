@@ -3530,4 +3530,14 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitEnumValueToken(EvitaQLParser.EnumValueTokenContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributeNamesArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterSingleRefReferenceContentWithAttributeNamesArgs(EvitaQLParser.SingleRefReferenceContentWithAttributeNamesArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#singleRefReferenceContentWithAttributeNamesArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitSingleRefReferenceContentWithAttributeNamesArgs(EvitaQLParser.SingleRefReferenceContentWithAttributeNamesArgsContext ctx);
 }

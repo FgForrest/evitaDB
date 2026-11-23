@@ -55,6 +55,7 @@ import io.evitadb.api.exception.CatalogNotAliveException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.ConflictingEngineMutationException;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
@@ -201,10 +202,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
@@ -268,6 +271,11 @@ public final class Catalog
 	 */
 	private static final int DEACTIVATION_ATTEMPTS = 5;
 	private static final long DEACTIVATION_RETRY_DELAY_MILLIS = 200L;
+	/**
+	 * The bit of {@link #warmUpFlushState} the termination of a warming-up instance sets. The bits below it count the
+	 * warm-up flushes in progress.
+	 */
+	private static final int WARM_UP_TERMINATION_BEGUN = 1 << 30;
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -477,6 +485,62 @@ public final class Catalog
 	 * caller a completed termination to observe rather than merely a silent no-op.
 	 */
 	@Nonnull private final Object terminationLock = new Object();
+	/**
+	 * Serializes the calls of this catalog's warm-up writer with the publication {@link #terminateInternally()}
+	 * performs, so that termination never publishes a state a call can still be changing, or one whose session close -
+	 * the point at which a warm-up schema is validated - has not run yet.
+	 *
+	 * A read-write session bound to a `WARMING_UP` instance holds it for its whole outermost call, including the
+	 * forced close the session drain hands to the call's own thread when the call returns
+	 * ({@link #getWarmUpCallLock()}, taken by `EvitaSessionProxy`). The call runs on the session's thread or, for a
+	 * schema change, on the engine executor while the session's thread waits for it - holding the lock on the
+	 * session's thread covers both, and the engine executor must never take it. Termination takes it without waiting
+	 * before it decides whether to publish and keeps it until the collections are released; a call starting
+	 * meanwhile waits for the termination and then finds the instance unable to publish, because a warm-up
+	 * termination bars it from publishing before it lets the lock go.
+	 *
+	 * Termination does not wait for a running call. The engine's session drain has already waited for it before
+	 * shutdown terminates the catalog, and a call that returns hands only its forced close to its thread - the flush
+	 * that close starts runs on the transaction executor after the lock is released, and so does the flush of a close
+	 * the drain runs on its own thread, which takes no lock at all. A termination taking the lock then finds that
+	 * flush in progress through {@link #warmUpFlushState} and publishes nothing beside it.
+	 */
+	@Nonnull private final ReentrantLock warmUpCallLock = new ReentrantLock();
+	/**
+	 * The warm-up flushes of this instance that have started and not completed, and whether its termination has begun,
+	 * in one word that changes atomically: the bits below {@link #WARM_UP_TERMINATION_BEGUN} count the flushes, and
+	 * that bit says the termination has begun.
+	 *
+	 * A warm-up flush pops the trapped changes of every collection the moment it starts and stores the catalog header
+	 * only once every collection has been written on the transaction executor - after the session that started it
+	 * has let go of {@link #warmUpCallLock}, or without that session holding it at all. A termination publishing while
+	 * such a flush is in progress finds nothing trapped in a collection the flush has not written yet, and stores a
+	 * header naming indexes whose parts only the flush would have written: a bootstrap record the files cannot back,
+	 * and a catalog that no longer loads. The word makes the two exclusive without any lock held across threads:
+	 *
+	 * - {@link #flush()} counts itself in with a compare-and-set that fails once termination has begun, before it pops
+	 *   anything, so a flush either started before the termination began - and the termination sees it in progress -
+	 *   or it is refused with nothing popped;
+	 * - the termination sets its bit and reads the count in one step, and publishes nothing when a flush is in
+	 *   progress ({@link #beginWarmUpTermination(String)});
+	 * - a flush whose collections are written publishes only when the bit is still clear, checked and written under
+	 *   {@link #warmUpPublicationLock};
+	 * - every flush counts itself out exactly once: still under that lock at the end of a publication that succeeded,
+	 *   after the barrier stands when it failed, and when its future completes if it was cancelled.
+	 *
+	 * A count rather than a flag, so that nothing here leans on warm-up admitting one session at a time.
+	 */
+	@Nonnull private final AtomicInteger warmUpFlushState = new AtomicInteger();
+	/**
+	 * Makes every bootstrap write of this warming-up instance and the beginning of its termination exclusive. The last
+	 * step of a flush holds it from its check that the termination has not begun to the end of its header write;
+	 * {@link #goLive()} holds it through its ALIVE bootstrap write, and {@link #replace} through the whole handover of
+	 * a rename; the termination takes it to set {@link #WARM_UP_TERMINATION_BEGUN}. The termination therefore either
+	 * begins first - and the write is refused before it starts - or begins once the write is over, and never closes
+	 * the storage in the middle of a bootstrap write. Held within one thread at a time, never across the hand-off to
+	 * the executor.
+	 */
+	@Nonnull private final ReentrantLock warmUpPublicationLock = new ReentrantLock();
 
 	/**
 	 * Verifies whether the catalog name could be used for a new catalog.
@@ -1226,7 +1290,7 @@ public final class Catalog
 			// exception was thrown, the pending rebuilds are discarded: in a transaction the rollback discards the
 			// exchanged schemas with them; in warm-up a refused build has raised the barrier, while a batch that failed
 			// before its drain keeps its exchanged schemas with their previous triggers (a known limitation, see ADR
-			// `2026-11-15-warm-up-trigger-build-refusal-raises-the-barrier`)
+			// `2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier`)
 			rebuildStack.pop();
 			if (rebuildStack.isEmpty()) {
 				PENDING_TRIGGER_REBUILDS.remove();
@@ -1457,6 +1521,11 @@ public final class Catalog
 	 * this method acts on `this`, so it must be the newest instance and no round may still have data to publish. A
 	 * round in its schema notification may still be running, since that writes nothing to storage.
 	 *
+	 * The handover runs under {@link #warmUpPublicationLock}: a termination of a warming-up instance either begins
+	 * first - and the returned future fails before anything is relabelled, with {@link InstanceTerminatedException},
+	 * or with the {@link CatalogUnpublishableException} of a barrier raised earlier - or waits for the handover to
+	 * finish.
+	 *
 	 * @param updatedSchema schema carrying the resulting name
 	 * @param catalogToBeReplaced optional catalog whose contents are discarded
 	 * @return progress of the handover
@@ -1471,92 +1540,102 @@ public final class Catalog
 			// use "virtual" percentage to indicate progress
 			100,
 			theFuture -> {
-				// `replaceWith` writes a bootstrap record of its own, so a catalog whose in-memory state can no
-				// longer be published must not reach it - and the refusal has to happen before the irreversible
-				// handover below rather than in the middle of it
-				assertPublishable();
-				final long catalogVersion = getVersion();
-				// Read before the handover, because `exchangeCatalogSchema` below rewrites what `getName()`
-				// answers - so a failure past that point would otherwise report the new name as the old one.
-				final String currentCatalogName = getName();
-				final CatalogSchema renamedSchema = CatalogSchema._internalBuild(updatedSchema);
-				final CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader> newIoService =
-					this.persistenceService.replaceWith(
-						catalogVersion,
-						updatedSchema.getName(),
-						updatedSchema.getNameVariants(),
-						renamedSchema,
-						this.dataStoreBuffer,
-						// recalculate to percentages
-						(done, total) -> theFuture.updateProgress((int) (((double) done / total) * 100))
-					);
-				// **Everything below is as irreversible as `replaceWith` itself, and is marked to say so.** By
-				// the time that call returns, the folder has been relabelled *and* the service that served this
-				// catalog has been closed - so a failure in the rebuild that follows leaves `this` catalog, the
-				// one still published under the name being renamed away from, holding a closed persistence
-				// service in a folder whose stored identity no longer agrees with engine state. Left unmarked,
-				// such a failure takes the operator's ordinary compensating path, which resumes session
-				// admission and hands callers exactly that catalog: the failure mode the marker exists to
-				// prevent, reached by a route that never enters `replaceWith`.
+				// Held to the end of the handover - see `warmUpPublicationLock`: a termination of a warming-up instance
+				// either begins first, and the rename is refused before it relabels anything, or waits for the handover
+				// to finish, and never closes the storage the rename is relabelling.
+				this.warmUpPublicationLock.lock();
 				try {
-					final long catalogVersionAfterRename = newIoService.getLastCatalogVersion();
-					final CatalogState catalogState = getCatalogState();
-					final List<EntityCollection> newCollections = this.entityCollections
-						.values()
-						.stream()
-						.map(
-							it -> new EntityCollection(
-								updatedSchema.getName(),
-								catalogVersionAfterRename,
-								catalogState,
-								it,
-								newIoService,
-								this.sequenceService
-							)
-						)
-						.toList();
-
-					this.transactionManager.advanceVersion(catalogVersionAfterRename);
-					// Exchanged **here**, not before the handover above, and this ordering is load-bearing. The
-					// exchange mutates *this* catalog - the one still published under the name it is being
-					// renamed away from - so performed early it hands a live catalog a schema naming a rename
-					// that has not happened yet, and a failure between the two leaves it there. The damage is
-					// not cosmetic: the commit pipeline looks a catalog up by the name its schema reports
-					// (`ExpandedEngineState#replaceCatalogReference`), so a write accepted afterwards is
-					// appended to the write-ahead log and then dies against a name the engine state has never
-					// heard of - and the next boot fails replaying it. That matters most for the failures that
-					// are *compensable*, where the catalog goes on serving; past the relabel the marker below
-					// keeps it from serving at all.
-					exchangeCatalogSchema(renamedSchema, getInternalSchema());
-					return new Catalog(
-						catalogVersionAfterRename,
-						catalogState,
-						this.catalogIndex.createShallowCopyWithResetDirtyFlag(),
-						this.archiveCatalogIndex.get() == null ?
-							null :
-							this.archiveCatalogIndex.get().createShallowCopyWithResetDirtyFlag(),
-						newCollections,
-						newIoService,
-						this,
-						true
-					);
-				} catch (Throwable ex) {
-					// The replacement service never reached a catalog that could close it, so it is closed
-					// here or its handles into the folder outlive the operation - and the folder is one a
-					// later drop or replace will want to delete. Suppressed rather than propagated: the
-					// failure being reported is the one worth reporting.
+					// `replaceWith` writes a bootstrap record of its own, so a catalog whose in-memory state can no
+					// longer be published must not reach it - and the refusal has to happen before the irreversible
+					// handover below rather than in the middle of it. Checked before the termination for the reason
+					// `goLive()` gives: the barrier's deactivation terminates this instance, and the barrier names why
+					assertPublishable();
+					assertWarmUpTerminationNotBegun();
+					final long catalogVersion = getVersion();
+					// Read before the handover, because `exchangeCatalogSchema` below rewrites what `getName()`
+					// answers - so a failure past that point would otherwise report the new name as the old one.
+					final String currentCatalogName = getName();
+					final CatalogSchema renamedSchema = CatalogSchema._internalBuild(updatedSchema);
+					final CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader>
+						newIoService = this.persistenceService.replaceWith(
+							catalogVersion,
+							updatedSchema.getName(),
+							updatedSchema.getNameVariants(),
+							renamedSchema,
+							this.dataStoreBuffer,
+							// recalculate to percentages
+							(done, total) -> theFuture.updateProgress((int) (((double) done / total) * 100))
+						);
+					// **Everything below is as irreversible as `replaceWith` itself, and is marked to say so.** By
+					// the time that call returns, the folder has been relabelled *and* the service that served this
+					// catalog has been closed - so a failure in the rebuild that follows leaves `this` catalog, the
+					// one still published under the name being renamed away from, holding a closed persistence
+					// service in a folder whose stored identity no longer agrees with engine state. Left unmarked,
+					// such a failure takes the operator's ordinary compensating path, which resumes session
+					// admission and hands callers exactly that catalog: the failure mode the marker exists to
+					// prevent, reached by a route that never enters `replaceWith`.
 					try {
-						newIoService.close();
-					} catch (Throwable suppressed) {
-						// `Throwable`, so that an `Error` raised while closing cannot *replace* the marked
-						// failure below - which would send the operator down the compensating path for a
-						// handover that has already relabelled the folder.
-						ex.addSuppressed(suppressed);
+						final long catalogVersionAfterRename = newIoService.getLastCatalogVersion();
+						final CatalogState catalogState = getCatalogState();
+						final List<EntityCollection> newCollections = this.entityCollections
+							.values()
+							.stream()
+							.map(
+								it -> new EntityCollection(
+									updatedSchema.getName(),
+									catalogVersionAfterRename,
+									catalogState,
+									it,
+									newIoService,
+									this.sequenceService
+								)
+							)
+							.toList();
+
+						this.transactionManager.advanceVersion(catalogVersionAfterRename);
+						// Exchanged **here**, not before the handover above, and this ordering is load-bearing. The
+						// exchange mutates *this* catalog - the one still published under the name it is being
+						// renamed away from - so performed early it hands a live catalog a schema naming a rename
+						// that has not happened yet, and a failure between the two leaves it there. The damage is
+						// not cosmetic: the commit pipeline looks a catalog up by the name its schema reports
+						// (`ExpandedEngineState#replaceCatalogReference`), so a write accepted afterwards is
+						// appended to the write-ahead log and then dies against a name the engine state has never
+						// heard of - and the next boot fails replaying it. That matters most for the failures that
+						// are *compensable*, where the catalog goes on serving; past the relabel the marker below
+						// keeps it from serving at all.
+						exchangeCatalogSchema(renamedSchema, getInternalSchema());
+						return new Catalog(
+							catalogVersionAfterRename,
+							catalogState,
+							this.catalogIndex.createShallowCopyWithResetDirtyFlag(),
+							this.archiveCatalogIndex.get() == null ?
+								null :
+								this.archiveCatalogIndex.get().createShallowCopyWithResetDirtyFlag(),
+							newCollections,
+							newIoService,
+							this,
+							true
+						);
+					} catch (Throwable ex) {
+						// The replacement service never reached a catalog that could close it, so it is closed
+						// here or its handles into the folder outlive the operation - and the folder is one a
+						// later drop or replace will want to delete. Suppressed rather than propagated: the
+						// failure being reported is the one worth reporting.
+						try {
+							newIoService.close();
+						} catch (Throwable suppressed) {
+							// `Throwable`, so that an `Error` raised while closing cannot *replace* the marked
+							// failure below - which would send the operator down the compensating path for a
+							// handover that has already relabelled the folder.
+							ex.addSuppressed(suppressed);
+						}
+						// `Throwable` above rather than `RuntimeException` for the same reason the storage layer
+						// uses it: past the relabel an `Error` leaves the identical disagreement behind, and
+						// compensating for it is the wrong answer however unsurvivable it is.
+						throw new CatalogHandoverFailedException(currentCatalogName, updatedSchema.getName(), ex);
 					}
-					// `Throwable` above rather than `RuntimeException` for the same reason the storage layer
-					// uses it: past the relabel an `Error` leaves the identical disagreement behind, and
-					// compensating for it is the wrong answer however unsurvivable it is.
-					throw new CatalogHandoverFailedException(currentCatalogName, updatedSchema.getName(), ex);
+				} finally {
+					this.warmUpPublicationLock.unlock();
 				}
 			}
 		);
@@ -1593,9 +1672,18 @@ public final class Catalog
 	 * catalog's name (the go-live operator's undo) therefore gets a catalog that serves readers but refuses every
 	 * write and every flush, until the deactivation that mark schedules settles the name.
 	 *
+	 * **It runs under {@link #warmUpPublicationLock}, from the check that the termination of this instance has not
+	 * begun to the end of the method**, so a termination either begins first - and the go-live is refused before it
+	 * writes anything - or waits for the go-live to finish, and never closes the storage in the middle of the ALIVE
+	 * bootstrap write. A go-live that finishes bars the instance it supersedes from publishing again, without
+	 * scheduling a deactivation: a termination of that instance, which engine shutdown may still run, must not store a
+	 * warm-up header after the ALIVE record.
+	 *
 	 * @return the ALIVE catalog instance that supersedes this one
 	 * @throws CatalogUnpublishableException when an earlier warm-up failure already bars this instance from
-	 *                                      publishing anything
+	 *                                      publishing anything - even once the deactivation that failure scheduled
+	 *                                      has terminated it
+	 * @throws InstanceTerminatedException  when the termination of this instance has begun and nothing bars it
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException
 	 *                                      when this catalog is already alive, or another `goLive` call is in
 	 *                                      progress on it
@@ -1603,6 +1691,7 @@ public final class Catalog
 	@Nonnull
 	@Override
 	public Catalog goLive() {
+		this.warmUpPublicationLock.lock();
 		try {
 			Assert.isTrue(
 				this.goingLive.compareAndSet(false, true),
@@ -1612,8 +1701,11 @@ public final class Catalog
 			Assert.isTrue(this.state == CatalogState.WARMING_UP, "Catalog has already alive state!");
 			// go-live publishes a bootstrap record of its own and then mints an ALIVE catalog that SHARES these
 			// indexes, which would carry untrustworthy state past every warm-up guard there is. The flush the
-			// go-live operator runs first is a no-op when nothing changed, so it cannot be relied on to refuse here
+			// go-live operator runs first is a no-op when nothing changed, so it cannot be relied on to refuse here.
+			// Checked before the termination, because the barrier schedules a deactivation that terminates this
+			// instance: a caller still holding it must be told about the failure, not only about its consequence
 			assertPublishable();
+			assertWarmUpTerminationNotBegun();
 			final List<EntityCollection> newCollections = this.entityCollections
 				.values()
 				.stream()
@@ -1660,6 +1752,13 @@ public final class Catalog
 				} else {
 					log.info("Catalog `{}` is now alive!", newCatalog.getName());
 				}
+				// superseded for good - see this method's documentation
+				this.unpublishableCause.compareAndSet(
+					null,
+					new EvitaInvalidUsageException(
+						"Catalog `" + newCatalog.getName() + "` went live; its warm-up instance publishes nothing more."
+					)
+				);
 				return newCatalog;
 			} catch (Throwable ex) {
 				// `Throwable`, because an `Error` past the publication leaves exactly the same superseded instance
@@ -1691,6 +1790,7 @@ public final class Catalog
 			}
 		} finally {
 			this.goingLive.set(false);
+			this.warmUpPublicationLock.unlock();
 		}
 	}
 
@@ -2327,6 +2427,19 @@ public final class Catalog
 	}
 
 	/**
+	 * Returns the lock a call of this catalog's read-write session holds for its whole duration while the catalog is
+	 * warming up, so that {@link #terminate()} cannot publish while the call is still running - see
+	 * {@link #warmUpCallLock}.
+	 *
+	 * @return the lock of a `WARMING_UP` instance, or `null` for an `ALIVE` one, whose sessions change nothing in
+	 *         place and therefore take no lock at all
+	 */
+	@Nullable
+	public ReentrantLock getWarmUpCallLock() {
+		return this.state == CatalogState.WARMING_UP ? this.warmUpCallLock : null;
+	}
+
+	/**
 	 * Sets the read-only state of the object.
 	 *
 	 * @param readOnly a boolean value indicating whether the object should be set to read-only (true)
@@ -2337,16 +2450,21 @@ public final class Catalog
 	}
 
 	/**
-	 * Applies a given {@link Mutation} to the appropriate target within the system.
-	 * The method determines the type of the mutation and performs the required action,
-	 * such as applying a schema mutation to the catalog or applying an entity mutation
-	 * to the relevant entity collection.
+	 * Applies an internal mutation: a catalog schema mutation to this catalog, an entity mutation to the collection of
+	 * its entity type.
 	 *
-	 * @param mutation the mutation instance to be applied; must not be null
-	 * @throws InvalidMutationException if the mutation type is not recognized or supported
+	 * This is the entry of mutations replayed from the write-ahead log, which belong to no session; session writes use
+	 * {@link #applyMutation(EvitaSessionContract, CatalogBoundMutation)}. An entity mutation is applied through
+	 * {@link EntityCollection#applyMutation(EntityMutation)} as an already committed one: a reference-histogram value
+	 * its withdrawal misses is not refused, whatever {@link MissingHistogramValueBehavior} the engine started with.
+	 *
+	 * @param evita the engine applying the mutation
+	 * @param mutation the mutation to apply
+	 * @throws InvalidMutationException when the mutation is neither a catalog schema nor an entity mutation
 	 */
 	public void applyMutation(
-		@Nonnull EvitaContract evita, @Nonnull Mutation mutation) throws InvalidMutationException {
+		@Nonnull EvitaContract evita, @Nonnull Mutation mutation
+	) throws InvalidMutationException {
 		if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
 			// apply schema mutation to the catalog
 			updateSchema(evita, null, schemaMutation);
@@ -2426,10 +2544,8 @@ public final class Catalog
 	}
 
 	/**
-	 * What a write in this catalog does when it must withdraw a reference-histogram value the index does not hold for
-	 * the entity - fixed when the engine started (see {@link MissingHistogramValueBehavior#fromSystemProperty()}) and
-	 * answered here so that every site withdrawing a histogram value reads the one value. It cannot change under a
-	 * running catalog.
+	 * Returns the session write policy for a missing reference-histogram value, fixed at engine start by
+	 * {@link MissingHistogramValueBehavior#fromSystemProperty()}.
 	 *
 	 * @return the behavior on a missing histogram value
 	 */
@@ -2814,77 +2930,75 @@ public final class Catalog
 		// index's change-detection baseline, so a flush that is going to be refused anyway must not consume state on
 		// its way to being refused
 		assertPublishable();
+		// counted in before anything is popped, and refused once the termination of this instance has begun: a flush
+		// either started before the termination began, which then sees it in progress, or it pops nothing at all
+		beginWarmUpFlush();
+		// counts this flush out exactly once, on whichever completion path gets there first
+		final AtomicBoolean countedOut = new AtomicBoolean();
+		final Runnable countOut = () -> {
+			if (countedOut.compareAndSet(false, true)) {
+				this.warmUpFlushState.decrementAndGet();
+			}
+		};
 
-		// this pops the CATALOG's own trapped changes here and now, on this thread, before a single collection future is
-		// even constructed - while they are written only in the combine step below, once every collection has flushed.
-		// A collection whose write fails therefore strands these already-popped changes with no combine step to persist
-		// them, and the baselines they were collected against have already moved - so the catalog can no longer
-		// publish anything (see the failure handler installed on the future below, and the cancellation backstop
-		// beside it).
-		final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
-		final ProgressingFuture<Void> flushFuture = new ProgressingFuture<>(
-			trappedChanges.getTrappedChangesCount(),
-			// first flush all entity collections
-			this.entityCollections
-				.values()
-				.stream()
-				.map(EntityCollection::createFlushFuture)
-				.toList(),
-			// when all entity collections are flushed, we can update the catalog header
-			(progress, collectionOfHeaders) -> {
-				final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(collectionOfHeaders.size());
-				// start with the changeOccurred flag, which is true is schema was changed or if we are going live
-				boolean resolvedChangeOccurred = changeOccurred;
-				for (EntityCollectionHeaderWithCollection collectionOfHeader : collectionOfHeaders) {
-					// collect correct headers for each collection
-					entityHeaders.add(updateIndexIfNecessary(collectionOfHeader));
-					// set it to true if any of the collections changed
-					resolvedChangeOccurred = resolvedChangeOccurred || collectionOfHeader.changeOccurred();
+		final ProgressingFuture<Void> flushFuture;
+		try {
+			// this pops the CATALOG's own trapped changes here and now, on this thread, before a single collection
+			// future is even constructed - while they are written only in the combine step below, once every
+			// collection has flushed. A collection whose write fails therefore strands these already-popped changes
+			// with no combine step to persist them, and the baselines they were collected against have already moved -
+			// so the catalog can no longer publish anything (see the failure handler installed on the future below,
+			// and the cancellation backstop beside it).
+			final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
+			flushFuture = new ProgressingFuture<>(
+				trappedChanges.getTrappedChangesCount(),
+				// first flush all entity collections
+				this.entityCollections
+					.values()
+					.stream()
+					.map(EntityCollection::createFlushFuture)
+					.toList(),
+				// when all entity collections are flushed, we can update the catalog header
+				(progress, collectionOfHeaders) -> {
+					publishFlushedCollections(progress, collectionOfHeaders, changeOccurred, trappedChanges, countOut);
+					return null;
+				},
+				// Whether a collection's write failed or the combine step itself did, this catalog's own collected
+				// changes are lost either way, and the baselines they were collected against have already moved. No
+				// later flush can reconstruct them, so this catalog may never publish again.
+				//
+				// **Installed as the future's own failure handler rather than as a `whenComplete` dependent, and the
+				// difference is load-bearing.** `ProgressingFuture#completeExceptionally` runs this handler BEFORE it
+				// delegates to `super.completeExceptionally`, so the refusal barrier stands before the future is
+				// observably complete at all. A dependent registered here instead would run after the ones registered
+				// later - `CompletableFuture` does not specify an order, and in practice pops its dependents
+				// last-in-first-out - which puts it after the go-live operator's own dependent: that operator would
+				// restore this catalog behind its name and resume its session registry while the barrier was still
+				// missing, and a session admitted in that window would write to a catalog whose changes are already
+				// lost. The handler itself can run more than once - two exceptional completions both invoke it before
+				// `super.completeExceptionally` no-ops - but the mark behind it is compare-and-set guarded, so MARKING
+				// twice is impossible and the first cause is the one that survives. The failed flush is counted out
+				// only once the barrier stands: a termination that finds no flush in progress must never find the
+				// barrier still missing for one that failed. Counted out even when the mark throws - scheduling the
+				// deactivation fails on a shut-down scheduler after the barrier is already raised.
+				failure -> {
+					try {
+						markUnpublishable(failure);
+					} finally {
+						countOut.run();
+					}
 				}
-				// if any of the collections changed, we need to flush the trapped changes and store the catalog header
-				if (resolvedChangeOccurred) {
-					this.persistenceService.flushTrappedUpdates(
-						0L,
-						trappedChanges,
-						progress::updateProgress
-					);
-
-					final CatalogHeader<LogRecordReference, CollectionReference> catalogHeader =
-						this.persistenceService.getCatalogHeader(0L);
-					Assert.isPremiseValid(
-						catalogHeader != null && catalogHeader.catalogState() == CatalogState.WARMING_UP,
-						"Catalog header is expected to be present in the storage in WARMING_UP flag!"
-					);
-					this.persistenceService.storeHeader(
-						this.catalogId,
-						getCatalogState(),
-						0L,
-						this.entityTypeSequence.get(),
-						null,
-						entityHeaders,
-						this.dataStoreBuffer
-					);
-					this.lastPersistedSchemaVersion = getInternalSchema().version();
-				}
-				return null;
-			},
-			// Whether a collection's write failed or the combine step itself did, this catalog's own collected changes
-			// are lost either way, and the baselines they were collected against have already moved. No later flush
-			// can reconstruct them, so this catalog may never publish again.
-			//
-			// **Installed as the future's own failure handler rather than as a `whenComplete` dependent, and the
-			// difference is load-bearing.** `ProgressingFuture#completeExceptionally` runs this handler BEFORE it
-			// delegates to `super.completeExceptionally`, so the refusal barrier stands before the future is
-			// observably complete at all. A dependent registered here instead would run after the ones registered
-			// later - `CompletableFuture` does not specify an order, and in practice pops its dependents
-			// last-in-first-out - which puts it after the go-live operator's own dependent: that operator would
-			// restore this catalog behind its name and resume its session registry while the barrier was still
-			// missing, and a session admitted in that window would write to a catalog whose changes are already lost.
-			// The handler itself can run more than once - two exceptional completions both invoke it before
-			// `super.completeExceptionally` no-ops - but the mark behind it is compare-and-set guarded, so MARKING
-			// twice is impossible and the first cause is the one that survives.
-			this::markUnpublishable
-		);
+			);
+		} catch (RuntimeException | Error ex) {
+			// whatever was popped before the failure is lost with it, exactly as when the future fails - so the barrier
+			// is raised first, and only then is the flush counted out, here, because no future exists that could
+			try {
+				markUnpublishable(ex);
+			} finally {
+				countOut.run();
+			}
+			throw ex;
+		}
 		// **The second half of the same barrier, and not a duplicate of the handler above.** The failure handler
 		// covers an exceptional completion, and covers it EARLY - before the future is observably complete. It does
 		// not cover CANCELLATION: `CompletableFuture#cancel` does not route through `completeExceptionally`, so the
@@ -2893,14 +3007,151 @@ public final class Catalog
 		// Nothing in the tree cancels this future today, and that is precisely why the dependent stays: a durability
 		// barrier whose correctness rests on "nobody currently cancels this" is one refactor away from silently not
 		// existing. `markUnpublishable` is compare-and-set guarded, so the pair cannot mark twice.
+		//
+		// The flush is counted out here only as the backstop for a cancellation, which reaches neither the last step
+		// nor the failure handler - and only after the barrier stands. A flush that succeeded is counted out by its
+		// last step, before the future completes: the dependents of the future run before this one, the session close
+		// among them, and a termination right behind that close must not count a flush that has already published.
 		flushFuture.whenComplete(
 			(result, ex) -> {
-				if (ex != null) {
-					markUnpublishable(ex);
+				try {
+					if (ex != null) {
+						markUnpublishable(ex);
+					}
+				} finally {
+					countOut.run();
 				}
 			}
 		);
 		return flushFuture;
+	}
+
+	/**
+	 * Counts a warm-up flush in to {@link #warmUpFlushState}, unless the termination of this instance has begun.
+	 *
+	 * @throws InstanceTerminatedException when the termination has begun - the flush has popped nothing yet, so the
+	 *                                     refusal costs nothing the termination does not drop anyway
+	 */
+	private void beginWarmUpFlush() {
+		int state = this.warmUpFlushState.get();
+		while (true) {
+			if ((state & WARM_UP_TERMINATION_BEGUN) != 0) {
+				throw new InstanceTerminatedException("catalog `" + getName() + "`");
+			}
+			final int witness = this.warmUpFlushState.compareAndExchange(state, state + 1);
+			if (witness == state) {
+				return;
+			}
+			state = witness;
+		}
+	}
+
+	/**
+	 * Refuses the caller once the termination of this warming-up instance has begun. Every step that writes a
+	 * bootstrap record of a warming-up instance calls it under {@link #warmUpPublicationLock} - the last step of a
+	 * flush, go-live and a rename - so that a termination either begins before the step and the step writes nothing,
+	 * or waits for the step to finish.
+	 *
+	 * @throws InstanceTerminatedException when the termination has begun
+	 */
+	private void assertWarmUpTerminationNotBegun() {
+		if ((this.warmUpFlushState.get() & WARM_UP_TERMINATION_BEGUN) != 0) {
+			throw new InstanceTerminatedException("catalog `" + getName() + "`");
+		}
+	}
+
+	/**
+	 * The step {@link #flush()} ends with once every collection has been written: installs the collections whose write
+	 * replaced them and, when anything changed, publishes through
+	 * {@link #publishWarmUpState(TrappedChanges, List, IntConsumer)}.
+	 *
+	 * Runs under {@link #warmUpPublicationLock} from its check that the termination of this instance has not begun to
+	 * the end of the header write, so a termination either begins first - and this step publishes nothing - or waits
+	 * for the header write to end before it releases the collections and closes the storage. The check comes before
+	 * the collections are installed too, so a step that lost the race touches nothing the termination is releasing.
+	 * A step that succeeds counts the flush out before it lets the lock go, so the termination that waited for it
+	 * finds no flush in progress; one that throws leaves that to the flush's failure handler.
+	 *
+	 * @param progress            the flush future, which the written trapped changes are reported to
+	 * @param collectionOfHeaders the header of every collection as its write left it, with the collection to install
+	 * @param changeOccurred      whether the catalog schema changed since the last publication
+	 * @param catalogChanges      the catalog's own trapped changes, popped when the flush started
+	 * @param countOut            counts the flush out of {@link #warmUpFlushState}, at most once
+	 * @throws InstanceTerminatedException   when the termination of this instance has begun - what the flush wrote then
+	 *                                       stays unreferenced, and the last published state stays the catalog's state,
+	 *                                       which a reload recovers completely
+	 * @throws CatalogUnpublishableException when something has made this catalog's state unpublishable since the
+	 *                                       flush started
+	 */
+	private void publishFlushedCollections(
+		@Nonnull ProgressingFuture<Void> progress,
+		@Nonnull Collection<EntityCollectionHeaderWithCollection> collectionOfHeaders,
+		boolean changeOccurred,
+		@Nonnull TrappedChanges catalogChanges,
+		@Nonnull Runnable countOut
+	) {
+		this.warmUpPublicationLock.lock();
+		try {
+			// the termination first here, unlike in `goLive()` and the rename: a barrier raised before this flush
+			// began was refused at its entry, and a termination meeting it in progress raises the barrier itself
+			assertWarmUpTerminationNotBegun();
+			assertPublishable();
+			final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(collectionOfHeaders.size());
+			// start with the changeOccurred flag, which is true is schema was changed or if we are going live
+			boolean resolvedChangeOccurred = changeOccurred;
+			for (EntityCollectionHeaderWithCollection collectionOfHeader : collectionOfHeaders) {
+				// collect correct headers for each collection
+				entityHeaders.add(updateIndexIfNecessary(collectionOfHeader));
+				// set it to true if any of the collections changed
+				resolvedChangeOccurred = resolvedChangeOccurred || collectionOfHeader.changeOccurred();
+			}
+			// if any of the collections changed, we need to flush the trapped changes and store the catalog header
+			if (resolvedChangeOccurred) {
+				publishWarmUpState(catalogChanges, entityHeaders, progress::updateProgress);
+			}
+			countOut.run();
+		} finally {
+			this.warmUpPublicationLock.unlock();
+		}
+	}
+
+	/**
+	 * Publishes the warm-up state of this catalog: writes the catalog's own trapped changes - among them the catalog
+	 * index, which holds the values of globally unique attributes - and then stores the catalog header naming the
+	 * given collection headers, whose bootstrap record makes that state the catalog's state.
+	 *
+	 * Both warm-up publishers end here, {@link #flush()} and the termination of a warming-up instance, so that what a
+	 * publication consists of is written down once. A termination that stored the header without the catalog's
+	 * trapped changes published entities whose globally unique values its catalog index did not hold, and kept the
+	 * values of entities it no longer held. The caller pops the trapped changes rather than this method, because
+	 * {@link #flush()} sizes its future by them before a single collection is written.
+	 *
+	 * @param catalogChanges   the catalog's own trapped changes, popped from {@link #dataStoreBuffer} by the caller
+	 * @param entityHeaders    the header of every entity collection, as its flush left it
+	 * @param progressObserver observes how many of the trapped changes have been written
+	 */
+	private void publishWarmUpState(
+		@Nonnull TrappedChanges catalogChanges,
+		@Nonnull List<EntityCollectionHeader> entityHeaders,
+		@Nonnull IntConsumer progressObserver
+	) {
+		this.persistenceService.flushTrappedUpdates(0L, catalogChanges, progressObserver);
+		final CatalogHeader<LogRecordReference, CollectionReference> catalogHeader =
+			this.persistenceService.getCatalogHeader(0L);
+		Assert.isPremiseValid(
+			catalogHeader != null && catalogHeader.catalogState() == CatalogState.WARMING_UP,
+			"Catalog header is expected to be present in the storage in WARMING_UP flag!"
+		);
+		this.persistenceService.storeHeader(
+			this.catalogId,
+			getCatalogState(),
+			0L,
+			this.entityTypeSequence.get(),
+			null,
+			entityHeaders,
+			this.dataStoreBuffer
+		);
+		this.lastPersistedSchemaVersion = getInternalSchema().version();
 	}
 
 	/**
@@ -4079,10 +4330,32 @@ public final class Catalog
 	 * The termination process involves flushing and updating entity collections, storing
 	 * headers if applicable, and preparing the system for garbage collection.
 	 * Logs relevant information or errors during the lifecycle of this operation.
+	 *
+	 * **A warming-up catalog is published only when no call of its writer is running.** The decision and everything
+	 * after it run under {@link #warmUpCallLock}, taken without waiting: when a call holds it, the call can still be
+	 * changing the state and its session close has not validated it, so nothing is published, the skip is logged as a
+	 * warning, and the instance is barred from publishing at once, because the call's own session close would
+	 * otherwise flush a catalog whose collections this method is releasing. The last published state stays the
+	 * catalog's state, which is the state a reload finds. A termination that holds the lock bars the instance just
+	 * before releasing it, for the call queued behind it.
+	 *
+	 * **Nor is it published beside a warm-up flush in progress** - the flush of a session close the drain ran without
+	 * the lock, or one that a returning call dispatched before releasing it. The termination begins as far as flushes
+	 * are concerned before it decides anything ({@link #beginWarmUpTermination(String)}): from then on no flush
+	 * starts, and one in progress publishes nothing, so when one is in progress nothing is published at all and the
+	 * last published state stays the catalog's state. The collections are released and the storage closed all the
+	 * same - the flush's writes that still run fail on them, which completes its future exceptionally.
 	 */
 	private void terminateInternally() {
 		final String catalogName = getName();
+		final boolean warmingUp = getCatalogState() == CatalogState.WARMING_UP;
+		// taken before anything is decided and kept until the collections are released, so that a call of the
+		// writer can neither be running when the termination decides nor start before it is done
+		final boolean callLockHeld = warmingUp && this.warmUpCallLock.tryLock();
 		try {
+			// begun before anything is decided as well: from here on no warm-up flush starts, and one still in progress
+			// neither publishes nor lets this termination publish beside it, having barred the instance already
+			final boolean flushInProgress = warmingUp && beginWarmUpTermination(catalogName);
 			// close transaction manager
 			IOUtils.closeQuietly(this.transactionManager::close);
 			// flush all entity collections and store their headers
@@ -4091,7 +4364,30 @@ public final class Catalog
 			// Only a warming-up catalog persists anything at close, and only one that may still publish has anything
 			// to gain from doing so - for the rest the header write would be refused anyway, so skip straight to
 			// releasing the resources. This is the one barrier site that must NOT throw: shutdown has to finish.
-			final boolean flushBeforeTerminate = getCatalogState() == CatalogState.WARMING_UP && isPublishable();
+			final boolean flushBeforeTerminate = callLockHeld && isPublishable();
+			if (flushInProgress) {
+				log.warn(
+					"Catalog `{}` is being terminated while a warm-up flush is still writing it, so neither the " +
+						"flush nor the termination publishes anything. The stored catalog stays at the last version " +
+						"it published, which a reload recovers completely; what the flushing session had not yet " +
+						"published is dropped.",
+					catalogName
+				);
+			}
+			if (warmingUp && !callLockHeld && isPublishable()) {
+				log.warn(
+					"Catalog `{}` is being terminated while a call of its warm-up session is still running, so its " +
+						"in-memory state is not published: the call can still be changing it, and the session close " +
+						"that validates it has not run. The stored catalog stays at the last version it published; " +
+						"the changes made since then are lost.",
+					catalogName
+				);
+				// no deactivation is scheduled - the instance is being terminated by whoever terminates it, and the
+				// barrier only has to stop the running call's session close from flushing it once the call returns
+				this.unpublishableCause.compareAndSet(
+					null, new InstanceTerminatedException("catalog `" + catalogName + "`")
+				);
+			}
 			// tracks whether every collection got its changes onto the disk. A header names ALL of them at once, so
 			// one collection failing means the header would describe a mix of what this run wrote and what the
 			// previous one did - and a single root entity mutation can write into several collections through
@@ -4141,24 +4437,58 @@ public final class Catalog
 
 			// if any change occurred (this may happen only in warm up state)
 			if (flushBeforeTerminate && changeOccurred && everyCollectionFlushed) {
-				// store catalog header
-				this.persistenceService.storeHeader(
-					this.catalogId,
-					getCatalogState(),
-					getVersion(),
-					this.entityTypeSequence.get(),
-					null,
-					entityHeaders,
-					this.dataStoreBuffer
+				// the catalog's own trapped changes and the catalog header, exactly as a flush publishes them
+				publishWarmUpState(
+					this.dataStoreBuffer.popTrappedChanges(), entityHeaders, Functions.noOpIntConsumer()
 				);
 			}
-			// close all resources here, here we just hand all objects to GC
-			this.entityCollections.clear();
 			// log info
 			log.info("Catalog {} successfully terminated.", catalogName);
 		} catch (RuntimeException ex) {
 			// log error
 			log.error("Failed to terminate catalog {} due to: {}", catalogName, ex.getMessage(), ex);
+		} finally {
+			// close all resources here, here we just hand all objects to GC - in the `finally`, so that a publication
+			// that failed above cannot leave the collections it has just released behind
+			this.entityCollections.clear();
+			if (callLockHeld) {
+				// a call queued on the lock resumes the moment it is released - before `terminate()` closes the
+				// persistence service - and finds the collections released; it must not publish what is left of them
+				this.unpublishableCause.compareAndSet(
+					null, new InstanceTerminatedException("catalog `" + catalogName + "`")
+				);
+				this.warmUpCallLock.unlock();
+			}
+		}
+	}
+
+	/**
+	 * Begins the termination of this warming-up instance as far as its bootstrap writes are concerned: once this
+	 * returns, no flush starts and none still in progress publishes - see {@link #warmUpFlushState} - and neither a
+	 * go-live nor a rename starts either.
+	 *
+	 * Taken under {@link #warmUpPublicationLock}, so it waits for a header write already under way rather than letting
+	 * the storage be closed beneath it. When a flush is in progress the instance is barred from publishing here, under
+	 * the same lock and before any write of that flush can see the bit: the flush's refusal reaches
+	 * {@link #markUnpublishable(Throwable)} through its future, and must find the barrier standing rather than report
+	 * an engine failure and schedule a deactivation for an instance that is being terminated anyway.
+	 *
+	 * @param catalogName name of the catalog, for the cause the barrier records
+	 * @return true when a warm-up flush was in progress, so that the termination must publish nothing itself
+	 */
+	private boolean beginWarmUpTermination(@Nonnull String catalogName) {
+		this.warmUpPublicationLock.lock();
+		try {
+			final int previousState = this.warmUpFlushState.getAndUpdate(state -> state | WARM_UP_TERMINATION_BEGUN);
+			final boolean flushInProgress = (previousState & ~WARM_UP_TERMINATION_BEGUN) != 0;
+			if (flushInProgress) {
+				this.unpublishableCause.compareAndSet(
+					null, new InstanceTerminatedException("catalog `" + catalogName + "`")
+				);
+			}
+			return flushInProgress;
+		} finally {
+			this.warmUpPublicationLock.unlock();
 		}
 	}
 

@@ -56,9 +56,11 @@ public class CatalogGraphQLQueryTranslationVerifyingFunctionTest extends Catalog
 	@DisplayName("Should accept and process large query")
 	@Disabled
 	void shouldAcceptAndProcessLargeQuery(Evita evita) throws IOException {
-		new GraphQLTester("https://demo.evitadb.io:5555/gql").test("evita")
-			.document(readFromClasspath("testData/CatalogGraphQLQueryTranslationVerifyingFunctionTest_query.graphql"))
-			.executeAndExpectOkAndThen()
-			.body(ERRORS_PATH, nullValue());
+		try (final GraphQLTester tester = new GraphQLTester("https://demo.evitadb.io:5555/gql")) {
+			tester.test("evita")
+				.document(readFromClasspath("testData/CatalogGraphQLQueryTranslationVerifyingFunctionTest_query.graphql"))
+				.executeAndExpectOkAndThen()
+				.body(ERRORS_PATH, nullValue());
+		}
 	}
 }

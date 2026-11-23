@@ -20,35 +20,30 @@ inScope(
 <dl>
     <dt>argument:enum(LIVE|ARCHIVED)</dt>
     <dd>
-        mandatory enum argument representing the scope to which the require constraints in the second and subsequent
-        arguments are applied
+        mandatory enum argument naming one of the scopes requested by the query
     </dd>
     <dt>requireConstraint:any+</dt>
     <dd>
-        one or more mandatory require conditions, combined by a logical link, used to require entities only in 
-        a specific scope
+        one or more require constraints whose extra results are checked against the indexes of the named scope only
     </dd>
 </dl>
 
 The `inScope` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/RequireInScope.java</SourceClass></LS>
-<LS to="c"><SourceClass>EvitaDB.Client/Queries/Require/RequireInScope.cs</SourceClass></LS>) require container is used
-to restrict require conditions so that they only apply to a specific scope.
+<LS to="c"><SourceClass>EvitaDB.Client/Queries/Require/RequireInScope.cs</SourceClass></LS>) require container plans
+the extra results it wraps, such as facet summaries, histograms, and hierarchy statistics, in the named scope: they are
+checked against the indexes of that scope only.
 
-The evitaDB query engine is strict about indexes and does not allow you to require or sort on data (attributes, references,
-etc.) for which no index has been prepared in advance (it tries to avoid situations where a full scan would degrade query
-performance). Scopes, on the other hand, allows us to get rid of unnecessary indexes when we know we will not need them
-(archived data is not expected to be queried as extensively as live data) and free up some resources for more important
-tasks.
+An extra result requires its indexes in every scope it is planned in. A query that searches both scopes can wrap an
+extra result in `inScope` naming the scope that has them.
 
-The [inScope](#in-scope) require constraint allows us to query entities in both scopes at once,
-which would be impossible if we couldn't tell which require constraint to apply to which scope. The `inScope` container
-is designed to handle this situation.
+The main `entityFetch` fetches its requested content for every returned entity, regardless of scope, even when
+it appears inside a require-level `inScope`. Its content constraints are checked in the scopes the content is fetched
+in - every scope the query searches, unless a reference filter selects the scopes of the referenced entities.
 
 <Note type="info">
 
-It's obvious that the `inScope` container is not necessary if we are only querying entities in one scope. However, if
-you do use it in this case, it must match the scope of the query. If you use the `inScope` container with the `LIVE`
-scope, but the query is executed in the `ARCHIVED` scope, the engine will return an error.
+The scope named by `inScope` must be one the query requests. A query that searches only `ARCHIVED` rejects
+`inScope(LIVE, ...)`.
 
 An `inScope` container cannot be nested in another `inScope` container within the same requirement context. With
 a different scope the inner requirements would apply only to entities that are in both scopes at once, which none are,
@@ -60,11 +55,17 @@ other entities - such as `entityFetch`, `referenceContent`, `facetSummary` or `h
 
 <LS to="g">
 
-<Note type="warning">
+<Note type="info">
 
-The `inScope` constraint container has limited support in GraphQL API (only extra results can be requested in specific scopes
-for now).
-You can check the status of the following issue [#752](https://github.com/FgForrest/evitaDB/issues/1012).
+The GraphQL API doesn't express most of the require constraints directly but through the output fields, so the `inScope`
+container is available for the extra results only. The references and the parents of entities need no
+such container: they're fetched for the entities of every queried scope, because fetching them doesn't need any index
+of the scope the entity lives in (see [reference content](fetching.md#reference-content) and
+[hierarchy content](fetching.md#hierarchy-content)). Only the constraints nested in the reference or parents fields
+that do read an index are refused: an `entityHaving` or a `stopAt` node filter by an attribute filterable in one
+scope only, and an ordering of references that aren't indexed in every queried scope. Wrap such a filter in
+the `inScope` container of the nested `filterBy` argument (or name the scope in the `entityHaving` itself), and such
+an ordering in the `inScope` container of the nested `orderBy` argument.
 
 </Note>
 
@@ -110,6 +111,17 @@ As you can see, the result contains calculations for the data that the engine ca
 </LS>
 
 </Note>
+
+Place the main `entityFetch` beside the `inScope` container. When querying products in both scopes, this require
+section fetches the code of every returned product and checks the price histogram against the price indexes of the
+live scope only:
+
+```evitaql
+require(
+  entityFetch(attributeContent("code")),
+  inScope(LIVE, priceHistogram(5))
+)
+```
 
 <Note type="info">
 

@@ -87,6 +87,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import static io.evitadb.spi.store.catalog.persistence.PersistenceService.STORAGE_PROTOCOL_VERSION;
 import static io.evitadb.store.catalog.OfflineCatalogImages.lastBootstrap;
 import static io.evitadb.store.catalog.OfflineCatalogImages.migrateOffline;
 import static io.evitadb.store.catalog.OfflineCatalogImages.stamp;
@@ -503,7 +504,7 @@ class Migration_2026_3_RangeCompanionUpgradeTest implements EvitaTestSupport {
 			stamp(this.configuration, "ranges", 6, 6);
 			read(inspect);
 			final var published = lastBootstrap(this.configuration, "ranges");
-			assertEquals(7, published.storageProtocolVersion());
+			assertEquals(STORAGE_PROTOCOL_VERSION, published.storageProtocolVersion());
 			read(inspect);
 			assertEquals(published, lastBootstrap(this.configuration, "ranges"));
 		}

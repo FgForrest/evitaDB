@@ -622,9 +622,11 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * {@link EntitySchemaContract#getName()}.
 	 *
 	 * Reflected reference sets up a bi-directional relation with target entity by selecting appropriate existing
-	 * uni-directional reference in the target entity schema. By default the reflected reference inherits all the reference
-	 * attributes of the original relation, cardinality, description and other properties. You can redefine most of them
-	 * using {@link ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder}. You may also define new unique
+	 * uni-directional reference in the target entity schema. By default the reflected reference inherits the
+	 * description, deprecation notice, cardinality, indexing and faceting of the original relation, but none of its
+	 * reference attributes: those are inherited only when one of the `withAttributesInherited` methods of
+	 * {@link ReflectedReferenceSchemaEditor} asks for them. You can redefine most of the inherited properties using
+	 * {@link ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder}. You may also define new unique
 	 * reference attributes which will be visible only from this entity point of view.
 	 *
 	 * References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
@@ -646,9 +648,11 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 	 * {@link EntitySchemaContract#getName()}.
 	 *
 	 * Reflected reference sets up a bi-directional relation with target entity by selecting appropriate existing
-	 * uni-directional reference in the target entity schema. By default the reflected reference inherits all the reference
-	 * attributes of the original relation, cardinality, description and other properties. You can redefine most of them
-	 * using {@link ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder}. You may also define new unique
+	 * uni-directional reference in the target entity schema. By default the reflected reference inherits the
+	 * description, deprecation notice, cardinality, indexing and faceting of the original relation, but none of its
+	 * reference attributes: those are inherited only when one of the `withAttributesInherited` methods of
+	 * {@link ReflectedReferenceSchemaEditor} asks for them. You can redefine most of the inherited properties using
+	 * {@link ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder}. You may also define new unique
 	 * reference attributes which will be visible only from this entity point of view.
 	 *
 	 * References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).

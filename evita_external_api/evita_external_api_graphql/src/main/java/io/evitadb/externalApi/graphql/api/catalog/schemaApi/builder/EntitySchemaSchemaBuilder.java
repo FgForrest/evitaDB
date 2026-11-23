@@ -515,25 +515,17 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 	@Nonnull
 	private GraphQLObjectType buildGenericReferenceSchemaObject() {
+		// the name variant fetchers stay synchronous: they are nested fields, and in the response of a schema mutation
+		// they read through its read-write session, which rejects a second thread calling it concurrently
 		this.buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
-			new AsyncDataFetcher(
-				ReferenceSchemaEntityTypeNameVariantsDataFetcher.getInstance(),
-				this.buildingContext.getConfig(),
-				this.buildingContext.getTracingContext(),
-				this.buildingContext.getEvita()
-			)
+			ReferenceSchemaEntityTypeNameVariantsDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS,
-			new AsyncDataFetcher(
-				ReferenceSchemaGroupTypeNameVariantsDataFetcher.getInstance(),
-				this.buildingContext.getConfig(),
-				this.buildingContext.getTracingContext(),
-				this.buildingContext.getEvita()
-			)
+			ReferenceSchemaGroupTypeNameVariantsDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
@@ -646,25 +638,17 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			.field(ReferenceSchemaDescriptor.ALL_ATTRIBUTES.to(this.fieldBuilderTransformer))
 			.field(SortableAttributeCompoundsSchemaProviderDescriptor.ALL_SORTABLE_ATTRIBUTE_COMPOUNDS.to(this.fieldBuilderTransformer));
 
+		// the name variant fetchers stay synchronous: they are nested fields, and in the response of a schema mutation
+		// they read through its read-write session, which rejects a second thread calling it concurrently
 		this.buildingContext.registerDataFetcher(
 			objectName,
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
-			new AsyncDataFetcher(
-				ReferenceSchemaEntityTypeNameVariantsDataFetcher.getInstance(),
-				this.buildingContext.getConfig(),
-				this.buildingContext.getTracingContext(),
-				this.buildingContext.getEvita()
-			)
+			ReferenceSchemaEntityTypeNameVariantsDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			objectName,
 			ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS,
-			new AsyncDataFetcher(
-				ReferenceSchemaGroupTypeNameVariantsDataFetcher.getInstance(),
-				this.buildingContext.getConfig(),
-				this.buildingContext.getTracingContext(),
-				this.buildingContext.getEvita()
-			)
+			ReferenceSchemaGroupTypeNameVariantsDataFetcher.getInstance()
 		);
 
 		if (!referenceSchema.getAttributes().isEmpty()) {

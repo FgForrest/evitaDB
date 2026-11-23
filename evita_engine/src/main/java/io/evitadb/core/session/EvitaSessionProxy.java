@@ -58,6 +58,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -129,6 +130,15 @@ final class EvitaSessionProxy implements InvocationHandler {
 	 * query operation and fans the root fields out to several request-executor threads at once.
 	 */
 	private final boolean concurrentAccessGuarded;
+	/**
+	 * Lock of the warming-up catalog this read-write session is bound to, held by the outermost business invocation
+	 * on the owning thread for its whole duration - the forced close a drain hands to that thread when the
+	 * invocation returns included - so that the catalog's termination cannot publish while a call is still
+	 * running; see `Catalog#getWarmUpCallLock()`. `null` for a read-only session, which changes nothing, and for a
+	 * session of an alive catalog, so the transactional path never touches it. A catalog instance never changes its
+	 * state, so this is decided once, when the session is created.
+	 */
+	@Nullable private final ReentrantLock warmUpCallLock;
 
 	/**
 	 * Resolves a method from {@link EvitaInternalSessionContract} by name and parameter types.
@@ -539,6 +549,7 @@ final class EvitaSessionProxy implements InvocationHandler {
 		this.evitaSession = evitaSession;
 		this.tracingContext = tracingContext;
 		this.concurrentAccessGuarded = evitaSession.getSessionTraits().isReadWrite();
+		this.warmUpCallLock = this.concurrentAccessGuarded ? evitaSession.getWarmUpCallLock() : null;
 		final String catalogName = evitaSession.getCatalogName();
 
 		// emit and prepare events
@@ -645,6 +656,12 @@ final class EvitaSessionProxy implements InvocationHandler {
 			} else {
 				outermostInvocation = false;
 			}
+			// a call of a warming-up catalog's writer keeps the catalog's termination from publishing until it has
+			// returned and the close a drain may have deferred to it has run, which is what validates its changes
+			final ReentrantLock callLock = outermostInvocation ? this.warmUpCallLock : null;
+			if (callLock != null) {
+				callLock.lock();
+			}
 			try {
 				final ClosingSequence closingSequence = this.closeLambda.get();
 				// if there's a closing sequence in place
@@ -661,14 +678,20 @@ final class EvitaSessionProxy implements InvocationHandler {
 					return executeDelegateMethod(method, args);
 				}
 			} finally {
-				if (outermostInvocation) {
-					this.owningThread.set(null);
-				}
-				final ClosingSequence closingSequence = this.closeLambda.get();
-				// if there is newly registered close lambda and there is no other method being executed
-				if (this.insideInvocation.get() == 0 && closingSequence != null) {
-					// execute close lambda
-					executeCloseLambda(closingSequence);
+				try {
+					if (outermostInvocation) {
+						this.owningThread.set(null);
+					}
+					final ClosingSequence closingSequence = this.closeLambda.get();
+					// if there is newly registered close lambda and there is no other method being executed
+					if (this.insideInvocation.get() == 0 && closingSequence != null) {
+						// execute close lambda
+						executeCloseLambda(closingSequence);
+					}
+				} finally {
+					if (callLock != null) {
+						callLock.unlock();
+					}
 				}
 			}
 		}

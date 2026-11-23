@@ -25,11 +25,13 @@ package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.test.Entities;
@@ -155,8 +157,23 @@ class AssociatedDataAllLocalesFunctionalTest {
 			final EvitaContract api = remote ? evitaClient : evita;
 			try (final EvitaSessionContract session = api.createReadOnlySession(TEST_CATALOG)) {
 				assertStoredTranslations(session);
+				final EvitaInvalidUsageException refused = assertThrows(EvitaInvalidUsageException.class,
+					() -> session.getEntity(Entities.PRODUCT, 1, associatedDataContent(DESCRIPTION, "code")));
+				if (!remote) {
+					assertInstanceOf(EntityLocaleMissingException.class, refused);
+				}
+				assertTrue(refused.getMessage().contains(DESCRIPTION));
+				final EvitaInvalidUsageException plannedRefusal = assertThrows(EvitaInvalidUsageException.class,
+					() -> session.queryOneSealedEntity(query(
+						collection(Entities.PRODUCT), filterBy(entityPrimaryKeyInSet(1)),
+						require(entityFetch(associatedDataContent(DESCRIPTION, "code")))
+					)));
+				if (!remote) {
+					assertInstanceOf(EntityLocaleMissingException.class, plannedRefusal);
+				}
+				assertTrue(plannedRefusal.getMessage().contains(DESCRIPTION));
 				final SealedEntity globalOnly = session.getEntity(
-					Entities.PRODUCT, 1, associatedDataContent(DESCRIPTION, "code")
+					Entities.PRODUCT, 1, associatedDataContentAll()
 				).orElseThrow();
 				assertEquals("product-1", globalOnly.getAssociatedData("code"));
 				assertEquals(1, globalOnly.getAssociatedDataValues().size());

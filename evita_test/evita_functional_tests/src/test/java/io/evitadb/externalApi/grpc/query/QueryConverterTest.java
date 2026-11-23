@@ -24,8 +24,11 @@
 package io.evitadb.externalApi.grpc.query;
 
 import com.google.protobuf.Int32Value;
+import com.google.protobuf.InvalidProtocolBufferException;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.filter.EntityScope;
@@ -33,8 +36,13 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HierarchyParentsBehaviour;
+import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.QueryTelemetryContent;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.core.Evita;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
@@ -46,25 +54,56 @@ import io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour;
 import io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.QueryParamCase;
+import io.evitadb.externalApi.grpc.utils.QueryUtil;
+import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
+import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeInRange;
+import static io.evitadb.api.query.QueryConstraints.attributeInSet;
+import static io.evitadb.api.query.QueryConstraints.attributeLessThan;
+import static io.evitadb.api.query.QueryConstraints.attributeSetExact;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.histogramHaving;
+import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
+import static io.evitadb.api.query.QueryConstraints.orderBy;
+import static io.evitadb.api.query.QueryConstraints.page;
+import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
+import static io.evitadb.api.query.QueryConstraints.referenceContent;
+import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
+import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
+import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.userFilter;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
@@ -75,6 +114,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * This test verifies functionalities of methods in {@link QueryConverter} class.
@@ -85,6 +126,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @Tag(GRPC)
 @Tag(EXTERNAL_API)
 @Tag(QUERY)
+@ExtendWith(EvitaParameterResolver.class)
 class QueryConverterTest {
 	private static final boolean enabled = true;
 	private static final String name = "test";
@@ -229,6 +271,72 @@ class QueryConverterTest {
 		);
 	}
 
+	/**
+	 * Every telemetry level has to survive the trip through `GrpcQueryParam` in both directions. A real query only
+	 * ever extracts `PLAN` - `TIMINGS` is an implicit argument the client leaves out - but the conversion maps the
+	 * type, so it must not depend on which constant a query happens to carry.
+	 */
+	@Test
+	@DisplayName("should convert every query telemetry content level in both directions")
+	void shouldConvertQueryTelemetryContentInBothDirections() {
+		for (final QueryTelemetryContent content : QueryTelemetryContent.values()) {
+			assertEquals(content, convertQueryParam(content));
+		}
+	}
+
+	/**
+	 * The numbers on the wire are the contract with clients generated from the proto files, which never see the Java
+	 * conversion. Two mirrored mistakes in that conversion would cancel out between a Java client and a Java server,
+	 * so each level is checked against its wire number after a real serialization - including `TIMINGS`, whose zero
+	 * value must still arrive as a set parameter.
+	 *
+	 * @throws InvalidProtocolBufferException when the serialized parameter cannot be parsed back
+	 */
+	@Test
+	@DisplayName("should put each query telemetry content level on the wire under its own number")
+	void shouldSerializeQueryTelemetryContentUnderItsWireNumber() throws InvalidProtocolBufferException {
+		final Map<QueryTelemetryContent, Integer> wireNumbers = Map.of(
+			QueryTelemetryContent.TIMINGS, 0,
+			QueryTelemetryContent.PLAN, 1
+		);
+		assertEquals(QueryTelemetryContent.values().length, wireNumbers.size());
+		for (final QueryTelemetryContent content : QueryTelemetryContent.values()) {
+			final GrpcQueryParam received = GrpcQueryParam.parseFrom(
+				QueryConverter.convertQueryParam(content).toByteArray()
+			);
+			assertEquals(QueryParamCase.QUERYTELEMETRYCONTENT, received.getQueryParamCase());
+			assertEquals(wireNumbers.get(content).intValue(), received.getQueryTelemetryContentValue());
+			assertEquals(content, QueryConverter.convertQueryParam(received));
+		}
+	}
+
+	/**
+	 * The client sends `queryTelemetry(PLAN)` as `queryTelemetry(?)` with the level as a positional parameter, so the
+	 * level reaches the server only if that parameter encodes and the server parses it back into the same query.
+	 */
+	@Test
+	@DisplayName("should round-trip a query asking for the formula plan through the gRPC query converter")
+	void shouldRoundTripQueryTelemetryPlanThroughTheWire() {
+		final Query original = query(
+			collection("product"),
+			require(queryTelemetry(QueryTelemetryContent.PLAN))
+		).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		assertTrue(
+			extracted.parameters().contains(QueryTelemetryContent.PLAN),
+			"The level must travel as a parameter, or this test does not exercise the gRPC parameter at all."
+		);
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
+	}
+
 	@Test
 	void shouldConvertArrayValues() {
 		final String[] stringValue = {"a", "b"};
@@ -268,6 +376,260 @@ class QueryConverterTest {
 		assertArrayEquals(orderDirectionValue, convertQueryParam(orderDirectionValue));
 		final Scope[] scopeValue = {Scope.ARCHIVED, Scope.LIVE};
 		assertArrayEquals(scopeValue, convertQueryParam(scopeValue));
+	}
+
+	/**
+	 * Checks the client extraction and encoding path and the server's decoding and parsing path.
+	 */
+	@Test
+	@DisplayName("Round-trip currency and locale attribute values through the gRPC query converter")
+	void shouldRoundTripCurrencyAndLocaleAttributeValues() {
+		final Query original = query(
+			collection("product"),
+			filterBy(attributeEquals("currency", Currency.getInstance("USD")), attributeEquals("lang", Locale.GERMAN))
+		).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
+		assertTrue(encoded.stream().anyMatch(GrpcQueryParam::hasCurrencyValue));
+		assertTrue(encoded.stream().anyMatch(GrpcQueryParam::hasLocaleValue));
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
+	}
+
+
+	/**
+	 * Creates products that distinguish membership and exact ordering from a query with no usable values.
+	 *
+	 * @param evita the embedded database
+	 * @return the dataset carrier
+	 */
+	@DataSet("queryConverterMembershipProducts")
+	@Nonnull
+	DataCarrier setUpMembershipProducts(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema("Product").withoutGeneratedPrimaryKey()
+				.withAttribute("number", Integer.class, attribute -> attribute.filterable().sortable())
+				.updateVia(session);
+			for (int id = 1; id <= 3; id++) {
+				session.createNewEntity("Product", id).setAttribute("number", id).upsertVia(session);
+			}
+		});
+		return new DataCarrier();
+	}
+
+	/**
+	 * Runs the original query and the query parsed by the gRPC server on the same data.
+	 *
+	 * @param session the populated catalog session
+	 */
+	@Test
+	@UseDataSet("queryConverterMembershipProducts")
+	@DisplayName("Round-trip wrapped membership and exact order arrays with identical primary keys")
+	void shouldRoundTripWrappedAttributeValueArrays(@Nonnull EvitaSessionContract session) {
+		final Serializable membership = new Integer[]{1, 2};
+		final Serializable order = new int[]{2, 1};
+		final Query original = query(collection("Product"),
+			filterBy(attributeInSet("number", membership)), orderBy(attributeSetExact("number", order)));
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream().map(QueryConverter::convertQueryParam)
+			.toList();
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null, (q, positional, named, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
+		final List<Integer> embeddedKeys = session.queryEntityReference(original).getRecordData().stream()
+			.map(EntityReferenceContract::getPrimaryKey).toList();
+		final List<Integer> serverKeys = session.queryEntityReference(parsed.parsedQuery()).getRecordData().stream()
+			.map(EntityReferenceContract::getPrimaryKey).toList();
+		assertEquals(List.of(2, 1), embeddedKeys);
+		assertEquals(embeddedKeys, serverKeys);
+	}
+
+	/**
+	 * Checks that both kinds of enum and normalized floating-point numbers retain the Java query over gRPC.
+	 */
+	@Test
+	@DisplayName("Round-trip enum and floating-point attribute values through the gRPC query converter")
+	void shouldRoundTripEnumAndFloatingPointAttributeValues() {
+		final Query original = query(
+			collection("product"),
+			filterBy(
+				attributeEquals("text", DayOfWeek.MONDAY),
+				attributeLessThan("amount", 2.5f),
+				attributeInSet("state", HistogramBehavior.OPTIMIZED, HistogramBehavior.EQUALIZED)
+			),
+			orderBy(attributeSetExact("decimalValue", 2.0d, 1.5d))
+		).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
+		assertTrue(encoded.stream().anyMatch(GrpcQueryParam::hasHistogramBehavior));
+		assertTrue(encoded.stream().anyMatch(GrpcQueryParam::hasBigDecimalValue));
+		assertTrue(encoded.stream().anyMatch(it -> it.getStringValue().equals("MONDAY")));
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
+	}
+
+	/**
+	 * Checks that range points and histogram bounds created from floating-point values use the decimal wire type.
+	 *
+	 * @param from the range point and lower histogram bound
+	 * @param to the upper histogram bound
+	 */
+	@ParameterizedTest
+	@MethodSource("floatingPointRangeAndHistogramBounds")
+	@DisplayName("Round-trip floating-point range points and histogram bounds through gRPC")
+	void shouldRoundTripFloatingPointRangeAndHistogramBounds(@Nonnull Number from, @Nonnull Number to) {
+		final Query original = query(
+			collection("product"),
+			filterBy(
+				attributeInRange("validity", from),
+				userFilter(histogramHaving("parameterValues", "amountBucket", from, to))
+			)
+		).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
+		assertEquals(3, encoded.stream().filter(GrpcQueryParam::hasBigDecimalValue).count());
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertNotNull(parsed);
+		assertEquals(original, parsed.parsedQuery());
+	}
+
+	/**
+	 * Supplies a pair of decimal bounds for each floating-point type to exercise the gRPC round trip.
+	 *
+	 * @return the finite bound pairs
+	 */
+	@Nonnull
+	static Stream<Arguments> floatingPointRangeAndHistogramBounds() {
+		return Stream.of(Arguments.of(2.1d, 2.9d), Arguments.of(7.1f, 7.9f));
+	}
+
+	/**
+	 * Checks that the server parses a reference histogram and its fetch from the Java client's query and parameters.
+	 */
+	@Test
+	@DisplayName("Round-trip histogram statistics with a nested fetch through the gRPC query converter")
+	void shouldRoundTripHistogramStatisticsWhenFetchHasParameters() {
+		final Query original = query(
+			collection("product"),
+			require(referenceSummaryWithHistograms(
+				FacetStatisticsDepth.COUNTS, null, null,
+				histogramStatistics(
+					20, HistogramBehavior.OPTIMIZED, entityFetch(attributeContent("code")), "priceIndex", "ratingIndex"
+				)
+			))
+		).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
+	}
+
+	/**
+	 * Checks that the server binds every parameter of the reference content and histogram shapes the Java client
+	 * prints. Each positional parameter takes the next value in the order the parser visits it, so a token visited
+	 * out of order or skipped would hand its value to another placeholder or leave it unused, and the server would
+	 * refuse the query or build a different one.
+	 *
+	 * @param shape description of the requirement shape
+	 * @param requirement the requirement the Java client sends
+	 */
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("referenceContentAndHistogramShapes")
+	@DisplayName("Round-trip reference content and histogram shapes through the gRPC query converter")
+	void shouldRoundTripReferenceContentAndHistogramShapes(
+		@Nonnull String shape, @Nonnull RequireConstraint requirement
+	) {
+		final Query original = query(collection("product"), require(requirement)).normalizeQuery();
+		final StringWithParameters extracted = original.toStringWithParameterExtraction();
+		final List<GrpcQueryParam> encoded = extracted.parameters().stream()
+			.map(QueryConverter::convertQueryParam)
+			.toList();
+		assertFalse(encoded.isEmpty());
+
+		final QueryWithParameters parsed = QueryUtil.parseQuery(
+			extracted.query(), encoded, Map.of(), null,
+			(queryString, positionalArguments, namedArguments, error) -> fail(error)
+		);
+		assertEquals(original, parsed.parsedQuery());
+	}
+
+	/**
+	 * Supplies reference content and histogram requirements whose arguments the parser must visit in query order,
+	 * most of them with parameters inside a nested constraint.
+	 *
+	 * @return the shape description and the requirement for each case
+	 */
+	@Nonnull
+	static Stream<Arguments> referenceContentAndHistogramShapes() {
+		return Stream.of(
+			Arguments.of(
+				"attribute names after the reference name",
+				entityFetch(referenceContentWithAttributes("brand", "code", "name"))
+			),
+			Arguments.of(
+				"behaviour before the reference name and its fetch",
+				entityFetch(
+					referenceContent(
+						ManagedReferencesBehaviour.EXISTING, "brand", entityFetch(attributeContent("code"))
+					)
+				)
+			),
+			Arguments.of(
+				"filter and fetch after the reference name",
+				entityFetch(
+					referenceContent(
+						"brand", filterBy(entityPrimaryKeyInSet(1, 2)), entityFetch(attributeContent("code"))
+					)
+				)
+			),
+			Arguments.of(
+				"paging after the fetch",
+				entityFetch(referenceContent("brand", entityFetch(attributeContent("code")), page(1, 20)))
+			),
+			Arguments.of(
+				"several reference names before the fetch",
+				entityFetch(referenceContent(new String[]{"brand", "parameter"}, entityFetch(attributeContent("code"))))
+			),
+			Arguments.of(
+				"histogram with its fetch after the index names",
+				referenceSummaryWithHistograms(
+					FacetStatisticsDepth.COUNTS, null, null,
+					histogramStatistics(20, entityFetch(attributeContent("code")), "priceIndex", "ratingIndex")
+				)
+			),
+			Arguments.of(
+				"histogram with a behaviour and no fetch",
+				referenceSummaryWithHistograms(
+					FacetStatisticsDepth.COUNTS, null, null,
+					histogramStatistics(20, HistogramBehavior.OPTIMIZED, "priceIndex")
+				)
+			)
+		);
 	}
 
 	/**

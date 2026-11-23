@@ -82,7 +82,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Inspects migration output before any entity index is loaded. These release fixtures must be corrected in storage,
  * so a successful engine query alone cannot substitute for checking the published root and its leaf pages.
  */
-@DisplayName("Migration_2026_3 — index parts written by 2026.2 are published in the current order (v6→v7)")
+@DisplayName("Migration_2026_3 — index parts written by 2026.2 are published in the current order (v6→v9)")
 @Tag(STORAGE)
 @Tag(INDEXING)
 class Migration_2026_3_ReleaseOrderingTest implements EvitaTestSupport {

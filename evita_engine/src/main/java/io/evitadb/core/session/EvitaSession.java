@@ -124,6 +124,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -316,14 +317,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	/**
-	 * Creates a factory function for generating {@link EvitaRequest} objects while either propagating
-	 * the original locale information or including all available locales based on the given requirements.
-	 * In other words,  when the client logic doesn't explicitly specify its own set of locales, the enriched entity
-	 * will respect the locales of the previously fetched entity.
+	 * Creates the request factory of `enrichEntity` and `enrichOrLimitEntity`. When `require` contains its own
+	 * {@link DataInLocales}, every request uses `require` unchanged and the entity's locales are ignored. Otherwise
+	 * every request appends `dataInLocales` with the locales of the entity being enriched, so the enriched entity
+	 * keeps the locales of the previously fetched one; an entity without any locale is enriched in all locales.
 	 *
 	 * @param entityType the type of the entity for which the request is to be created
-	 * @param require    an array of {@link EntityContentRequire} instances that specify the data requirements for the request
-	 * @return a factory function that, when applied, generates an {@link EvitaRequest} based on the specified locales and requirements
+	 * @param require    the data requirements of the request; the runtime component type of the array may be narrower
+	 *                   than {@link EntityContentRequire}
+	 * @return a factory that creates the {@link EvitaRequest} from the locales of the entity being enriched and
+	 *         the expected result type
 	 */
 	@Nonnull
 	private static BiFunction<Set<Locale>, Class<?>, EvitaRequest> createEvitaRequestFactoryPropagatingOriginalLocale(
@@ -342,24 +345,23 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				requestedClass,
 				entityType
 			) :
-			(originalLocales, requestedClass) -> new EvitaRequest(
-				Query.query(
-					collection(entityType),
-					require(
-						entityFetch(
-							ArrayUtils.mergeArrays(
-								require,
-								new EntityContentRequire[]{
-									dataInLocales(originalLocales.toArray(new Locale[0]))
-								}
-							)
+			(originalLocales, requestedClass) -> {
+				// The caller's array may be narrower than EntityContentRequire[] and cannot hold DataInLocales.
+				final EntityContentRequire[] requirements =
+					Arrays.copyOf(require, require.length + 1, EntityContentRequire[].class);
+				requirements[require.length] = dataInLocales(originalLocales.toArray(new Locale[0]));
+				return new EvitaRequest(
+					Query.query(
+						collection(entityType),
+						require(
+							entityFetch(requirements)
 						)
-					)
-				),
-				OffsetDateTime.now(),
-				requestedClass,
-				entityType
-			);
+					),
+					OffsetDateTime.now(),
+					requestedClass,
+					entityType
+				);
+			};
 	}
 
 	public EvitaSession(
@@ -429,6 +431,17 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public long getCatalogVersion() {
 		assertActive();
 		return this.catalog.getVersion();
+	}
+
+	/**
+	 * Returns the lock a call of this session holds while the catalog it is bound to is warming up, so that the
+	 * catalog's termination cannot publish while the call is still running - see `Catalog#getWarmUpCallLock()`.
+	 *
+	 * @return the lock of the warming-up catalog this session is bound to, or `null` when that catalog is alive
+	 */
+	@Nullable
+	ReentrantLock getWarmUpCallLock() {
+		return this.catalog.getWarmUpCallLock();
 	}
 
 	@Override
@@ -1840,7 +1853,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	/**
-	 * Delegates call to internal {@link #proxyFactory#createEntityProxy(Class, SealedEntity, Map)}.
+	 * Delegates call to internal {@link ProxyFactory#createEntityProxy(Class, EntityContract, Map)}.
 	 *
 	 * @param contract     contract of the entity to be created
 	 * @param sealedEntity sealed entity to be used as a source of data
@@ -1893,6 +1906,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Safely closes internal resources, commits or rolls back transactions, and handles
 	 * termination callbacks. Ensures that the closing operation is executed only once
 	 * and performs cleanup, validation, and transaction operations if applicable.
+	 *
+	 * A repeated call - the owner closing twice, or the session drain forcing a close on a session whose own close is
+	 * still running - returns the progress of the close already under way and never completes it ahead of that close.
 	 *
 	 * @param commitBehavior determines in which commit stage the session should be considered as closed
 	 * @return A {@code CommitProgress} instance, representing the progress and
@@ -2010,7 +2026,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					} catch (Throwable ex) {
 						// execute() threw synchronously (e.g. RejectedExecutionException from a shut-down
 						// executor) — the flush will never run, so we must fail the progress record
-						// ourselves to unblock any client awaiting it
+						// ourselves to unblock any client awaiting it. The flush itself is settled too: it has
+						// popped changes no later flush can recover, and its own failure handler is what bars
+						// the catalog from publishing and counts the flush out of the ones in progress
+						flushFuture.completeExceptionally(ex);
 						this.commitProgress.completeExceptionally(ex);
 						throw ex;
 					}
@@ -2045,8 +2064,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				this.closingSequenceFuture.get().join();
 				return this.commitProgress;
 			}
-		} else if (this.closedFuture != null && !this.commitProgress.isDone()) {
-			// this case is only possible when catalog is going live and session is closed
+		} else if (
+			this.closedFuture != null && this.closingSequenceFuture.get() == null && !this.commitProgress.isDone()
+		) {
+			// Reached only after `goLiveAndCloseWithProgress`, which terminates the session and assigns an already
+			// completed closed future without ever starting a closing sequence - so the progress is completed here,
+			// with that future's value. A close that DID start a closing sequence is still under way, and its flush
+			// or commit completes the progress itself: a repeated close returns that same progress and waits for it.
+			// Completing it early instead would report the session closed and run its termination callback while the
+			// flush is still in flight - and the session drain reads the registry that callback empties as proof that
+			// nobody writes to the catalog any more, so a go-live would then publish beside the running flush.
 			this.commitProgress.complete(this.closedFuture.toCompletableFuture().getNow(null));
 		}
 		return this.commitProgress;
