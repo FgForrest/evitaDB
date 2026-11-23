@@ -83,6 +83,12 @@ import java.util.function.Consumer;
 @Slf4j
 @RequiredArgsConstructor
 public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<CommitVersions, MakeCatalogAliveMutation> {
+	/**
+	 * Warned when the catalog a failed go-live could not put back behind its name cannot be released either.
+	 */
+	private static final String RELEASE_FAILURE = "Failed to terminate catalog `{}` after a go-live that could not " +
+		"put it back behind its name - the handles its persistence service holds into the storage folder stay open " +
+		"until the server is restarted.";
 	private final CatalogFolderContext folderContext;
 
 	@Nonnull
@@ -158,10 +164,11 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 					// has already recorded the unpublishable cause and scheduled the deactivation, so the restored
 					// instance serves readers and refuses every write and every flush at `assertPublishable()` straight
 					// away. Or one of the two `CommitVersions` reads threw with `goLive()` already returned: the
-					// restored instance is still publishable in memory, and its next flush refuses on the header-state
-					// premise - the stored header now says ALIVE - with `markUnpublishable` following through the flush
-					// future's failure handler. Both end the same way, with a reload recovering the catalog in its
-					// published ALIVE state. Nothing on disk is damaged on any of these paths.
+					// restored instance is barred as well, because a go-live that finishes bars the instance it
+					// supersedes, so it refuses every write and every flush at `assertPublishable()` too - without a
+					// deactivation, so it is a restart rather than an activation that settles the name. Both end the
+					// same way, with a reload recovering the catalog in its published ALIVE state. Nothing on disk is
+					// damaged on any of these paths.
 					transitionEngineStateUpdater.accept(
 						new AbstractEngineStateUpdater(transactionId, mutation) {
 							@Override
@@ -222,6 +229,17 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 								"refusing sessions as GOING_ALIVE until the server is restarted.",
 							catalogName, declarationFailure
 						);
+						// Nothing else will ever release the real catalog now: the engine state names the placeholder
+						// - or nothing, when engine shutdown cleared it, having terminated the placeholder in the
+						// catalog's place - so its storage would stay open for the life of the process. Releasing it
+						// costs nothing it still serves, and a restart reloads it from disk. A warm-up instance whose
+						// go-live finished is barred and publishes nothing on termination.
+						if (catalogToRestore != null) {
+							CatalogTerminationHelper.terminateQuietly(
+								log, catalogToRestore, catalogName, RELEASE_FAILURE
+							);
+						}
+						CatalogTerminationHelper.terminateQuietly(log, theCatalog, catalogName, RELEASE_FAILURE);
 					}
 				}
 				// Unconditional: `resumeOperations` lifts a suspension if one is standing and does nothing otherwise,
