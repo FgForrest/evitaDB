@@ -2026,7 +2026,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					} catch (Throwable ex) {
 						// execute() threw synchronously (e.g. RejectedExecutionException from a shut-down
 						// executor) — the flush will never run, so we must fail the progress record
-						// ourselves to unblock any client awaiting it
+						// ourselves to unblock any client awaiting it. The flush itself is settled too: it has
+						// popped changes no later flush can recover, and its own failure handler is what bars
+						// the catalog from publishing and counts the flush out of the ones in progress
+						flushFuture.completeExceptionally(ex);
 						this.commitProgress.completeExceptionally(ex);
 						throw ex;
 					}

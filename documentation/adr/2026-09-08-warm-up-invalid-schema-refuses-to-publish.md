@@ -1,12 +1,12 @@
 ---
 title: A warm-up schema change refused by validation raises the unpublishable barrier, so the catalog deactivates and recovers by reload rather than by an undo
 date: 2026-09-08
-updated: 2026-11-18 22:52
+updated: 2026-11-20 00:55
 status: accepted
 kind: fix
-issues: [1466, 2014]
-prs: [1520, 2015]
-areas: [evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/core/transaction/engine, evita_api/src/main/java/io/evitadb/api]
+issues: [1466, 2014, 2032, 2033, 2040]
+prs: [1520, 2015, 2037, 2041]
+areas: [evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/core/transaction/engine, evita_api/src/main/java/io/evitadb/api, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog]
 supersedes: []
 superseded-by: []
 relates: [2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-09-06-go-live-session-drain, 2026-11-16-warm-up-trigger-build-refusal-raises-the-barrier]
@@ -269,9 +269,78 @@ both reached the disk.
 - **Declined: taking the lock in the catalog's write paths.** Entity writes and schema changes enter through many
   methods on two threads, and the hop from the session thread to the engine executor turns a second level of locking
   into a deadlock.
-- **Not waiting is an open decision.** A bounded wait would also have to exclude the flush that the returning call's
-  deferred close starts on the transaction executor once the lock is released, or validate under the lock. Without
-  that, it would publish beside that flush.
+- **A flush in progress is the other half (#2033), and termination does not publish beside one.** The flush a warm-up
+  session close starts runs on the transaction executor after the proxy has released the lock - and the close a drain
+  runs on its own thread for an idle writer takes no lock at all - so a termination that found the lock free could
+  still meet that flush with some collections written and others not. Its own flush then found nothing trapped in the
+  unwritten ones, because the flush in progress had already popped them, and it stored a header naming indexes whose
+  parts only the held-back write would have stored. Measured before the change: the published state did not load
+  (`Entity index with PK `1` was unexpectedly not found in the persistent storage!`). Read from the code rather than
+  run: a restart answers that by marking the catalog `CORRUPTED`. It is the one write-side hazard of the durability
+  model - a bootstrap record published from an in-memory state the files cannot back.
+  `Catalog#warmUpFlushState` makes the two exclusive in one atomic word: the bits below `WARM_UP_TERMINATION_BEGUN`
+  count the warm-up flushes in progress, and that bit says termination has begun. `Catalog#flush()` counts itself in
+  by compare-and-set before it pops anything, and is refused once the bit is set - with `InstanceTerminatedException`,
+  or with `CatalogUnpublishableException` caused by it when termination has already recorded its cause and the flush's
+  first barrier check meets that. It counts itself out exactly once: still under the lock below at the end of a
+  publication that succeeded; after the barrier stands when it failed, a synchronous failure after its pop included;
+  and on completion when it was cancelled - in the last two even when raising the barrier throws, as scheduling its
+  deactivation does on a shut-down scheduler. Counting out on completion alone was not enough: the dependents of the
+  flush future run before the one registered first, so the session close - and a termination right behind it - would
+  still have found a flush that had already published. A session close whose flush cannot even be submitted - a full
+  or shut-down transaction pool - settles the flush exceptionally, so the flush's own failure handler raises the
+  barrier over the changes it popped and counts it out. Termination sets the bit and reads the count in one step; when
+  a flush is in progress it records the barrier cause and publishes nothing, with a WARN saying that the flushing
+  session's unpublished work is dropped. `Catalog#warmUpPublicationLock` covers a flush's last step from its check
+  that the bit is clear to the end of its header write, and termination takes it to set the bit, so a flush publishes
+  either completely before termination begins or not at all, and the storage is never closed in the middle of a
+  bootstrap write. The outcome is the last published state, which a reload recovers completely. Termination still
+  releases every collection, clears the map - in a `finally`, so a publication that fails cannot skip it - and closes
+  the storage. The flush's writes that still run fail on the released collections and complete its future
+  exceptionally, and a session close waiting on it completes with it; writes an executor never runs are another
+  matter, see the consequences.
+- **A count, not a flag.** Warm-up admits one session at a time, so two flushes are not in progress at once today;
+  counting keeps the guard independent of that admission rule instead of adding a refusal for a second flush.
+- **Declined: a bounded wait for the flush in progress.** It would keep the flushing session's work, but the flush
+  it waits for is by construction one the 5 s drain has already given up on, so the wait spends shutdown time on
+  exactly the slowest flushes - and it still needs the refusal as its fallback when the bound runs out. The accepted
+  behaviour is: shutdown waits at most the 5 s of the drain and then refuses, which behaves like a rollback of the
+  last warm-up session. It is not a real rollback - warm-up has no transactions - but the outcome for the user is the
+  same: the catalog returns to the state it last published, and reload recovers that completely.
+  Worth revisiting only if a shutdown had to keep a slow session's work rather than return to the last published
+  state - and then by lengthening the drain's own wait, not by adding a second wait behind it.
+- **Termination publishes the catalog index too (#2032).** Termination stored the header without the catalog's own
+  trapped changes, so the catalog index - which holds the values of globally unique attributes, and answers lookups of
+  them even within a collection - was published behind the collections: an inserted entity was not found by its unique
+  value and the value could be stored on another entity, while a removed entity kept its value reserved. Both warm-up
+  publishers now end in `Catalog#publishWarmUpState`, which writes the catalog's trapped changes and then stores the
+  header. Declined: copying the missing write into termination - two hand-maintained copies of the publication recipe
+  are how the gap arose.
+- **Go-live and a warm-up rename are serialized with the termination too, and so is a compaction's registration
+  (#2040).** Both handovers write a bootstrap record of their own outside any flush - go-live the ALIVE record,
+  a rename the relabelled one before it reopens the storage - and engine shutdown can terminate a catalog while an
+  accepted one still runs on the engine executor. `Catalog#goLive()` and the handover of `Catalog#replace` now run
+  under `warmUpPublicationLock` and refuse once the termination bit is set, exactly as a flush's last step does, so
+  the termination either waits for the handover or the handover writes nothing - except when the rename's own
+  progress consumer terminates the same catalog, see the consequences. Both check the barrier before the termination
+  bit: the barrier schedules a deactivation that terminates the very instance it bars, and a caller still holding it
+  must get the barrier's `CatalogUnpublishableException`, which names the failure, rather than its consequence. The
+  flush's last step keeps the termination first, because the flush's entry already refused an earlier barrier and a
+  termination meeting a flush in progress raises the barrier itself. A go-live that finishes bars the instance it
+  supersedes, without scheduling a deactivation, so a termination of that instance can never store a warm-up header
+  after the ALIVE record. Shutdown terminates the catalogs it captured and only then clears the engine state, and
+  these are two separate events: when it captured the go-live's placeholder instead of the catalog *and* cleared the
+  state before the go-live installed its successor, the go-live fails on the cleared state and its undo cannot put
+  the catalog back behind the name; the undo now terminates the real catalog - and the ALIVE successor, when there is
+  one - rather than leaving their storage open. A go-live that installs its successor between the two events
+  succeeds instead, see the consequences. Separately, a compaction finishing inside a collection write that the
+  termination did not wait for registered its new storage on the closed catalog service;
+  `DefaultCatalogPersistenceService` now opens and registers a compacted storage under the lock `close()` flips
+  `closed` under, and when the service is closed it opens nothing and fails the write. Declined: opening the storage
+  outside the lock and closing it when it is not needed - every storage of one file shares that file's output in the
+  `ObservableOutputKeeper`, so closing a second one closes the output of the one already registered, mid-write if it
+  is writing. The price is that the open, which reads the offset index of the compacted file, delays the version pins
+  and releases of sessions once per compaction.
 
 ## Verification
 
@@ -354,6 +423,65 @@ termination releases the lock, the idle-writer control fails on its own `isPubli
 closes - a queued call resuming between the unlock and the close of the persistence service - has no deterministic
 reproduction.
 
+`CatalogWarmUpTerminationBesideFlushTest` (11 tests) drives the flush a warm-up close starts - `Catalog#flush()`
+executed on an executor that holds its collection writes back, the one seam there is, because the close dispatches to
+the engine's own transaction executor - and, where the termination itself must be held, a spy that pauses it once it
+has begun. One test per transition, each failing on its own counterfactual:
+
+- termination meeting a flush with one collection written: before the change, and again with termination blind to the
+  flush in progress, the published state does not load (`Entity index with PK `1` was unexpectedly not found`). The
+  test also asserts that every collection is released, the flush future and the writer's close complete, and the WARN
+  names the dropped work;
+- a flush finishing after termination began: with neither the termination-bit check nor the barrier re-check in its
+  last step the flush publishes (`ended with: null`) - either check alone refuses it, because termination records the
+  barrier when it finds a flush in progress; with termination not recording the cause under the lock, the flush's
+  refusal schedules a deactivation and the reloaded catalog is `INACTIVE`;
+- a flush starting after termination began: without the compare-and-set refusal, `nothing was thrown`;
+- a header write under way: the test waits, within the positive bound, until the termination is queued on the
+  publication lock the held header write owns; with termination taking no lock it finishes without ever queuing
+  (`the termination must wait for a header write under way` fails);
+- a termination right behind a flush that published - run from a dependent of the flush future, as the session close
+  registers one: with the flush counted out on completion only, the termination still counted it and warned that its
+  work was dropped;
+- a real session close waiting on its flush - the engine restarted with two transaction workers, both held, so the
+  close queues the writes of its flush and returns waiting: the termination publishes nothing, and once the workers
+  are released the close completes exceptionally; with termination blind to the flush in progress the published state
+  does not load;
+- a session close whose flush cannot be submitted - the same pool held and its backlog full: before the change the
+  catalog stayed publishable (`expected: <false> but was: <true>`) over the changes the stranded flush had popped;
+- raising the barrier when the scheduler is shut down - the state of an embedded engine whose close has shut its
+  service executor down - so scheduling the deactivation throws after the cause is recorded: a flush failing in its
+  last step, with a termination registered behind it the way the session close's completion is, and a cancelled
+  flush followed by a termination. Before the count-out moved into a `finally` in the failure handler and in the
+  cancellation backstop, both terminations still found the flush in progress and warned that its work was dropped;
+- a flush finishing before termination, the control, publishes the write whole.
+
+`CatalogWarmUpTerminationBesideHandoverTest` (5 tests) calls `Catalog#goLive()` and `Catalog#replace` directly and
+holds each under the publication lock - go-live through a spy on its last publishability check, before it writes the
+ALIVE record; the rename through the progress consumer of its future, which the rename reports to after its
+relabelled record is published and before it reopens the storage. Before the change, a termination
+meeting either finished without queuing on the publication lock (`expected: <false> but was: <true>`), a go-live
+starting after the termination began threw nothing, and such a rename relabelled the catalog (`ended with: null`). A
+fifth case drives a real go-live through the engine, pauses it through its client progress observer, and closes the
+engine meanwhile: the go-live failed on the cleared engine state, its undo could not restore the catalog, and the
+catalog stayed open (`expected: <true> but was: <false>` on `isTerminated()`). The compaction case of
+`CatalogWarmUpTerminationBesideFlushTest` restarts the engine with eager compaction and pauses a compaction through
+the header supplier it asks after copying the records; before the change the closed catalog service held the
+compacted collection storage registered afterwards (`CollectionFileReference[entityType=CATEGORY, ... fileIndex=1
+...]`). The flush must fail with the closed service's own refusal, so a write failing before it registers anything
+cannot pass the test. Two cases of `EntityAtomicMutationRollbackWarmUpFunctionalTest` terminate a barred catalog and
+then call go-live and the rename on it: with the termination checked first, both were refused with
+`InstanceTerminatedException` instead of the barrier's `CatalogUnpublishableException` - the go-live case is what the
+existing go-live refusal test met intermittently, whenever the scheduled deactivation landed before its call.
+
+`CatalogWarmUpTerminationCatalogIndexTest` (6 tests) covers the catalog index. Before the shared publication tail, both
+idle-writer tests failed - an inserted product missed by both lookups of its globally unique value (`expected:
+<[PRODUCT:2]> but was: <[]>`) with a duplicate accepted, and a removed product's value still mapped and refused to
+another entity - while both closed-writer controls passed. Two more cases inject a failure to pop trapped changes: a
+flush whose collection fails after the catalog index was popped left the catalog publishable (`expected: <false> but
+was: <true>`), and a termination whose publication failed left the collections in the catalog's map (`expected: <true>
+but was: <false>`).
+
 ## Consequences & open follow-ups
 
 - **Catalogs already poisoned on disk are not covered, and deliberately will not be.** After a reload the version
@@ -384,9 +512,49 @@ reproduction.
   `InterlinkedCollectionRemoval#shouldNotPublishTheHalfTornPairWhenTheSameSessionThenDefinesAnotherCollection`
   covers the schema gate itself on this path.
 - **What the termination lock does not cover (#2014).** Termination never validates, so an idle registered writer's
-  unvalidated schema is still published. A session close's flush that is already running on the transaction executor
-  is not serialized with termination. And `Evita#closeAllSessions` leaves every registry after the first failing drain
-  undrained, so their sessions stay usable while their catalogs terminate.
+  unvalidated schema is still published. And `Evita#closeAllSessions` leaves every registry after the first failing
+  drain undrained, so their sessions stay usable while their catalogs terminate. A session close's flush that is
+  already running is covered since #2033 - see *Termination racing a running warm-up call*.
+- **What the warm-up publication guard does not cover.** Each read from the code, none reproduced:
+  - *A rename of an ALIVE catalog racing termination.* The handover of `Catalog#replace` runs under the warm-up
+    publication lock, but the termination of an ALIVE catalog never takes it, so an ALIVE rename's relabel can still
+    meet the close of the same storage service. The remedy belongs to the storage layer -
+    `DefaultCatalogPersistenceService#close` waiting for the header and bootstrap writers - not to this lock.
+  - *Two overlapping direct `Catalog#flush()` calls.* The count tolerates them, but a flush's last step does not look
+    for another flush, so one can publish while the other's popped changes are still unwritten. Not reachable through
+    sessions: warm-up admits one session at a time, and its mid-session flushes are joined.
+  - *Writes an executor never runs.* A forced executor shutdown - `shutdownNow` after the 60 s grace - discards queued
+    collection writes, leaving their flush, and a session close waiting on it, pending.
+  - *Progress reported under the publication lock.* The last step reports the catalog's written trapped changes to the
+    flush's progress consumer while it holds the lock, and a warm-up rename reports to its future's consumer - which
+    the rename operator forwards onward - once its relabelled record is published, still holding it. A consumer that
+    blocks holds termination up with it; one that waits for a termination of the same catalog deadlocks; one that
+    terminates it inline re-enters the lock and tears the source down in the middle of the handover. Deferring the
+    rename's report past the unlock takes a few lines, but the consumer is the only seam that holds a rename past its
+    publication in a test - a spy on its publishability check parks it before the relabel - and the flush's report
+    keeps the shape regardless; worth doing for both together if a consumer that calls back into the engine appears.
+  - *Shutdown that terminated the go-live's placeholder, beside a go-live that then succeeds.* A go-live whose
+    completion updater installs its ALIVE successor after shutdown terminated the placeholder but before shutdown
+    clears the engine state succeeds and never reaches its undo, and nothing terminates the real catalog - its storage
+    stays open until the process exits.
+  - *Shutdown that captured the warm-up instance, beside a go-live that publishes first.* The barrier keeps that
+    instance's termination from storing a warm-up header, but the termination still closes the persistence service
+    and transaction manager the ALIVE successor shares - and the go-live can install that successor and report success
+    before shutdown clears the engine state.
+  - *The undo's release beside a session call that outlasted the go-live drain.* Shutdown finds the registry already
+    suspended by the go-live and skips its own drain; when the go-live's drain then gives up after shutdown cleared
+    the engine state, its undo cannot restore the catalog and terminates the warm-up instance while that call still
+    runs on it. The call lock keeps the termination from publishing, but the call's storage handles are closed
+    beneath it.
+  - *A retirement parked after the storage service closed.* A compaction registered before `close()` and resumed
+    after it parks the retirement of the old file on the closed service, where no bootstrap write ever releases it.
+    The old file stays, which keeps a reload safe; the entry is held for as long as the closed service is reachable.
+  - *Cancellation visible before the barrier.* The backstop for a cancelled flush is a completion dependent, so the
+    flush's remaining writes and last step can still run - and publish - before the barrier stands. Nothing cancels a
+    warm-up flush today.
+  - *A transaction pool of one worker (inherited).* A warm-up schema change joins collection writes it submits to the
+    pool its own operator occupies, and engine shutdown queues catalog termination on that same pool, so with one
+    worker both starve.
 
 ## Related work
 
@@ -421,3 +589,12 @@ reproduction.
 - **2026-11-18** — termination found publishing while a warm-up call was still running (#2014). A lock shared by the
   warm-up writer's calls and termination was chosen over re-reading the schema version and over never publishing while
   a session is registered, and termination does not wait for the call
+- **2026-11-19** — termination found publishing beside a session close's flush already in progress (#2033), and
+  publishing the collections without the catalog index (#2032). The flush and the termination were made exclusive
+  through one atomic word plus a lock around the header write, the refusal was chosen over a bounded wait, and both
+  publishers were given one publication tail. A review of the change then found a flush failing after its pop and a
+  flush the session close could not submit leaving the barrier down, and a failed termination publication skipping
+  the release of the collection map - each fixed with a test - and the uncovered paths listed in the consequences.
+  Go-live, a warm-up rename and a compaction's registration were then serialized with the termination as well
+  (#2040), each reproduced first. A review of that change had the registration open nothing it might have to close,
+  and added the shutdown and retirement paths it found to the uncovered list
