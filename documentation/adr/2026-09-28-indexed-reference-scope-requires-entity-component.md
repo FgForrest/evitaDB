@@ -9,7 +9,9 @@ prs: [1657]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReflectedReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/filter/FilterByVisitor.java, evita_engine/src/main/java/io/evitadb/core/query/QueryPlanningContext.java, evita_engine/src/main/java/io/evitadb/core/query/sort, evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference/producer, evita_engine/src/main/java/io/evitadb/index/mutation/ReevaluateExpressionExecutor.java, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/exception/ReferenceComponentNotIndexedException.java]
 supersedes: []
 superseded-by: []
-relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-11-20-reference-owner-scope]
+relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-17-row-scoped-reference-having-body,
+  2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-11-20-reference-owner-scope,
+  2026-11-23-self-reference-work-runs-on-the-entity-executor]
 ---
 
 # Every scope a reference is indexed in must carry `REFERENCED_ENTITY`, and a stored catalog lacking it refuses loudly

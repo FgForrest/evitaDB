@@ -35,7 +35,8 @@ relates: [2026-11-03-release-catalog-upgrade-from-surviving-index-parts,
   2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys,
   2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision,
   2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics,
-  2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-11-19-one-histogram-store-per-group]
+  2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-11-19-one-histogram-store-per-group,
+  2026-11-23-self-reference-work-runs-on-the-entity-executor]
 ---
 
 # A single-owner partition of a filtering-only reference is a registry row, not an index object
