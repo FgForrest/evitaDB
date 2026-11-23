@@ -1,11 +1,11 @@
 ---
 title: A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run of the deferred queue
 date: 2026-11-11
-updated: 2026-11-19 16:36
+updated: 2026-11-23 11:08
 status: accepted
 kind: fix
 issues: [1911, 1916, 1918, 1922, 1923, 1948, 2029]
-prs: [1921, 1954, 1955, 1970]
+prs: [1921, 1954, 1955, 1970, 2031]
 areas: [evita_engine/src/main/java/io/evitadb/index/mutation/local, evita_engine/src/main/java/io/evitadb/core/catalog,
   evita_engine/src/main/java/io/evitadb/core/expression/proxy]
 supersedes: []
@@ -367,8 +367,8 @@ histogram trigger of each - O(N·K). On any other entity type it costs one regis
   property is a temporary safety valve, read once when the engine starts and deliberately absent from `ServerOptions`,
   the server YAML and `documentation/user/`, because the engine is expected to keep its histograms consistent;
   documenting or promoting it reverses this decision. It replaces the public setting `missingHistogramValueBehavior` of
-  #1953, which existed on `dev` only and was withdrawn before any release, and it is removed in a later release under
-  #1948.
+  #1953, which existed on `dev` only and was withdrawn before any release, and it is removed in a later release, once
+  refusing by default has held (#2029).
 - **2026.3 ships with `REPORT` as the default; `REFUSE` is meant to return as the default in 2026.4.** *Decided
   2026-11-19 under #1948.* An absent or blank property now selects `REPORT`; `REFUSE` stays selectable. The open
   defects that leave values missing were not all fixed for 2026.3. Measured on 2026-11-16 with the group store and
