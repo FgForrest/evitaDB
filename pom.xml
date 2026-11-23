@@ -146,7 +146,7 @@
 		<assertj.version>3.27.7</assertj.version>
 		<maven.compiler.version>3.16.0</maven.compiler.version>
 		<maven.toolchains.version>3.3.0</maven.toolchains.version>
-		<lombok.version>1.18.46</lombok.version>
+		<lombok.version>1.18.48</lombok.version>
 		<grpc.version>1.85.1</grpc.version>
 		<bouncyCastle.version>1.86</bouncyCastle.version>
 		<swagger.version>2.2.55</swagger.version>
