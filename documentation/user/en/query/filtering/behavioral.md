@@ -31,8 +31,9 @@ inScope(
     </dd>
 </dl>
 
-The `inScope` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filtering/FilterInScope.java</SourceClass></LS>
-<LS to="c"><SourceClass>EvitaDB.Client/Queries/Filtering/FilterInScope.cs</SourceClass></LS>) filter container is used 
+The `inScope` (<LS to="e,j,r,g">
+<SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/FilterInScope.java</SourceClass></LS>
+<LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/FilterInScope.cs</SourceClass></LS>) filter container is used
 to restrict filter conditions so that they only apply to a specific scope.
 
 The evitaDB query engine is strict about indexes and does not allow you to filter or sort on data (attributes, references,
@@ -218,7 +219,7 @@ this option from here" — so the whole `userFilter` is kept and the selection i
 rules leave COUNT alone, with one exception: `facetGroupsNegation` flips COUNT to the post-exclusion universe,
 since for a "hide this" toggle that's the meaningful number. **Histogram baselines** answer "where should this
 slider's handles sit" — they respect the rest of the shopper's intent but never their own family, so sliders
-don't collapse and siblings in the same family keep their catalog-wide spans.
+don't collapse and siblings in the same family keep their spans over the scopes the histogram covers.
 
 Constraints outside `userFilter` (the category, locale, currency, scope, price list) are never peeled. They define
 the universe; the relaxation surface is `userFilter` and nothing else.

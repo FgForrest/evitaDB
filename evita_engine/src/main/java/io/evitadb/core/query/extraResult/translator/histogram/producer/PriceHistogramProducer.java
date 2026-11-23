@@ -33,13 +33,13 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
-import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.common.RangeCarrierGroup;
 import io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Functions;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +49,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Optional.ofNullable;
@@ -76,15 +77,15 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 	 */
 	@Nonnull private final QueryPlanningContext queryContext;
 	/**
-	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
-	 * sorting.
+	 * The formula selecting the entities the histogram describes: the query's filtering formula, intersected with
+	 * the entities of {@link #scopes} when they are narrower than the scopes the query searches.
 	 */
 	@Nonnull private final Formula filteringFormula;
 	/**
-	 * Contains existing {@link FilteredPriceRecordsLookupResult} if it was already produced by filtering or sorter logic.
-	 * We can reuse already computed data in this producer and save precious ticks.
+	 * Processing scopes requested for the single price histogram slot. The translator refuses a second price
+	 * histogram requirement asking for a different set.
 	 */
-	@Nullable private final FilteredPriceRecordsLookupResult priceRecordsLookupResult;
+	@Getter @Nonnull private final Set<Scope> scopes;
 
 	@Nullable
 	@Override
@@ -139,6 +140,9 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 	 * from `relaxedBaseline` at SHALLOW depth — the relaxation has already peeled the inner LP that
 	 * lives under {@code userFilter(priceBetween(...))}, so the harvest reaches only the outer
 	 * histogram-flagged LPs and never double-counts the inner one.
+	 *
+	 * @param relaxedBaseline filtering formula after price range relaxation
+	 * @return histogram computer configured with the relaxed tree's price record accessors
 	 */
 	@Nonnull
 	private PriceHistogramComputer getPriceHistogramComputer(@Nonnull Formula relaxedBaseline) {
@@ -160,7 +164,7 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 			this.queryContext.getQueryPriceMode(),
 			this.filteringFormula,
 			filteringFormulaWithFilteredOutRecords,
-			filteredPriceRecordAccessors, this.priceRecordsLookupResult
+			filteredPriceRecordAccessors
 		);
 	}
 

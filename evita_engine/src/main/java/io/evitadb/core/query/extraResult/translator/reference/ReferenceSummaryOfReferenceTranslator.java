@@ -470,7 +470,12 @@ public class ReferenceSummaryOfReferenceTranslator
 	 * The pre-registration dance is necessary because this class is a {@link SelfTraversingTranslator}: the
 	 * visitor does not automatically walk children. Pre-registering before child dispatch ensures that
 	 * {@link ReferenceHistogramStatisticsTranslator} can locate the producer via `findExistingProducer` even
-	 * though the planner has not yet received the producer back from this method's return.
+	 * though the planner has not yet received the producer back from this method's return. Each child records the
+	 * enclosing summary when it registers its histogram.
+	 *
+	 * @param referenceSummaryOfReference the reference-specific summary and its histogram children
+	 * @param extraResultPlanner the active planning visitor
+	 * @return the producer registered for the reference summary
 	 */
 	@Nullable
 	@Override
@@ -504,7 +509,7 @@ public class ReferenceSummaryOfReferenceTranslator
 		for (final RequireConstraint child : referenceSummaryOfReference.getChildren()) {
 			if (child instanceof ReferenceHistogramStatistics) {
 				extraResultPlanner.executeInContext(
-					child,
+					referenceSummaryOfReference,
 					() -> referenceSchema,
 					() -> null,
 					() -> {

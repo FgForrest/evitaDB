@@ -39,11 +39,17 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The `inScope` require container plans the extra results it wraps in one {@link Scope} requested by the query and
- * checks them against the indexes of that scope only. The main {@link EntityFetch} fetches content for every returned
- * entity, and its content is checked in the scopes it is fetched in - all scopes searched by the query, unless
- * a reference filter selects the scopes of the referenced entities. The filter-side counterpart of this container is
- * {@link io.evitadb.api.query.filter.FilterInScope}.
+ * The `inScope` require container evaluates the extra results it wraps in the named {@link Scope}: from the indexes
+ * of that scope and the entities the query matches there, each extra result by its own counting rules. Histograms
+ * follow the
+ * [baseline rules](https://evitadb.io/documentation/query/filtering/behavioral#how-userfilter-shapes-predictions).
+ * An unwrapped histogram covers all scopes the query searches. The price histogram, each attribute histogram, and
+ * each named histogram of a reference can be requested for one scope set per query. Requests for the same histogram
+ * with different scope sets are rejected.
+ *
+ * The main {@link EntityFetch} fetches content for every returned entity, and its content is checked in the scopes
+ * it is fetched in. These are all scopes searched by the query unless a reference filter selects the scopes of
+ * the referenced entities. The filter-side counterpart is {@link io.evitadb.api.query.filter.FilterInScope}.
  *
  * ## Purpose and design intent
  *
@@ -95,7 +101,7 @@ import java.io.Serializable;
  * )
  * ```
  *
- * [Visit detailed user documentation](https://evitadb.io/documentation/query/require/behavioral#in-scope)
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/behavioral#in-scope)
  *
  * @see Scope
  * @see io.evitadb.api.query.filter.FilterInScope
@@ -103,9 +109,9 @@ import java.io.Serializable;
  */
 @ConstraintDefinition(
 	name = "inScope",
-	shortDescription = "The constraint plans the extra results it wraps in one scope requested by the query " +
-		"(LIVE or ARCHIVED) and checks them against the indexes of that scope only.",
-	userDocsLink = "/documentation/query/require/behavioral#in-scope"
+	shortDescription = "Evaluates the wrapped extra results in the named scope, from its indexes and the entities " +
+		"the query matches there. Each histogram can be requested for one scope set per query.",
+	userDocsLink = "/documentation/query/requirements/behavioral#in-scope"
 )
 public class RequireInScope extends AbstractRequireConstraintContainer
 	implements GenericConstraint<RequireConstraint>, InScopeContainer<RequireConstraint> {

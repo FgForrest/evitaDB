@@ -1,7 +1,7 @@
 ---
 title: Fold duplicate content requirements once per request, refuse the pairs that contradict, widen only the prefetch
 date: 2026-09-05
-updated: 2026-09-16 14:50
+updated: 2026-11-22 21:54
 status: accepted
 kind: fix
 issues: [1493]
@@ -17,7 +17,7 @@ areas: [evita_query/src/main/java/io/evitadb/api/query/require, evita_query/src/
   documentation/developer/query/constraint-resolution.md]
 supersedes: []
 superseded-by: []
-relates: []
+relates: [2026-11-05-nested-inscope-requested-scopes]
 ---
 
 # Two content requirements of one kind in one `entityFetch` are folded, and two rules decide how
@@ -579,6 +579,10 @@ output name, they now exercise the engine refusal; with the fold reinstated they
 
 ## Related work
 
+- `2026-11-05-nested-inscope-requested-scopes` — #2035 carries the controls of a reference summary per histogram
+  and keeps this record's rule for a histogram the generic summary declares: it takes the reference-specific
+  summary's sorter, group predicate and group fetch. With the two summaries in different require-level `inScope`
+  containers the sorter comes from the specific summary's scope, a corner that record names.
 - Issue #1365 / PR #1370 (`hierarchyContent` parents behaviour) — the source of the "the superset wins" precedent,
   which this record keeps for `hierarchyContent` and deliberately does not extend to `referenceContent`. That PR
   carries the same one-sided `stopAt` rule for `HierarchyContent#combineWith` plus a parents-behaviour argument this

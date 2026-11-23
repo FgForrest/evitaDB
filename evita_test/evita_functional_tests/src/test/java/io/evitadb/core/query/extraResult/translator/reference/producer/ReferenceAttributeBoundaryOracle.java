@@ -27,7 +27,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -54,13 +53,24 @@ final class ReferenceAttributeBoundaryOracle {
 	private ReferenceAttributeBoundaryOracle() {
 	}
 
-	/** Computes both picks using exhaustive, same-producing-index owner witnesses. */
+	/**
+	 * Computes both picks for a grouped histogram using exhaustive, same-producing-index owner witnesses.
+	 *
+	 * @param filters the reference attribute filters, aligned with the boundary indexes
+	 * @param indexes the reduced group indexes of the boundary context
+	 * @param value the boundary value
+	 * @param ownerFilter the histogram filter index holding counted owners by value
+	 * @param baseline the baseline formula, or `null` when every owner passes
+	 * @param scope the referenced primary keys tracked by the boundary context
+	 * @param sorter the reference's sorter, or `null` for primary key order
+	 * @return the selected and alternative boundary primary keys
+	 */
 	@Nonnull
 	static Pair pick(
 		@Nonnull FilterIndex[] filters,
 		@Nonnull EntityIndex[] indexes,
 		@Nonnull Serializable value,
-		@Nullable FilterIndex ownerFilter,
+		@Nonnull FilterIndex ownerFilter,
 		@Nullable Formula baseline,
 		@Nonnull Bitmap scope,
 		@Nullable NestedContextSorter sorter
@@ -76,15 +86,11 @@ final class ReferenceAttributeBoundaryOracle {
 			if (records.isEmpty()) {
 				continue;
 			}
-			final Bitmap mapped;
-			if (indexes[i] instanceof ReducedGroupEntityIndex group) {
-				mapped = group.getReferencedPrimaryKeysForIndexPks(records);
-			} else if (indexes[i] instanceof ReferencedTypeEntityIndex type) {
-				mapped = type.getReferencedPrimaryKeysForIndexPks(records);
-			} else {
+			if (!(indexes[i] instanceof ReducedGroupEntityIndex group)) {
 				throw new IllegalArgumentException("Unsupported fixture index");
 			}
-			if (ownerFilter != null && owners == null) {
+			final Bitmap mapped = group.getReferencedPrimaryKeysForIndexPks(records);
+			if (owners == null) {
 				owners = RoaringBitmapBackedBitmap.getRoaringBitmap(lookup(ownerFilter, value));
 				if (baseline != null && !owners.isEmpty()) {
 					owners = PersistentRoaringBitmap.and(
@@ -96,22 +102,17 @@ final class ReferenceAttributeBoundaryOracle {
 			while (iterator.hasNext()) {
 				final int pk = iterator.nextInt();
 				unrestricted.add(pk);
-				if (owners != null) {
-					final Bitmap witnesses = ((ReducedGroupEntityIndex) indexes[i]).getOwnerPKsForReferencedEntity(pk);
-					if (witnesses != null && PersistentRoaringBitmap.intersects(
-						RoaringBitmapBackedBitmap.getRoaringBitmap(witnesses), owners
-					)) {
-						eligible.add(pk);
-					}
+				final Bitmap witnesses = group.getOwnerPKsForReferencedEntity(pk);
+				if (witnesses != null && PersistentRoaringBitmap.intersects(
+					RoaringBitmapBackedBitmap.getRoaringBitmap(witnesses), owners
+				)) {
+					eligible.add(pk);
 				}
 			}
 		}
-		if (owners != null) {
-			final Integer primary = first(eligible, scope, sorter);
-			if (primary != null) {
-				return pair(primary, eligible.size() == unrestricted.size() ?
-					null : first(unrestricted, scope, sorter));
-			}
+		final Integer primary = first(eligible, scope, sorter);
+		if (primary != null) {
+			return pair(primary, eligible.size() == unrestricted.size() ? null : first(unrestricted, scope, sorter));
 		}
 		return pair(first(unrestricted, scope, sorter), null);
 	}

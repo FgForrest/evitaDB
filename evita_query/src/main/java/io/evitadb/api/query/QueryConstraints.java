@@ -2289,7 +2289,10 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Restricts the enclosed require constraints to apply only when processing entities in the specified scope (LIVE or ARCHIVED), ensuring requirements incompatible with a scope (e.g., facetSummary in ARCHIVED) are safely ignored there. At least one unique RequireConstraint is required; nesting is disallowed within the same evaluation context.
+	 * Plans the enclosed extra results in one scope requested by the query. If an extra result requires an index
+	 * missing from that scope, the query fails. The main entity fetch still applies to every returned entity.
+	 * Supply at least one child requirement. Children must be unique, and nested `inScope` containers in the same
+	 * evaluation context are rejected.
 	 *
 	 * ```evitaql
 	 * require(

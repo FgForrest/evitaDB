@@ -25,6 +25,8 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.Segments;
 import io.evitadb.api.query.require.DebugMode;
@@ -52,10 +54,13 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.*;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
@@ -95,10 +100,12 @@ import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MapBuilder;
 import io.evitadb.utils.StringUtils;
+import io.restassured.response.ValidatableResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
@@ -127,6 +134,7 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.GRAPHQL;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -164,6 +172,51 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	private static final String REFERENCED_ROOT_SIBLINGS_PATH = REFERENCED_HIERARCHY_PATH + ".rootSiblings";
 
 	private static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_QUERY = GRAPHQL_THOUSAND_PRODUCTS + "forEmptyQuery";
+
+	private static final String SCOPED_REFERENCE_HISTOGRAMS = "graphqlScopedReferenceHistograms";
+
+	/**
+	 * Seeds a reference whose histogram names differ between LIVE and ARCHIVED.
+	 *
+	 * @param evita the engine holding the GraphQL catalog
+	 */
+	@DataSet(value = SCOPED_REFERENCE_HISTOGRAMS, openWebApi = GraphQLProvider.CODE, destroyAfterClass = true)
+	void setUpScopedReferenceHistograms(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema("target").withoutGeneratedPrimaryKey().updateVia(session);
+			session.defineEntitySchema("targetGroup").withoutGeneratedPrimaryKey().updateVia(session);
+			session.defineEntitySchema(Entities.PRODUCT)
+				.withoutGeneratedPrimaryKey()
+				.withReferenceToEntity("target", "target", Cardinality.ZERO_OR_MORE, reference -> reference
+					.withGroupTypeRelatedToEntity("targetGroup")
+					.indexedForFilteringAndPartitioningInScope(Scope.values())
+					.indexedWithComponentsInScope(Scope.LIVE, ReferenceIndexedComponents.values())
+					.indexedWithComponentsInScope(Scope.ARCHIVED, ReferenceIndexedComponents.values())
+					.facetedInScope(Scope.values())
+					.withAttribute("score", Integer.class, attribute -> attribute.filterableInScope(Scope.values()))
+					.bucketedInScope(Scope.LIVE, "liveScore", ExpressionFactory.parse("$reference.attributes['score']"))
+					.bucketedInScope(
+						Scope.ARCHIVED, "archivedScore", ExpressionFactory.parse("$reference.attributes['score']")
+					)
+					.bucketedInScope(
+						Scope.LIVE, "sharedScore", ExpressionFactory.parse("$reference.attributes['score']")
+					)
+					.bucketedInScope(
+						Scope.ARCHIVED, "sharedScore", ExpressionFactory.parse("$reference.attributes['score']")
+					)
+				)
+				.updateVia(session);
+			session.createNewEntity("target", 1).upsertVia(session);
+			session.createNewEntity("targetGroup", 1).upsertVia(session);
+			session.createNewEntity(Entities.PRODUCT, 1)
+				.setReference("target", 1, reference -> reference.setGroup("targetGroup", 1).setAttribute("score", 3))
+				.upsertVia(session);
+			session.createNewEntity(Entities.PRODUCT, 2)
+				.setReference("target", 1, reference -> reference.setGroup("targetGroup", 1).setAttribute("score", 7))
+				.upsertVia(session);
+			session.archiveEntity(Entities.PRODUCT, 2);
+		});
+	}
 
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_QUERY, openWebApi = GraphQLProvider.CODE, readOnly = false,
 		destroyAfterClass = true)
@@ -9640,6 +9693,132 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".parameter",
 				equalTo(expectedBody)
 			);
+	}
+
+	/**
+	 * Compares the unwrapped GraphQL histogram or validation error with the equivalent Java query.
+	 *
+	 * @param scopeList the comma-separated scopes, or an empty string to omit the filter
+	 * @param histogramName the histogram field requested
+	 * @param missingDefinition whether a searched scope lacks the histogram definition
+	 * @param evita the engine holding the same data as GraphQL
+	 * @param tester the GraphQL client
+	 */
+	@ParameterizedTest
+	@CsvSource(delimiter = '|', value = {
+		"ARCHIVED | archivedScore | false",
+		"LIVE, ARCHIVED | archivedScore | true",
+		"LIVE, ARCHIVED | sharedScore | false",
+		"'' | liveScore | false"
+	})
+	@UseDataSet(SCOPED_REFERENCE_HISTOGRAMS)
+	@DisplayName("Resolves unwrapped histogram names in the scopes searched by the query")
+	void shouldResolveReferenceHistogramInQueryScopes(
+		@Nonnull String scopeList,
+		@Nonnull String histogramName,
+		boolean missingDefinition,
+		@Nonnull Evita evita,
+		@Nonnull GraphQLTester tester
+	) {
+		final Scope[] scopes = scopeList.isEmpty() ? new Scope[0] :
+			Arrays.stream(scopeList.split(", ")).map(Scope::valueOf).toArray(Scope[]::new);
+		final RequireConstraint summary = referenceSummaryOfReferenceWithHistograms(
+			"target", FacetStatisticsDepth.NONE, null, null,
+			histogramStatistics(10, HistogramBehavior.OPTIMIZED, histogramName)
+		);
+		final String histogramPath =
+			PRODUCT_QUERY_PATH + ".extraResults.referenceSummary.target[0].histogramStatistics." + histogramName;
+		final ValidatableResponse graphQlResponse = tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct%s {
+							recordPage {
+								data { scope }
+							}
+							extraResults {
+								referenceSummary {
+									target {
+										histogramStatistics {
+											%s {
+												min
+												max
+												overallCount
+												buckets(requestedCount: 10, behavior: OPTIMIZED) {
+													threshold
+													occurrences
+													requested
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					""",
+				scopeList.isEmpty() ? "" : "(filterBy: {scope: [" + scopeList + "]})",
+				histogramName
+			)
+			.executeAndThen()
+			.statusCode(200);
+
+		if (missingDefinition) {
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class, () -> queryScopedReferenceHistogram(evita, scopes, summary)
+			);
+			final String expected = "Histogram `archivedScore` is not defined on reference `target` in scope `LIVE`.";
+			assertEquals(expected, exception.getMessage());
+			graphQlResponse
+				.body(ERRORS_PATH + "[0].message", containsString(expected))
+				.body(histogramPath, nullValue());
+			return;
+		}
+
+		final EvitaResponse<SealedEntity> response = queryScopedReferenceHistogram(evita, scopes, summary);
+		final HistogramContract histogram = response.getExtraResult(ReferenceSummary.class)
+			.getReferenceGroupStatistics("target", 1).getHistogramStatistics(histogramName);
+		assertNotNull(histogram);
+		final Map<String, Object> expected = map()
+			.e("min", histogram.getMin().toString())
+			.e("max", histogram.getMax().toString())
+			.e("overallCount", histogram.getOverallCount())
+			.e("buckets", Arrays.stream(histogram.getBuckets()).map(bucket -> map()
+				.e("threshold", bucket.threshold().toString())
+				.e("occurrences", bucket.occurrences())
+				.e("requested", bucket.requested())
+				.build()).toList())
+			.build();
+
+		graphQlResponse
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_DATA_PATH + ".scope", equalTo(
+				response.getRecordData().stream().map(entity -> entity.getScope().name()).toList()
+			))
+			.body(histogramPath, equalTo(expected));
+	}
+
+	/**
+	 * Runs the Java query for the same histogram and root filter as GraphQL.
+	 *
+	 * @param evita the engine holding the GraphQL fixture
+	 * @param scopes the searched scopes, or none to use the default
+	 * @param summary the histogram requirement, including any scope restriction
+	 * @return the products and reference histogram
+	 */
+	@Nonnull
+	private static EvitaResponse<SealedEntity> queryScopedReferenceHistogram(
+		@Nonnull Evita evita, @Nonnull Scope[] scopes, @Nonnull RequireConstraint summary
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(collection(Entities.PRODUCT), filterBy(scope(scopes)), require(entityFetch(), summary)),
+					SealedEntity.class
+				);
+			}
+		);
 	}
 
 	@Test

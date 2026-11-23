@@ -28,7 +28,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
-import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
+import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramComputer;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
@@ -43,7 +43,8 @@ import java.util.Collection;
 /**
  * FilteredPriceRecordsCollector allows unifying the logic for accessing {@link PriceRecord} referenced in current
  * query computation and narrowing them even more to match exactly the result produced by filtering formula.
- * The same logic is used by {@link FilteredPricesSorter} and {@link PriceHistogramProducer}.
+ * The same logic is used by {@link FilteredPricesSorter}, {@link PriceHistogramComputer} and
+ * {@link io.evitadb.core.query.sort.price.translator.PriceDiscountTranslator}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -52,7 +53,7 @@ public class FilteredPriceRecordsCollector {
 	/**
 	 * Contains list of all {@link Formula} that provide access to the {@link PriceRecord} used in computation.
 	 */
-	@Nonnull @Getter private final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors;
+	@Nonnull private final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors;
 	/**
 	 * Contains result of the matching algorithm that pairs {@link PriceRecord} to entity primary keys visible in
 	 * formula result.
@@ -63,6 +64,14 @@ public class FilteredPriceRecordsCollector {
 	 */
 	@Nonnull private final QueryExecutionContext context;
 
+	/**
+	 * Pairs the entities of `filteredResults` with their price records right away; the context and accessors are
+	 * kept for later calls of {@link #combineResultWithAndReturnPriceRecords(PersistentRoaringBitmap)}.
+	 *
+	 * @param filteredResults              primary keys of the entities to collect price records for
+	 * @param filteredPriceRecordAccessors formulas giving access to the price records used in the computation
+	 * @param context                      the execution context the accessors read the price records in
+	 */
 	public FilteredPriceRecordsCollector(
 		@Nonnull PersistentRoaringBitmap filteredResults,
 		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
@@ -71,16 +80,6 @@ public class FilteredPriceRecordsCollector {
 		this.context = context;
 		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
 		this.result = computeResult(filteredResults, filteredPriceRecordAccessors, context);
-	}
-
-	public FilteredPriceRecordsCollector(
-		@Nonnull FilteredPriceRecordsLookupResult result,
-		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
-		@Nonnull QueryExecutionContext context
-	) {
-		this.context = context;
-		this.filteredPriceRecordAccessors = filteredPriceRecordAccessors;
-		this.result = result;
 	}
 
 	/**

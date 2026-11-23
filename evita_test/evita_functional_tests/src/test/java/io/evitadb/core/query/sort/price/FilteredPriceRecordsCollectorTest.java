@@ -24,19 +24,22 @@
 package io.evitadb.core.query.sort.price;
 
 import io.evitadb.core.query.QueryExecutionContext;
-import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
-import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords.SortingForm;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.mockito.Mockito.mock;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.ORDER;
 import static io.evitadb.test.TestTags.PRICE;
@@ -55,7 +58,7 @@ class FilteredPriceRecordsCollectorTest {
 
 	@Test
 	void shouldCombineNonOverlappingArrays() {
-		final FilteredPriceRecordsCollector tested = new MockedPriceRecordsCollector(
+		final PriceRecordContract[] combinedRecords = combineRecords(
 			new PriceRecord[]{
 				createPriceRecord(1),
 				createPriceRecord(2)
@@ -65,7 +68,6 @@ class FilteredPriceRecordsCollectorTest {
 				createPriceRecord(4)
 			}
 		);
-		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new PersistentRoaringBitmap());
 		assertArrayEquals(
 			new PriceRecord[]{
 				createPriceRecord(1),
@@ -79,7 +81,7 @@ class FilteredPriceRecordsCollectorTest {
 
 	@Test
 	void shouldCombineOverlappingArrays() {
-		final FilteredPriceRecordsCollector tested = new MockedPriceRecordsCollector(
+		final PriceRecordContract[] combinedRecords = combineRecords(
 			new PriceRecord[]{
 				createPriceRecord(2),
 				createPriceRecord(3)
@@ -90,7 +92,6 @@ class FilteredPriceRecordsCollectorTest {
 				createPriceRecord(4)
 			}
 		);
-		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new PersistentRoaringBitmap());
 		assertArrayEquals(
 			new PriceRecord[]{
 				createPriceRecord(1),
@@ -104,7 +105,7 @@ class FilteredPriceRecordsCollectorTest {
 
 	@Test
 	void shouldCombineEmptyWithFullArray() {
-		final FilteredPriceRecordsCollector tested = new MockedPriceRecordsCollector(
+		final PriceRecordContract[] combinedRecords = combineRecords(
 			new PriceRecord[0],
 			new PriceRecord[]{
 				createPriceRecord(1),
@@ -112,7 +113,6 @@ class FilteredPriceRecordsCollectorTest {
 				createPriceRecord(4)
 			}
 		);
-		final PriceRecordContract[] combinedRecords = tested.combineResultWithAndReturnPriceRecords(new PersistentRoaringBitmap());
 		assertArrayEquals(
 			new PriceRecord[]{
 				createPriceRecord(1),
@@ -123,29 +123,67 @@ class FilteredPriceRecordsCollectorTest {
 		);
 	}
 
+	/**
+	 * Verifies that an added owner the accessors hold no price for contributes nothing.
+	 */
+	@Test
+	@DisplayName("returns the original records when the added owner has no price")
+	void shouldReturnOriginalRecordsWhenAddedOwnerHasNoPrice() {
+		final PriceRecordContract[] combinedRecords = combineRecords(
+			new PriceRecord[]{
+				createPriceRecord(1),
+				createPriceRecord(2)
+			},
+			new PriceRecord[0],
+			3
+		);
+		assertArrayEquals(
+			new PriceRecord[]{
+				createPriceRecord(1),
+				createPriceRecord(2)
+			},
+			combinedRecords
+		);
+	}
+
 	@Nonnull
 	private static PriceRecord createPriceRecord(int priceId) {
 		return new PriceRecord(priceId, priceId, priceId, priceId, priceId);
 	}
 
-	private static class MockedPriceRecordsCollector extends FilteredPriceRecordsCollector {
-		private final PriceRecord[] addedRecords;
-
-		public MockedPriceRecordsCollector(@Nonnull PriceRecord[] originalRecords, @Nonnull PriceRecord[] addedRecords) {
-			super(new FilteredPriceRecordsLookupResult(originalRecords), Collections.emptyList(), null);
-			this.addedRecords = addedRecords;
+	/**
+	 * Collects the prices for the original owners, then supplements them with the prices for the added owners.
+	 *
+	 * @param originalRecords         the original price records
+	 * @param addedRecords            the supplementary price records
+	 * @param addedOwnersWithoutPrice added owners the accessor holds no price for
+	 * @return the ordered union from the collector
+	 */
+	@Nonnull
+	private static PriceRecordContract[] combineRecords(
+		@Nonnull PriceRecord[] originalRecords, @Nonnull PriceRecord[] addedRecords, int... addedOwnersWithoutPrice
+	) {
+		final PersistentRoaringBitmap originalOwners = new PersistentRoaringBitmap();
+		final PersistentRoaringBitmap addedOwners = new PersistentRoaringBitmap();
+		for (final int owner : addedOwnersWithoutPrice) {
+			addedOwners.add(owner);
 		}
-
-		@Nonnull
-		@Override
-		protected FilteredPriceRecordsLookupResult computeResult(
-			@Nonnull PersistentRoaringBitmap filteredResults,
-			@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
-			@Nonnull QueryExecutionContext context
-		) {
-			return new FilteredPriceRecordsLookupResult(this.addedRecords);
+		final Map<Integer, PriceRecord> availablePrices = new TreeMap<>();
+		for (final PriceRecord record : originalRecords) {
+			originalOwners.add(record.entityPrimaryKey());
+			availablePrices.put(record.entityPrimaryKey(), record);
 		}
-
+		for (final PriceRecord record : addedRecords) {
+			addedOwners.add(record.entityPrimaryKey());
+			availablePrices.putIfAbsent(record.entityPrimaryKey(), record);
+		}
+		final ResolvedFilteredPriceRecords prices = new ResolvedFilteredPriceRecords(
+			availablePrices.values().toArray(PriceRecordContract[]::new), SortingForm.ENTITY_PK
+		);
+		// the accessor ignores the context, so the collector only passes the mock through
+		final FilteredPriceRecordsCollector collector = new FilteredPriceRecordsCollector(
+			originalOwners, List.of(context -> prices), mock(QueryExecutionContext.class)
+		);
+		return collector.combineResultWithAndReturnPriceRecords(addedOwners);
 	}
-
 }

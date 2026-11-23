@@ -1184,6 +1184,62 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.body(DATA_PATH, equalTo(createEntityDtos(entities, true)));
 	}
 
+	/**
+	 * Rejects duplicate wrappers for different scopes in the query requirements.
+	 *
+	 * @param tester the REST test client
+	 */
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Rejects duplicate inScope properties in query requirements")
+	void shouldRejectDuplicateScopeRequirements(@Nonnull RestTester tester) {
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/query")
+			.requestBody("""
+				{
+					"filterBy": {"scope": ["LIVE", "ARCHIVED"]},
+					"require": {
+						"inScope": {"scope": "ARCHIVED", "require": {"queryTelemetry": "TIMINGS"}},
+						"inScope": {"scope": "LIVE", "require": {"attributeHistogram": {
+							"requestedBucketCount": 5, "attributeNames": ["quantity"]
+						}}}
+					}
+				}
+				""")
+			.executeAndThen()
+			.statusCode(400)
+			.body("message", containsString("inScope"));
+	}
+
+	/**
+	 * Rejects duplicate constraints within a scoped requirements object.
+	 *
+	 * @param tester the REST test client
+	 */
+	@Test
+	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
+	@DisplayName("Rejects a duplicate property within scoped query requirements")
+	void shouldRejectDuplicateNestedRequirements(@Nonnull RestTester tester) {
+		tester.test(TEST_CATALOG)
+			.post("/PRODUCT/query")
+			.requestBody("""
+				{
+					"require": {
+						"inScope": {
+							"scope": "LIVE",
+							"require": {
+								"attributeHistogram": {"requestedBucketCount": 5, "attributeNames": ["quantity"]},
+								"attributeHistogram": {"requestedBucketCount": 6, "attributeNames": ["quantity"]}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndThen()
+			.statusCode(400)
+			.body("message", containsString("attributeHistogram"));
+	}
+
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should fail when locale is both in body and in URL")
