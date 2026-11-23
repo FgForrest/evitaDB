@@ -1075,8 +1075,25 @@ record ReevaluateExpressionMutation(
 ) implements IndexMutation
 ```
 
-The executor iterates all owning entities that reference the mutated entity, re-evaluates both
-condition and value, and performs bulk histogram index updates via FilterIndex JOIN operations.
+The executor iterates all owning entities that reference the mutated entity and re-evaluates both condition and value.
+For a histogram over an attribute of the referenced entity it withdraws and adds what the owner's own upsert writes
+for the same stored data. A scalar value is read from the source collection's `FilterIndex`, and a referenced entity
+found in no bucket of it receives the default, if the histogram has one. An array-typed value is not read there,
+because the index keeps a repeated element under one key and holds no record of an empty array. The executor reads the
+stored value instead, through the storage-part executor of the entity whose mutation emitted the
+`ReevaluateExpressionMutation`: `LocalMutationExecutorCollector` attaches it to the mutation together with the
+condition state captured before the batch, and the dispatch calls
+`ContainerizedLocalMutationExecutor#readReferencedEntityAttribute`, the method the owner's own upsert reads the value
+with. That executor answers for its own entity from its own parts, for another entity mutated in the same root
+mutation through that entity's executor, and for any other entity from the parts read once per root mutation, so the
+dispatch sees the state the local path sees. `ReferenceIndexMutator#resolveHistogramValues` expands the raw value with
+each histogram's own descriptor: one unit per element, a repeated element as often as it is listed, nothing for an
+empty array, and the default only where the value is missing. For a localized array the locales are those of the
+referenced entity's schema, and a locale the entity holds no value in reads as missing. Each raw value is read once
+per dispatched mutation and shared by all its histograms and entries; a captured pre-mutation value takes
+precedence on withdrawal. The executor is live state, valid only while the collector dispatches the mutation, so the
+mutation is never stored or serialized. A mutation that needs a stored read but carries no executor fails with
+`GenericEvitaInternalError`.
 
 ### Test Blueprint Hints -- Histogram Mutations
 

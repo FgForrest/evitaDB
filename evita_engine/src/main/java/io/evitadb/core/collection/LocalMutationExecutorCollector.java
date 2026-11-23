@@ -329,15 +329,24 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 
 	/**
 	 * Returns `entityIndexMutation` with every {@link ReevaluateExpressionMutation} in it carrying the condition
-	 * state {@link #capturePreMutationConditionState} recorded for it, or the original envelope untouched when
-	 * nothing was captured (no histogram trigger fired — the common case, and allocation-free).
+	 * state {@link #capturePreMutationConditionState} recorded for it, together with `changeCollector`, or the
+	 * original envelope untouched when nothing was captured (no histogram trigger fired — the common case, and
+	 * allocation-free).
+	 *
+	 * Every envelope dispatched at this level was emitted by the index executor paired with `changeCollector`, so
+	 * `changeCollector` is the storage-part executor of the entity whose mutation emitted it; the histogram dispatch
+	 * reads stored values of referenced entities through it, exactly as the owner's own upsert reads them. An envelope
+	 * without captured state gets no executor: the dispatch fails loudly if it needs one, which can only mean the
+	 * pre-pass missed an envelope the dispatch received.
 	 *
 	 * @param entityIndexMutation the envelope about to be dispatched
+	 * @param changeCollector     the storage-part executor of the entity whose mutation emitted the envelope
 	 * @return the envelope to dispatch
 	 */
 	@Nonnull
 	private EntityIndexMutation attachPreMutationConditionState(
-		@Nonnull EntityIndexMutation entityIndexMutation
+		@Nonnull EntityIndexMutation entityIndexMutation,
+		@Nonnull ContainerizedLocalMutationExecutor changeCollector
 	) {
 		if (this.preMutationConditionState == null) {
 			return entityIndexMutation;
@@ -358,7 +367,7 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 			if (enriched == null) {
 				enriched = mutations.clone();
 			}
-			enriched[i] = reevaluation.withPreviouslyIndexedOwnerPKs(conditionState);
+			enriched[i] = reevaluation.withPreMutationState(conditionState, changeCollector);
 		}
 		return enriched == null
 			? entityIndexMutation
@@ -650,7 +659,7 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 				// route each envelope to the target collection's thin dispatcher — bypasses
 				// the full ServerEntityMutation pipeline (no storage, no WAL, no schema evolution)
 				this.catalog.getCollectionForEntityOrThrowException(indexMutation.entityType())
-					.applyIndexMutations(attachPreMutationConditionState(indexMutation), session);
+					.applyIndexMutations(attachPreMutationConditionState(indexMutation, changeCollector), session);
 			}
 
 			// finish the record
