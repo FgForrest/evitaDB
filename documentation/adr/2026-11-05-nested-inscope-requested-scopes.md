@@ -1,11 +1,11 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-23 15:08
+updated: 2026-11-23 17:38
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917, 1920, 2035]
-prs: [1884, 1913, 1914, 1919, 2034, 2043]
+prs: [1884, 1913, 1914, 1919, 2034, 2043, 2067]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
   - evita_query/src/main/java/io/evitadb/api/query
@@ -506,8 +506,13 @@ histogram itself is returned whole.
 - **Cons:** a client gets no anchor entity for the ends of such a histogram, only its `min` and `max`.
 
 An `entityFetch` inside such a histogram stays refused at planning, as the summary's own `entityFetch` on the
-reference is; the refusal's message ("EntityFetch constraint is probably incorrectly nested in require part of the
-query.") names the wrong cause and was left as it is.
+reference is. #2043 left both refusals with messages naming the wrong cause ("EntityFetch constraint is probably
+incorrectly nested in require part of the query." and `EntityCollectionRequiredException`); the follow-up pull
+request made them, and the summary's `entityGroupFetch` on an unmanaged group type, throw `EntityNotManagedException`
+naming the type. `referenceContent` throws the same exception for an `entityFetch` of such a reference
+(`EntityNonManagedReferenceFunctionalTest`), and `facetHaving` for an `entityHaving` on it. It accepts an
+`entityGroupFetch` of an unmanaged group and returns no group body (`GetEntityLocalizedAttributeRefusalTest`), so the
+summary's refusal of that fetch differs from it; the follow-up changed only the exception (Open, left by #2035).
 
 #### Option AH — return the picked primary key as a bare reference (declined)
 
@@ -933,6 +938,13 @@ into the same pull request.
   `entityFetch` (inside the histogram, and the summary's own), each asserted by class and message. The guard removed
   alone fails exactly the three cases without `entityFetch`. Full `-P unitAndFunctional` run: bitmap 19,215 tests,
   0 failures; functional 39,906 tests, 0 failures, 0 errors, 70 skipped.
+- **Unmanaged-type fetch refusals (follow-up pull request)**, the same class with 12 tests: seven refusals asserted by
+  class and message (the histogram boundary fetch in the reference-specific and the all-references summary, the
+  entity fetch of `referenceSummaryOfReference` and `facetSummaryOfReference`, and their group fetches - one with a
+  managed target) and two controls fetching the managed side. On the translators of `dev` exactly the seven refusals
+  fail with the earlier exceptions; reading the target's flag in the group branch fails the managed-target case. Full
+  `-P unitAndFunctional` run: bitmap 19,215 tests, 0 failures; functional 40,255 tests, 0 failures, 70 skipped, and
+  189 errors from release fixtures the run skipped generating - the 10 classes pass 224 of 224 with them.
 
 ## Consequences & open follow-ups
 
@@ -1058,15 +1070,21 @@ into the same pull request.
   anything else.
 - **Visible to clients, unmanaged referenced types.** A reference summary with a histogram over a reference to an
   entity type evitaDB does not manage returns the histogram without boundary entities, where the whole query failed
-  with `EntityCollectionRequiredException`. An `entityFetch` inside such a histogram is refused at planning.
+  with `EntityCollectionRequiredException`. An `entityFetch` inside such a histogram or of a reference summary on
+  such a reference, and the summary's `entityGroupFetch` on an unmanaged group type, are refused at planning with
+  `EntityNotManagedException`, which `referenceContent` also throws for an `entityFetch` of such a reference.
 - **Open, left by #2035** - found by its adversarial code reviews, outside the change:
-  - **Shown by a probe, decision pending:** a reference whose group type is unmanaged loses its histogram. The index
-    writer stores it under the group's primary key (`ReferenceIndexMutator`), but the accumulator reads such a
-    reference as ungrouped (`ReferenceHistogramAccumulator#computeForReference` treats only a managed group as
-    grouped), so the group comes back with its facets and without the histogram. Neither side is changed by #2035;
-    the probe test was not kept.
+  - #2062: a reference whose group type is unmanaged loses its histogram - the group comes back with its facets and
+    without the histogram. Shown red; the routing behind it (the index writer stores the values under the group's
+    primary key, `ReferenceHistogramAccumulator#computeForReference` reads only a managed group per group) is read
+    from the code. Neither side is changed by #2035.
   - **Suspected:** a managed referenced type whose collection does not exist yet - allowed until the schema is
     validated when the session closes - would fail the boundary fetch the way an unmanaged one did.
+  - An `entityGroupFetch` of an unmanaged group type is refused by `referenceSummaryOfReference` and
+    `facetSummaryOfReference`, but accepted without a group body by `referenceContent`
+    (`GetEntityLocalizedAttributeRefusalTest`), and the all-references summary skips its validation for such a
+    reference (`ReferenceSummaryTranslator`, read from the code). Which of the two the API should do is undecided;
+    the follow-up pull request changed only the exception of the refusal.
   - #2053: a `histogramHaving` keeps no scope, so `or(inScope(LIVE, histogramHaving(…)), inScope(ARCHIVED,
     histogramHaving(…)))` on one histogram is refused as two siblings, and a range inside `inScope(ARCHIVED, …)`
     marks the buckets of a LIVE histogram `requested`. Both shown red.
@@ -1142,4 +1160,6 @@ into the same pull request.
   accepted that unstored referenced entities rank last. #2053 filed from the review's `histogramHaving` finding.
 - **2026-11-23** — The external API descriptions of the boundary entities corrected to what the APIs return. A
   histogram over a reference to an unmanaged entity type, suspected while checking them, reproduced as a failing query
-  and was fixed in the same pull request (Option AG); its review found the unmanaged-group gap left open above.
+  and was fixed in the same pull request (Option AG); its review found the unmanaged-group gap, filed as #2062.
+  After #2043 merged, a follow-up pull request pointed this record at #2062 and gave the refusals of a fetch on an
+  unmanaged type `EntityNotManagedException` (Option AG); the larger open items above stay follow-ups.
