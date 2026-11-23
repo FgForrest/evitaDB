@@ -324,7 +324,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private EntityStoragePartExistingDataFactory storagePartExistingDataFactory;
 	/**
-	 * Set of keys of indexes that were created in this particular entity upsert.
+	 * Representative keys of the duplicate-allowing references the current batch inserts, as the lookahead finds them;
+	 * a reference whose current key is in this set is not migrated from its stored key. It is reset by
+	 * {@link #prepareFurtherBatch(List)}, so a further batch of this executor does not inherit the previous inserts.
 	 */
 	private Set<RepresentativeReferenceKey> createdReferences;
 	/**
@@ -1133,6 +1135,37 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					null
 				);
 			}
+		}
+	}
+
+	/**
+	 * Readies this executor for a further batch of the same entity: installs the batch as the lookahead the
+	 * representative-attribute calculation peeks into, forgets the references the previous batch created, and evicts
+	 * the memoized representative attributes of every reference target the batch touches - dropping the existing-data
+	 * factory built over them when anything was evicted. One executor serves every batch of its entity within a root
+	 * mutation, so values memoized for an earlier batch would otherwise describe a state the next batch changes.
+	 * A touched target may be cached under a generic, temporary or assigned internal key; the eviction compares the
+	 * reference name and target only, so it matches all three.
+	 *
+	 * @param localMutations the local mutations to apply in the next batch
+	 */
+	public void prepareFurtherBatch(@Nonnull List<? extends LocalMutation<?, ?>> localMutations) {
+		this.localMutations = localMutations;
+		this.createdReferences = null;
+		if (localMutations.isEmpty() || this.memoizedRepresentativeAttributes.isEmpty()) {
+			return;
+		}
+		final Set<ReferenceKey> affectedTargets = CollectionUtils.createHashSet(localMutations.size());
+		for (final LocalMutation<?, ?> mutation : localMutations) {
+			if (mutation instanceof ReferenceMutation<?> referenceMutation) {
+				final ReferenceKey referenceKey = referenceMutation.getReferenceKey();
+				affectedTargets.add(new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey()));
+			}
+		}
+		if (this.memoizedRepresentativeAttributes.keySet().removeIf(
+			cached -> affectedTargets.contains(cached.referenceKey())
+		)) {
+			this.storagePartExistingDataFactory = null;
 		}
 	}
 

@@ -190,6 +190,13 @@ public final class ContainerizedLocalMutationExecutor
 	private final DataStoreMemoryBuffer dataStoreUpdater;
 	@Getter @Setter private boolean trapChanges;
 	private Scope initialEntityScope;
+	/**
+	 * Scope and removal propagation belongs to the entity transition and runs once across all batches. Set by
+	 * the first {@link #popImplicitMutations(List, EnumSet)} that propagates a scope change or a full removal; after
+	 * it, the further batches of this executor skip both propagations and their finish phase no longer marks every
+	 * reference as created.
+	 */
+	private boolean scopeOrRemovalPropagated;
 	private EntityBodyStoragePart entityContainer;
 	private PricesStoragePart pricesContainer;
 	private ReferencesStoragePart initialReferencesStorageContainer;
@@ -1504,6 +1511,7 @@ public final class ContainerizedLocalMutationExecutor
 	 * the method delegates the tasks of assigning missing IDs and sorting to the container. This step
 	 * ensures the integrity and order of the data within the storage container after mutations have
 	 * been executed.
+	 * Before scope propagation, the existing references are also marked as created so their mirrors are regenerated.
 	 */
 	@Override
 	public void finishLocalMutationExecutionPhase() {
@@ -1511,7 +1519,7 @@ public final class ContainerizedLocalMutationExecutor
 			getReferenceKeyManager().processAssignedPrimaryKeys(this.referencesStorageContainer.assignMissingIdsAndSort());
 		}
 		// when scope changes
-		if (this.initialEntityScope != this.entityContainer.getScope()) {
+		if (!this.scopeOrRemovalPropagated && this.initialEntityScope != this.entityContainer.getScope()) {
 			// all references are considered as new for the sake of reflected references propagation
 			final ReferencesStoragePart rsp = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
 			getReferenceKeyManager().markAllReferencesAsCreated(rsp.getReferences());
@@ -1622,6 +1630,14 @@ public final class ContainerizedLocalMutationExecutor
 		);
 	}
 
+	/**
+	 * Derives implicit work for the current batch. Scope and full removal are executor-wide transitions.
+	 *
+	 * @param inputMutations           local mutations that identify the batch's touched references, including a
+	 *                                 self insert already fulfilled by the preceding implicit local batch
+	 * @param implicitMutationBehavior the behaviors requested for this batch
+	 * @return local and external implicit mutations
+	 */
 	@Nonnull
 	@Override
 	public ImplicitMutations popImplicitMutations(
@@ -1658,7 +1674,8 @@ public final class ContainerizedLocalMutationExecutor
 			}
 		} else {
 			if (this.entityRemovedEntirely) {
-				if (this.initialReferencesStorageContainer != null) {
+				if (!this.scopeOrRemovalPropagated && this.initialReferencesStorageContainer != null) {
+					this.scopeOrRemovalPropagated = true;
 					propagateReferencesToEntangledEntities(
 						this.entityPrimaryKey,
 						this.initialEntityScope,
@@ -1697,7 +1714,9 @@ public final class ContainerizedLocalMutationExecutor
 					);
 				}
 
-				if (this.initialEntityScope != targetEntityScope) {
+				final boolean scopeChanged = this.initialEntityScope != targetEntityScope;
+				if (scopeChanged && !this.scopeOrRemovalPropagated) {
+					this.scopeOrRemovalPropagated = true;
 					// we need to drop all reflected references in old scope
 					final ReferencesStoragePart theReferenceStorageContainer =
 						getCachedReferenceStorageContainer(this.entityPrimaryKey);
@@ -1720,50 +1739,30 @@ public final class ContainerizedLocalMutationExecutor
 						this.referencesStorageContainer, List.of(), mutationCollector,
 						EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)
 					);
-					if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
-						// a reference written together with the scope change gets its default values and the
-						// mandatory check exactly as it would without one - the same selection as the branch below
-						verifyReferenceAttributes(
-							targetEntityScope,
-							this.entityContainer,
-							selectReferencesToVerify(
-								this.referencesStorageContainer != null && this.referencesStorageContainer.isDirty()
-							),
-							inputMutations,
-							missingMandatedAttributes,
-							mutationCollector,
-							implicitMutationBehavior,
-							false
-						);
-					}
-				} else {
-					final boolean referencesDirty = this.referencesStorageContainer != null
-						&& this.referencesStorageContainer.isDirty();
-					// Reflected-reference propagation is driven purely by the batch's own
-					// `InsertReferenceMutation` / `RemoveReferenceMutation` entries, so a batch that names no
-					// reference has nothing for it to do. It keeps the dirty trigger it has always had.
-					if (referencesDirty
-						&& implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
-						verifyReflectedReferences(
-							this.entityPrimaryKey, this.initialEntityScope, targetEntityScope,
-							inputMutations, mutationCollector,
-							EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)
-						);
-					}
-					if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
-						// attribute verification does NOT share that trigger - see `selectReferencesToVerify` for why
-						verifyReferenceAttributes(
-							targetEntityScope,
-							this.entityContainer,
-							selectReferencesToVerify(referencesDirty),
-							inputMutations,
-							missingMandatedAttributes,
-							mutationCollector,
-							implicitMutationBehavior,
-							false
-						);
-					}
-
+				} else if (!scopeChanged && this.referencesStorageContainer != null
+					&& this.referencesStorageContainer.isDirty()
+					&& implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
+					// Same-scope reflection needs a dirty reference part and an insert or removal in the batch.
+					verifyReflectedReferences(
+						this.entityPrimaryKey, this.initialEntityScope, targetEntityScope,
+						inputMutations, mutationCollector,
+						EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)
+					);
+				}
+				if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
+					// Attribute verification also runs when an entity locale is added with a clean or unloaded part.
+					verifyReferenceAttributes(
+						targetEntityScope,
+						this.entityContainer,
+						selectReferencesToVerify(
+							this.referencesStorageContainer != null && this.referencesStorageContainer.isDirty()
+						),
+						inputMutations,
+						missingMandatedAttributes,
+						mutationCollector,
+						implicitMutationBehavior,
+						false
+					);
 				}
 
 				if (!missingMandatedAttributes.isEmpty()) {
