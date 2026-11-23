@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-22 21:54
+updated: 2026-11-22 22:33
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917, 1920, 2035]
@@ -676,7 +676,10 @@ was measured. The engine keeps refusing a histogram missing from a processing sc
 - **External APIs (#2035).** GraphQL: `QueryEntitiesDataFetcher` passes `filterBy` to `buildRequire`, and
   `ReferenceSummaryResolver#resolveHistogramIndexDefinition` takes the scopes. REST: `QueryOrientedEntitiesHandler`
   reads query, list and delete-by-query bodies with `StreamReadFeature.STRICT_DUPLICATE_DETECTION`
-  (`parseQueryBody`); the shared mapper is unchanged.
+  (`parseQueryBody`); the shared mapper is unchanged. The schema descriptions of `minReferencedEntity` and
+  `maxReferencedEntity` - `ReferenceHistogramDescriptor`, which GraphQL and REST share, and `GrpcExtraResults.proto`
+  with its generated classes - state when both are returned and what they carry, without naming `entityFetch` as
+  the condition: one text serves GraphQL, where the field selection is the request, and REST, where it is not.
 
 ## Verification
 
@@ -889,6 +892,11 @@ was measured. The engine keeps refusing a histogram missing from a processing sc
   19,215 tests with 0 failures and 1 skip; functional 39,901 with 1 failure, 0 errors and 70 skipped. The failure,
   `ChangeCaptureRingBufferTest#shouldHandleParallelOfferAndCopyToOperations`, is a concurrency test of the change
   capture ring buffer, which the change does not touch; its class passed 41 of 41 when rerun alone.
+- **Boundary entities without `entityFetch`, per API** - the evidence behind the corrected descriptions: the Java
+  API returns both (`RequireInScopeHistogramFunctionalTest`, the no-fetch cases); REST returns them with
+  `primaryKey`, `type`, `version`, `scope` and locales in the recorded documentation example
+  `reference-summary-histograms`, whose `histogramStatistics` has no fetch; the gRPC builder sets both fields
+  whenever the histogram has them (`GrpcReferenceHistogramConversionTest`). No gRPC call was run end to end.
 
 ## Consequences & open follow-ups
 
@@ -1005,7 +1013,9 @@ was measured. The engine keeps refusing a histogram missing from a processing sc
   last. With a summary of one reference in each of two require-level `inScope` containers, each histogram breaks its
   ties and fetches its groups by the summary that requested it, where the last summary's settings applied to all. A
   REST query body repeating a property is answered with HTTP 400. GraphQL returns an unwrapped reference histogram
-  defined in the searched scopes. The upgrade note is on #2035.
+  defined in the searched scopes. The GraphQL, REST and gRPC schema descriptions of `minReferencedEntity` and
+  `maxReferencedEntity` say what the APIs return; the text change alone changes no response. The upgrade note is on
+  #2035.
 - **Known corner, the override rule.** A histogram declared by a generic summary in `inScope(LIVE, …)` takes the
   controls of a reference-specific summary in `inScope(ARCHIVED, …)`, so its ties are broken by a sorter built in
   ARCHIVED. That is what the rule of `2026-09-05-duplicate-content-requirements-reduction` says; no test asks for
@@ -1019,10 +1029,6 @@ was measured. The engine keeps refusing a histogram missing from a processing sc
     using the loop variable (`QueryPlanner`).
   - **Suspected, external APIs:** GraphQL refuses a histogram requested at the root and in `inScope` of the one
     searched scope, and refuses a repeated reference summary.
-  - **Suspected, from reading the code:** the descriptions of `minReferencedEntity` and `maxReferencedEntity`
-    (`ReferenceHistogramDescriptor`, the gRPC proto) say they are populated only when an entity fetch is requested,
-    but REST and gRPC return them whenever the histogram has them, with no content when none was requested. GraphQL
-    returns them when the fields are selected, which is its own way of requesting them.
 - **Backport: none, by the project owner's decision.** The `ClassCastException` stays on `release_2026-2`, where it
   depends on the data. The refusal never shipped, because that branch has no residual check.
 
@@ -1085,3 +1091,4 @@ was measured. The engine keeps refusing a histogram missing from a processing sc
   counterfactual; one round reverted an engine relaxation the project owner had not decided (Option AF). The owner
   chose to confine every boundary pick (AA) after a benchmark and a debugger count showed no resolvable cost, and
   accepted that unstored referenced entities rank last. #2053 filed from the review's `histogramHaving` finding.
+  The external API descriptions of the boundary entities corrected to what the APIs return.
