@@ -190,7 +190,7 @@ class EntityDecoratorTest {
 
 			EntityDecorator.sortAndFilterSubList(
 				42, Scope.ARCHIVED, references, new ReferenceContractSerializablePredicate(),
-				null, head, 0, references.length
+				null, head, 0, references.length, references, 0, references.length
 			);
 
 			assertEquals(List.of(42), fallback.ownerKeys);
@@ -212,11 +212,11 @@ class EntityDecoratorTest {
 
 			EntityDecorator.sortAndFilterSubList(
 				7, Scope.LIVE, references, new ReferenceContractSerializablePredicate(),
-				null, head, 0, references.length
+				null, head, 0, references.length, references, 0, references.length
 			);
 			EntityDecorator.sortAndFilterSubList(
 				8, Scope.ARCHIVED, references, new ReferenceContractSerializablePredicate(),
-				null, head, 0, references.length
+				null, head, 0, references.length, references, 0, references.length
 			);
 
 			assertEquals(List.of(7), headComparator.ownerKeys);
@@ -242,11 +242,11 @@ class EntityDecoratorTest {
 
 			EntityDecorator.sortAndFilterSubList(
 				1, Scope.LIVE, firstWindow, new ReferenceContractSerializablePredicate(),
-				null, head, 0, firstWindow.length
+				null, head, 0, firstWindow.length, firstWindow, 0, firstWindow.length
 			);
 			EntityDecorator.sortAndFilterSubList(
 				2, Scope.LIVE, secondWindow, new ReferenceContractSerializablePredicate(),
-				null, head, 0, secondWindow.length
+				null, head, 0, secondWindow.length, secondWindow, 0, secondWindow.length
 			);
 
 			assertSame(ranked, firstWindow[0]);
@@ -270,7 +270,7 @@ class EntityDecoratorTest {
 			final ReferenceDecorator[] window = {firstUnranked, firstRanked, secondUnranked, secondRanked};
 			EntityDecorator.sortAndFilterSubList(
 				1, Scope.LIVE, window, new ReferenceContractSerializablePredicate(),
-				null, head, 0, window.length
+				null, head, 0, window.length, window, 0, window.length
 			);
 
 			assertArrayEquals(

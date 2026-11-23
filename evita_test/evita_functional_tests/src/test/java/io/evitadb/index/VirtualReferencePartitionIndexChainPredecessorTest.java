@@ -66,9 +66,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * chain keys, recording and forgetting the predecessor of a partition, that a partition without an entry is not chained
  * whatever else the index knows about it, and the transactional (STM) and warm-up savepoint behaviour.
  *
- * The fixture has the shape of a reference whose rows are ordered by a chain on the referencing side: many owners,
- * hundreds of single-owner partitions each, every partition chained to the previous row of its owner except the ones
- * the fixture leaves unchained.
+ * The fixture has many owners with hundreds of single-owner partitions each. Two predecessor attributes let it
+ * verify that each partition's chain entries remain independent.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -77,11 +76,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(REFERENCE)
 class VirtualReferencePartitionIndexChainPredecessorTest {
 	/**
-	 * A chain of `ReferencedEntityPredecessor` - the predecessor is the referenced entity of the previous row.
+	 * A non-localized predecessor key.
 	 */
 	static final AttributeIndexKey CHAIN = new AttributeIndexKey(REFERENCE_NAME, "parameterOrder", null);
 	/**
-	 * A localized chain of `Predecessor` - the predecessor is the owner of the previous row.
+	 * A localized predecessor key.
 	 */
 	static final AttributeIndexKey LOCALIZED_CHAIN =
 		new AttributeIndexKey(REFERENCE_NAME, "localizedOrder", Locale.forLanguageTag("cs"));
@@ -92,9 +91,8 @@ class VirtualReferencePartitionIndexChainPredecessorTest {
 
 	/**
 	 * Builds the chained fixture: `owners` owners with `rowsPerOwner` partitions each. Every partition records its
-	 * owner, and every partition whose number is not divisible by 17 is chained in {@link #CHAIN} to the referenced
-	 * entity of the previous row of its owner (the first row being the head); every third partition is also chained in
-	 * {@link #LOCALIZED_CHAIN}, to the previous owner.
+	 * owner. Most rows hold the next owner as their predecessor in {@link #CHAIN}, with the last owner as head.
+	 * Every third row also holds the previous owner as its predecessor in {@link #LOCALIZED_CHAIN}.
 	 *
 	 * @param index        the index, both chain keys declared
 	 * @param owners       how many owners
@@ -112,20 +110,19 @@ class VirtualReferencePartitionIndexChainPredecessorTest {
 		models.put(LOCALIZED_CHAIN, new TreeMap<>());
 		int partition = 1;
 		for (int owner = 1; owner <= owners; owner++) {
-			int previousTarget = HEAD;
+			final int nextOwner = owner == owners ? HEAD : owner + 1;
 			for (int row = 0; row < rowsPerOwner; row++) {
 				final int target = 100_000 + owner * 1_000 + row;
 				index.putPartitionOwner(partition, owner, target);
 				if (partition % 17 != 0) {
-					index.putChainPredecessor(CHAIN, partition, previousTarget);
-					models.get(CHAIN).put(partition, previousTarget);
+					index.putChainPredecessor(CHAIN, partition, nextOwner);
+					models.get(CHAIN).put(partition, nextOwner);
 				}
 				if (partition % 3 == 0) {
 					final int predecessor = owner == 1 ? HEAD : owner - 1;
 					index.putChainPredecessor(LOCALIZED_CHAIN, partition, predecessor);
 					models.get(LOCALIZED_CHAIN).put(partition, predecessor);
 				}
-				previousTarget = target;
 				partition++;
 			}
 		}

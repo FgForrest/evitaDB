@@ -139,7 +139,7 @@ public class ReferencePredecessorComparator implements ReferenceComparator {
 		this.sortedRecordsSupplierProvider = sortedRecordsSupplierProvider;
 		this.comparabilityResolver = comparabilityResolver;
 		this.primaryKeyResolver = primaryKeyResolver;
-		final Set<Scope> scopes = referenceOrderByVisitor.getChainScopes();
+		final Set<Scope> scopes = referenceOrderByVisitor.getChainScopes(attributeName);
 		this.translatedScopes = scopes.isEmpty() ? Set.of(Scope.DEFAULT_SCOPE) : EnumSet.copyOf(scopes);
 		this.chainLookup = referenceOrderByVisitor.translateChainLookup(attributeName, this.translatedScopes);
 		this.requiresPosition = requiresPosition;

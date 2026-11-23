@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -91,7 +93,103 @@ public final class Release2026_2ReferenceFixtureRecipes {
 	public static List<ReleaseFixtureRecipe> all() {
 		return Arrays.asList(
 			d6(), d7(), d8(), d16(), d16n(), d17(), d17a(), d5r(), dK1h(), dGrp(), groupedHistogram(), dUw(), drf(),
-			dRR(), dRng()
+			dRR(), dRng(), sharedReferencedEntityPredecessor(), partitionedReferencedEntityPredecessor()
+		);
+	}
+
+	/**
+	 * Writes two owner lists that share one target and order it differently, plus an inherited reflected chain.
+	 *
+	 * @return the recipe for the released engine
+	 */
+	@Nonnull
+	public static ReleaseFixtureRecipe sharedReferencedEntityPredecessor() {
+		return ReleaseFixtureRecipe.writtenBy2026_2(
+			"sharedReferencedEntityPredecessor",
+			"two owners sharing a target in independent lists and a reflected predecessor inherited from brands",
+			session -> {
+				session.defineEntitySchema(PRODUCT).updateVia(session);
+				session.defineEntitySchema(BRAND)
+					.withReferenceToEntity("products", PRODUCT, Cardinality.ZERO_OR_MORE, reference -> reference
+						.indexedForFilteringAndPartitioning()
+						.withAttribute("position", Predecessor.class, attribute -> attribute.sortable()))
+					.updateVia(session);
+				session.defineEntitySchema(PRODUCT)
+					.withReferenceToEntity(BRAND, BRAND, Cardinality.ZERO_OR_MORE, reference -> reference
+						.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+						.withAttribute(
+							"position", ReferencedEntityPredecessor.class,
+							attribute -> attribute.sortableInScope(Scope.LIVE, Scope.ARCHIVED)
+						))
+					.withReflectedReferenceToEntity("orderedBrands", BRAND, "products", reference -> reference
+						.withCardinality(Cardinality.ZERO_OR_MORE)
+						.withAttributesInherited()
+						.indexedForFilteringAndPartitioning())
+					.updateVia(session);
+				for (final int brand : List.of(1, 2, 3)) {
+					session.createNewEntity(BRAND, brand).upsertVia(session);
+				}
+				session.createNewEntity(PRODUCT, 1)
+					.setReference(BRAND, 1, reference -> reference.setAttribute(
+						"position", ReferencedEntityPredecessor.HEAD
+					))
+					.setReference(BRAND, 2, reference -> reference.setAttribute(
+						"position", new ReferencedEntityPredecessor(1)
+					))
+					.upsertVia(session);
+				session.createNewEntity(PRODUCT, 2)
+					.setReference(BRAND, 1, reference -> reference.setAttribute(
+						"position", new ReferencedEntityPredecessor(3)
+					))
+					.setReference(BRAND, 3, reference -> reference.setAttribute(
+						"position", ReferencedEntityPredecessor.HEAD
+					))
+					.upsertVia(session);
+				session.getEntity(BRAND, 1, entityFetchAllContent()).orElseThrow().openForWrite()
+					.setReference("products", 1, reference -> reference.setAttribute("position", new Predecessor(2)))
+					.upsertVia(session);
+				session.getEntity(BRAND, 2, entityFetchAllContent()).orElseThrow().openForWrite()
+					.setReference("products", 1, reference -> reference.setAttribute("position", Predecessor.HEAD))
+					.upsertVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Leaves a partition with no owners by disabling sorting before removing its last reference.
+	 *
+	 * @return the recipe for the released engine
+	 */
+	@Nonnull
+	public static ReleaseFixtureRecipe partitionedReferencedEntityPredecessor() {
+		return ReleaseFixtureRecipe.writtenBy2026_2(
+			"partitionedReferencedEntityPredecessor",
+			"always-materialized partitions with legacy chains after disabling sorting",
+			session -> {
+				session.defineEntitySchema(BRAND).updateVia(session);
+				session.defineEntitySchema(PRODUCT)
+					.withReferenceToEntity(BRAND, BRAND, Cardinality.ZERO_OR_MORE, reference -> reference
+						.indexedForFilteringAndPartitioning()
+						.withAttribute(
+							"position", ReferencedEntityPredecessor.class, attribute -> attribute.sortable()
+						))
+					.updateVia(session);
+				for (final int primaryKey : List.of(1, 2)) {
+					session.createNewEntity(BRAND, primaryKey).upsertVia(session);
+					session.createNewEntity(PRODUCT, primaryKey)
+						.setReference(BRAND, primaryKey, reference -> reference.setAttribute(
+							"position", ReferencedEntityPredecessor.HEAD
+						))
+						.upsertVia(session);
+				}
+			}
+		).thenAlive(
+			session -> session.defineEntitySchema(PRODUCT)
+				.withReferenceToEntity(BRAND, BRAND, Cardinality.ZERO_OR_MORE, reference -> reference
+					.withAttribute("position", ReferencedEntityPredecessor.class, attribute -> attribute.nonSortable()))
+				.updateVia(session),
+			session -> session.getEntity(PRODUCT, 1, entityFetchAllContent()).orElseThrow().openForWrite()
+				.removeReference(BRAND, 1).upsertVia(session)
 		);
 	}
 

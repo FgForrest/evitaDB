@@ -20,6 +20,7 @@ relates:
   - 2026-10-29-traverse-ordering-route-parity
   - 2026-09-28-indexed-reference-scope-requires-entity-component
   - 2026-09-23-reference-decode-narrowing-by-referenced-key
+  - 2026-11-21-referenced-entity-predecessor-owner-local-order
 ---
 
 # Inside referenceContent an inScope ordering applies to the owners of that scope

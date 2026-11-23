@@ -240,6 +240,17 @@ public class DefaultEntityCollectionPersistenceService
 	@Nonnull
 	private final StorageSettings storageSettings;
 
+	/**
+	 * Loads an entity and the storage parts required by its fetch request.
+	 *
+	 * @param catalogVersion catalog version being read
+	 * @param entityPrimaryKey entity to load
+	 * @param storageParts parts already available for this entity
+	 * @param evitaRequest fetch requirements
+	 * @param entitySchema schema of the entity being fetched
+	 * @param dataStoreReader reader for parts not already available
+	 * @return loaded entity with read statistics, or empty when it does not exist
+	 */
 	@Nonnull
 	private static Optional<EntityWithFetchCount> toEntity(
 		long catalogVersion,
@@ -268,7 +279,7 @@ public class DefaultEntityCollectionPersistenceService
 			// load additional containers only when requested
 			final ReferencesStoragePart referencesStorageContainer = fetchReferences(
 				null,
-				new ReferenceContractSerializablePredicate(evitaRequest),
+				new ReferenceContractSerializablePredicate(evitaRequest, entitySchema),
 				new Supplier<>() {
 					@Nullable
 					@Override

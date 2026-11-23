@@ -159,9 +159,19 @@ public class AttributeNaturalTranslator
 		return combined;
 	}
 
+	/**
+	 * Plans natural ordering of entities by a sortable attribute or compound.
+	 *
+	 * @param attributeNatural natural ordering constraint
+	 * @param orderByVisitor planning context for the entity ordering
+	 * @return sorters for the prefetch and index routes
+	 */
 	@Nonnull
 	@Override
-	public Stream<Sorter> createSorter(@Nonnull AttributeNatural attributeNatural, @Nonnull OrderByVisitor orderByVisitor) {
+	public Stream<Sorter> createSorter(
+		@Nonnull AttributeNatural attributeNatural,
+		@Nonnull OrderByVisitor orderByVisitor
+	) {
 		final String attributeOrCompoundName = attributeNatural.getAttributeName();
 		final OrderDirection orderDirection = attributeNatural.getOrderDirection();
 		final Locale locale = orderByVisitor.getLocale();
@@ -232,8 +242,7 @@ public class AttributeNaturalTranslator
 		final EntityComparator entityComparator;
 		final MergeModeDefinition mergeModeDefinition = processingScope.mergeModeDefinition();
 		final MergeMode mergeMode;
-		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
-			(Predecessor.class.equals(attributeSchema.getPlainType()) || ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType()))) {
+		if (isChainAttribute(attributeOrCompoundSchema)) {
 			// we cannot use attribute comparator for predecessor attributes, we always need index here
 			if (referenceSchema == null) {
 				entityComparator = new PredecessorAttributeComparator(
@@ -242,7 +251,6 @@ public class AttributeNaturalTranslator
 			} else {
 				entityComparator = new TraverseReferencePredecessorAttributeComparator(
 					attributeOrCompoundName,
-					attributeSchema.getPlainType(),
 					referenceSchema,
 					locale,
 					orderDirection,
@@ -250,7 +258,7 @@ public class AttributeNaturalTranslator
 				);
 				Assert.isTrue(
 					mergeModeDefinition == null || mergeModeDefinition.mergeMode() == MergeMode.APPEND_ALL || mergeModeDefinition.implicit(),
-					attributeSchema.getPlainType() + " attribute `" + attributeOrCompoundName + "` " +
+					Predecessor.class + " attribute `" + attributeOrCompoundName + "` " +
 						"is not comparable one with another and must use `traverseBy` approach for sorting!"
 				);
 			}
@@ -352,16 +360,14 @@ public class AttributeNaturalTranslator
 	}
 
 	/**
-	 * Tells whether the attribute is a chain ({@link Predecessor} or {@link ReferencedEntityPredecessor}), whose
-	 * values are not comparable one with another and which is therefore always sorted block by block.
+	 * Tells whether the attribute has an indexed {@link Predecessor} chain, sorted block by block.
 	 *
 	 * @param attributeOrCompoundSchema the sorted attribute or compound
 	 * @return `true` for a chain attribute
 	 */
 	private static boolean isChainAttribute(@Nonnull NamedSchemaContract attributeOrCompoundSchema) {
 		return attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
-			(Predecessor.class.equals(attributeSchema.getPlainType()) ||
-				ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType()));
+			Predecessor.class.equals(attributeSchema.getPlainType());
 	}
 
 	/**
@@ -573,27 +579,24 @@ public class AttributeNaturalTranslator
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
 			attributeSchema.getPlainType().equals(ReferencedEntityPredecessor.class)
 		) {
-			if (orderDirection == ASC) {
+			final Locale attributeLocale = attributeSchema.isLocalized() ? locale : null;
+			if (orderByVisitor.usesForwardPredecessor(attributeOrCompoundName)) {
 				comparator = new ReferencePredecessorComparator(
 					orderByVisitor.getReferenceSchema(),
 					attributeOrCompoundName,
-					attributeSchema.isLocalized() ? locale : null,
+					attributeLocale,
 					orderByVisitor,
-					SortedRecordsSupplierFactory::getAscendingOrderRecordsSupplier,
+					orderDirection == ASC ?
+						SortedRecordsSupplierFactory::getAscendingOrderRecordsSupplier :
+						SortedRecordsSupplierFactory::getDescendingOrderRecordsSupplier,
 					(ref1, ref2) -> true,
 					(epk, referenceKey) -> referenceKey.primaryKey(),
 					true
 				);
 			} else {
-				comparator = new ReferencePredecessorComparator(
-					orderByVisitor.getReferenceSchema(),
-					attributeOrCompoundName,
-					attributeSchema.isLocalized() ? locale : null,
-					orderByVisitor,
-					SortedRecordsSupplierFactory::getDescendingOrderRecordsSupplier,
-					(ref1, ref2) -> true,
-					(epk, referenceKey) -> referenceKey.primaryKey(),
-					true
+				comparator = new ReferencedEntityPredecessorComparator(
+					orderByVisitor.getReferenceSchema().getName(), attributeOrCompoundName, attributeLocale,
+					orderDirection
 				);
 			}
 		} else if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchema compoundSchemaContract) {
@@ -734,11 +737,7 @@ public class AttributeNaturalTranslator
 					this.referenceSchema, attributeSchema, this.locale
 				);
 				if (isChainAttribute(attributeSchema)) {
-					// the chain index of a partition is keyed by the referenced entity for the type this collection's
-					// reference declares - which reflection may have inverted from the source's
-					return VirtualPartitionSortedRecords.ofChain(
-						partition, key, ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType())
-					);
+					return VirtualPartitionSortedRecords.ofChain(partition, key);
 				} else {
 					return VirtualPartitionSortedRecords.ofSortValue(partition, key);
 				}

@@ -24,10 +24,29 @@
 package io.evitadb.store.catalog;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.component.loader.VirtualReferencePartitionLoader;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
@@ -41,9 +60,12 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -65,7 +87,11 @@ import static io.evitadb.test.upgrade.Release2026_2FixtureRecipes.PRODUCT;
 import static io.evitadb.test.upgrade.Release2026_2FixtureRecipes.inRange;
 import static io.evitadb.test.upgrade.Release2026_2FixtureRecipes.orderedInEnglish;
 import static io.evitadb.test.upgrade.ReleaseFixtureValues.*;
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -85,6 +111,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(STORAGE)
 @Tag(ATTRIBUTE)
 class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
+	private static final String SHARED_PREDECESSOR = "sharedReferencedEntityPredecessor";
+	private static final String PARTITIONED_PREDECESSOR = "partitionedReferencedEntityPredecessor";
+	private static final String ORDERED_BRANDS = "orderedBrands";
+	private static final AttributeIndexKey BRAND_POSITION = new AttributeIndexKey(BRAND, "position", null);
+
 	/** A moment inside both open-bound twins. */
 	private static final OffsetDateTime MID_2025 = BASE.minusMonths(7);
 
@@ -101,7 +132,7 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 			"d1a", "d1b", "d1b2", "d1c", "d2", "d3", "d3p", "d4", "d4c", "d4t", "d4f", "d4cp", "d5f", "d5s", "dF1p",
 			"dS1p", "dX", "dv", "dN1h", "d14", "d2p", "dDel", "d6", "d7", "d8", "d16", "d16n", "d17", "d17a", "d5r",
 			"dK1h", "dGrp", "groupedHistogram", "dUw", "drf", "dRR", "dRng", "d9", "d9o", "d10", "d10s", "d11", "d11t",
-			"dU", "d6c", "d12", "d12b", "d13", "d15"
+			"dU", "d6c", "d12", "d12b", "d13", "d15", SHARED_PREDECESSOR, PARTITIONED_PREDECESSOR
 		);
 	}
 
@@ -117,7 +148,7 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 			"d1a", "d1c", "d2", "d3", "d3p", "d4", "d4c", "d4t", "d4f", "d5f", "d5s", "dF1p", "dS1p", "dX", "dv",
 			"dN1h", "d14", "d2p", "dDel", "d16", "d16n", "d5r", "dK1h", "dGrp", "groupedHistogram", "dUw", "drf",
 			"dRR", "dRng", "dU",
-			"d12", "d12b", "d15", "d4cp", "d7", "d17", "d17a", "d10s"
+			"d12", "d12b", "d15", "d4cp", "d7", "d17", "d17a", "d10s", SHARED_PREDECESSOR, PARTITIONED_PREDECESSOR
 		);
 	}
 
@@ -167,6 +198,272 @@ class Release2026_2UpgradeDefectsTest implements EvitaTestSupport {
 		final AtomicReference<List<String>> fresh = new AtomicReference<>();
 		this.harness.withFreshCatalog(fixture, evita -> fresh.set(probe(evita, fixture)));
 		this.harness.withUpgradedCatalog(fixture, evita -> assertEquals(fresh.get(), probe(evita, fixture)));
+	}
+
+	/**
+	 * Moves owners of a release-era chain across scopes, reloads the archive, then promotes and demotes its partition.
+	 */
+	@Test
+	@Tag(REFERENCE)
+	@DisplayName("Can archive and restore the owners of a release-era shared predecessor")
+	void shouldMoveOwnersAndRebuildTheirPartitionAfterUpgrade() {
+		this.harness.withFreshCatalog(SHARED_PREDECESSOR, evita -> {
+			assertBrandOrder(evita, Scope.LIVE, 2, List.of(3, 1));
+			assertReferenceOrder(evita, Scope.LIVE, 1, ORDERED_BRANDS, List.of(2, 1));
+		});
+		final TestPaths paths = this.harness.copy(SHARED_PREDECESSOR);
+		try {
+			assertEquals(6, this.harness.lastBootstrapStorageProtocol(paths, SHARED_PREDECESSOR));
+			final List<PersistedChain> legacy = this.harness.readPublishedCollection(
+				paths, SHARED_PREDECESSOR, PRODUCT, (version, collection) -> {
+					final List<PersistedChain> chains = persistedChains(version, collection);
+					assertTrue(chains.stream().anyMatch(chain -> chain.key().equals(sharedBrandKey(Scope.LIVE))));
+					assertTrue(chains.stream().anyMatch(chain -> ORDERED_BRANDS.equals(chain.key().referenceName())));
+					assertTrue(chains.stream().allMatch(
+						chain -> chain.key().type() == EntityIndexType.REFERENCED_ENTITY
+					));
+					return chains;
+				}
+			);
+			OfflineCatalogImages.withOfflineCatalog(
+				newTestEvitaConfigurationBuilder(paths).build(), SHARED_PREDECESSOR, service -> Boolean.TRUE
+			);
+			this.harness.readPublishedCollection(paths, SHARED_PREDECESSOR, PRODUCT, (version, collection) -> {
+				assertChainsRemoved(version, collection, legacy, 2);
+				return Boolean.TRUE;
+			});
+			try (final Evita evita = this.harness.boot(paths)) {
+				ReleaseFixtureHarness.requireAlive(evita, SHARED_PREDECESSOR);
+				final EntityIndex original = sharedBrandPartition(evita, Scope.LIVE);
+				assertNotNull(original);
+				assertNull(original.getChainIndex(BRAND_POSITION));
+				assertBrandOrder(evita, Scope.LIVE, 2, List.of(3, 1));
+				assertReferenceOrder(evita, Scope.LIVE, 1, ORDERED_BRANDS, List.of(2, 1));
+				evita.updateCatalog(SHARED_PREDECESSOR, session -> {
+					assertTrue(session.archiveEntity(PRODUCT, 1));
+				});
+				assertNull(sharedBrandPartition(evita, Scope.LIVE));
+				assertBrandOrder(evita, Scope.LIVE, 2, List.of(3, 1));
+				evita.updateCatalog(SHARED_PREDECESSOR, session -> {
+					assertTrue(session.archiveEntity(PRODUCT, 2));
+				});
+			}
+			try (final Evita evita = this.harness.boot(paths)) {
+				ReleaseFixtureHarness.requireAlive(evita, SHARED_PREDECESSOR);
+				assertBrandOrder(evita, Scope.ARCHIVED, 1, List.of(1, 2));
+				assertBrandOrder(evita, Scope.ARCHIVED, 2, List.of(3, 1));
+				evita.updateCatalog(SHARED_PREDECESSOR, session -> {
+					assertTrue(session.restoreEntity(PRODUCT, 1));
+					assertTrue(session.restoreEntity(PRODUCT, 2));
+				});
+				final EntityIndex promoted = sharedBrandPartition(evita, Scope.LIVE);
+				assertNotNull(promoted);
+				assertNull(promoted.getChainIndex(BRAND_POSITION));
+				evita.updateCatalog(SHARED_PREDECESSOR, session -> {
+					assertTrue(session.archiveEntity(PRODUCT, 1));
+				});
+				assertNull(sharedBrandPartition(evita, Scope.LIVE));
+				final ReferencedTypeEntityIndex typeIndex = (ReferencedTypeEntityIndex) productCollection(evita)
+					.getIndexByKeyIfExists(
+						new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, BRAND)
+					);
+				assertNotNull(typeIndex);
+				assertTrue(typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(promoted.getPrimaryKey())
+					.isPresent());
+				assertTrue(typeIndex.getVirtualReferencePartitionIndex().getDeclaredChainKeys().isEmpty());
+				assertBrandOrder(evita, Scope.LIVE, 2, List.of(3, 1));
+			}
+		} finally {
+			this.harness.cleanup(paths);
+		}
+	}
+
+	/** Verifies the upgrade drops the ownerless partition and keeps the partition with an owner. */
+	@Test
+	@Tag(REFERENCE)
+	@DisplayName("Upgrading retires a partition whose only remaining content was a reference predecessor chain")
+	void shouldRetireOwnerlessPartitionAfterUpgrade() {
+		final TestPaths paths = this.harness.copy(PARTITIONED_PREDECESSOR);
+		try {
+			final List<PersistedChain> legacy = this.harness.readPublishedCollection(
+				paths, PARTITIONED_PREDECESSOR, PRODUCT, (version, collection) -> {
+					final List<PersistedChain> chains = persistedChains(version, collection);
+					assertEquals(2, chains.size());
+					assertEquals(sharedBrandKey(Scope.LIVE), chains.getFirst().key());
+					final EntityIdsStoragePart membership = collection.getStoragePartPersistenceService()
+						.getStoragePart(version, chains.getFirst().indexId(), EntityIdsStoragePart.class);
+					assertTrue(membership == null || membership.getEntityIds().isEmpty());
+					return chains;
+				}
+			);
+			OfflineCatalogImages.withOfflineCatalog(
+				newTestEvitaConfigurationBuilder(paths).build(), PARTITIONED_PREDECESSOR, service -> Boolean.TRUE
+			);
+			this.harness.readPublishedCollection(paths, PARTITIONED_PREDECESSOR, PRODUCT, (version, collection) -> {
+				final int orphan = legacy.getFirst().indexId();
+				final List<Integer> indexes = collection.getEntityCollectionHeader().usedEntityIndexPrimaryKeys();
+				assertFalse(indexes.contains(orphan), "the ownerless partition must leave the published header");
+				assertTrue(indexes.contains(legacy.getLast().indexId()));
+				final OffsetIndexStoragePartPersistenceService parts = collection.getStoragePartPersistenceService();
+				assertNull(parts.getStoragePart(version, orphan, EntityIndexStoragePart.class));
+				assertNull(parts.getStoragePart(version, orphan, EntityIdsStoragePart.class));
+				assertChainsRemoved(version, collection, legacy, 0);
+				return Boolean.TRUE;
+			});
+		} finally {
+			this.harness.cleanup(paths);
+		}
+	}
+
+	/**
+	 * Reads every chain manifest entry in the product collection and verifies that each names an existing root.
+	 *
+	 * @param version published catalog version
+	 * @param collection product collection
+	 * @return the persisted chains, ordered by index key
+	 */
+	@Nonnull
+	private static List<PersistedChain> persistedChains(
+		final long version, @Nonnull final DefaultEntityCollectionPersistenceService collection
+	) {
+		final OffsetIndexStoragePartPersistenceService parts = collection.getStoragePartPersistenceService();
+		final List<PersistedChain> chains = new ArrayList<>();
+		for (final int indexId : collection.getEntityCollectionHeader().usedEntityIndexPrimaryKeys()) {
+			final EntityIndexStoragePart manifest = requireNonNull(
+				parts.getStoragePart(version, indexId, EntityIndexStoragePart.class)
+			);
+			for (final AttributeIndexStorageKey entry : manifest.getAttributeIndexes()) {
+				if (entry.indexType() == AttributeIndexType.CHAIN) {
+					final long rootId = AttributeIndexStoragePart.computeUniquePartId(
+						indexId, AttributeIndexType.CHAIN, entry.attribute(), parts.getReadOnlyKeyCompressor()
+					);
+					assertNotNull(parts.getStoragePart(version, rootId, ChainIndexStoragePart.class));
+					chains.add(new PersistedChain(indexId, manifest.getEntityIndexKey(), rootId));
+				}
+			}
+		}
+		chains.sort(Comparator.comparing(PersistedChain::key));
+		return chains;
+	}
+
+	/**
+	 * Checks that the published offset index has neither chain manifests and roots nor chain slots.
+	 *
+	 * @param version published catalog version
+	 * @param collection product collection
+	 * @param legacy the chains listed in the release image
+	 * @param expectedVirtualPartitions expected number of virtual partitions of the live brand reference
+	 */
+	private static void assertChainsRemoved(
+		final long version, @Nonnull final DefaultEntityCollectionPersistenceService collection,
+		@Nonnull final List<PersistedChain> legacy, final int expectedVirtualPartitions
+	) {
+		assertEquals(List.of(), persistedChains(version, collection));
+		final OffsetIndexStoragePartPersistenceService parts = collection.getStoragePartPersistenceService();
+		for (final PersistedChain chain : legacy) {
+			assertNull(parts.getStoragePart(version, chain.rootId(), ChainIndexStoragePart.class), chain.toString());
+		}
+		int brandPartitions = -1;
+		for (final int indexId : collection.getEntityCollectionHeader().usedEntityIndexPrimaryKeys()) {
+			final EntityIndexStoragePart manifest = requireNonNull(
+				parts.getStoragePart(version, indexId, EntityIndexStoragePart.class)
+			);
+			final EntityIndexKey key = manifest.getEntityIndexKey();
+			if (key.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+				final VirtualReferencePartitionIndex registry = VirtualReferencePartitionLoader.loadIndex(
+					parts, version, indexId, requireNonNull(key.referenceName())
+				);
+				assertTrue(registry.getDeclaredChainKeys().isEmpty(), key.toString());
+				if (BRAND.equals(key.referenceName()) && key.scope() == Scope.LIVE) {
+					brandPartitions = registry.countRegisteredPartitions();
+				}
+			}
+		}
+		assertEquals(expectedVirtualPartitions, brandPartitions);
+	}
+
+	/**
+	 * Identifies the partition for brand 1.
+	 *
+	 * @param scope scope of the partition
+	 * @return partition index key
+	 */
+	@Nonnull
+	private static EntityIndexKey sharedBrandKey(@Nonnull final Scope scope) {
+		return new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY, scope, new RepresentativeReferenceKey(new ReferenceKey(BRAND, 1))
+		);
+	}
+
+	/**
+	 * The published address of a chain root.
+	 *
+	 * @param indexId owning index primary key
+	 * @param key owning index key
+	 * @param rootId chain root storage part primary key
+	 */
+	private record PersistedChain(int indexId, @Nonnull EntityIndexKey key, long rootId) {
+	}
+
+	/**
+	 * Finds the materialized partition for the brand both owners reference.
+	 *
+	 * @param evita engine with the upgraded catalog
+	 * @param scope scope of the owners
+	 * @return partition index, or null when the partition has no index object
+	 */
+	@Nullable
+	private static EntityIndex sharedBrandPartition(@Nonnull Evita evita, @Nonnull Scope scope) {
+		return productCollection(evita).getIndexByKeyIfExists(sharedBrandKey(scope));
+	}
+
+	/**
+	 * Returns the product collection carrying the reference lists.
+	 *
+	 * @param evita engine with the upgraded catalog
+	 * @return product collection
+	 */
+	@Nonnull
+	private static EntityCollection productCollection(@Nonnull Evita evita) {
+		return ((Catalog) evita.getCatalogInstance(SHARED_PREDECESSOR).orElseThrow())
+			.getCollectionForEntityInternal(PRODUCT).orElseThrow();
+	}
+
+	/**
+	 * Checks the order of an owner's brands after a scope change or restart.
+	 *
+	 * @param evita engine with the upgraded catalog
+	 * @param scope scope of the owner
+	 * @param owner owner primary key
+	 * @param expected ordered brand keys
+	 */
+	private static void assertBrandOrder(
+		@Nonnull Evita evita, @Nonnull Scope scope, int owner, @Nonnull List<Integer> expected
+	) {
+		assertReferenceOrder(evita, scope, owner, BRAND, expected);
+	}
+
+	/**
+	 * Checks the order of an owner's references in either the fresh or the upgraded catalog.
+	 *
+	 * @param evita engine holding the catalog
+	 * @param scope scope of the owner
+	 * @param owner owner primary key
+	 * @param reference reference to fetch
+	 * @param expected ordered target keys
+	 */
+	private static void assertReferenceOrder(
+		@Nonnull final Evita evita, @Nonnull final Scope scope, final int owner, @Nonnull final String reference,
+		@Nonnull final List<Integer> expected
+	) {
+		final List<SealedEntity> owners = evita.queryCatalog(
+			SHARED_PREDECESSOR, (EvitaSessionContract session) -> session.queryListOfSealedEntities(query(
+				collection(PRODUCT), filterBy(scope(scope), entityPrimaryKeyInSet(owner)),
+				require(entityFetch(referenceContent(reference, orderBy(attributeNatural("position")))))
+			))
+		);
+		assertEquals(expected, owners.getFirst().getReferences(reference).stream()
+			.map(ReferenceContract::getReferencedPrimaryKey).toList());
 	}
 
 	/** Loads and probes the release catalogs whose stored index order the upgrade rewrites. */

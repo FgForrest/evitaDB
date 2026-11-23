@@ -40,7 +40,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.ChainableType;
-import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -107,14 +107,11 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   registry must hold exactly these values under exactly these keys, and nothing under a primary key without a row,
  *   and must order the rows of every key as these values order them - rows whose values compare equal forming one
  *   block;
- * - **the chain predecessors of a row**: for every chainable attribute of the reference sortable in the scope, the
- *   predecessor the owner's reference declares;
+ * - **the chain predecessors of a row**: for every `Predecessor` attribute of the reference sortable in the scope,
+ *   the predecessor the owner's reference declares;
  * - **the content of an index object**: its owners, and per owner the same sort values and chain predecessors a row of
  *   the owner would hold, its owners ordered as those values order them - so a promotion that populates the object of
  *   a partition gaining its second owner is held to what the first owner's body says, not to what its row said.
- *
- * A `ReferencedEntityPredecessor` chain is left out: the chain index keys it by the referenced entity, and a partition
- * that had a second owner may have lost the predecessor (#1691).
  *
  * **What it is independent of, and what not.** The partitions, their owners and every value are derived from the
  * bodies. The primary key of a partition is not: it is whatever its row or its object carries, because the bodies
@@ -1074,15 +1071,7 @@ public final class VirtualReferencePartitionRawRowOracle {
 			collectPredecessors(referenceSchema, scope, rows);
 		final Set<AttributeIndexKey> declared = registry.getDeclaredChainKeys();
 		final Set<AttributeIndexKey> keys = new TreeSet<>(expectedPredecessors.keySet());
-		for (final AttributeIndexKey key : declared) {
-			// a chain the oracle leaves out, see the class documentation
-			final boolean leftOut = referenceSchema.getAttribute(key.attributeName())
-				.map(it -> !isComparedChain(it, scope))
-				.orElse(false);
-			if (!leftOut) {
-				keys.add(key);
-			}
-		}
+		keys.addAll(declared);
 		for (final AttributeIndexKey key : keys) {
 			final Map<Integer, Integer> expectedOfKey = expectedPredecessors.getOrDefault(key, Map.of());
 			for (final Integer partition : rows.keySet()) {
@@ -1198,11 +1187,7 @@ public final class VirtualReferencePartitionRawRowOracle {
 		object.forEachAttributeIndexKey(
 			AttributeIndexType.CHAIN,
 			key -> {
-				// a chain the oracle leaves out, see the class documentation
-				final boolean compared = referenceSchema.getAttribute(key.attributeName())
-					.map(it -> isComparedChain(it, scope))
-					.orElse(true);
-				if (referenceName.equals(key.referenceName()) && compared) {
+				if (referenceName.equals(key.referenceName())) {
 					chainKeys.add(key);
 				}
 			}
@@ -1233,17 +1218,14 @@ public final class VirtualReferencePartitionRawRowOracle {
 	}
 
 	/**
-	 * Tells whether the oracle compares the chain of an attribute - a chainable attribute sortable in the scope, but
-	 * not a `ReferencedEntityPredecessor`, see the class documentation.
+	 * Tells whether the attribute contributes an indexed predecessor chain in the scope.
 	 *
 	 * @param attribute the attribute of the reference
 	 * @param scope     the scope
 	 * @return true for a compared chain
 	 */
 	private static boolean isComparedChain(@Nonnull AttributeSchemaContract attribute, @Nonnull Scope scope) {
-		return attribute.isSortableInScope(scope) &&
-			ChainableType.class.isAssignableFrom(attribute.getPlainType()) &&
-			!ReferencedEntityPredecessor.class.isAssignableFrom(attribute.getPlainType());
+		return attribute.isSortableInScope(scope) && Predecessor.class.equals(attribute.getPlainType());
 	}
 
 	/**

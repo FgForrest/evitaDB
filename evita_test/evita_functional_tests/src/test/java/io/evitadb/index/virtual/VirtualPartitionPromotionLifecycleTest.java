@@ -30,6 +30,8 @@ import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
@@ -71,11 +73,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
-import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ATTRIBUTE_LABEL;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ATTRIBUTE_ORDER;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ATTRIBUTE_POSITION;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.BRAND_PK;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.CATALOG;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.COMPOUND_LABEL_AND_ORDER;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ENTITY_BRAND;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ENTITY_CATEGORY;
@@ -106,6 +110,7 @@ import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -138,8 +143,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * from storage after a restart; every sortable type, a range compound updated incrementally and both chain types; the
  * remaining owner's values written by another executor of the root mutation before and after the demotion, a whole
  * churn inside one open transaction, the locale data of a departing owner, and the replay of the write-ahead log. One
- * history pins #1691: a row demoted from a partition whose owners shared a `ReferencedEntityPredecessor` record lacks
- * the predecessor its remaining owner's body declares, which is why the body oracle leaves that chain type out.
+ * history checks that the surviving owner's reference list still orders by its own rows after demotion.
  *
  * A failing root mutation fails at the consistency check that ends it (see
  * {@link SingleOwnerPartitionFixture#withoutTheMandatoryBrand}): after the owners joined or left the partitions, but
@@ -1132,24 +1136,24 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 		theHistory.restart();
 	}
 
+	/**
+	 * Checks owner-keyed predecessor extraction on each side of a reflection.
+	 *
+	 * @param state catalog state during the two demotions
+	 */
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-	@DisplayName("chains are extracted by the owner's record or the referenced entity's, on both sides of a reflection")
-	void shouldExtractChainsByTheRecordTheirTypeIsIndexedUnder(CatalogState state) {
+	@DisplayName("Predecessor chains are extracted by the owner key on both sides of a reflection")
+	void shouldExtractPredecessorChainsByOwnerOnBothSidesOfAReflection(@Nonnull CatalogState state) {
 		final VirtualPartitionHistory theHistory = start(
 			"extractedChains", state, VirtualPartitionPromotionLifecycleTest::setUpChainsOfASharedCategory
 		);
 		final AttributeIndexKey productOrderOfCategories =
 			new AttributeIndexKey(REFERENCE_CATEGORIES, ATTRIBUTE_PRODUCT_ORDER, null);
-		final AttributeIndexKey categoryOrderOfCategories =
-			new AttributeIndexKey(REFERENCE_CATEGORIES, ATTRIBUTE_CATEGORY_ORDER, null);
-		final AttributeIndexKey productOrderOfProducts =
-			new AttributeIndexKey(REFERENCE_PRODUCTS, ATTRIBUTE_PRODUCT_ORDER, null);
 		final AttributeIndexKey categoryOrderOfProducts =
 			new AttributeIndexKey(REFERENCE_PRODUCTS, ATTRIBUTE_CATEGORY_ORDER, null);
 
-		// the product side: the shared category keeps product 1's `Predecessor` under product 1 and its
-		// `ReferencedEntityPredecessor` under the shared category
+		// The product side keeps product 1's predecessor under product 1.
 		theHistory.step(
 			"product 2 leaves the shared category",
 			updateProduct(2, it -> it.removeReference(REFERENCE_CATEGORIES, SHARED_CATEGORY))
@@ -1162,14 +1166,8 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 			productRegistry.getChainPredecessor(productOrderOfCategories, sharedCategory).isPresent(),
 			"the `Predecessor` of the remaining owner must have been extracted by the owner's record"
 		);
-		assertTrue(
-			productRegistry.getChainPredecessor(categoryOrderOfCategories, sharedCategory).isPresent(),
-			"the `ReferencedEntityPredecessor` of the remaining owner must have been extracted by the referenced " +
-				"entity's record"
-		);
 
-		// the category side, where reflection inverted both types: the partition of product 1 keeps the shared
-		// category's inherited `ReferencedEntityPredecessor` under product 1, its `Predecessor` under the category
+		// The category side keeps the inherited predecessor under the shared category.
 		theHistory.step(
 			"product 1 stops referencing its own category, which leaves its reflected partition",
 			updateProduct(1, it -> it.removeReference(REFERENCE_CATEGORIES, 1))
@@ -1177,10 +1175,6 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 		final int productPartition = theHistory.assertRow(ENTITY_CATEGORY, Scope.LIVE, product(1), SHARED_CATEGORY);
 		final VirtualReferencePartitionIndex categoryRegistry = requireRegistry(
 			theHistory.getEvita(), ENTITY_CATEGORY, REFERENCE_PRODUCTS
-		);
-		assertTrue(
-			categoryRegistry.getChainPredecessor(productOrderOfProducts, productPartition).isPresent(),
-			"the inverted `ReferencedEntityPredecessor` must have been extracted by the referenced entity's record"
 		);
 		assertTrue(
 			categoryRegistry.getChainPredecessor(categoryOrderOfProducts, productPartition).isPresent(),
@@ -1220,18 +1214,24 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 		theHistory.restart();
 	}
 
+	/**
+	 * Checks that a shared partition and its demoted row carry no chain, and the survivor's list still orders.
+	 *
+	 * @param state catalog state for the promotion and demotion
+	 */
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-	@DisplayName("a row demoted from a shared ReferencedEntityPredecessor record lacks the predecessor (#1691)")
-	void shouldDemoteWithoutTheReferencedEntityPredecessorBothOwnersShared(CatalogState state) {
+	@DisplayName("A demoted partition leaves its survivor's list available for ordering from the entity")
+	void shouldOrderTheSurvivingOwnersReferenceListAfterDemotion(@Nonnull CatalogState state) {
 		final VirtualPartitionHistory theHistory = start(
 			"sharedReferencedEntityPredecessor", state,
 			VirtualPartitionPromotionLifecycleTest::setUpSharedReferencedEntityPredecessor
 		);
 		final int partition = theHistory.assertIndexObject(ENTITY_CATEGORY, Scope.LIVE, product(1), 1, 2);
 
-		// the first owner's leaving removes the record both owners share (#1691), which the demotion therefore finds
-		// absent - the body oracle leaves `ReferencedEntityPredecessor` out for this reason, this test pins it
+		final AttributeIndexKey order = new AttributeIndexKey(REFERENCE_PRODUCTS, ATTRIBUTE_CATEGORY_ORDER, null);
+		assertNull(partitionObjectOf(theHistory.getEvita(), ENTITY_CATEGORY, Scope.LIVE, product(1))
+			.getChainIndex(order));
 		theHistory.step(
 			"the first owner of the shared partition is removed",
 			session -> {
@@ -1239,17 +1239,23 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 			}
 		);
 		assertEquals(partition, theHistory.assertRow(ENTITY_CATEGORY, Scope.LIVE, product(1), 2));
-		assertTrue(
-			requireRegistry(theHistory.getEvita(), ENTITY_CATEGORY, REFERENCE_PRODUCTS)
-				.getChainPredecessor(
-					new AttributeIndexKey(REFERENCE_PRODUCTS, ATTRIBUTE_CATEGORY_ORDER, null), partition
-				)
-				.isEmpty(),
-			"#1691: the row of the remaining owner lacks the predecessor its body declares, because the record both " +
-				"owners shared left with the first owner - once #1691 is fixed, the row holds it"
+		final VirtualReferencePartitionIndex registry =
+			requireRegistry(theHistory.getEvita(), ENTITY_CATEGORY, REFERENCE_PRODUCTS);
+		assertFalse(registry.isChainKeyDeclared(order));
+		final List<SealedEntity> survivors = theHistory.getEvita().queryCatalog(CATALOG,
+			(EvitaSessionContract session) -> session.queryListOfSealedEntities(query(
+				collection(ENTITY_CATEGORY), filterBy(entityPrimaryKeyInSet(2)),
+				require(entityFetch(referenceContent(
+					REFERENCE_PRODUCTS, orderBy(attributeNatural(ATTRIBUTE_CATEGORY_ORDER))
+				)))
+			))
+		);
+		assertEquals(
+			List.of(3, 1),
+			survivors.getFirst().getReferences(REFERENCE_PRODUCTS).stream()
+				.map(ReferenceContract::getReferencedPrimaryKey).toList()
 		);
 
-		// a row holds no record another owner shares, so the remaining owner leaves it cleanly
 		theHistory.step(
 			"the second owner of the partition is removed",
 			session -> {
@@ -1468,9 +1474,6 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 	 * {@link SingleOwnerPartitionFixture#SHARED_CATEGORY}, where it heads both chains, and product 2 in the shared
 	 * category after product 1 in the `Predecessor` chain only.
 	 *
-	 * Only one owner of any partition carries a `ReferencedEntityPredecessor` value, on either side of the reflection:
-	 * the partition indexes it under the referenced entity, which several owners would share (#1691).
-	 *
 	 * @param session the session to write in
 	 */
 	private static void setUpChainsOfASharedCategory(@Nonnull EvitaSessionContract session) {
@@ -1569,8 +1572,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 	/**
 	 * Defines categories with a direct reference to products indexed for filtering, carrying a sortable
 	 * `ReferencedEntityPredecessor`; then creates categories 1 and 2 that both list product 1 - each at its own
-	 * position in its own order, which their shared partition of product 1 indexes under the one record of product 1
-	 * (#1691) - and category 3, the only one to list product 4, whose row stays whatever the other two do.
+	 * position in its own order - and category 3, the only one to list product 4.
 	 *
 	 * @param session the session to write in
 	 */
@@ -1607,11 +1609,11 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 			session.createNewEntity(ENTITY_CATEGORY, 2)
 				.setReference(
 					REFERENCE_PRODUCTS, 1,
-					ref -> ref.setAttribute(ATTRIBUTE_CATEGORY_ORDER, ReferencedEntityPredecessor.HEAD)
+					ref -> ref.setAttribute(ATTRIBUTE_CATEGORY_ORDER, new ReferencedEntityPredecessor(3))
 				)
 				.setReference(
 					REFERENCE_PRODUCTS, 3,
-					ref -> ref.setAttribute(ATTRIBUTE_CATEGORY_ORDER, new ReferencedEntityPredecessor(1))
+					ref -> ref.setAttribute(ATTRIBUTE_CATEGORY_ORDER, ReferencedEntityPredecessor.HEAD)
 				)
 		);
 	}

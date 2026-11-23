@@ -144,8 +144,8 @@ import java.util.function.UnaryOperator;
  *
  * # Chain predecessor slots
  *
- * A partition can also take part in a chain - an attribute of the `Predecessor` or `ReferencedEntityPredecessor`
- * type. Each chained attribute, with its locale, is declared once and gets a slot of its own from the same id range as
+ * A partition can also take part in a chain through a `Predecessor` attribute. Each chained attribute, with its
+ * locale, is declared once and gets a slot of its own from the same id range as
  * the sort keys. The entry of a partition in that slot holds the primary key of its predecessor as the chain index
  * receives it, and the entry exists exactly when the partition is chained: a partition without an entry has no chain,
  * whatever else the index records about it.
@@ -1163,7 +1163,7 @@ public class VirtualReferencePartitionIndex
 	 * Declares a chain key: gives the chained attribute a slot of its own. Declaring a key that is already declared
 	 * does nothing.
 	 *
-	 * @param attributeIndexKey the attribute of the `Predecessor` or `ReferencedEntityPredecessor` type, with its locale
+	 * @param attributeIndexKey the `Predecessor` attribute, with its locale
 	 */
 	public void declareChainKey(@Nonnull AttributeIndexKey attributeIndexKey) {
 		if (this.sortKeys.containsKey(attributeIndexKey)) {

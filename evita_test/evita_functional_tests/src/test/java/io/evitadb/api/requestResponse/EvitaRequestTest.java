@@ -23,11 +23,14 @@
 
 package io.evitadb.api.requestResponse;
 
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -40,6 +43,13 @@ import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
@@ -48,6 +58,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Currency;
@@ -3805,6 +3816,157 @@ class EvitaRequestTest {
 				new RequireConstraint[]{entityFetch(attributeContentAll())},
 				new Constraint<?>[]{filterBy}
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Reference key narrowing resolved against the owner's schema")
+	class SchemaAwareReferenceKeyNarrowing {
+		private static final String PRODUCTS = "products";
+		private static final String CATEGORIES = "categories";
+		private static final String POSITION = "position";
+
+		@Test
+		@DisplayName("Without a schema the narrowing of the query stays as it is")
+		void shouldKeepNarrowingWhenNoSchemaIsGiven() {
+			final EvitaRequest request = narrowedRequest(orderBy(attributeNatural(POSITION)));
+
+			final Map<String, int[]> narrowing = request.getReferenceKeyNarrowing(null);
+
+			// nothing can tell the predecessor ordering apart without the attribute's type
+			assertArrayEquals(new int[]{10, 20}, narrowing.get(PRODUCTS));
+			assertArrayEquals(new int[]{30}, narrowing.get(CATEGORIES));
+		}
+
+		@Test
+		@DisplayName("A reference ordered by a referenced-entity predecessor is decoded whole")
+		void shouldDecodeWholeWhenOrderedByReferencedEntityPredecessor() {
+			final EvitaRequest request = narrowedRequest(orderBy(attributeNatural(POSITION)));
+
+			final Map<String, int[]> narrowing = request.getReferenceKeyNarrowing(
+				schemaWithPosition(ReferencedEntityPredecessor.class)
+			);
+
+			// the rows the filter hides still carry links of the chain the visible rows are ranked by
+			assertNull(narrowing.get(PRODUCTS));
+			assertArrayEquals(new int[]{30}, narrowing.get(CATEGORIES));
+		}
+
+		@Test
+		@DisplayName("A reference ordered by an ordinary sortable attribute keeps its keys")
+		void shouldKeepKeysWhenOrderedByOrdinaryAttribute() {
+			final EvitaRequest request = narrowedRequest(orderBy(attributeNatural(POSITION)));
+
+			final Map<String, int[]> narrowing = request.getReferenceKeyNarrowing(schemaWithPosition(Integer.class));
+
+			assertArrayEquals(new int[]{10, 20}, narrowing.get(PRODUCTS));
+			assertArrayEquals(new int[]{30}, narrowing.get(CATEGORIES));
+		}
+
+		@Test
+		@DisplayName("An ordering by the referenced entity's attribute of the same name keeps the keys")
+		void shouldKeepKeysWhenPredecessorNameIsOrderedInsideEntityProperty() {
+			final EvitaRequest request = narrowedRequest(orderBy(entityProperty(attributeNatural(POSITION))));
+
+			final Map<String, int[]> narrowing = request.getReferenceKeyNarrowing(
+				schemaWithPosition(ReferencedEntityPredecessor.class)
+			);
+
+			// inside `entityProperty` the name refers to the referenced entity's attribute, not the reference's one
+			assertArrayEquals(new int[]{10, 20}, narrowing.get(PRODUCTS));
+		}
+
+		@Test
+		@DisplayName("A named requirement carried over from another request decodes the reference whole")
+		void shouldDecodeWholeWhenCarriedAliasOrdersByReferencedEntityPredecessor() {
+			final EvitaRequest request = narrowedRequest(orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)));
+			final EvitaRequest earlierRequest = createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							new ReferenceContent(
+								"orderedProducts",
+								ManagedReferencesBehaviour.ANY,
+								new String[]{PRODUCTS},
+								new RequireConstraint[]{entityFetch(attributeContentAll())},
+								new Constraint<?>[]{orderBy(attributeNatural(POSITION))}
+							)
+						)
+					)
+				)
+			);
+			final EntitySchemaContract schema = schemaWithPosition(ReferencedEntityPredecessor.class);
+
+			final Map<String, int[]> enrichedNarrowing = request.getReferenceKeyNarrowing(
+				schema, earlierRequest.getNamedReferenceEntityFetch()
+			);
+			final Map<String, int[]> ownNarrowing = request.getReferenceKeyNarrowing(schema);
+
+			assertNull(enrichedNarrowing.get(PRODUCTS));
+			assertArrayEquals(new int[]{30}, enrichedNarrowing.get(CATEGORIES));
+			// the carried alias belongs to that one enrichment and must not leak into the request's own resolution
+			assertArrayEquals(new int[]{10, 20}, ownNarrowing.get(PRODUCTS));
+		}
+
+		@Test
+		@DisplayName("Each schema gets its own resolution, even when one request is resolved against several")
+		void shouldResolveAgainWhenSchemaChanges() {
+			final EvitaRequest request = narrowedRequest(orderBy(attributeNatural(POSITION)));
+			final EntitySchemaContract predecessorSchema = schemaWithPosition(ReferencedEntityPredecessor.class);
+			final EntitySchemaContract integerSchema = schemaWithPosition(Integer.class);
+
+			final Map<String, int[]> first = request.getReferenceKeyNarrowing(predecessorSchema);
+			final Map<String, int[]> second = request.getReferenceKeyNarrowing(integerSchema);
+			final Map<String, int[]> third = request.getReferenceKeyNarrowing(predecessorSchema);
+
+			assertEquals(Set.of(CATEGORIES), first.keySet());
+			assertEquals(Set.of(PRODUCTS, CATEGORIES), second.keySet());
+			assertEquals(Set.of(CATEGORIES), third.keySet());
+		}
+
+		/**
+		 * Builds a request binding `products` to keys 10 and 20 with the passed ordering, and `categories` to key 30.
+		 *
+		 * @param productOrder ordering of the `products` references
+		 * @return the request
+		 */
+		@Nonnull
+		private EvitaRequest narrowedRequest(@Nonnull OrderBy productOrder) {
+			return createRequest(
+				query(
+					collection("parameterValue"),
+					require(
+						entityFetch(
+							referenceContent(PRODUCTS, filterBy(entityPrimaryKeyInSet(20, 10)), productOrder),
+							referenceContent(CATEGORIES, filterBy(entityPrimaryKeyInSet(30)))
+						)
+					)
+				)
+			);
+		}
+
+		/**
+		 * Builds an owner schema whose `products` reference carries a sortable `position` attribute of the passed
+		 * type, next to a `categories` reference without attributes.
+		 *
+		 * @param positionType type of the `position` attribute
+		 * @return the schema
+		 */
+		@Nonnull
+		private EntitySchemaContract schemaWithPosition(@Nonnull Class<? extends Serializable> positionType) {
+			return new InternalEntitySchemaBuilder(
+				CatalogSchema._internalBuild(
+					"testCatalog", Map.of(), null, EnumSet.allOf(CatalogEvolutionMode.class),
+					EmptyEntitySchemaAccessor.INSTANCE
+				),
+				EntitySchema._internalBuild("parameterValue")
+			)
+				.withReferenceTo(PRODUCTS, "product", Cardinality.ZERO_OR_MORE, reference -> reference
+					.indexedForFiltering()
+					.withAttribute(POSITION, positionType, attribute -> attribute.sortable()))
+				.withReferenceTo(CATEGORIES, "category", Cardinality.ZERO_OR_MORE)
+				.toInstance();
 		}
 	}
 

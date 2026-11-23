@@ -36,7 +36,6 @@ import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
-import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
@@ -76,9 +75,7 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 	 * @param attributeSetExact the exact value ordering
 	 * @param orderByVisitor    the ordering context
 	 * @return the exact sorter, or no sorter when the single-index route has no partitions
-	 * @throws EvitaInvalidUsageException when the attribute is a {@link Predecessor} or
-	 *                                    {@link ReferencedEntityPredecessor} chain, which orders by predecessor links
-	 *                                    and has no values to list
+	 * @throws EvitaInvalidUsageException when the attribute is a {@link Predecessor} chain with no values to list
 	 */
 	@Nonnull
 	@Override
@@ -92,7 +89,7 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 			attributeName, AttributeTrait.SORTABLE
 		);
 		final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
-		if (Predecessor.class.equals(attributeType) || ReferencedEntityPredecessor.class.equals(attributeType)) {
+		if (Predecessor.class.equals(attributeType)) {
 			throw new EvitaInvalidUsageException(
 				"Constraint `attributeSetExact` cannot order chain attribute `" + attributeName + "` of type `" +
 					attributeType.getName() + "`: a chain orders by predecessor links, so its values cannot be " +

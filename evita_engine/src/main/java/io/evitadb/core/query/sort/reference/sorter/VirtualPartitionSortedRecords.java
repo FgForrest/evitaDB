@@ -43,8 +43,7 @@ import java.util.OptionalInt;
 /**
  * The sorted records of one virtual partition - a partition read through the registry of single-owner partitions
  * ({@link VirtualReferencePartitionIndex}) rather than through a reduced entity index - for the orderings that sort the
- * partitions of a reference block by block: `traverseByEntityProperty`, the chains of `Predecessor` and
- * `ReferencedEntityPredecessor` attributes and the `referenceContent(orderBy)` chains.
+ * partitions of a reference block by block and for reference-content ordering backed by a `Predecessor` chain.
  *
  * A single-owner partition holds one row, so each of its sort and chain indexes would be a singleton: one record at
  * position `0`. The providers built here are exactly that singleton, read out of the partition's registry row with one
@@ -117,20 +116,16 @@ public final class VirtualPartitionSortedRecords {
 
 	/**
 	 * Returns the singleton provider of the partition's chain of a chain key - the counterpart of the provider of the
-	 * partition's own chain index, which holds the partition's only row at position `0`. The record is the one the
-	 * chain index of the partition is keyed by: the referenced entity for a `ReferencedEntityPredecessor` of the
-	 * collection's own reference, the owner otherwise. One `O(log n)` registry lookup.
+	 * partition's own chain index, which holds its only owner at position `0`. One `O(log n)` registry lookup.
 	 *
 	 * @param partition               the virtual partition
 	 * @param chainKey                the chain key - the chained attribute with its locale
-	 * @param keyedByReferencedEntity TRUE when the chain is keyed by the referenced entity
 	 * @return the provider, or `null` when the partition is not chained under the key
 	 */
 	@Nullable
 	public static SortedRecordsProvider ofChain(
 		@Nonnull VirtualReferencePartition partition,
-		@Nonnull AttributeIndexKey chainKey,
-		boolean keyedByReferencedEntity
+		@Nonnull AttributeIndexKey chainKey
 	) {
 		final VirtualReferencePartitionIndex registry = partition.typeIndex().getVirtualReferencePartitionIndex();
 		if (!registry.isChainKeyDeclared(chainKey)) {
@@ -140,28 +135,25 @@ public final class VirtualPartitionSortedRecords {
 		if (predecessor.isEmpty()) {
 			return null;
 		}
-		final int recordId = keyedByReferencedEntity ?
-			partition.getReferenceKey().primaryKey() : partition.ownerPrimaryKey();
+		final int recordId = partition.ownerPrimaryKey();
 		return singleton(partition, recordId, recordId);
 	}
 
 	/**
 	 * Returns the factory of the singleton chain provider of the partition - see
-	 * {@link #ofChain(VirtualReferencePartition, AttributeIndexKey, boolean)}. A singleton reads the same in both
+	 * {@link #ofChain(VirtualReferencePartition, AttributeIndexKey)}. A singleton reads the same in both
 	 * directions, so both directions answer one provider.
 	 *
 	 * @param partition               the virtual partition
 	 * @param chainKey                the chain key - the chained attribute with its locale
-	 * @param keyedByReferencedEntity TRUE when the chain is keyed by the referenced entity
 	 * @return the factory, or `null` when the partition is not chained under the key
 	 */
 	@Nullable
 	public static SortedRecordsSupplierFactory ofChainFactory(
 		@Nonnull VirtualReferencePartition partition,
-		@Nonnull AttributeIndexKey chainKey,
-		boolean keyedByReferencedEntity
+		@Nonnull AttributeIndexKey chainKey
 	) {
-		final SortedRecordsProvider provider = ofChain(partition, chainKey, keyedByReferencedEntity);
+		final SortedRecordsProvider provider = ofChain(partition, chainKey);
 		return provider == null ? null : new SingletonSortedRecordsSupplierFactory(provider);
 	}
 

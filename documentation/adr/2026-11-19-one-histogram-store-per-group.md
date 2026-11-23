@@ -1,7 +1,7 @@
 ---
 title: One histogram store per group
 date: 2026-11-19
-updated: 2026-11-23 15:43
+updated: 2026-11-23 22:36
 status: accepted
 kind: fix
 issues: [1924]
@@ -16,7 +16,7 @@ relates: [2026-11-11-reference-histogram-net-change-per-run,
   2026-11-03-release-catalog-upgrade-from-surviving-index-parts,
   2026-10-20-single-owner-partitions-as-registry-rows, 2026-04-23-bucketed-histogram-indexing,
   2026-05-06-reference-histogram-statistics, 2026-08-10-catalog-and-collection-statistics,
-  2026-11-05-nested-inscope-requested-scopes]
+  2026-11-05-nested-inscope-requested-scopes, 2026-11-21-referenced-entity-predecessor-owner-local-order]
 ---
 
 # Keep one histogram store per reference group and scope, independent of reduced indexes

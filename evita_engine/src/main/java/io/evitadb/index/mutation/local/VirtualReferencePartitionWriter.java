@@ -33,8 +33,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.dataType.ChainableType;
-import io.evitadb.dataType.ReferencedEntityPredecessor;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -93,9 +92,8 @@ import java.util.function.Function;
  *
  * - **demoted** (2 -> 1, and still one owner then) - the partition's row is registered for its remaining owner and
  *   filled by **extraction**: every sort value, compound value and chain predecessor the partition holds for that
- *   owner is copied into the registry, read by the owner's record - the referenced entity's record for a
- *   `ReferencedEntityPredecessor` chain, which the partition indexes under the referenced entity rather than the
- *   owner. The values are copied as the partition's sort indexes store them, in their normalized form, and recorded
+ *   owner is copied into the registry, read by the owner's record. The values are copied as the partition's sort
+ *   indexes store them, in their normalized form, and recorded
  *   as such (see {@link VirtualReferencePartitionIndex#putNormalizedSortValue}). A partition that has a row by then -
  *   another executor of the root mutation demoted it already, or it was vacated and entered again meanwhile - keeps
  *   it, and one that has no owner or several owners by then gets none. The partition's index object is then retired,
@@ -338,15 +336,13 @@ public final class VirtualReferencePartitionWriter {
 		}
 		final int ownerPrimaryKey = partition.getAllPrimaryKeys().getFirst();
 		partitionEntered(registry, partitionPrimaryKey, ownerPrimaryKey, partition.getRepresentativeReferenceKey());
-		extractValuesOfOwner(registry, entitySchema, referenceSchema, partition, partitionIndex, ownerPrimaryKey);
+		extractValuesOfOwner(registry, entitySchema, referenceSchema, partitionIndex, ownerPrimaryKey);
 	}
 
 	/**
 	 * Copies every sort value, compound value and chain predecessor the partition holds for its only owner into the
-	 * registry, declaring the keys they belong to. Each value is read by its record - the owner's, or the referenced
-	 * entity's for a `ReferencedEntityPredecessor` chain - so a key the owner holds no value of is left out, whatever
-	 * other records the partition's index holds. Sort values are copied in the normalized form the partition's sort
-	 * index stores them in.
+	 * registry, declaring the keys they belong to. The owner's record supplies each value. Sort values are copied
+	 * in the normalized form stored by the partition's sort index.
 	 *
 	 * Only the keys of the partition's own reference are read; a partition of a reference indexed `FOR_FILTERING` holds
 	 * no other.
@@ -357,7 +353,6 @@ public final class VirtualReferencePartitionWriter {
 	 * @param registry        the registry, holding the partition's row and nothing else of it
 	 * @param entitySchema    the schema of the owner entity
 	 * @param referenceSchema the reference the partition belongs to
-	 * @param partition       the partition
 	 * @param partitionIndex  the index object of the partition, whose sort and chain indexes are read
 	 * @param ownerPrimaryKey the primary key of its only owner
 	 */
@@ -365,12 +360,11 @@ public final class VirtualReferencePartitionWriter {
 		@Nonnull VirtualReferencePartitionIndex registry,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull ReferencePartition partition,
 		@Nonnull EntityIndex partitionIndex,
 		int ownerPrimaryKey
 	) {
 		final String referenceName = referenceSchema.getName();
-		final int partitionPrimaryKey = partition.getPrimaryKey();
+		final int partitionPrimaryKey = partitionIndex.getPrimaryKey();
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider schemaProvider =
 			new ReferenceSchemaAttributeAndCompoundSchemaProvider(entitySchema, referenceSchema);
 		partitionIndex.forEachAttributeIndexKey(
@@ -400,19 +394,13 @@ public final class VirtualReferencePartitionWriter {
 		partitionIndex.forEachAttributeIndexKey(
 			AttributeIndexType.CHAIN,
 			key -> {
-				if (!referenceName.equals(key.referenceName())) {
+				if (!referenceName.equals(key.referenceName()) ||
+					!Predecessor.class.equals(schemaProvider.getAttributeSchema(key.attributeName()).getPlainType())) {
 					return;
 				}
-				// the type this collection's reference declares, which reflection may have inverted from the source's
-				final boolean keyedByReferencedEntity = ReferencedEntityPredecessor.class.isAssignableFrom(
-					schemaProvider.getAttributeSchema(key.attributeName()).getPlainType()
-				);
 				final ChainIndex chainIndex = partitionIndex.getChainIndex(key);
 				final OptionalInt predecessor = chainIndex == null ?
-					OptionalInt.empty() :
-					chainIndex.getPredecessorPrimaryKey(
-						keyedByReferencedEntity ? partition.getReferenceKey().primaryKey() : ownerPrimaryKey
-					);
+					OptionalInt.empty() : chainIndex.getPredecessorPrimaryKey(ownerPrimaryKey);
 				if (predecessor.isPresent()) {
 					registry.declareChainKey(key);
 					registry.putChainPredecessor(key, partitionPrimaryKey, predecessor.getAsInt());
@@ -539,7 +527,7 @@ public final class VirtualReferencePartitionWriter {
 		);
 		if (registry != null) {
 			final int partitionPrimaryKey = partition.getPrimaryKey();
-			if (value instanceof final ChainableType predecessor) {
+			if (value instanceof final Predecessor predecessor) {
 				registry.declareChainKey(key);
 				registry.putChainPredecessor(key, partitionPrimaryKey, predecessor.predecessorPk());
 			} else {
@@ -582,7 +570,7 @@ public final class VirtualReferencePartitionWriter {
 		if (registry != null) {
 			final int partitionPrimaryKey = partition.getPrimaryKey();
 			// an index object picks its chain or sort index by the declared type, and so does the registry
-			if (ChainableType.class.isAssignableFrom(attributeSchema.getPlainType())) {
+			if (Predecessor.class.equals(attributeSchema.getPlainType())) {
 				if (!registry.removeChainPredecessor(key, partitionPrimaryKey)) {
 					throw new GenericEvitaInternalError(
 						"Partition " + partitionPrimaryKey + " has no predecessor of `" + key + "` in the registry " +

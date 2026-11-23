@@ -42,8 +42,8 @@ import java.util.Set;
  * - `parameterValue` is hierarchical: roots `1` - {@link #GROUP_COUNT} group the values, every value sits under one of
  *   them. Its reference `products` carries two chains - {@link ReferencedEntityPredecessor} `order` ordering the products
  *   of a value, {@link Predecessor} `position` ordering the values of a product - and a sortable `code`;
- * - `product` reflects the reference as `parameterValues`, inheriting the attributes, so the same rows are chained on
- *   both sides;
+ * - `product` reflects the reference as `parameterValues`. It inherits the attributes with the predecessor types
+ *   inverted;
  * - every product `1` - {@link #PRODUCT_COUNT} holds {@link #ROWS_PER_PRODUCT} values of its own (single-owner
  *   partitions on the product side) and the {@link #SHARED_VALUE_COUNT} shared values every product holds, chained in
  *   descending product order (shared partitions with a real chain);
@@ -52,9 +52,7 @@ import java.util.Set;
  * - value {@link #MIXED_PARAMETER_VALUE} holds product {@link #SECOND_LONELY_OWNER}, which nothing else references,
  *   and product `1` - a single-owner and a shared partition of the original side in one entity.
  *
- * Every entity stays live: archiving a product whose reflected rows carry the chains fails in the engine with
- * "Chain index for attribute `position` not found!" (a pre-existing defect), so the scope parity
- * of the block routes is covered by {@link RelatedProductsShapedFixture}.
+ * Every entity stays live. {@link RelatedProductsShapedFixture} covers scope parity of the block routes.
  *
  * Primary keys of products and parameter values never coincide, so an owner primary key mistaken for a target one
  * names nothing.
