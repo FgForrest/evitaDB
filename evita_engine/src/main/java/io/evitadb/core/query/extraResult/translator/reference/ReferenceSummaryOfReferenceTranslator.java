@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.reference;
 
+import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
@@ -361,7 +362,8 @@ public class ReferenceSummaryOfReferenceTranslator
 	 *                               so that a mixed request (both deprecated and new constraints) results in two
 	 *                               independent producer instances, one per adapter.
 	 * @param extraResultPlanner     the extra result planning visitor
-	 * @return the created producer, or null
+	 * @return the existing or newly created producer
+	 * @throws EntityNotManagedException when a reference summary fetch targets an external type with no collection
 	 */
 	@Nonnull
 	public static ExtraResultProducer createProducerInternal(
@@ -409,7 +411,9 @@ public class ReferenceSummaryOfReferenceTranslator
 
 		final EntityFetch facetEntityRequirement = referenceEntityRequirement != null ?
 			verifyFetch(
-				referenceSchema.getReferencedEntityType(), referenceEntityRequirement, filterBy, extraResultPlanner
+				referenceSchema.getReferencedEntityType(),
+				!referenceSchema.isReferencedEntityTypeManaged(),
+				referenceEntityRequirement, filterBy, extraResultPlanner
 			) :
 			null;
 		final EntityGroupFetch groupEntityReq;
@@ -417,7 +421,9 @@ public class ReferenceSummaryOfReferenceTranslator
 			final String referencedGroupType = referenceSchema.getReferencedGroupType();
 			groupEntityReq = referencedGroupType != null ?
 				verifyFetch(
-					referencedGroupType, groupEntityRequirement,
+					referencedGroupType,
+					!referenceSchema.isReferencedGroupTypeManaged(),
+					groupEntityRequirement,
 					groupFilterAsFilterBy(filterGroupBy),
 					extraResultPlanner) :
 				groupEntityRequirement;
@@ -526,21 +532,28 @@ public class ReferenceSummaryOfReferenceTranslator
 	 * Verify the fetch requirement for a given referenced type.
 	 *
 	 * @param referencedType     the type to be referenced
+	 * @param reportUnmanagedType whether a missing collection should be reported as an unmanaged type
 	 * @param requirement        the fetch requirement to be verified
 	 * @param filter             the summary filter of the body's level, which supplies its locale; NULL when there
 	 *                           is none
 	 * @param extraResultPlanner the visitor used for extra result planning
 	 * @param <T>                the type of the fetch requirement
 	 * @return the verified fetch requirement
+	 * @throws EntityNotManagedException when the fetch requires an external collection that is absent
 	 */
 	@Nonnull
 	private static <T extends EntityFetchRequire> T verifyFetch(
 		@Nonnull String referencedType,
+		boolean reportUnmanagedType,
 		@Nonnull T requirement,
 		@Nullable FilterBy filter,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
-		final EntitySchemaContract referencedSchema = extraResultPlanner.getSchema(referencedType);
+		final EntitySchemaContract referencedSchema = reportUnmanagedType ?
+			extraResultPlanner.getEntityCollection(referencedType)
+				.orElseThrow(() -> new EntityNotManagedException(referencedType))
+				.getSchema() :
+			extraResultPlanner.getSchema(referencedType);
 		EntityFetchTranslator.verifyEntityFetchLocalizedAttributes(
 			referencedSchema, requirement, extraResultPlanner,
 			ExtraResultPlanningVisitor.deriveBodyRequest(

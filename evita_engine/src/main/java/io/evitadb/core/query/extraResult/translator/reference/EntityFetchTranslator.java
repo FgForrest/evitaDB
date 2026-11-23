@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.reference;
 
 import io.evitadb.api.exception.EntityLocaleMissingException;
+import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.AssociatedDataContent;
@@ -161,6 +162,10 @@ public class EntityFetchTranslator implements RequireConstraintTranslator<Entity
 	 * @param entityFetch the fetch whose content requirements are being planned
 	 * @param extraResultPlanningVisitor the visitor supplying the current schema and scope
 	 * @return always null - an entity fetch produces no extra result, it only plans the content it requests
+	 * @throws EntityNotManagedException when no fetch schema resolves and the fetch is nested under a reference
+	 *                                   to an entity type evitaDB does not manage
+	 * @throws EvitaInvalidUsageException when no fetch schema resolves outside such a reference, because the fetch is
+	 *                                    nested where there is no entity to fetch
 	 */
 	@Nullable
 	@Override
@@ -176,9 +181,7 @@ public class EntityFetchTranslator implements RequireConstraintTranslator<Entity
 				extraResultPlanningVisitor.getSchema() :
 				getReferencedSchema(extraResultPlanningVisitor)
 					.orElseGet(() -> extraResultPlanningVisitor.getCurrentEntitySchema()
-						.orElseThrow(() -> new EvitaInvalidUsageException(
-							"EntityFetch constraint is probably incorrectly nested in require part of the query."
-						)));
+						.orElseThrow(() -> missingFetchSchema(extraResultPlanningVisitor)));
 
 			extraResultPlanningVisitor.executeEntityFetchInContext(
 				entityFetch,
@@ -192,6 +195,29 @@ public class EntityFetchTranslator implements RequireConstraintTranslator<Entity
 			);
 		}
 		return null;
+	}
+
+	/**
+	 * Creates the refusal of a nested fetch for which no entity schema resolves. Under a reference to an entity type
+	 * evitaDB does not manage, the refusal names that type instead of suggesting the fetch is misplaced, because the
+	 * unmanaged target is the actual cause.
+	 *
+	 * @param extraResultPlanningVisitor the visitor supplying the current processing scope and its reference schema
+	 * @return {@link EntityNotManagedException} naming the referenced entity type when the enclosing reference targets
+	 *         an unmanaged type, otherwise an {@link EvitaInvalidUsageException} reporting the fetch as misplaced
+	 */
+	@Nonnull
+	private static EvitaInvalidUsageException missingFetchSchema(
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor
+	) {
+		final ProcessingScope processingScope = extraResultPlanningVisitor.getProcessingScope();
+		final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema().orElse(null);
+		if (referenceSchema != null && !referenceSchema.isReferencedEntityTypeManaged()) {
+			return new EntityNotManagedException(referenceSchema.getReferencedEntityType());
+		}
+		return new EvitaInvalidUsageException(
+			"EntityFetch constraint is probably incorrectly nested in require part of the query."
+		);
 	}
 
 	@Nonnull
