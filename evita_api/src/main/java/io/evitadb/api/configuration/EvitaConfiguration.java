@@ -24,15 +24,14 @@
 package io.evitadb.api.configuration;
 
 import io.evitadb.dataType.ClassifierType;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.NetworkUtils;
 import lombok.ToString;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -90,10 +89,7 @@ public record EvitaConfiguration(
 				final LongHashFunction hashFct = LongHashFunction.xx3();
 				// We use hash of hostname and storage directory to generate unique server name
 				final Path baseDirectoryPath = storage.storageDirectory().normalize();
-				final File baseDirectory = baseDirectoryPath.toFile();
-				if (!baseDirectory.exists()) {
-					Assert.isTrue(baseDirectory.mkdirs(), "Unable to create storage directory: " + baseDirectoryPath);
-				}
+				createStorageDirectory(baseDirectoryPath);
 				final BasicFileAttributes attrs = Files.readAttributes(baseDirectoryPath, BasicFileAttributes.class);
 				final long keyServerHash = hashFct.hashLongs(
 					new long[]{
@@ -114,6 +110,26 @@ public record EvitaConfiguration(
 			this.export = export;
 		} catch (IOException ex) {
 			throw new GenericEvitaInternalError("Unable to access storage directory creation time!", ex);
+		}
+	}
+
+	/**
+	 * Creates the storage directory, together with its missing parents, unless it already exists.
+	 *
+	 * Configurations built at the same moment over one missing directory race on its creation - test classes running
+	 * in parallel over the default `./data`, or instances started side by side. A directory that another one creates
+	 * in the meantime is therefore accepted, never reported as a failure. Only
+	 * `LongRunningStorageDirectoryCreationStressTest` in `evita_long_running_tests` reaches that case; re-measure its
+	 * calibration after changing this method.
+	 *
+	 * @param storageDirectory the storage directory to create
+	 * @throws EvitaInvalidUsageException when the directory cannot be created, a regular file in its place included
+	 */
+	private static void createStorageDirectory(@Nonnull Path storageDirectory) {
+		try {
+			Files.createDirectories(storageDirectory);
+		} catch (IOException ex) {
+			throw new EvitaInvalidUsageException("Unable to create storage directory: " + storageDirectory, ex);
 		}
 	}
 
