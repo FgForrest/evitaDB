@@ -11,7 +11,8 @@ areas: [evita_engine/src/main/java/io/evitadb/index/mutation/local, evita_engine
 supersedes: []
 superseded-by: []
 relates: [2026-04-23-bucketed-histogram-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass,
-  2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-11-19-one-histogram-store-per-group]
+  2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-11-19-one-histogram-store-per-group,
+  2026-11-23-cross-entity-dispatch-reads-array-histogram-sources-from-storage]
 ---
 
 # A reference's histogram contribution is withdrawn by the first mutation that can change it and added once per run
