@@ -24,14 +24,19 @@ inScope(
     </dd>
     <dt>requireConstraint:any+</dt>
     <dd>
-        one or more require constraints whose extra results are checked against the indexes of the named scope only
+        one or more require constraints to evaluate in the named scope
     </dd>
 </dl>
 
 The `inScope` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/RequireInScope.java</SourceClass></LS>
-<LS to="c"><SourceClass>EvitaDB.Client/Queries/Require/RequireInScope.cs</SourceClass></LS>) require container plans
-the extra results it wraps, such as facet summaries, histograms, and hierarchy statistics, in the named scope: they are
-checked against the indexes of that scope only.
+<LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/RequireInScope.cs</SourceClass></LS>) require container
+evaluates the extra results it wraps, such as facet summaries, histograms, and hierarchy statistics, in the named
+scope: from the indexes of that scope and the entities the query matches there, each extra result by its own counting
+rules. Histograms follow the
+[histogram baseline rules](histogram.md#baseline-relaxation--sliders-dont-contract-under-their-own-handles).
+An unwrapped histogram covers all scopes the query searches. The price histogram, the histogram of an attribute, and
+a named histogram of a reference can each be requested for one scope set per query. Requests for the same histogram
+with different scope sets are rejected.
 
 An extra result requires its indexes in every scope it is planned in. A query that searches both scopes can wrap an
 extra result in `inScope` naming the scope that has them.
@@ -86,7 +91,7 @@ use the `inScope` container and limit these calculations to only those scopes wh
 
 <NoteTitle toggles="true">
 
-##### The result of requested facet summary and price histogram only for entities in live scope
+##### Price histogram requested for entities in the LIVE scope
 </NoteTitle>
 
 As you can see, the result contains calculations for the data that the engine can calculate.
@@ -113,8 +118,8 @@ As you can see, the result contains calculations for the data that the engine ca
 </Note>
 
 Place the main `entityFetch` beside the `inScope` container. When querying products in both scopes, this require
-section fetches the code of every returned product and checks the price histogram against the price indexes of the
-live scope only:
+section fetches the code of every returned product and computes the price histogram for matching live products,
+using the [price histogram baseline](histogram.md#price-histogram).
 
 ```evitaql
 require(

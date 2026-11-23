@@ -66,23 +66,27 @@ class ReferenceAttributeBoundaryQueryTest implements EvitaTestSupport {
 	 *
 	 * Owner 100 is the only owner the histogram counts, and it references brands 9, 10 and 12. At the minimum bound
 	 * the pick is therefore brand 9, the lowest brand it references there, and the alternative is brand 1, the lowest
-	 * candidate of all, referenced only by the uncounted owner 200. Brand 10 is an owned, loadable candidate that must
-	 * never stand in for either of them.
+	 * candidate of all, referenced only by the uncounted owner 200. Brand 10 is the first owned LIVE candidate if
+	 * brand 9 is archived. For missing bodies, the chosen pair determines the result.
 	 */
 	private enum LoadCase {
 		/** Brand 1 does not exist; the pick, brand 9, loads. */
 		ALTERNATIVE_MISSING,
-		/** Brand 9 does not exist; the alternative, brand 1, loads. */
+		/** Brand 9 does not exist. The next owned brand, 10, is LIVE. */
 		PRIMARY_MISSING,
 		/** Brand 9 carries only a German name, so it lacks the query's English locale; brand 1 loads. */
 		PRIMARY_WITHOUT_LOCALE,
-		/** Brand 9 is archived, outside the live scope the query asks for; brand 1 loads. */
+		/** Brand 9 is archived. The next owned brand, 10, is LIVE. */
 		PRIMARY_ARCHIVED,
-		/** Neither brand 1 nor brand 9 exists. */
+		/** Brands 1 and 9 do not exist. Brand 10 is the only LIVE candidate at the minimum. */
 		BOTH_MISSING
 	}
 
-	/** Runs each loadability case with identical and different boundary-content requests on the same PKs. */
+	/**
+	 * Runs each scope and loadability case with identical and different boundary-content requests.
+	 *
+	 * @param loadCase the states of the referenced entities at the tied bound
+	 */
 	@ParameterizedTest
 	@EnumSource(LoadCase.class)
 	@DisplayName("should resolve only the preselected pick or its alternative, with equal or different fetches")
@@ -124,29 +128,27 @@ class ReferenceAttributeBoundaryQueryTest implements EvitaTestSupport {
 					assertEquals(2, first.getOverallCount(), variant);
 					assertArrayEquals(first.getBuckets(), second.getBuckets(), variant);
 					assertEquals(first.getOverallCount(), second.getOverallCount(), variant);
-					if (loadCase == LoadCase.BOTH_MISSING) {
-						// PK 10 is an owned, loadable candidate. It must not replace either preselected missing pick.
-						assertTrue(first.getMinReferencedEntity().isEmpty(), variant);
-						assertTrue(first.getMaxReferencedEntity().isEmpty(), variant);
-						assertTrue(second.getMinReferencedEntity().isEmpty(), variant);
-						assertTrue(second.getMaxReferencedEntity().isEmpty(), variant);
+					final int expected = switch (loadCase) {
+						case ALTERNATIVE_MISSING -> 9;
+						case PRIMARY_ARCHIVED, PRIMARY_MISSING, BOTH_MISSING -> 10;
+						case PRIMARY_WITHOUT_LOCALE -> 1;
+					};
+					final SealedEntity firstMin = first.getMinReferencedEntity().orElse(null);
+					final SealedEntity secondMin = second.getMinReferencedEntity().orElse(null);
+					assertNotNull(firstMin, variant + " first histogram minimum");
+					assertNotNull(secondMin, variant + " second histogram minimum");
+					assertEquals(expected, firstMin.getPrimaryKey(), variant);
+					assertEquals(expected, secondMin.getPrimaryKey(), variant);
+					assertEquals(12, first.getMaxReferencedEntity().orElseThrow().getPrimaryKey(), variant);
+					assertEquals(12, second.getMaxReferencedEntity().orElseThrow().getPrimaryKey(), variant);
+					assertEquals("brand-" + expected, firstMin.getAttribute("code"), variant);
+					if (sameFetch) {
+						assertSame(firstMin, secondMin, variant);
+						assertSame(first.getMaxReferencedEntity().orElseThrow(),
+							second.getMaxReferencedEntity().orElseThrow(), variant);
 					} else {
-						final int expected = loadCase == LoadCase.ALTERNATIVE_MISSING ? 9 : 1;
-						final SealedEntity firstMin = first.getMinReferencedEntity().orElseThrow();
-						final SealedEntity secondMin = second.getMinReferencedEntity().orElseThrow();
-						assertEquals(expected, firstMin.getPrimaryKey(), variant);
-						assertEquals(expected, secondMin.getPrimaryKey(), variant);
-						assertEquals(12, first.getMaxReferencedEntity().orElseThrow().getPrimaryKey(), variant);
-						assertEquals(12, second.getMaxReferencedEntity().orElseThrow().getPrimaryKey(), variant);
-						assertEquals("brand-" + expected, firstMin.getAttribute("code"), variant);
-						if (sameFetch) {
-							assertSame(firstMin, secondMin, variant);
-							assertSame(first.getMaxReferencedEntity().orElseThrow(),
-								second.getMaxReferencedEntity().orElseThrow(), variant);
-						} else {
-							assertNotSame(firstMin, secondMin, variant);
-							assertEquals(Integer.valueOf(expected), secondMin.getAttribute("weight"), variant);
-						}
+						assertNotSame(firstMin, secondMin, variant);
+						assertEquals(Integer.valueOf(expected), secondMin.getAttribute("weight"), variant);
 					}
 					return null;
 				});

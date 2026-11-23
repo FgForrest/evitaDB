@@ -475,6 +475,13 @@ public class ReferenceSummaryTranslator
 		return requirement;
 	}
 
+	/**
+	 * Registers the generic summary and dispatches its histograms to references that declare their indexes.
+	 *
+	 * @param referenceSummary the generic summary and its histogram children
+	 * @param extraResultPlanner the active planning visitor
+	 * @return the producer registered for the reference summary
+	 */
 	@Nullable
 	@Override
 	public ExtraResultProducer createProducer(
@@ -507,7 +514,7 @@ public class ReferenceSummaryTranslator
 		for (final RequireConstraint child : referenceSummary.getChildren()) {
 			if (child instanceof ReferenceHistogramStatistics histogramConstraint) {
 				dispatchHistogramToMatchingReferences(
-					histogramConstraint, schema, scopes, extraResultPlanner
+					histogramConstraint, referenceSummary, schema, scopes, extraResultPlanner
 				);
 			}
 		}
@@ -569,9 +576,16 @@ public class ReferenceSummaryTranslator
 	 * the broad form surfaces. Strict per-reference validation is the responsibility of the per-reference
 	 * form ({@link io.evitadb.api.query.require.ReferenceSummaryOfReference}); scope subsetting belongs
 	 * to {@link io.evitadb.api.query.require.RequireInScope}.
+	 *
+	 * @param constraint the histogram requirement to dispatch
+	 * @param referenceSummary the summary that declared the histogram
+	 * @param schema the queried entity schema
+	 * @param scopes the summary's processing scopes
+	 * @param extraResultPlanner the active planning visitor
 	 */
 	private static void dispatchHistogramToMatchingReferences(
 		@Nonnull ReferenceHistogramStatistics constraint,
+		@Nonnull ReferenceSummary referenceSummary,
 		@Nonnull EntitySchemaContract schema,
 		@Nonnull Set<Scope> scopes,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
@@ -642,7 +656,7 @@ public class ReferenceSummaryTranslator
 						entry.applicableNames().toArray(new String[0])
 					);
 			extraResultPlanner.executeInContext(
-				narrowed,
+				referenceSummary,
 				entry::referenceSchema,
 				() -> null,
 				() -> {

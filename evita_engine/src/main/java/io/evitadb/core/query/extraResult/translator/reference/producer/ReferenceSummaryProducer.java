@@ -190,7 +190,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	 * same histogram name on the same reference are rejected at translator time.
 	 */
 	@Nonnull
-	private final Map<String, List<HistogramRequest>> histogramRequests = createLinkedHashMap(8);
+	private final Map<String, List<RegisteredHistogram>> histogramRequests = createLinkedHashMap(8);
 	/**
 	 * Contains default settings for reference summary construction and entity fetching.
 	 */
@@ -397,19 +397,34 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	/**
 	 * Registers a histogram request for the given reference. Multiple requests for the same reference are
 	 * allowed (one per histogram index name); a second registration for the *same* `(referenceName, histogramName)`
-	 * pair whose configuration diverges from the existing one throws. Triggered by
+	 * pair whose scope set or configuration diverges from the existing one throws, an identical one is ignored.
+	 * Triggered by
 	 * {@link io.evitadb.core.query.extraResult.translator.reference.ReferenceHistogramStatisticsTranslator}.
 	 *
+	 * The declaring summary supplies scoped controls during registration. A reference-specific registration governs
+	 * the histogram when both forms request it. A generic registration takes any specific override at fabrication.
+	 *
 	 * @param request the fully-resolved histogram request to register
-	 * @throws EvitaInvalidUsageException when a conflicting registration already exists
+	 * @param referenceSpecific whether this request comes from a reference-specific summary
+	 * @throws EvitaInvalidUsageException when the histogram is already registered with a different scope set, bucket
+	 *                                    count, behavior or entity fetch
 	 */
-	public void addHistogramRequest(@Nonnull HistogramRequest request) {
+	public void addHistogramRequest(@Nonnull HistogramRequest request, boolean referenceSpecific) {
 		final String referenceName = request.referenceSchema().getName();
-		final List<HistogramRequest> existing = this.histogramRequests.computeIfAbsent(
+		final List<RegisteredHistogram> existing = this.histogramRequests.computeIfAbsent(
 			referenceName, k -> new ArrayList<>(4)
 		);
-		for (final HistogramRequest already : existing) {
+		for (int i = 0; i < existing.size(); i++) {
+			final RegisteredHistogram registration = existing.get(i);
+			final HistogramRequest already = registration.request();
 			if (already.histogramName().equals(request.histogramName())) {
+				if (!already.scopes().equals(request.scopes())) {
+					throw new EvitaInvalidUsageException(
+						"Histogram `" + request.histogramName() + "` on reference `" + referenceName +
+							"` was requested for different scope sets " + already.scopes() +
+							" and " + request.scopes() + "."
+					);
+				}
 				if (already.bucketCount() != request.bucketCount()
 					|| already.behavior() != request.behavior()
 					|| !Objects.equals(already.entityFetch(), request.entityFetch())) {
@@ -418,10 +433,57 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 							"` is requested with conflicting parameters (bucket count, behavior or entity fetch)."
 					);
 				}
+				if (referenceSpecific && !registration.referenceSpecific()) {
+					existing.set(i, registerHistogramControls(request, true));
+				}
 				return;
 			}
 		}
-		existing.add(request);
+		existing.add(registerHistogramControls(request, referenceSpecific));
+	}
+
+	/**
+	 * Captures the specific controls or the declaring generic summary for fabrication.
+	 *
+	 * @param request the histogram to associate with its summary
+	 * @param referenceSpecific whether the declaring summary names one reference
+	 * @return the histogram and its resolved controls
+	 */
+	@Nonnull
+	private RegisteredHistogram registerHistogramControls(
+		@Nonnull HistogramRequest request, boolean referenceSpecific
+	) {
+		if (!referenceSpecific) {
+			return new RegisteredHistogram(request, null, null, null, Objects.requireNonNull(this.defaultRequest));
+		}
+		final ReferenceSummaryRequest summary = Objects.requireNonNull(
+			this.referenceSummaryRequests.get(request.referenceSchema().getName())
+		);
+		return createHistogramRegistration(
+			request, summary.facetSorter(), summary.groupPredicate(), summary.groupEntityRequirement()
+		);
+	}
+
+	/**
+	 * Builds a histogram registration with the controls of one summary.
+	 *
+	 * @param request the histogram parameters and processing scopes
+	 * @param facetSorter the summary's ordering of tied boundary candidates
+	 * @param groupPredicate the summary's predicate for groups
+	 * @param groupFetch the summary's group content requirements
+	 * @return the histogram with its governing controls
+	 */
+	@Nonnull
+	private static RegisteredHistogram createHistogramRegistration(
+		@Nonnull HistogramRequest request,
+		@Nullable NestedContextSorter facetSorter,
+		@Nullable IntPredicate groupPredicate,
+		@Nullable EntityGroupFetch groupFetch
+	) {
+		return new RegisteredHistogram(
+			request, facetSorter, groupPredicate,
+			groupFetch == null ? null : new HistogramGroupFetcher(groupFetch, groupPredicate), null
+		);
 	}
 
 	/**
@@ -611,13 +673,19 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	 * and assembles the `Map<String, Collection<T>>` keyed by reference name.
 	 *
 	 * **Phase 2 — histogram injection**: when {@link #histogramRequests} is non-empty, delegates to
-	 * {@link ReferenceHistogramAccumulator#injectHistograms} to attach computed {@link io.evitadb.api.requestResponse.extraResult.HistogramContract}
+	 * {@link ReferenceHistogramAccumulator#injectHistograms} to attach computed
+	 * {@link io.evitadb.api.requestResponse.extraResult.HistogramContract}
 	 * DTOs to each matching group-statistics entry. Groups that have histogram data but no facets receive a
 	 * synthetic entry.
 	 *
 	 * The type variable {@code T} binds the wildcard captured from the {@link #resultAdapter} field so that the
 	 * intermediate map and the adapter's {@link ReferenceSummaryResultAdapter#createResult} signature align
 	 * without an unchecked cast.
+	 *
+	 * @param context the executing query
+	 * @param resultAdapter the adapter that builds the extra result
+	 * @param <T> concrete group statistics returned by the adapter
+	 * @return the reference summary with facets and histograms
 	 */
 	@Nonnull
 	private <T extends ReferenceGroupStatistics> EvitaResponseExtraResult doFabricate(
@@ -695,71 +763,63 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			final Formula histogramBaseline = UserFilterRelaxer.relax(
 				this.filterFormula, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM
 			).orElse(null);
-			// resolve the request governing each reference that carries histograms exactly once, so the facet
-			// sorter, the group entity fetcher and the group predicate the accumulator asks for can never disagree
-			// about which constraint governs the reference - that drift is what made a histogram-only group come
-			// back bare while the same reference at depth COUNTS carried the generic summary's attributes
-			final Map<String, ReferenceSummaryRequest> histogramReferenceRequests = createHashMap(
-				this.histogramRequests.size()
-			);
-			for (final Entry<String, List<HistogramRequest>> histogramEntry : this.histogramRequests.entrySet()) {
-				final ReferenceSummaryRequest referenceRequest = resolveHistogramReferenceRequest(
-					histogramEntry.getKey(), histogramEntry.getValue()
-				);
-				if (referenceRequest != null) {
-					histogramReferenceRequests.put(histogramEntry.getKey(), referenceRequest);
-				}
-			}
 			statisticsByReferenceName = ReferenceHistogramAccumulator.injectHistograms(
-				statisticsByReferenceName,
-				this.histogramRequests,
-				histogramBaseline,
-				context,
-				resultAdapter,
-				referenceName -> ofNullable(histogramReferenceRequests.get(referenceName))
-					.map(ReferenceSummaryRequest::facetSorter)
-					.orElse(null),
-				referenceName -> ofNullable(histogramReferenceRequests.get(referenceName))
-					.map(referenceRequest -> referenceRequest.getGroupEntityFetcher(
-						context, referenceRequest.referenceSchema()
-					))
-					.orElse(null),
-				referenceName -> ofNullable(histogramReferenceRequests.get(referenceName))
-					.map(ReferenceSummaryRequest::groupPredicate)
-					.orElse(null)
+				statisticsByReferenceName, resolveHistogramControls(), histogramBaseline, context, resultAdapter
 			);
 		}
 		return resultAdapter.createResult(statisticsByReferenceName);
 	}
 
 	/**
-	 * Resolves the {@link ReferenceSummaryRequest} governing a reference that carries histograms, applying the very
-	 * rule {@link #resolveReferenceRequest} applies on the facet path: a reference-specific summary constraint
-	 * governs the reference it names **entirely**, and the generic constraint governs every reference that has no
-	 * specific one. Nothing is inherited across that boundary - neither the group entity fetch nor the `filterGroupBy`
-	 * predicate nor the facet order - so the histogram-only groups synthesized at
-	 * {@link FacetStatisticsDepth#NONE} and the facet-emitted groups of the same reference at
-	 * {@link FacetStatisticsDepth#COUNTS} always describe the same entities.
+	 * Resolves the facet sorter, group predicate and group fetch of every histogram registered by the generic
+	 * summary, applying the very rule {@link #resolveReferenceRequest} applies on the facet path: a
+	 * reference-specific summary constraint governs the reference it names **entirely**, and the generic constraint
+	 * governs every reference that has no specific one. Nothing is inherited across that boundary, so the
+	 * histogram-only groups synthesized at {@link FacetStatisticsDepth#NONE} and the facet-emitted groups of the same
+	 * reference at {@link FacetStatisticsDepth#COUNTS} always describe the same entities.
 	 *
-	 * @param referenceName     name of the reference the accumulator is about to compute histograms for
-	 * @param requests          histogram requests registered for that reference; their schema is the only place this
-	 *                          producer keeps the reference schema of a reference no specific constraint named
-	 * @return the governing request, NULL when the reference is governed by neither a specific nor a generic
-	 *         constraint (e.g. the deprecated `FacetSummary` adapter path, which registers no default request)
+	 * A histogram declared by a reference-specific summary keeps the controls captured at its registration, built in
+	 * the processing scopes of its declaring summary, so a sibling summary of the same reference in another
+	 * require-level `inScope` cannot replace them.
+	 *
+	 * @return the histogram registrations of every reference, each with the controls that govern it
 	 */
-	@Nullable
-	private ReferenceSummaryRequest resolveHistogramReferenceRequest(
-		@Nonnull String referenceName,
-		@Nonnull List<HistogramRequest> requests
-	) {
-		final ReferenceSummaryRequest specific = this.referenceSummaryRequests.get(referenceName);
-		if (specific != null) {
-			return specific;
+	@Nonnull
+	private Map<String, List<RegisteredHistogram>> resolveHistogramControls() {
+		Map<String, List<RegisteredHistogram>> resolved = null;
+		for (final Entry<String, List<RegisteredHistogram>> entry : this.histogramRequests.entrySet()) {
+			final ReferenceSummaryRequest specific = this.referenceSummaryRequests.get(entry.getKey());
+			final List<RegisteredHistogram> registrations = entry.getValue();
+			List<RegisteredHistogram> overrides = null;
+			for (int i = 0; i < registrations.size(); i++) {
+				final RegisteredHistogram registration = registrations.get(i);
+				final DefaultReferenceSummaryRequest generic = registration.genericSummary();
+				if (generic == null) {
+					continue;
+				}
+				if (overrides == null) {
+					overrides = new ArrayList<>(registrations);
+				}
+				final HistogramRequest request = registration.request();
+				final ReferenceSchemaContract referenceSchema = request.referenceSchema();
+				overrides.set(i, specific == null ?
+					createHistogramRegistration(
+						request, applyToSchema(generic.facetSorter(), referenceSchema),
+						applyToSchema(generic.groupPredicate(), referenceSchema), generic.groupEntityRequirement()
+					) :
+					createHistogramRegistration(
+						request, specific.facetSorter(), specific.groupPredicate(), specific.groupEntityRequirement()
+					)
+				);
+			}
+			if (overrides != null) {
+				if (resolved == null) {
+					resolved = new LinkedHashMap<>(this.histogramRequests);
+				}
+				resolved.put(entry.getKey(), overrides);
+			}
 		}
-		if (this.defaultRequest == null || requests.isEmpty()) {
-			return null;
-		}
-		return buildFromDefault(requests.getFirst().referenceSchema(), new AtomicInteger());
+		return resolved == null ? this.histogramRequests : resolved;
 	}
 
 	/**
@@ -1723,6 +1783,58 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	}
 
 	/**
+	 * Histogram with specific controls or a generic summary whose controls resolve at fabrication.
+	 *
+	 * @param request the histogram parameters and processing scopes
+	 * @param facetSorter the sort order for tied boundary candidates, or null for PK order
+	 * @param groupPredicate limits the groups considered by this histogram, or null for all groups
+	 * @param groupFetcher fetches groups created by this histogram, or null for bare group references
+	 * @param genericSummary the declaring generic summary, or null when controls are resolved
+	 */
+	record RegisteredHistogram(
+		@Nonnull HistogramRequest request,
+		@Nullable NestedContextSorter facetSorter,
+		@Nullable IntPredicate groupPredicate,
+		@Nullable HistogramGroupFetcher groupFetcher,
+		@Nullable DefaultReferenceSummaryRequest genericSummary
+	) {
+		/**
+		 * Identifies registrations with the controls captured from a specific summary.
+		 *
+		 * @return whether this registration has no generic summary to resolve
+		 */
+		boolean referenceSpecific() {
+			return this.genericSummary == null;
+		}
+	}
+
+	/**
+	 * Group content and locale information captured from a summary that requests histogram group entities.
+	 *
+	 * @param requirement the group entity requirements
+	 * @param predicate the summary's group predicate, which can specify the group's locale
+	 */
+	record HistogramGroupFetcher(@Nonnull EntityGroupFetch requirement, @Nullable IntPredicate predicate) {
+		/**
+		 * Fetches the requested group bodies using the same enrichment as facet group content.
+		 *
+		 * @param context the executing query
+		 * @param referenceSchema the reference whose group entities to load
+		 * @param groupIds the groups that need bodies
+		 * @return the loaded group entities
+		 */
+		@Nonnull
+		EntityClassifier[] fetch(
+			@Nonnull QueryExecutionContext context,
+			@Nonnull ReferenceSchemaContract referenceSchema,
+			@Nonnull int[] groupIds
+		) {
+			return createFetcherFunction(context, this.requirement, this.predicate)
+				.apply(context, Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupIds);
+		}
+	}
+
+	/**
 	 * Immutable descriptor of a single `histogramStatistics` request registered against a reference by the
 	 * translator. Holds everything the computer needs to derive bucket data at fabrication time without
 	 * having to re-inspect the request tree.
@@ -1733,6 +1845,9 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	 * @param behavior         histogram-behavior flag controlling bucket layout and empty-bucket suppression
 	 * @param locale           locale used to pick the correct {@code FilterIndex} when the source attribute is
 	 *                         localized; `null` otherwise
+	 * @param scopes           processing scopes in which to compute the histogram - every searched scope, or the
+	 *                         scope of an enclosing require-level `inScope`; two requests for one histogram must
+	 *                         carry equal sets
 	 * @param valueDescriptor  resolved metadata about the source attribute (entity vs reference, type, default)
 	 * @param entityFetch              optional `EntityFetch` controlling boundary entity richness; `null` → plain
 	 *                                 {@code EntityReference} classifier
@@ -1747,6 +1862,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
 		@Nullable Locale locale,
+		@Nonnull Set<Scope> scopes,
 		@Nonnull HistogramValueDescriptor valueDescriptor,
 		@Nullable EntityFetch entityFetch,
 		@Nonnull Map<Integer, RequestedBucketRange> requestedRangesByGroupPk

@@ -1108,7 +1108,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			new DefaultPrefetchRequirementCollector(),
 			orderBy,
 			internalEntitySchema,
-			internalEntitySchema.getReferenceOrThrowException(referenceSchema.getName())
+			internalEntitySchema.getReferenceOrThrowException(referenceSchema.getName()),
+			ownerQueryContext.getScopes()
 		);
 		final EntityNestedQueryComparator nestedQueryComparator = orderingDescriptor.nestedQueryComparator();
 		if (nestedQueryComparator != null) {
@@ -1890,7 +1891,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				globalPrefetchCollector,
 				requirements.orderBy(),
 				entitySchema,
-				referenceSchema
+				referenceSchema,
+				// a plain chain is read in each owner's own scope, which an enriched owner may hold outside the
+				// scopes its enrichment selects
+				entityPrimaryKey.keySet()
 			);
 
 		final int ownerCount = entityPrimaryKey.values().stream().mapToInt(array -> array.length).sum();
@@ -2331,6 +2335,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final T richEnoughEntity = internalEntityCollection.ensureReferencesFetched(entity);
 		final Entity theEntity = richEnoughEntity instanceof EntityDecorator entityDecorator ?
 			entityDecorator.getDelegate() : (Entity) richEnoughEntity;
+		final Scope ownerScope = theEntity.getScope();
 
 		// prefetch the parents
 		if (entityCollection.getSchema().isWithHierarchy()) {
@@ -2338,7 +2343,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				this.hierarchyContent,
 				this.executionContext,
 				entityCollection,
-				List.of(theEntity.getScope()),
+				List.of(ownerScope),
 				scope -> theEntity.getParent().stream().toArray(),
 				1
 			);
@@ -2388,7 +2393,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.flatMap(Optional::stream)
 					.mapToInt(GroupEntityReference::getPrimaryKeyOrThrowException),
 			Map.of(
-				theEntity.getScope(),
+				ownerScope,
 				new int[]{theEntity.getPrimaryKeyOrThrowException()}
 			)
 		);

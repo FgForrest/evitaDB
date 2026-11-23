@@ -212,26 +212,21 @@ public class EntityDecorator implements SealedEntity {
 	private List<PriceContract> filteredPrices;
 
 	/**
-	 * Sorts and filters the supplied `references` slice in place using `referenceFilter` and
-	 * `referenceComparator`, operating only within `[start, end)`. Filtering runs first (matching
-	 * elements move to the front of the slice, filtered-out ones are pushed to the tail); sorting
-	 * then walks the `referenceComparator` chain over the surviving prefix, recursing into the
-	 * unsorted tail at each link — see the inline notes for the cumulative-counter invariant.
+	 * Filters the reference rows, then orders the surviving prefix for the owner.
 	 *
-	 * @param entityPrimaryKey    primary key of the source entity owning the references; forwarded
-	 *                            to every {@link ReferenceComparator.EntityPrimaryKeyAwareComparator}
-	 *                            link in the chain so it can scope its lookups
-	 * @param references          array containing the references; the `[start, end)` slice is mutated
-	 *                            in place (filtered + sorted)
-	 * @param referencePredicate  predicate identifying references the caller actually requested
-	 * @param referenceFilter     optional additional filter; {@code null} means "accept everything"
-	 * @param referenceComparator head of the comparator chain; {@code null} skips sorting entirely
-	 * @param start               inclusive lower bound of the slice to process
-	 * @param end                 exclusive upper bound of the slice to process
-	 * @return number of references filtered out of the slice (pushed to the tail of `[start, end)`)
+	 * @param entityPrimaryKey primary key of the owner
+	 * @param ownerScope scope of the owner
+	 * @param references array containing the rows to filter and sort in place
+	 * @param referencePredicate predicate identifying the requested references
+	 * @param referenceFilter additional filter, or `null` to admit all requested references
+	 * @param referenceComparator head of the ordering chain, or `null` to keep the input order
+	 * @param start inclusive lower bound of the window
+	 * @param end exclusive upper bound of the window
+	 * @return the number of rows removed from the window
 	 */
 	protected static int sortAndFilterSubList(
 		int entityPrimaryKey,
+		@Nonnull Scope ownerScope,
 		@Nonnull ReferenceDecorator[] references,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
 		@Nullable BiPredicate<Integer, ReferenceContract> referenceFilter,
@@ -239,50 +234,16 @@ public class EntityDecorator implements SealedEntity {
 		int start,
 		int end
 	) {
-		// when filter is not provided, make it always return true
-		final BiPredicate<Integer, ReferenceContract> theReferenceFilter = referenceFilter == null ?
-			(pk, ref) -> true : referenceFilter;
-		if (referenceComparator == null) {
-			// In‑place filtering when no comparator is provided
-			return filterOutReferences(
-				entityPrimaryKey, references, referencePredicate, theReferenceFilter, start, end
+		final int filteredOut = filterOutReferences(
+			entityPrimaryKey, references, referencePredicate,
+			referenceFilter == null ? (pk, ref) -> true : referenceFilter, start, end
+		);
+		if (referenceComparator != null) {
+			ReferenceComparator.sort(
+				referenceComparator, entityPrimaryKey, ownerScope, references, start, end - filteredOut
 			);
-		} else {
-			final int filteredOutCount = filterOutReferences(
-				entityPrimaryKey, references, referencePredicate,
-				theReferenceFilter,
-				start, end
-			);
-			final int sortEnd = end - filteredOutCount;
-			// Walk the comparator chain; at each link sort the still-unsorted window and recurse on
-			// whatever the comparator could not rank. Two invariants drive the math (and mirror
-			// `BitmapSlicer#sortReferencesByComparatorChain` so pre-fetch and post-fetch agree):
-			//   1. `setEntityPrimaryKey` must fire on EVERY EPK-aware link, not just the head — the
-			//      EPK-aware link can sit anywhere in the chain (e.g. a `ReferencePredecessorComparator`
-			//      behind a plain attribute comparator) and a missing scope yields NPE or a wrong sort.
-			//   2. `getNonSortedReferenceCount()` is a cumulative cross-entity accumulator on some
-			//      concrete comparators (notably `EntityNestedQueryComparator`) — it never resets
-			//      between source-entity passes. Snapshot before/after each `Arrays.sort` and clamp
-			//      the per-pass delta to `[0, sortEnd - start]` so a stale or oversized cumulative
-			//      reading cannot drive `start` past `sortEnd` and trip the next sort with a
-			//      backwards range.
-			while (referenceComparator != null && start < sortEnd) {
-				if (referenceComparator instanceof ReferenceComparator.EntityPrimaryKeyAwareComparator epkAware) {
-					epkAware.setEntityPrimaryKey(entityPrimaryKey);
-				}
-				final int nonSortedBefore = referenceComparator.getNonSortedReferenceCount();
-				Arrays.sort(references, start, sortEnd, referenceComparator);
-				final int nonSortedAfter = referenceComparator.getNonSortedReferenceCount();
-				final int delta = Math.max(0, Math.min(nonSortedAfter - nonSortedBefore, sortEnd - start));
-				if (delta == 0) {
-					break;
-				}
-				start = Math.max(sortEnd - delta, start);
-				referenceComparator = referenceComparator.getNextComparator();
-			}
-
-			return filteredOutCount;
 		}
+		return filteredOut;
 	}
 
 	/**
@@ -588,6 +549,8 @@ public class EntityDecorator implements SealedEntity {
 	 * @param referenceFetcher   The fetcher utility responsible for retrieving additional data for references or their related entities.
 	 * @param inputReferences      Collection of all references of the entity to be processed.
 	 * @param outputReferences   An array of reference decorators to be filled with processed references; outputs filtered and sorted references.
+	 * @param evitaRequest       The request the entity is decorated for, or `null`; this implementation ignores it, a
+	 *                           server-side override builds the predicates of the named reference sets from it.
 	 * @return The count of references filtered out during the operation.
 	 */
 	protected int fillFilteredSortedAndFetchedReferences(
@@ -738,6 +701,7 @@ public class EntityDecorator implements SealedEntity {
 	) {
 		final int removedHere = sortAndFilterSubList(
 			entityPrimaryKey,
+			this.getScope(),
 			outputReferences,
 			referencePredicate,
 			entityFilter,

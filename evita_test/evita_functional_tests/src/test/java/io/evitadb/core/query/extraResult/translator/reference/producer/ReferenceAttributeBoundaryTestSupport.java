@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.reference.producer;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
@@ -41,12 +42,20 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.List;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
 
 /** Real reduced indexes, with representative rank splits and independently populated candidate and owner indexes. */
 final class ReferenceAttributeBoundaryTestSupport {
+	/** Uses the single fallback priority for every candidate, without reading any scope indexes. */
+	static final ReferenceHistogramAccumulator.BoundaryScopeOrder EMPTY_SCOPE_ORDER =
+		new ReferenceHistogramAccumulator.BoundaryScopeOrder(
+			new Scope[0], mock(QueryPlanningContext.class), "brand"
+		);
+
 	/** Prevents construction of the support utility. */
 	private ReferenceAttributeBoundaryTestSupport() {
 	}
@@ -111,26 +120,32 @@ final class ReferenceAttributeBoundaryTestSupport {
 	 *
 	 * @param filters  the reference attribute's filter index of each index, `null` where the index has none
 	 * @param indexes  the indexes of the boundary context
-	 * @param owners   the owner filter telling the owners the histogram counts at a value, `null` to keep every
-	 *                 candidate
+	 * @param owners   the histogram filter index holding counted owners by value
 	 * @param baseline the baseline the counted owners are confined to, `null` for none
 	 * @param scope    the referenced PKs in scope
 	 */
 	record Fixture(
 		@Nonnull FilterIndex[] filters,
 		@Nonnull EntityIndex[] indexes,
-		@Nullable FilterIndex owners,
+		@Nonnull FilterIndex owners,
 		@Nullable Formula baseline,
 		@Nonnull Bitmap scope
 	) {
-		/** Calls the actual package-local production picker and exposes its pair. */
+		/**
+		 * Calls the grouped production picker and exposes its pair.
+		 *
+		 * @param value the boundary value to resolve
+		 * @param sorter sorts tied candidates, or null to use PK order
+		 * @return the selected and alternative boundary primary keys
+		 */
 		@Nonnull
 		ReferenceAttributeBoundaryOracle.Pair actual(
 			@Nonnull Serializable value, @Nullable NestedContextSorter sorter
 		) {
 			final ReferenceHistogramAccumulator.BoundaryPick result =
 				ReferenceHistogramAccumulator.pickBoundaryPkFromReferenceAttribute(
-					this.filters, this.indexes, value, this.owners, this.baseline, this.scope, sorter
+					this.filters, this.indexes, value, List.of(this.owners),
+					this.baseline, this.scope, sorter, null, EMPTY_SCOPE_ORDER
 				);
 			return new ReferenceAttributeBoundaryOracle.Pair(result.pk(), result.alternativePk());
 		}

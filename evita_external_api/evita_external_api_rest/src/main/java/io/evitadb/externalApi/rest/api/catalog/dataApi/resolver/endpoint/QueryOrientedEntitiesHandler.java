@@ -24,7 +24,9 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.HeadConstraint;
@@ -75,13 +77,21 @@ import static io.evitadb.api.query.QueryConstraints.*;
  */
 @Slf4j
 public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<CollectionRestHandlingContext> {
+	@Nonnull private final ObjectReader queryBodyReader;
 	@Nonnull private final HeadConstraintResolver headConstraintResolver;
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 
+	/**
+	 * Configures the query body reader and the constraint resolvers for this endpoint.
+	 *
+	 * @param restApiHandlingContext REST configuration and schema for the queried collection
+	 */
 	protected QueryOrientedEntitiesHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
+		this.queryBodyReader = restApiHandlingContext.getObjectMapper().readerFor(QueryEntityRequestDto.class)
+			.with(StreamReadFeature.STRICT_DUPLICATE_DETECTION);
 
 		this.headConstraintResolver = new HeadConstraintResolver(restApiHandlingContext.getCatalogSchema());
 		this.filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext.getCatalogSchema());
@@ -114,13 +124,19 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 		return DEFAULT_SUPPORTED_CONTENT_TYPES;
 	}
 
+	/**
+	 * Parses the query body, records it for traffic reporting and resolves its query constraints.
+	 *
+	 * @param executionContext the endpoint request and its execution state
+	 * @return the resolved query
+	 */
 	@Nonnull
 	protected CompletableFuture<Query> resolveQuery(@Nonnull RestEndpointExecutionContext executionContext) {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 		return readRawRequestBody(executionContext)
 			.thenApply(rawRequestBody -> {
 				try {
-					final QueryEntityRequestDto body = parseRequestBody(rawRequestBody, QueryEntityRequestDto.class);
+					final QueryEntityRequestDto body = parseQueryBody(rawRequestBody);
 					trackSourceQuery(executionContext, rawRequestBody, null);
 					return body;
 				} catch (Exception e) {
@@ -202,6 +218,25 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 		}
 
 		return Objects.requireNonNull(head(headConstraints.toArray(HeadConstraint[]::new)));
+	}
+
+	/**
+	 * Reads the query body with duplicate JSON property detection at every nesting level.
+	 *
+	 * @param rawRequestBody JSON supplied by the client
+	 * @return the input query DTO
+	 */
+	@Nonnull
+	private QueryEntityRequestDto parseQueryBody(@Nonnull String rawRequestBody) {
+		Assert.isTrue(
+			!rawRequestBody.trim().isEmpty(),
+			() -> new RestInvalidArgumentException("Request's body contains no data.")
+		);
+		try {
+			return this.queryBodyReader.readValue(rawRequestBody);
+		} catch (JsonProcessingException e) {
+			throw new RestInvalidArgumentException("Invalid request body: " + e.getOriginalMessage(), e);
+		}
 	}
 
 	@Nullable

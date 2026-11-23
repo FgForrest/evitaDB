@@ -23,10 +23,17 @@
 
 package io.evitadb.api.configuration;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.io.TempDir;
+
+import javax.annotation.Nonnull;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -216,6 +223,67 @@ class EvitaConfigurationTest {
 					.name("my-server-123")
 					.build()
 			);
+		}
+	}
+
+	/**
+	 * The default server name is derived from the storage directory, so the configuration creates that directory.
+	 * Configurations creating the same directory at the same moment are covered by
+	 * `LongRunningStorageDirectoryCreationStressTest` in `evita_long_running_tests`.
+	 */
+	@Nested
+	@DisplayName("Storage directory")
+	class StorageDirectoryTest {
+
+		@TempDir
+		Path tempDir;
+
+		@Test
+		@DisplayName("should create a missing storage directory together with its missing parents")
+		void shouldCreateMissingStorageDirectoryWithItsParents() {
+			final Path storageDirectory = this.tempDir.resolve("parent").resolve("data");
+
+			buildWithStorageDirectory(storageDirectory);
+
+			assertTrue(Files.isDirectory(storageDirectory));
+		}
+
+		@Test
+		@DisplayName("should derive the same server name from an existing storage directory every time")
+		void shouldDeriveSameServerNameFromExistingStorageDirectory() throws IOException {
+			final Path storageDirectory = Files.createDirectory(this.tempDir.resolve("data"));
+
+			final EvitaConfiguration first = buildWithStorageDirectory(storageDirectory);
+			final EvitaConfiguration second = buildWithStorageDirectory(storageDirectory);
+
+			assertTrue(first.name().startsWith(EvitaConfiguration.DEFAULT_SERVER_NAME + "-"));
+			assertEquals(first.name(), second.name());
+		}
+
+		@Test
+		@DisplayName("should refuse a regular file in place of the storage directory")
+		void shouldRefuseRegularFileInPlaceOfStorageDirectory() throws IOException {
+			final Path storageDirectory = Files.createFile(this.tempDir.resolve("data"));
+
+			final EvitaInvalidUsageException refusal = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> buildWithStorageDirectory(storageDirectory)
+			);
+
+			assertEquals("Unable to create storage directory: " + storageDirectory, refusal.getPublicMessage());
+		}
+
+		/**
+		 * Builds a configuration with the default server name over the given storage directory.
+		 *
+		 * @param storageDirectory the storage directory of the configuration
+		 * @return the built configuration
+		 */
+		@Nonnull
+		private EvitaConfiguration buildWithStorageDirectory(@Nonnull Path storageDirectory) {
+			return EvitaConfiguration.builder()
+				.storage(StorageOptions.builder().storageDirectory(storageDirectory).build())
+				.build();
 		}
 	}
 }

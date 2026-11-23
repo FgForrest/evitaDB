@@ -43,7 +43,9 @@ public interface ReferenceHistogramDescriptor extends HistogramDescriptor {
 		.name("minReferencedEntity")
 		.description("""
 			Referenced entity whose value anchors the minimum bucket of the histogram.
-			Populated only when an entity fetch for the associated reference has been requested.
+			Returned together with `maxReferencedEntity` when both bounds of the histogram resolve to referenced
+			entities that can be loaded, otherwise neither is returned. The entity carries the content requested for
+			it, or only its identity and standard metadata when no content is requested.
 			""")
 		// type is expected to be an entity object of the reference target entity type
 		.build();
@@ -52,7 +54,9 @@ public interface ReferenceHistogramDescriptor extends HistogramDescriptor {
 		.name("maxReferencedEntity")
 		.description("""
 			Referenced entity whose value anchors the maximum bucket of the histogram.
-			Populated only when an entity fetch for the associated reference has been requested.
+			Returned together with `minReferencedEntity` when both bounds of the histogram resolve to referenced
+			entities that can be loaded, otherwise neither is returned. The entity carries the content requested for
+			it, or only its identity and standard metadata when no content is requested.
 			""")
 		// type is expected to be an entity object of the reference target entity type
 		.build();
