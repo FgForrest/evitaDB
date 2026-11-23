@@ -27,6 +27,7 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.core.executor.ObservableExecutorService;
+import io.evitadb.core.transaction.PendingCommitProgressRegistry;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
 import org.junit.jupiter.api.DisplayName;
@@ -91,6 +92,7 @@ class TrunkIncorporationTransactionStageTest {
 			return null;
 		}).when(synchronousExecutor).execute(any(Runnable.class));
 		when(tm.getRequestExecutor()).thenReturn(synchronousExecutor);
+		when(tm.getPendingCommitProgressRegistry()).thenReturn(new PendingCommitProgressRegistry());
 
 		final TrunkIncorporationTransactionStage stage = new TrunkIncorporationTransactionStage(
 			tm, 1_000L, (task, ex) -> {}
@@ -142,6 +144,7 @@ class TrunkIncorporationTransactionStageTest {
 			return null;
 		}).when(synchronousExecutor).execute(any(Runnable.class));
 		when(tm.getRequestExecutor()).thenReturn(synchronousExecutor);
+		when(tm.getPendingCommitProgressRegistry()).thenReturn(new PendingCommitProgressRegistry());
 
 		final TrunkIncorporationTransactionStage stage = new TrunkIncorporationTransactionStage(
 			tm, 1_000L, (task, ex) -> {}
@@ -193,6 +196,7 @@ class TrunkIncorporationTransactionStageTest {
 			return null;
 		}).when(synchronousExecutor).execute(any(Runnable.class));
 		when(tm.getRequestExecutor()).thenReturn(synchronousExecutor);
+		when(tm.getPendingCommitProgressRegistry()).thenReturn(new PendingCommitProgressRegistry());
 
 		final long flushFrequencyInMillis = 1_000L;
 		final TrunkIncorporationTransactionStage stage = new TrunkIncorporationTransactionStage(

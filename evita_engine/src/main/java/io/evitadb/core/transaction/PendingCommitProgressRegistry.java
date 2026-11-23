@@ -30,13 +30,15 @@ import io.evitadb.api.exception.TransactionException;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.Duration;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 /**
@@ -59,12 +61,23 @@ import java.util.function.LongSupplier;
  *    by a periodic scheduler task, while the pipeline reports its progress through
  *    [#recordPipelineProgress].
  *
- * 3. **Shutdown safety net** — [#failAllPending] fails every still-registered record when the
- *    transaction manager is closed, so clients are not left hanging on completion stages that the
- *    pipeline will never touch again.
+ * 3. **Safety net when the pipeline stops** — [#failAllPending] fails every still-registered record
+ *    when the catalog suspends, and [#failAllPendingAndLaterRegistrations] also fails every later
+ *    registration once the pipeline will never run again (the transaction manager closes, or its
+ *    catalog incarnation leaves the live view), so clients are not left hanging on completion stages
+ *    that the pipeline will never touch again.
  *
  * Every registered record auto-deregisters through its own `onChangesVisible().whenComplete(...)`
  * callback, so the registry never grows unbounded in the happy path.
+ *
+ * **Visibility claim**
+ *
+ * The visibility stage of a registered record is claimed once, before its session termination callback
+ * runs: the first of a successful publication (the record's own trunk task or a range fan-out), a
+ * failing trunk task, the sweep and the failure of the whole pipeline wins, and the others leave the
+ * record alone - so the session is terminated exactly once. A successful claim queues the completion of
+ * the future on an executor; the sweep and a pipeline failure may still fail a future whose queued
+ * completion never ran, without terminating the session again.
  *
  * **Thread-safety**
  *
@@ -96,6 +109,13 @@ public final class PendingCommitProgressRegistry {
 	private volatile long lastProgressNanos;
 
 	/**
+	 * Why the pipeline stopped for good, set by [#failAllPendingAndLaterRegistrations]: every later
+	 * registration is failed with it. `null` while the pipeline may still run.
+	 */
+	@Nullable
+	private volatile String terminalReason;
+
+	/**
 	 * Creates a registry measuring time by [System#nanoTime].
 	 */
 	public PendingCommitProgressRegistry() {
@@ -118,9 +138,8 @@ public final class PendingCommitProgressRegistry {
 	 * [#completeChangesVisibleInRange] can invoke the termination callback with the correct
 	 * per-record versions.
 	 *
-	 * The registration wires an auto-deregistration callback on the record's `onChangesVisible`
-	 * stage — so records that complete normally never require a manual removal and the registry
-	 * stays small in steady state.
+	 * The registration is removed when visibility settles. After
+	 * [#failAllPendingAndLaterRegistrations], new registrations fail immediately.
 	 *
 	 * @param catalogVersion the catalog version assigned by conflict resolution
 	 * @param record         the progress record created by the session that is waiting for the
@@ -134,11 +153,57 @@ public final class PendingCommitProgressRegistry {
 		@Nonnull CommitProgressRecord record,
 		@Nonnull CommitVersions commitVersions
 	) {
-		this.pending.put(catalogVersion, new PendingEntry(record, commitVersions, this.nanoClock.getAsLong()));
-		// auto-deregister on completion (success or failure) so the registry doesn't leak entries
-		record.onChangesVisible().whenComplete(
-			(result, throwable) -> this.pending.remove(catalogVersion)
+		final PendingEntry entry = new PendingEntry(
+			record, commitVersions, this.nanoClock.getAsLong(), new AtomicReference<>(), new AtomicLong()
 		);
+		this.pending.put(catalogVersion, entry);
+		record.onChangesVisible().whenComplete(
+			(result, throwable) -> this.pending.remove(catalogVersion, entry)
+		);
+		final String reason = this.terminalReason;
+		if (reason != null) {
+			failTerminatedEntry(catalogVersion, entry, reason);
+		}
+	}
+
+	/**
+	 * Completes the visibility of a trunk task's commit through the record's claim, so the session is
+	 * terminated once even when a range fan-out or a failure competes for the same record. A record the
+	 * registry does not hold under its version - never registered, already settled, or replaced by
+	 * another record - is completed directly.
+	 *
+	 * @param record   the task's commit progress
+	 * @param versions the versions assigned to the task
+	 * @param executor executor that settles the visibility future
+	 */
+	public void completeChangesVisible(
+		@Nonnull CommitProgressRecord record, @Nonnull CommitVersions versions, @Nonnull Executor executor
+	) {
+		final PendingEntry entry = this.pending.get(versions.catalogVersion());
+		if (entry == null || entry.record() != record) {
+			record.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, versions, executor);
+		} else {
+			completeEntry(entry, executor);
+		}
+	}
+
+	/**
+	 * Fails the visibility of a trunk task's commit through the record's claim. When another completion
+	 * has claimed the record first the failure is discarded - after a successful claim the commit is
+	 * visible and its session already terminated. A record the registry does not hold under that version
+	 * is failed directly.
+	 *
+	 * @param catalogVersion the version assigned to the task
+	 * @param record         the task's commit progress
+	 * @param failure        the cause to report
+	 */
+	public void failChangesVisible(
+		long catalogVersion, @Nonnull CommitProgressRecord record, @Nonnull Throwable failure
+	) {
+		final PendingEntry entry = this.pending.get(catalogVersion);
+		if (entry == null || entry.record() != record || entry.claim().compareAndSet(null, Completion.FAILURE)) {
+			record.completeExceptionally(failure);
+		}
 	}
 
 	/**
@@ -149,10 +214,8 @@ public final class PendingCommitProgressRegistry {
 	 * clients immediately instead of forcing them to wait for the publisher to re-deliver each
 	 * trunk task to the "already processed" branch.
 	 *
-	 * The operation is idempotent with respect to later pipeline completions: [CommitProgressRecord]
-	 * guards against double-completion internally, so if the publisher eventually delivers the
-	 * individual trunk task for a version we already completed here, its `complete` call becomes a
-	 * no-op.
+	 * Fan-out and an individual trunk task share the same claim, which precedes session termination and
+	 * remains in force while asynchronous completion of the future is queued.
 	 *
 	 * The `commitVersions` passed to each `complete` call are the versions captured at registration
 	 * time — this matters for records whose termination stage is [CommitBehavior#WAIT_FOR_CHANGES_VISIBLE]
@@ -176,13 +239,28 @@ public final class PendingCommitProgressRegistry {
 		final Set<Entry<Long, PendingEntry>> entries = this.pending
 			.subMap(exclusiveFrom, false, inclusiveTo, true)
 			.entrySet();
-		for (Map.Entry<Long, PendingEntry> entry : entries) {
-			final PendingEntry pendingEntry = entry.getValue();
-			pendingEntry.record().complete(
-				CommitBehavior.WAIT_FOR_CHANGES_VISIBLE,
-				pendingEntry.commitVersions(),
-				executor
-			);
+		for (final Map.Entry<Long, PendingEntry> entry : entries) {
+			completeEntry(entry.getValue(), executor);
+		}
+	}
+
+	/**
+	 * Claims success before session termination, then records when the completion of the future was queued, so a
+	 * stranded future can later be failed without terminating the session again. After a terminal failure of the
+	 * pipeline a future the queued completion has not settled yet is failed at once.
+	 *
+	 * @param entry record whose transaction is visible
+	 * @param executor executor that settles the visibility future
+	 */
+	private void completeEntry(@Nonnull PendingEntry entry, @Nonnull Executor executor) {
+		if (entry.claim().compareAndSet(null, Completion.SUCCESS)) {
+			entry.record().complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, entry.commitVersions(), executor);
+			entry.successQueuedAtNanos().set(this.nanoClock.getAsLong());
+			entry.claim().set(Completion.SUCCESS_QUEUED);
+			final String reason = this.terminalReason;
+			if (reason != null) {
+				failTerminatedEntry(entry.commitVersions().catalogVersion(), entry, reason);
+			}
 		}
 	}
 
@@ -213,6 +291,9 @@ public final class PendingCommitProgressRegistry {
 	 * - the live view has already reached its version - the pipeline moved past it without completing
 	 *   it, which no amount of further progress repairs.
 	 *
+	 * A record whose successful completion has been queued is lost only once that completion has not run
+	 * for `maxStall` either: until then it merely waits for its executor.
+	 *
 	 * The age counts from the registration, which is the moment the pipeline took the record over, not
 	 * from [CommitProgressRecord#getCommitStartTime]: a session creates its record when it opens, so
 	 * that time includes everything the session did before it committed. And a pipeline that keeps
@@ -237,9 +318,7 @@ public final class PendingCommitProgressRegistry {
 		final long maxStallNanos = maxStall.toNanos();
 		final long sinceProgressNanos = now - this.lastProgressNanos;
 		int failed = 0;
-		final Iterator<Map.Entry<Long, PendingEntry>> iterator = this.pending.entrySet().iterator();
-		while (iterator.hasNext()) {
-			final Map.Entry<Long, PendingEntry> entry = iterator.next();
+		for (final Map.Entry<Long, PendingEntry> entry : this.pending.entrySet()) {
 			final PendingEntry pendingEntry = entry.getValue();
 			final CommitProgressRecord record = pendingEntry.record();
 			if (!record.isDone()) {
@@ -248,6 +327,12 @@ public final class PendingCommitProgressRegistry {
 				if (sinceRegistrationNanos < maxStallNanos) {
 					// too young to judge - the map is keyed by catalog version, not by time, so later entries
 					// may be older and the iteration goes on
+					continue;
+				}
+				if (pendingEntry.claim().get() == Completion.SUCCESS_QUEUED &&
+					now - pendingEntry.successQueuedAtNanos().get() < maxStallNanos) {
+					// a round has made the record visible and its completion waits for the request executor - only a
+					// completion that has not run for the whole bound is stranded
 					continue;
 				}
 				final boolean passedByLiveView = entry.getKey() <= liveCatalogVersion;
@@ -265,56 +350,105 @@ public final class PendingCommitProgressRegistry {
 						"the live view already reached version " + liveCatalogVersion + " without completing it" :
 						"the transaction pipeline made no progress for more than " + maxStallMillis + "ms"
 				);
-				record.completeExceptionally(
-					new TransactionException(
-						"Commit progress for catalog version " + entry.getKey() + " has been pending for more " +
-							"than " + maxStallMillis + "ms " +
-							(passedByLiveView ?
-								"and the live view has already moved past it. " :
-								"without the transaction pipeline making any progress. ") +
-							"The transaction pipeline dropped this record; failing it to unblock waiters."
-					)
+				final TransactionException failure = new TransactionException(
+					"Commit progress for catalog version " + entry.getKey() + " has been pending for more " +
+						"than " + maxStallMillis + "ms " +
+						(passedByLiveView ?
+							"and the live view has already moved past it. " :
+							"without the transaction pipeline making any progress. ") +
+						"The transaction pipeline dropped this record; failing it to unblock waiters."
 				);
-				failed++;
+				if (failStalledEntry(pendingEntry, failure)) {
+					failed++;
+				}
 			}
 			// failing the record has already deregistered it through its completion callback - this removes a
 			// record that completed but whose callback has not run yet
-			iterator.remove();
+			if (record.isDone()) {
+				this.pending.remove(entry.getKey(), pendingEntry);
+			}
 		}
 		return failed;
 	}
 
 	/**
 	 * Fails every still-registered record with a [TransactionException] describing the supplied
-	 * reason, then clears the registry. Intended for pipeline shutdown paths where no further
-	 * completion can happen — [TransactionManager#close] being the primary caller.
+	 * reason and removes it from the registry. Intended for a pipeline that will not complete the
+	 * registered records - a suspended catalog, and through [#failAllPendingAndLaterRegistrations] a
+	 * closed transaction manager or a retired catalog incarnation. Records registered later are not
+	 * affected.
 	 *
-	 * Calling this during normal operation would prematurely fail in-flight records, so it must only
-	 * run once the caller is sure the pipeline will no longer process anything.
+	 * A record whose successful completion is still running its session termination keeps that claim
+	 * and stays registered until its completion settles it; one whose completion is only queued is
+	 * failed without terminating its session again.
 	 *
 	 * @param reason human-readable description included in the exception message (e.g.
 	 *               `"transaction manager is being closed"`)
 	 */
 	public void failAllPending(@Nonnull String reason) {
-		final Iterator<Map.Entry<Long, PendingEntry>> iterator = this.pending.entrySet().iterator();
-		while (iterator.hasNext()) {
-			final Map.Entry<Long, PendingEntry> entry = iterator.next();
-			final CommitProgressRecord record = entry.getValue().record();
-			if (!record.isDone()) {
-				log.warn(
-					"Failing dangling CommitProgressRecord for catalog version {} because {}.",
-					entry.getKey(), reason
-				);
-				record.completeExceptionally(
-					new TransactionException(
-						"Commit progress for catalog version " + entry.getKey() +
-							" is being failed because " + reason +
-							". The transaction pipeline will no longer complete this record."
-					)
-				);
-			}
-			iterator.remove();
+		for (final Map.Entry<Long, PendingEntry> entry : this.pending.entrySet()) {
+			failTerminatedEntry(entry.getKey(), entry.getValue(), reason);
 		}
+	}
+
+	/**
+	 * Fails every still-registered record as [#failAllPending] does, and every record registered from now on.
+	 * Meant for a pipeline that will never run again - a closed transaction manager, or one whose catalog
+	 * incarnation left the live view - where a record registered concurrently would otherwise wait for nothing.
+	 *
+	 * A suspension must not use it: conflict resolution appends a commit to the WAL even when its registration
+	 * fails, so failing a later registration would report a written commit as failed.
+	 *
+	 * @param reason human-readable description included in the exception message
+	 */
+	public void failAllPendingAndLaterRegistrations(@Nonnull String reason) {
+		this.terminalReason = reason;
+		failAllPending(reason);
+	}
+
+	/**
+	 * Fails one record on pipeline termination, including a record registered concurrently with termination.
+	 *
+	 * @param version version assigned to the record
+	 * @param entry pending record at that version
+	 * @param reason why the pipeline stopped
+	 */
+	private void failTerminatedEntry(long version, @Nonnull PendingEntry entry, @Nonnull String reason) {
+		if (!entry.record().isDone()) {
+			log.warn("Failing dangling CommitProgressRecord for catalog version {} because {}.", version, reason);
+			failStalledEntry(
+				entry,
+				new TransactionException(
+					"Commit progress for catalog version " + version + " is being failed because " + reason +
+						". The transaction pipeline will no longer complete this record."
+				)
+			);
+		}
+		if (entry.record().isDone()) {
+			this.pending.remove(version, entry);
+		}
+	}
+
+	/**
+	 * Fails a stalled record. If success already claimed termination, fail any stranded futures directly so
+	 * the watchdog or shutdown can still unblock clients without invoking termination a second time.
+	 *
+	 * @param entry stalled record and its claim
+	 * @param failure cause to report
+	 * @return whether this call failed the record
+	 */
+	private static boolean failStalledEntry(@Nonnull PendingEntry entry, @Nonnull Throwable failure) {
+		final CommitProgressRecord record = entry.record();
+		final Completion claimed = entry.claim().compareAndExchange(null, Completion.FAILURE);
+		if (claimed == null) {
+			record.completeExceptionally(failure);
+			return true;
+		} else if (claimed == Completion.SUCCESS_QUEUED) {
+			record.onConflictResolved().toCompletableFuture().completeExceptionally(failure);
+			record.onWalAppended().toCompletableFuture().completeExceptionally(failure);
+			return record.onChangesVisible().toCompletableFuture().completeExceptionally(failure);
+		}
+		return false;
 	}
 
 	/**
@@ -333,15 +467,33 @@ public final class PendingCommitProgressRegistry {
 	 * the termination callback with the correct per-record versions even though the underlying
 	 * future chain derives its value from the previous stage.
 	 *
-	 * @param record            the in-flight commit progress record waiting for pipeline completion
-	 * @param commitVersions    the versions assigned to this record at conflict-resolution time
-	 * @param registeredAtNanos the [#nanoClock] reading at the registration - the moment the pipeline took
-	 *                          the record over
+	 * @param record               the in-flight commit progress record waiting for pipeline completion
+	 * @param commitVersions       the versions assigned to this record at conflict-resolution time
+	 * @param registeredAtNanos    the [#nanoClock] reading at the registration - the moment the pipeline took
+	 *                             the record over
+	 * @param claim                holder of the completion that owns session termination; empty until a claim
+	 * @param successQueuedAtNanos the [#nanoClock] reading when a successful claim queued the completion of the
+	 *                             future, which lets the sweep tell a queued completion from a stranded one
 	 */
 	private record PendingEntry(
 		@Nonnull CommitProgressRecord record,
 		@Nonnull CommitVersions commitVersions,
-		long registeredAtNanos
+		long registeredAtNanos,
+		@Nonnull AtomicReference<Completion> claim,
+		@Nonnull AtomicLong successQueuedAtNanos
 	) {
 	}
+
+	/**
+	 * The completion that owns the record's session termination callback.
+	 */
+	private enum Completion {
+		/** The successful publisher owns session termination. */
+		SUCCESS,
+		/** Termination has returned and only the queued future completion may need recovery. */
+		SUCCESS_QUEUED,
+		/** The failing publisher owns session termination and future completion. */
+		FAILURE
+	}
+
 }

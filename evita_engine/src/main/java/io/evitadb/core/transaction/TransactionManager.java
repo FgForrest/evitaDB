@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.configuration.ChangeDataCaptureOptions;
@@ -83,7 +84,9 @@ import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
+import io.evitadb.function.LongObjectFunction;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
@@ -98,9 +101,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.Serial;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -229,10 +235,6 @@ public class TransactionManager implements Closeable {
 	 */
 	private final AtomicLong lastDurableCatalogVersion;
 	/**
-	 * Contains the ID of the last finalized transaction. This is used to skip already processed transaction.
-	 */
-	private final AtomicLong lastFinalizedCatalogVersion;
-	/**
 	 * Newest version whose {@link #notifyCatalogPresentInLiveView(Catalog)} has ended, whether its change observer
 	 * finished or failed, so it does not prove that observers ran. The living catalog advances earlier, before its
 	 * name, the finalized catalog reference and the change observer are updated.
@@ -244,14 +246,9 @@ public class TransactionManager implements Closeable {
 	 */
 	private final ConcurrentSkipListSet<FinalizedCatalogVersion> lastFinalizedCatalogVersionSchemaDelta;
 	/**
-	 * Contains reference to the current catalog snapshot this trunk incorporation task will be building upon.
-	 * The catalog is being exchanged regularly and the instance of the TransactionManager is not recreated - i.e. stays
-	 * the same for different catalog versions and is propagated throughout the whole lifetime of the "logical" catalog.
-	 *
-	 * This catalog might not be visible yet in evita instance and may differ from {@link #livingCatalog}. It is `null`
-	 * once this manager has been closed.
+	 * Finalized WAL cursor and the snapshot to start replay from, updated together. Closing releases the snapshot.
 	 */
-	private final AtomicReference<Catalog> lastFinalizedCatalog;
+	private final AtomicReference<ReplayBase> lastFinalizedCatalog;
 	/**
 	 * Task that is scheduled to drain the WAL and process the transactions that are not yet processed when there is
 	 * emergency situation when some of the tasks was not processed.
@@ -291,11 +288,20 @@ public class TransactionManager implements Closeable {
 	 */
 	private final ReentrantLock catalogPropagationLock = new ReentrantLock(true);
 	/**
-	 * Queue of mutations that are waiting for their changes to be incorporated into the last finalized catalog.
-	 * We use linked list because we expect very short queue most of the time and we want to avoid array resizing,
-	 * that is usually empty.
+	 * Schema notifications queued by WAL replay and consumed by live publication. A later round can enqueue while
+	 * the preceding round is still publishing.
 	 */
-	private final Deque<ModifyCatalogSchemaMutationWithCatalogVersion> engineMutationsQueue = new LinkedList<>();
+	private final Queue<ModifyCatalogSchemaMutationWithCatalogVersion> engineMutationsQueue =
+		new ConcurrentLinkedQueue<>();
+	/**
+	 * Set when the engine rejects publication because this incarnation no longer owns the binding.
+	 */
+	private volatile boolean publicationRetired;
+	/**
+	 * Finalized snapshots whose publication failed, keyed by the version that preceded each round.
+	 * The WAL drainer removes entries after publishing them and completing their pending visibility records.
+	 */
+	private final ConcurrentSkipListMap<Long, Catalog> unpublishedCatalogs = new ConcurrentSkipListMap<>();
 	/**
 	 * Watchdog registry that tracks in-flight {@link CommitProgressRecord}s by assigned catalog version
 	 * and fails any record that the transaction pipeline drops on the floor once the catalog advances
@@ -453,7 +459,7 @@ public class TransactionManager implements Closeable {
 			) :
 			ChangeCatalogObserverContract.NO_OP;
 
-		this.lastFinalizedCatalog = new AtomicReference<>(catalog);
+		this.lastFinalizedCatalog = new AtomicReference<>(new ReplayBase(catalog.getVersion(), catalog));
 		this.livingCatalog = new AtomicReference<>(catalog);
 		this.catalogName = catalog.getName();
 
@@ -475,9 +481,6 @@ public class TransactionManager implements Closeable {
 		this.lastWrittenCatalogVersion = new AtomicLong(bootstrapAssignedVersion);
 		// whatever the WAL already contains at bootstrap is durable by definition - it survived a restart
 		this.lastDurableCatalogVersion = new AtomicLong(bootstrapAssignedVersion);
-		// this is the catalog version really used (propagated in indexes) - WAL replay will advance
-		// this to match lastWritten before any new transactions can be accepted
-		this.lastFinalizedCatalogVersion = new AtomicLong(catalog.getVersion());
 		this.lastVisibleCatalogVersion = new AtomicLong(catalog.getVersion());
 		this.lastFinalizedCatalogVersionSchemaDelta = new ConcurrentSkipListSet<>();
 
@@ -623,7 +626,9 @@ public class TransactionManager implements Closeable {
 				);
 			}
 		}
-		// whether or not we won the race, no parked client may be left waiting on a pipeline that will never run again
+		// whether or not we won the race, no parked client may be left waiting on a pipeline that will never run again.
+		// Later registrations are not refused: a commit still waiting in conflict resolution is appended to the WAL
+		// anyway, so it is reported written and its visibility fails in bounded time instead
 		this.pendingCommitProgressRegistry.failAllPending(
 			"the catalog has been suspended after a failed transaction incorporation"
 		);
@@ -747,16 +752,14 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * This method is called when any of the {@link SubmissionPublisher}
-	 * gets closed - for example due to the exception in the processing of the transactional task. One of the possible
-	 * issues is that the system can't keep up and throws {@link RejectedExecutionException}.
+	 * Wakes WAL recovery after a trunk task fails while the catalog's drainer is still active.
 	 *
-	 * In such a situation, the submission publisher is automatically closed and needs to be recreated from scratch.
-	 * This is design decision form the authors of the {@link java.util.concurrent.Flow} API.
+	 * @param task the task that failed
+	 * @param ex   cause of the task failure
 	 */
 	public void retryTransactionProcessing(@Nonnull TransactionTask task, @Nonnull Throwable ex) {
 		if (task instanceof TrunkIncorporationTransactionTask) {
-			this.walDrainingTask.schedule();
+			this.walDrainingTask.trySchedule();
 		}
 	}
 
@@ -810,7 +813,10 @@ public class TransactionManager implements Closeable {
 
 	/**
 	 * Informs transactional pipeline jobs that the catalog version has advanced due to external reasons (such as
-	 * catalog renaming).
+	 * go-live or a catalog rename). The replay base does not move here: it advances together with its snapshot when
+	 * the new catalog is installed into the live view.
+	 *
+	 * @param catalogVersion the externally persisted catalog version
 	 */
 	public void advanceVersion(long catalogVersion) {
 		// we need to advance the version to the latest committed version
@@ -836,7 +842,6 @@ public class TransactionManager implements Closeable {
 			theLastFinalizedCatalogVersion <= catalogVersion,
 			"Unexpected catalog version " + catalogVersion + " vs. " + theLastFinalizedCatalogVersion + "!"
 		);
-		this.lastFinalizedCatalogVersion.set(catalogVersion);
 	}
 
 	/**
@@ -920,16 +925,17 @@ public class TransactionManager implements Closeable {
 	 * @return the last incorporated catalog version
 	 */
 	public long getLastFinalizedCatalogVersion() {
-		return this.lastFinalizedCatalogVersion.get();
+		return this.lastFinalizedCatalog.get().version();
 	}
 
 	/**
-	 * Updates the last finalized catalog version to the given value.
+	 * Advances the replay cursor and base under the trunk incorporation lock.
 	 *
-	 * @param lastFinalizedCatalog        the last finalized catalog
-	 * @param lastFinalizedCatalogVersion the last finalized catalog version
+	 * @param lastFinalizedCatalog                  the last finalized catalog
+	 * @param lastFinalizedCatalogVersion           the last finalized catalog version
+	 * @param incorporatedCatalogSchemaVersionDelta the schema versions incorporated in this round
 	 */
-	public void updateLastFinalizedCatalog(
+	private void updateLastFinalizedCatalog(
 		@Nonnull Catalog lastFinalizedCatalog,
 		long lastFinalizedCatalogVersion,
 		int incorporatedCatalogSchemaVersionDelta
@@ -944,8 +950,6 @@ public class TransactionManager implements Closeable {
 			lastFinalizedCatalog.getVersion() == lastFinalizedCatalogVersion,
 			"Catalog version must match the catalog version number!"
 		);
-		this.lastFinalizedCatalog.set(lastFinalizedCatalog);
-		this.lastFinalizedCatalogVersion.set(lastFinalizedCatalogVersion);
 		this.lastFinalizedCatalogVersionSchemaDelta.add(
 			new FinalizedCatalogVersion(lastFinalizedCatalogVersion, incorporatedCatalogSchemaVersionDelta)
 		);
@@ -970,6 +974,10 @@ public class TransactionManager implements Closeable {
 				getLastAssignedCatalogVersion()
 			);
 		}
+		this.lastFinalizedCatalog.updateAndGet(current -> {
+			requireReplayCatalog(current);
+			return new ReplayBase(lastFinalizedCatalogVersion, lastFinalizedCatalog);
+		});
 	}
 
 	/**
@@ -1020,8 +1028,13 @@ public class TransactionManager implements Closeable {
 					"Expected " + previousLivingCatalog.getVersion() + ", got " + catalogVersion + "."
 			);
 			final long theLastFinalizedVersion = getLastFinalizedCatalogVersion();
+			// go-live is the one publication ahead of the finalized cursor: `advanceVersion` assigns its version
+			// without moving the replay base, which moves to the ALIVE catalog only below, together with its snapshot
 			Assert.isPremiseValid(
-				theLastFinalizedVersion >= catalogVersion,
+				theLastFinalizedVersion >= catalogVersion ||
+					(previousLivingCatalog.getCatalogState() == CatalogState.WARMING_UP &&
+						livingCatalog.getCatalogState() == CatalogState.ALIVE &&
+						catalogVersion == getLastAssignedCatalogVersion()),
 				() -> "Catalog versions must be in order! " +
 					"Expected " + theLastFinalizedVersion + ", got " + catalogVersion + "."
 			);
@@ -1044,9 +1057,10 @@ public class TransactionManager implements Closeable {
 			}
 		);
 
-		if (this.lastFinalizedCatalogVersion.getAndUpdate(current -> Math.max(current, catalogVersion)) <= catalogVersion) {
-			this.lastFinalizedCatalog.set(livingCatalog);
-		}
+		this.lastFinalizedCatalog.updateAndGet(current ->
+			current.catalog() != null && current.version() <= catalogVersion ?
+				new ReplayBase(catalogVersion, livingCatalog) : current
+		);
 
 		try {
 			this.changeObserver.notifyCatalogPresentInLiveView(livingCatalog);
@@ -1471,16 +1485,23 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Processes transactions by reading mutations from the WAL and replaying them on the catalog.
 	 *
+	 * A live round does not start while an earlier finalized round has not reached the live view or waits for the
+	 * WAL drainer to publish it: it leaves the backlog in the WAL, wakes the drainer and returns empty.
+	 *
 	 * @param nextCatalogVersion The catalog version of the next transaction to be processed at minimum
 	 * @param timeoutMs          The maximum time in milliseconds to process transactions.
 	 * @param alive              Indicates whether to process live transactions or not.
 	 * @param waitForLock        Indicates whether to wait for the trunk incorporation lock.
 	 * @param progressCallback   A callback to report progress during transaction processing.
-	 * @return The processed transaction.
-	 * @throws WriteAheadLogCorruptedException when the mutation stream is empty but the finalized
-	 *                                          version has not yet reached {@code nextCatalogVersion}
-	 *                                          — i.e. a committed transaction was expected but could
-	 *                                          not be read from the WAL
+	 * @return the finalized round, or empty when suspended, awaiting publication, unable to obtain the lock,
+	 *         or already caught up
+	 * @throws WriteAheadLogCorruptedException    when the mutation stream is empty but the finalized
+	 *                                            version has not yet reached {@code nextCatalogVersion}
+	 *                                            — i.e. a committed transaction was expected but could
+	 *                                            not be read from the WAL
+	 * @throws TransactionTimedOutException       when an offline round's predecessor does not become visible in time
+	 * @throws InstanceTerminatedException        when this manager has been closed
+	 * @throws CatalogPublicationSkippedException when the engine has retired this catalog incarnation
 	 */
 	@Nonnull
 	public Optional<ProcessResult> processTransactions(
@@ -1489,6 +1510,40 @@ public class TransactionManager implements Closeable {
 		boolean alive,
 		boolean waitForLock,
 		@Nonnull LongConsumer progressCallback
+	) {
+		return processTransactions(
+			nextCatalogVersion, timeoutMs, alive, waitForLock, progressCallback,
+			(fromVersion, catalog) -> alive ?
+				catalog.getCommittedLiveMutationStream(
+					fromVersion, getLastDurableCatalogVersion(), VersionSource.INTERNAL
+				) : catalog.getCommittedMutationStream(fromVersion)
+		);
+	}
+
+	/**
+	 * Replays a WAL round using the selected live or offline mutation stream.
+	 *
+	 * @param nextCatalogVersion minimum catalog version to process
+	 * @param timeoutMs          greedy replay budget in milliseconds
+	 * @param alive              whether this round is for a live catalog
+	 * @param waitForLock        whether to wait for the trunk incorporation lock
+	 * @param progressCallback   receives each replayed version
+	 * @param openMutationStream opens the WAL stream for the replay base and starting version
+	 * @return the finalized round, or empty when suspended, awaiting publication, unable to obtain the lock,
+	 *         or already caught up
+	 * @throws WriteAheadLogCorruptedException    if a required WAL transaction cannot be read
+	 * @throws TransactionTimedOutException       if offline replay's predecessor fails to become visible
+	 * @throws InstanceTerminatedException        when this manager has been closed
+	 * @throws CatalogPublicationSkippedException when the engine has retired this catalog incarnation
+	 */
+	@Nonnull
+	Optional<ProcessResult> processTransactions(
+		long nextCatalogVersion,
+		long timeoutMs,
+		boolean alive,
+		boolean waitForLock,
+		@Nonnull LongConsumer progressCallback,
+		@Nonnull LongObjectFunction<Catalog, Stream<CatalogBoundMutation>> openMutationStream
 	) {
 		// Gate every drain of the WAL, before the trunk lock is taken or a single mutation is read. This is the point
 		// the suspension has to bite: a freshly appended transaction schedules the draining task on its own, entirely
@@ -1506,10 +1561,20 @@ public class TransactionManager implements Closeable {
 				locked = this.trunkIncorporationLock.tryLock(0, TimeUnit.MILLISECONDS);
 			}
 			if (locked) {
-				long firstTransactionId = -1;
+				if (alive) {
+					requireLivingCatalog();
+				}
+				final ReplayBase replayBase = this.lastFinalizedCatalog.get();
+				final Catalog latestCatalog = requireReplayCatalog(replayBase);
+				final long lastFinalizedVersion = replayBase.version();
+				if (alive && (lastFinalizedVersion > this.lastVisibleCatalogVersion.get() ||
+					!this.unpublishedCatalogs.isEmpty())) {
+					// The cursor also covers the gap between finalization and a failed publisher retaining the result.
+					this.walDrainingTask.trySchedule();
+					return empty();
+				}
 				TransactionMutation lastTransactionMutation;
 				Transaction lastTransaction = null;
-				final Catalog newCatalog;
 				// the version whose changes we got as far as collecting + writing, or -1 if we never got that far;
 				// see the catch below
 				long collectingVersion = -1;
@@ -1518,10 +1583,6 @@ public class TransactionManager implements Closeable {
 				int localMutationCount = 0;
 
 				final ArrayList<OffsetDateTime> processed = new ArrayList<>(64);
-				final long lastFinalizedVersion = getLastFinalizedCatalogVersion();
-				final Catalog latestCatalog = getLastFinalizedCatalog();
-
-				Stream<CatalogBoundMutation> committedMutationStream = null;
 				try {
 					// prepare finalizer that doesn't finish the catalog automatically but on demand
 					final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(latestCatalog);
@@ -1529,53 +1590,46 @@ public class TransactionManager implements Closeable {
 					// (but at least 2 - this is the first processable transaction number after going live)
 					// if the transaction failed we need to replay it again
 					final long readFromVersion = Math.max(lastFinalizedVersion + 1, 2);
-					if (alive) {
-						// bounded by the DURABLE version, not the written one: a greedy round drains as far as
-						// this bound allows and then checkpoints what it incorporated into the data files. Were
-						// the bound `lastWritten`, a round could checkpoint a version whose WAL bytes are still
-						// only in the page cache, and a crash in that window would leave a catalog claiming a
-						// version its own WAL no longer reaches
-						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(
-							readFromVersion, getLastDurableCatalogVersion(), VersionSource.INTERNAL
-						);
-					} else {
-						committedMutationStream = latestCatalog.getCommittedMutationStream(
-							readFromVersion
-						);
-					}
-					final Iterator<CatalogBoundMutation> mutationIterator = committedMutationStream.iterator();
-					if (!mutationIterator.hasNext()) {
-						// an empty stream is only legitimately "already processed" when the finalized version
-						// has actually reached the version we were asked to process; if it has not, the WAL
-						// delivered nothing for a version we must reach — reporting "someone else did it"
-						// would silently finalize at a stale version and leave the commit-progress record
-						// (and any client awaiting it) hanging forever
-						if (lastFinalizedVersion >= nextCatalogVersion) {
-							// previous execution already processed all the mutations
-							return empty();
+					// A live round reads only WAL bytes covered by a force, so any bootstrap it publishes
+					// after incorporating them cannot claim a version its WAL would lose on restart.
+					try (
+						final Stream<CatalogBoundMutation> committedMutationStream =
+							openMutationStream.apply(readFromVersion, latestCatalog)
+					) {
+						final Iterator<CatalogBoundMutation> mutationIterator = committedMutationStream.iterator();
+						if (!mutationIterator.hasNext()) {
+							// an empty stream is only legitimately "already processed" when the finalized version
+							// has actually reached the version we were asked to process; if it has not, the WAL
+							// delivered nothing for a version we must reach — reporting "someone else did it"
+							// would silently finalize at a stale version and leave the commit-progress record
+							// (and any client awaiting it) hanging forever
+							if (lastFinalizedVersion >= nextCatalogVersion) {
+								// previous execution already processed all the mutations
+								return empty();
+							}
+							throw new WriteAheadLogCorruptedException(
+								WalKind.CATALOG,
+								"WAL mutation stream of catalog `" + getCatalogName() + "` went dry at finalized " +
+									"version " + lastFinalizedVersion + " without reaching requested version " +
+									nextCatalogVersion + " (last written version " +
+									this.lastWrittenCatalogVersion.get() + ", last durable version " +
+									this.lastDurableCatalogVersion.get() + "). A committed transaction was not " +
+									"readable - refusing to report it as already processed.",
+								"Write-ahead log mutation stream ended before reaching a committed transaction."
+							);
 						}
-						throw new WriteAheadLogCorruptedException(
-							WalKind.CATALOG,
-							"WAL mutation stream of catalog `" + getCatalogName() + "` went dry at finalized " +
-								"version " + lastFinalizedVersion + " without reaching requested version " +
-								nextCatalogVersion + " (last written version " +
-								this.lastWrittenCatalogVersion.get() + ", last durable version " +
-								this.lastDurableCatalogVersion.get() + "). A committed transaction was not " +
-								"readable - refusing to report it as already processed.",
-							"Write-ahead log mutation stream ended before reaching a committed transaction."
-						);
-					} else {
 						long nextExpectedCatalogVersion = lastFinalizedVersion + 1;
 						// and process them
 						final long start = System.currentTimeMillis();
 						do {
-							Mutation leadingMutation = mutationIterator.next();
-							// the first mutation of the transaction bulk must be transaction mutation
-							Assert.isPremiseValid(leadingMutation instanceof TransactionMutation, "First mutation must be transaction mutation!");
-							firstTransactionId = firstTransactionId == -1 ? ((TransactionMutation) leadingMutation).getVersion() : firstTransactionId;
+							final Mutation leadingMutation = mutationIterator.next();
+							Assert.isPremiseValid(
+								leadingMutation instanceof TransactionMutation,
+								"First mutation must be transaction mutation!"
+							);
 
 							final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
-							long finalNextExpectedCatalogVersion = nextExpectedCatalogVersion;
+							final long expectedCatalogVersion = nextExpectedCatalogVersion;
 							// this continuity check is also what guards the write-ahead log against reordered,
 							// duplicated or dropped transactions - the log's cumulative checksum cannot see them,
 							// because folding a checksum into the state that produced it resets that state (the
@@ -1585,21 +1639,24 @@ public class TransactionManager implements Closeable {
 								transactionMutation.getVersion() == nextExpectedCatalogVersion,
 								() -> new GenericEvitaInternalError(
 									"Unexpected catalog version! " +
-										"Transaction mutation catalog version: " + transactionMutation.getVersion() + ", " +
-										"last finalized catalog version: " + finalNextExpectedCatalogVersion + "."
+										"Transaction mutation catalog version: " +
+										transactionMutation.getVersion() +
+										", last finalized catalog version: " + expectedCatalogVersion + "."
 								)
-
 							);
 
 							log.debug("Starting transaction: {}", transactionMutation);
 
 							// prepare "replay" transaction
-							lastTransaction = createTransaction(transactionMutation, lastTransaction, transactionHandler);
+							lastTransaction = createTransaction(
+								transactionMutation, lastTransaction, transactionHandler
+							);
 
 							// and replay all the mutations of the entire transaction from the WAL
 							// this cannot be interrupted even if the timeout is exceeded and must be fully applied
 							final int[] processedCounts = replayMutationsOnCatalog(
 								this.evita,
+								latestCatalog,
 								transactionMutation,
 								lastTransaction,
 								mutationIterator
@@ -1623,36 +1680,50 @@ public class TransactionManager implements Closeable {
 									// we haven't reached expected version
 									lastTransactionMutation.getVersion() < nextCatalogVersion ||
 										// there is another transaction waiting and we still have a time
-										thereIsEnoughDataAndTime(timeoutMs, start, latestCatalog, lastTransactionMutation)
+										thereIsEnoughDataAndTime(
+											timeoutMs, start, latestCatalog, lastTransactionMutation
+										)
 								)
 						);
 
 						log.debug(
 							"Processed {} transactions ({} atomic mutations, {} local mutations) in {} ms",
-							processed.size(), atomicMutationCount, localMutationCount, (System.currentTimeMillis() - start)
+							processed.size(), atomicMutationCount, localMutationCount,
+							System.currentTimeMillis() - start
 						);
 					}
 
-					// we've run out of mutation, or the timeout has been exceeded, create a new catalog version now
-					// and update the last finalized transaction ID and catalog version
-					// From here on the collect has begun: the flush pops every trapped change, advances every page
-					// baseline and writes, and the merge then publishes those baselines. A failure anywhere inside
-					// leaves the baselines describing a write that may never have landed, which is precisely the state
-					// no retry may run against - so the scope is POSITIONAL (where we failed), never by exception type.
+					if (!alive) {
+						waitUntilLiveVersionReaches(lastFinalizedVersion);
+					}
+					Assert.isPremiseValid(lastTransaction != null, "Transaction must not be null!");
+					// Collecting advances the page baselines and writes the catalog. If it fails, another round
+					// cannot rely on those baselines. This boundary depends on where the failure occurred.
 					collectingVersion = lastTransactionMutation.getVersion();
-					newCatalog = commitChangesToSharedCatalog(lastTransactionMutation, lastTransaction, transactionHandler);
+					final Catalog newCatalog = commitChangesToSharedCatalog(
+						lastTransactionMutation, lastTransaction, transactionHandler
+					);
+					final Optional<ProcessResult> result = of(new ProcessResult(
+						lastTransaction.getTransactionId(),
+						atomicMutationCount,
+						localMutationCount,
+						newCatalog,
+						lastFinalizedVersion,
+						processed.toArray(OffsetDateTime[]::new)
+					));
 					updateLastFinalizedCatalog(
 						newCatalog,
 						lastTransactionMutation.getVersion(),
 						newCatalog.getSchema().version() - this.lastCatalogSchemaVersion.get()
 					);
-
-					log.debug("Finalizing catalog: {}", lastTransactionMutation.getVersion());
-
+					return result;
 				} catch (RuntimeException ex) {
-					// we need to forget about the data written to disk, but not yet propagated to indexes (volatile data)
+					// Retract this attempt's unpublished changes and notifications before any retry reads its WAL.
 					latestCatalog.forgetVolatileData();
-					final Catalog catalog = this.lastFinalizedCatalog.get();
+					this.engineMutationsQueue.removeIf(
+						notification -> notification.catalogVersion() > lastFinalizedVersion
+					);
+					final Catalog catalog = this.lastFinalizedCatalog.get().catalog();
 					if (catalog == null) {
 						// the manager was closed while this round ran - `close()` took the change observer down and
 						// failed every commit still pending, so there are no captures left to retract and no later
@@ -1670,25 +1741,7 @@ public class TransactionManager implements Closeable {
 					// rethrow the exception - a failure BEFORE the collect (an unreadable WAL tail, a replay error) is
 					// still safely retryable and keeps its bounded retry
 					throw ex;
-				} finally {
-					if (committedMutationStream != null) {
-						committedMutationStream.close();
-					}
 				}
-
-				Assert.isPremiseValid(lastTransaction != null, "Transaction must not be null!");
-				final ProcessResult processResult = new ProcessResult(
-					lastTransaction.getTransactionId(),
-					atomicMutationCount,
-					localMutationCount,
-					newCatalog,
-					processed.toArray(OffsetDateTime[]::new)
-				);
-
-				// we can't push another catalog version until the previous one is propagated to the "live view"
-				waitUntilLiveVersionReaches(lastFinalizedVersion);
-
-				return of(processResult);
 			} else {
 				return empty();
 			}
@@ -1703,20 +1756,65 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Propagates the new catalog version to the "live view" of the evitaDB engine.
+	 * Propagates a finalized round to the live view and retains its snapshot if publication fails.
 	 *
-	 * @param newCatalogVersion the new catalog version to propagate
+	 * Any failure is handed to `onFailure` first, so the caller's commit is settled before the WAL drainer can
+	 * complete it, and is then rethrown. If the round has not reached the live view by then, its snapshot is kept
+	 * for the drainer to publish later. A skipped publication is terminal instead: the incarnation has left the live
+	 * view, so the drainer is closed, retained snapshots are dropped, and every pending commit fails, including any
+	 * registered later.
+	 *
+	 * @param previousCatalogVersion version that preceded this round
+	 * @param newCatalogVersion      finalized catalog to publish
+	 * @param onFailure              settles the caller's failure before the round is eligible for recovery
+	 * @throws CatalogPublicationSkippedException when the engine has retired this incarnation
+	 * @throws TransactionTimedOutException       when another publisher holds the propagation lock, or the engine
+	 *                                            still serves an older version of the catalog
 	 */
-	public void propagateCatalogSnapshot(@Nonnull Catalog newCatalogVersion) {
+	public void propagateCatalogSnapshot(
+		long previousCatalogVersion, @Nonnull Catalog newCatalogVersion, @Nonnull Consumer<Throwable> onFailure
+	) {
+		try {
+			publishCatalogSnapshot(newCatalogVersion);
+		} catch (CatalogPublicationSkippedException ex) {
+			this.publicationRetired = true;
+			IOUtils.closeQuietly(this.walDrainingTask::close);
+			this.unpublishedCatalogs.clear();
+			this.pendingCommitProgressRegistry.failAllPendingAndLaterRegistrations(
+				"its catalog incarnation left the live view"
+			);
+			throw ex;
+		} catch (RuntimeException | Error ex) {
+			try {
+				onFailure.accept(ex);
+			} finally {
+				if (this.lastVisibleCatalogVersion.get() < newCatalogVersion.getVersion()) {
+					retainUnpublishedCatalog(previousCatalogVersion, newCatalogVersion);
+				}
+			}
+			throw ex;
+		}
+	}
+
+	/**
+	 * Installs the finalized catalog and submits schema notifications through that version under the propagation lock.
+	 *
+	 * @param newCatalogVersion finalized catalog to publish
+	 */
+	private void publishCatalogSnapshot(@Nonnull Catalog newCatalogVersion) {
 		// read before publishing: a rename goes ahead once the live view has caught up, and it rewrites the name on
 		// this very instance, so a later read could mistake this round's own notifications for stale ones
 		final String publishedCatalogName = newCatalogVersion.getName();
 		try {
 			if (this.catalogPropagationLock.tryLock(0, TimeUnit.MILLISECONDS)) {
+				requireLivingCatalog();
 				this.newCatalogVersionConsumer.accept(newCatalogVersion);
-				while (
-					!this.engineMutationsQueue.isEmpty() &&
-						this.engineMutationsQueue.peek().catalogVersion() <= newCatalogVersion.getVersion()
+				// the head is read once per pass: a later round that fails retracts its notifications concurrently, so
+				// a separate emptiness check could see an entry that is gone by the time it is read
+				for (
+					ModifyCatalogSchemaMutationWithCatalogVersion head = this.engineMutationsQueue.peek();
+					head != null && head.catalogVersion() <= newCatalogVersion.getVersion();
+					head = this.engineMutationsQueue.peek()
 				) {
 					// apply the mutation to the living catalog
 					final ModifyCatalogSchemaMutationWithCatalogVersion mcsmwcv = Objects.requireNonNull(
@@ -1767,6 +1865,8 @@ public class TransactionManager implements Closeable {
 	 *
 	 * @param catalogVersion The catalog version to wait for in the "live view".
 	 * @throws TransactionTimedOutException when the live view does not reach the version in time
+	 * @throws InstanceTerminatedException when the transaction manager closes
+	 * @throws CatalogPublicationSkippedException when the engine retires the catalog incarnation
 	 */
 	public void waitUntilLiveVersionReaches(long catalogVersion) {
 		waitUntilVersionReaches(
@@ -1792,8 +1892,9 @@ public class TransactionManager implements Closeable {
 	 * `engineStateLock` to apply queued schema mutations. A round may still be in that schema tail on return.
 	 * Its notification is then refused, by the operation's conflict keys or by the old name being gone, and its
 	 * `onChangesVisible` fails with its data visible, as with any engine mutation racing a schema-changing round on
-	 * that catalog. Notifications queued behind the refused one stay queued, and the next round drops them if the
-	 * operation has retired their name: see {@link #propagateCatalogSnapshot(Catalog)}.
+	 * that catalog. Notifications queued behind the refused one stay queued, and the next round's publication drops
+	 * them if the operation has retired their name: see {@link #propagateCatalogSnapshot(long, Catalog, Consumer)}.
+	 * The WAL drainer can publish too, so its service-executor thread can also wait for `engineStateLock` here.
 	 *
 	 * The caller has already closed the open sessions by the time this refuses, so a refusal leaves the catalogs with
 	 * their names and data, not with their sessions.
@@ -1955,11 +2056,15 @@ public class TransactionManager implements Closeable {
 	 * Returns the living catalog for work that cannot proceed without one.
 	 *
 	 * @return the living catalog instance visible to all queries
+	 * @throws CatalogPublicationSkippedException when the live view has been retired
 	 * @throws InstanceTerminatedException when this manager has already been closed
 	 */
 	@Nonnull
 	private Catalog requireLivingCatalog() {
 		final Catalog theLivingCatalog = this.livingCatalog.get();
+		if (this.publicationRetired) {
+			throw new CatalogPublicationSkippedException(this.catalogName);
+		}
 		if (theLivingCatalog == null) {
 			throw createTerminatedException();
 		}
@@ -1978,11 +2083,23 @@ public class TransactionManager implements Closeable {
 	 */
 	@Nonnull
 	public Catalog getLastFinalizedCatalog() {
-		final Catalog theLastFinalizedCatalog = this.lastFinalizedCatalog.get();
-		if (theLastFinalizedCatalog == null) {
+		return requireReplayCatalog(this.lastFinalizedCatalog.get());
+	}
+
+	/**
+	 * Returns the replay snapshot whose version was captured alongside it.
+	 *
+	 * @param replayBase the sampled replay cursor and snapshot
+	 * @return the catalog in the sampled state
+	 * @throws InstanceTerminatedException when the sampled state has already released its snapshot
+	 */
+	@Nonnull
+	private Catalog requireReplayCatalog(@Nonnull ReplayBase replayBase) {
+		final Catalog catalog = replayBase.catalog();
+		if (catalog == null) {
 			throw createTerminatedException();
 		}
-		return theLastFinalizedCatalog;
+		return catalog;
 	}
 
 	/**
@@ -2016,6 +2133,11 @@ public class TransactionManager implements Closeable {
 		return this.changeObserver.registerObserver(request);
 	}
 
+	/**
+	 * Closes the pipeline, fails pending commit progress and releases the catalog snapshots.
+	 *
+	 * Resource close failures are logged.
+	 */
 	@Override
 	public void close() throws IOException {
 		IOUtils.closeQuietly(
@@ -2028,9 +2150,12 @@ public class TransactionManager implements Closeable {
 		// CompletionStages are unblocked with a descriptive exception rather than hanging forever
 		// (e.g. when the request executor accepted an async completion task that shutdownNow
 		// then drained before it could run, or when a transaction was in-flight at shutdown)
-		this.pendingCommitProgressRegistry.failAllPending("the transaction manager is being closed");
+		this.pendingCommitProgressRegistry.failAllPendingAndLaterRegistrations(
+			"the transaction manager is being closed"
+		);
 		this.livingCatalog.set(null);
-		this.lastFinalizedCatalog.set(null);
+		this.lastFinalizedCatalog.updateAndGet(current -> new ReplayBase(current.version(), null));
+		this.unpublishedCatalogs.clear();
 	}
 
 	/**
@@ -2179,17 +2304,23 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Sends the task simulating the WAL stage finalization with tasks that drains entire contents of
-	 * the WAL in the trunk incorporation stage. This should handle the situation when last transaction
-	 * was not processed due to queues being full. When no other transaction comes the WAL will forever
-	 * contain more records than are incorporated in the catalog.
+	 * Publishes the retained snapshots in version order, stopping at the first whose predecessor is not live yet or
+	 * whose publication fails, then incorporates and publishes any remaining durable WAL transactions.
 	 *
-	 * @return `0` to reschedule immediately when a transient condition (busy lock or a momentarily
-	 * unreadable WAL tail) prevented draining, `-1` to pause the task once draining completed
+	 * @return `0` to reschedule when a retained or drained snapshot could not be published yet, or the WAL tail was
+	 * momentarily unreadable; `-1` to pause once drained, or when the catalog has closed or left the live view
 	 */
-	private long drainWal() {
+	long drainWal() {
 		try {
-			this.processTransactions(
+			for (final Map.Entry<Long, Catalog> pendingPublication : this.unpublishedCatalogs.entrySet()) {
+				final long previousCatalogVersion = pendingPublication.getKey();
+				if (requireLivingCatalog().getVersion() < previousCatalogVersion ||
+					!publishDrainedCatalog(previousCatalogVersion, pendingPublication.getValue())) {
+					return 0;
+				}
+				this.unpublishedCatalogs.remove(previousCatalogVersion);
+			}
+			final Optional<ProcessResult> result = this.processTransactions(
 				// the drainer may only chase versions that are already durable - same reasoning as the
 				// round bound inside `processTransactions`
 				getLastDurableCatalogVersion(),
@@ -2198,23 +2329,72 @@ public class TransactionManager implements Closeable {
 				false, // we should not wait for the lock here - if its already running it will process the transactions
 				Functions.noOpLongConsumer()
 			);
-		} catch (TransactionTimedOutException | WriteAheadLogCorruptedException ex) {
-			// Best-effort background drainer: both conditions are transient here and get retried on the
-			// next tick. A busy trunk lock means another incorporation is already running; a WAL read that
-			// momentarily cannot see a just-appended version (same-JVM file-length visibility lag) clears on
-			// a later pass. A genuinely persistent inconsistency is surfaced loudly on the client commit
-			// path by the trunk-incorporation stage; the drainer owns no commit-progress record and must not
-			// let an uncaught throw permanently pause this task.
+			if (result.isPresent()) {
+				final ProcessResult drainedRound = result.get();
+				if (!publishDrainedCatalog(drainedRound.previousCatalogVersion(), drainedRound.catalog())) {
+					return 0;
+				}
+			}
+		} catch (TransactionTimedOutException | WriteAheadLogCorruptedException | UnexpectedIOException ex) {
+			// A preceding publication or a momentarily unreadable WAL tail can clear by the next tick.
 			return 0;
-		} catch (InstanceTerminatedException ex) {
-			// a drain that was already running when this manager closed: there is no catalog left to drain into,
-			// and the closed task would not run again anyway
+		} catch (InstanceTerminatedException | CatalogPublicationSkippedException ex) {
+			// The catalog closed or lost the engine binding while this drain was in flight.
 			log.debug(
-				"Draining the WAL of catalog `{}` stopped - its transaction manager was closed.", this.catalogName
+				"Draining the WAL of catalog `{}` stopped because its live view is unavailable.", this.catalogName
 			);
 		}
 		// pause the task
 		return -1;
+	}
+
+	/**
+	 * Retains a finalized snapshot for a later publication attempt and wakes the recovery task.
+	 *
+	 * @param previousCatalogVersion version that preceded this round
+	 * @param catalog                finalized catalog that still needs to reach the live view
+	 */
+	private void retainUnpublishedCatalog(long previousCatalogVersion, @Nonnull Catalog catalog) {
+		if (this.unpublishedCatalogs.putIfAbsent(previousCatalogVersion, catalog) == null &&
+			!this.walDrainingTask.trySchedule()) {
+			this.unpublishedCatalogs.remove(previousCatalogVersion, catalog);
+		}
+	}
+
+	/**
+	 * Publishes a drained or retained snapshot unless the live view already holds it, then completes all pending
+	 * visibility records it covers. A failure that leaves the snapshot outside the live view is reported as not
+	 * published, so the drainer retries it; a failure after the snapshot reached the live view still completes them.
+	 *
+	 * @param previousCatalogVersion exclusive lower bound of the incorporated versions
+	 * @param catalog                finalized catalog and inclusive upper bound of the incorporated versions
+	 * @return whether the snapshot is in the live view; `false` means it is to be retried
+	 * @throws InstanceTerminatedException        when this manager has been closed
+	 * @throws CatalogPublicationSkippedException when the engine has retired this catalog incarnation
+	 */
+	private boolean publishDrainedCatalog(long previousCatalogVersion, @Nonnull Catalog catalog) {
+		final long catalogVersion = catalog.getVersion();
+		try {
+			if (this.lastVisibleCatalogVersion.get() < catalogVersion) {
+				propagateCatalogSnapshot(previousCatalogVersion, catalog, Functions.noOpConsumer());
+			}
+		} catch (InstanceTerminatedException | CatalogPublicationSkippedException ex) {
+			throw ex;
+		} catch (RuntimeException ex) {
+			final boolean published = this.lastVisibleCatalogVersion.get() >= catalogVersion;
+			if (published || !(ex instanceof TransactionTimedOutException)) {
+				log.warn(
+					"Publication of catalog `{}` version {} reported a failure.", catalog.getName(), catalogVersion, ex
+				);
+			}
+			if (!published) {
+				return false;
+			}
+		}
+		this.pendingCommitProgressRegistry.completeChangesVisibleInRange(
+			previousCatalogVersion, catalogVersion, this.requestExecutor
+		);
+		return true;
 	}
 
 	/**
@@ -2308,6 +2488,7 @@ public class TransactionManager implements Closeable {
 	 * Replays mutations in the given transaction on the current catalog.
 	 *
 	 * @param evita               The engine the replayed mutations are applied by.
+	 * @param lastFinalizedCatalog snapshot captured with the replay cursor
 	 * @param transactionMutation The transaction mutation containing the catalog version and mutation details.
 	 * @param transaction         The transaction object to execute the mutations in.
 	 * @param mutationIterator    The iterator containing the mutations to replay.
@@ -2317,6 +2498,7 @@ public class TransactionManager implements Closeable {
 	@Nonnull
 	private int[] replayMutationsOnCatalog(
 		@Nonnull Evita evita,
+		@Nonnull Catalog lastFinalizedCatalog,
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull Transaction transaction,
 		@Nonnull Iterator<CatalogBoundMutation> mutationIterator
@@ -2324,7 +2506,6 @@ public class TransactionManager implements Closeable {
 		return Transaction.executeInTransactionIfProvided(
 			transaction,
 			() -> {
-				final Catalog lastFinalizedCatalog = getLastFinalizedCatalog();
 				final long nextCatalogVersion = transactionMutation.getVersion();
 				lastFinalizedCatalog.setVersion(nextCatalogVersion);
 				this.changeObserver.processMutation(transactionMutation);
@@ -2402,6 +2583,7 @@ public class TransactionManager implements Closeable {
 	 * @param processedAtomicMutations           the number of processed atomic mutations
 	 * @param processedLocalMutations            the number of processed local mutations
 	 * @param catalog                            the catalog after the processing
+	 * @param previousCatalogVersion             finalized catalog version before this round
 	 * @param commitTimesOfProcessedTransactions commit times of all processed transactions
 	 */
 	public record ProcessResult(
@@ -2409,8 +2591,35 @@ public class TransactionManager implements Closeable {
 		int processedAtomicMutations,
 		int processedLocalMutations,
 		@Nonnull Catalog catalog,
+		long previousCatalogVersion,
 		@Nonnull OffsetDateTime[] commitTimesOfProcessedTransactions
 	) {
+	}
+
+	/**
+	 * Signals that the engine skipped a finalized snapshot because the catalog incarnation has left the live view.
+	 */
+	public static final class CatalogPublicationSkippedException extends TransactionException {
+		/** Serialization version of the publication failure. */
+		@Serial private static final long serialVersionUID = 1L;
+
+		/**
+		 * Creates a terminal publication failure for the retired catalog.
+		 *
+		 * @param catalogName name the catalog tried to publish under
+		 */
+		public CatalogPublicationSkippedException(@Nonnull String catalogName) {
+			super("The engine no longer serves the catalog incarnation of `" + catalogName + "`.");
+		}
+	}
+
+	/**
+	 * A WAL replay cursor with the snapshot that incorporates all versions through that cursor.
+	 *
+	 * @param version the finalized version
+	 * @param catalog the matching snapshot, or null after manager close
+	 */
+	private record ReplayBase(long version, @Nullable Catalog catalog) {
 	}
 
 	/**

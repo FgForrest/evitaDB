@@ -298,55 +298,40 @@ public record ExpandedEngineState(
 	}
 
 	/**
-	 * Replaces the in-memory reference for the specified catalog by name if the provided
-	 * {@link Catalog} instance has a higher {@link Catalog#getVersion() version} than the
-	 * current reference, and reports whether the catalog schema version advanced as part of
-	 * the swap.
+	 * Exchanges the live reference for a newer snapshot of the same incarnation. Catalog publication
+	 * is serialized per transaction manager, so the replaced reference is also the schema comparison base.
 	 *
-	 * This is a best-effort, in-place optimization intended for scenarios where the underlying
-	 * {@code catalogs} map is a concurrent and mutable implementation. If the map is unmodifiable,
-	 * calling this method will fail; in such cases prefer {@link #withUpdatedCatalogInstance(CatalogContract)} to
-	 * obtain a new immutable snapshot.
-	 *
-	 * Concurrency: the prior schema-version snapshot is read **before** the atomic swap inside
-	 * {@link CatalogWrapper#replaceCatalogReference(Catalog)}, so under concurrent calls for the
-	 * same catalog the read may be stale relative to whoever ultimately wins the swap. The commit
-	 * pipeline (`TransactionManager#propagateCatalogSnapshot`) serializes calls per catalog, so in
-	 * practice this race cannot occur — the read remains consistent with the replaced reference.
-	 * Only a strictly newer reference of the same catalog replaces the existing one; if the reference is the
-	 * same, older or belongs to another catalog, the current catalog remains unchanged.
-	 *
-	 * @param catalog a newer {@link Catalog} instance to swap in by name
-	 * @return {@code true} when the swap actually happened AND the new catalog has a strictly
-	 * higher schema version than the prior reference; {@code false} when the swap was skipped
-	 * (older / identical reference, or one of another catalog) or when the schema version did not advance
-	 * (data-only commit)
+	 * @param catalog the finalized catalog snapshot to install by name
+	 * @return the installation result, including whether an installation advanced the schema
 	 */
-	public boolean replaceCatalogReference(@Nonnull Catalog catalog) {
-		// catalog indexes are ConcurrentHashMap - we can do it safely here
+	@Nonnull
+	public CatalogSwapOutcome replaceCatalogReference(@Nonnull Catalog catalog) {
 		final CatalogWrapper currentCatalogRef = this.catalogs.get(catalog.getName());
-		// replace catalog only when reference/pointer differs and is a strictly newer one of the same catalog
-		final CatalogContract currentCatalog = currentCatalogRef.catalog();
-		if (currentCatalog == catalog) {
-			return false;
+		if (currentCatalogRef == null ||
+			!(currentCatalogRef.catalog() instanceof Catalog current) ||
+			!current.getCatalogId().equals(catalog.getCatalogId())) {
+			return CatalogSwapOutcome.SKIPPED;
 		}
-		// Versions of different catalogs are not comparable: after a replace the surviving catalog (the former source)
-		// can have a lower version than the discarded target, and a late round of that target must not overwrite it.
-		if (currentCatalog instanceof Catalog current && !current.getCatalogId().equals(catalog.getCatalogId())) {
-			return false;
+		if (current == catalog || current.getVersion() >= catalog.getVersion()) {
+			return CatalogSwapOutcome.ALREADY_SERVING;
 		}
-		if (currentCatalog.getVersion() >= catalog.getVersion()) {
-			return false;
-		}
-		// UnusableCatalog placeholder cannot read its schema (would throw); treat as -1 so a
-		// real-Catalog replacement always counts as a schema advance. Defensive against a
-		// programming-error path — production swaps here are always Catalog→Catalog from the
-		// commit pipeline.
-		final int priorSchemaVersion = currentCatalog instanceof Catalog priorAlive
-			? priorAlive.getSchema().version()
-			: -1;
 		currentCatalogRef.replaceCatalogReference(catalog);
-		return catalog.getSchema().version() > priorSchemaVersion;
+		return catalog.getSchema().version() > current.getSchema().version() ?
+			CatalogSwapOutcome.INSTALLED_SCHEMA_ADVANCED : CatalogSwapOutcome.INSTALLED;
+	}
+
+	/**
+	 * Result of attempting to install a finalized catalog snapshot into an engine state.
+	 */
+	public enum CatalogSwapOutcome {
+		/** The finalized snapshot was installed. */
+		INSTALLED,
+		/** The finalized snapshot was installed and its schema version advanced. */
+		INSTALLED_SCHEMA_ADVANCED,
+		/** This incarnation already serves the requested version or a newer one. */
+		ALREADY_SERVING,
+		/** The name has no live catalog of this incarnation. */
+		SKIPPED
 	}
 
 	/**

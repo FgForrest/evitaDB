@@ -41,6 +41,7 @@ import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
+import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.api.proxy.ProxyFactory;
@@ -78,6 +79,7 @@ import io.evitadb.core.cdc.SystemChangeObserver;
 import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.CatalogFolderResolver;
 import io.evitadb.core.engine.ExpandedEngineState;
+import io.evitadb.core.engine.ExpandedEngineState.CatalogSwapOutcome;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.exception.CatalogTransitioningException;
@@ -101,6 +103,7 @@ import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.session.SuspensionInformation;
 import io.evitadb.core.session.task.SessionKiller;
+import io.evitadb.core.transaction.TransactionManager.CatalogPublicationSkippedException;
 import io.evitadb.core.transaction.engine.EngineMutationPrecondition;
 import io.evitadb.core.transaction.engine.EngineMutationProgressStatus;
 import io.evitadb.core.transaction.engine.EngineTransactionManager;
@@ -1966,36 +1969,34 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Replaces current catalog reference with updated one.
+	 * Publishes a finalized snapshot through the engine's live catalog binding and notifies the transaction
+	 * manager once the binding serves that snapshot. Emits host schema CDC when the swap advanced the schema.
 	 *
-	 * Delegates the swap (and the prior-vs-new schema-version comparison) to
-	 * {@link ExpandedEngineState#replaceCatalogReference(Catalog)}, which performs both atomically
-	 * and reports back whether the catalog schema version advanced. Emits a
-	 * {@link HostSystemEvent.CatalogSchemaUpdated} on the system CDC stream when it did, so HOST-area
-	 * subscribers (GraphQL / REST schema-refresh observers) coalesce a single refresh per real
-	 * schema bump instead of per-commit. Pure data-only commits emit nothing.
-	 *
-	 * Note: state-transition emits ({@link HostSystemEvent.CatalogInstalledIntoLiveView}) are NOT
-	 * issued here. This method is reached only via the commit pipeline (`TransactionManager#propagateCatalogSnapshot`),
-	 * where prior+new are always real `Catalog` instances of the same state. State transitions
-	 * (WARMING_UP→ALIVE, INACTIVE/MISSING/CORRUPTED settlements) flow through the matching
-	 * mutation-operator completion-phase callbacks which call `notifyCatalogStateSettled` directly.
+	 * @param catalog the finalized catalog snapshot
+	 * @throws CatalogPublicationSkippedException if the engine no longer serves the catalog incarnation
+	 * @throws TransactionTimedOutException if the current engine state still serves an older version
 	 */
 	private void replaceCatalogReference(@Nonnull Catalog catalog) {
-		notNull(catalog, "Sanity check.");
-
 		final ExpandedEngineState snapshot = this.engineState.get();
-		if (snapshot == null) {
-			// engine is shutting down — host events are best-effort on shutdown
-			return;
+		final CatalogSwapOutcome outcome = snapshot == null ?
+			CatalogSwapOutcome.SKIPPED : snapshot.replaceCatalogReference(catalog);
+		if (outcome == CatalogSwapOutcome.SKIPPED) {
+			throw new CatalogPublicationSkippedException(catalog.getName());
+		}
+		final ExpandedEngineState servingState = this.engineState.get();
+		if (servingState == null ||
+			!(servingState.getCatalog(catalog.getName()).orElse(null) instanceof Catalog servingCatalog) ||
+			!servingCatalog.getCatalogId().equals(catalog.getCatalogId())) {
+			throw new CatalogPublicationSkippedException(catalog.getName());
 		}
 
-		final boolean schemaAdvanced = snapshot.replaceCatalogReference(catalog);
-
-		// notify callback that it's now a live snapshot
-		catalog.notifyCatalogPresentInLiveView();
-
-		if (schemaAdvanced) {
+		if (servingCatalog.getVersion() < catalog.getVersion()) {
+			throw new TransactionTimedOutException(
+				"The engine still serves an older version of `" + catalog.getName() + "`."
+			);
+		}
+		servingCatalog.notifyCatalogPresentInLiveView();
+		if (outcome == CatalogSwapOutcome.INSTALLED_SCHEMA_ADVANCED) {
 			notifyCatalogSchemaUpdated(catalog.getName(), catalog.getSchema().version());
 		}
 	}
