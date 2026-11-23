@@ -770,8 +770,8 @@ histogram index (`intervalParameterValues`); the **group selector** — an `grou
 entity — is what tells evitaDB which slot (`weight` vs `thickness`) each `histogramHaving` is talking about. The
 sibling `referenceSummaryOfReferenceWithHistograms` in `require()` then asks the server to compute one full
 histogram per parameter group, and because `histogramHaving` is registered as a *range carrier* inside `userFilter`,
-each slider's own `[min, max]` span stays at the catalog-wide baseline rather than collapsing to the user's current
-range:
+each slider's own `[min, max]` span stays at the span of all *e-readers* in the searched scope, rather than
+collapsing to the user's current range:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-22 22:33
+updated: 2026-11-23 11:52
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917, 1920, 2035]
@@ -432,8 +432,10 @@ candidate as the alternative for a preferred entity that does not load. An ungro
 through the reference partitions of its type index: the owner of a single-owner registry row, the owner bitmap of a
 materialized partition.
 
-- **Pros:** the boundary entity is one a counted owner references; the same query names the same entity whatever
-  `entityFetch` it carries. Boundary entities are returned without `entityFetch` too, with no content.
+- **Pros:** the boundary entity is one a counted owner references whenever such a candidate exists and loads; the
+  pick among all candidates is kept only as the bound's fallback. The same query names the same entity whatever
+  `entityFetch` it carries. Boundary entities are returned without `entityFetch` too, with identity and standard
+  metadata only.
 - **Cons:** an ungrouped bound checks every tied candidate through its partition, without the early stop of the
   grouped merge. Measured (Verification): no cost the benchmark resolves at 1,000 tied candidates.
 
@@ -847,7 +849,7 @@ was measured. The engine keeps refusing a histogram missing from a processing sc
 - **#2035, red first.** `RequireInScopeHistogramFunctionalTest` on `dev` `0ad50efa40`: 9 tests, 4 failures (price and
   attribute histogram under either wrapper). Extended on `870631292c` before the fix: 40 tests, 27 failures - the
   scoped price and attribute cases, the duplicate refusals, the wrapped and the merged reference histograms. With
-  the fix the class holds 51 tests, all green, every query run with the debug modes
+  the fix the class holds 51 tests, all green, every query without a forced route run with the debug modes
   `VERIFY_ALTERNATIVE_INDEX_RESULTS` and `VERIFY_POSSIBLE_CACHING_TREES` switched on (whether the first varies the
   plan is an open question below). The route tests prove their route: `PlanPreference` asserts `EXECUTION_PREFETCH`
   in the telemetry of the prefetch arm and its absence on the index scan, and with the price restriction off 15

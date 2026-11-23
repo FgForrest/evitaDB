@@ -29,13 +29,14 @@ inScope(
 </dl>
 
 The `inScope` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/RequireInScope.java</SourceClass></LS>
-<LS to="c"><SourceClass>EvitaDB.Client/Queries/Require/RequireInScope.cs</SourceClass></LS>) require container computes
-the extra results it wraps, such as facet summaries, histograms, and hierarchy statistics, for entities in the named
-scope that the query matches. Histogram calculations follow the
+<LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/RequireInScope.cs</SourceClass></LS>) require container
+evaluates the extra results it wraps, such as facet summaries, histograms, and hierarchy statistics, in the named
+scope: from the indexes of that scope and the entities the query matches there, each extra result by its own counting
+rules. Histograms follow the
 [histogram baseline rules](histogram.md#baseline-relaxation--sliders-dont-contract-under-their-own-handles).
-An unwrapped histogram covers the searched scopes. Each query can request the price histogram, a
-histogram for a particular attribute, or a named histogram for a particular reference for one scope set each. The
-query rejects requests for the same histogram with different scope sets.
+An unwrapped histogram covers all scopes the query searches. The price histogram, the histogram of an attribute, and
+a named histogram of a reference can each be requested for one scope set per query. Requests for the same histogram
+with different scope sets are rejected.
 
 An extra result requires its indexes in every scope it is planned in. A query that searches both scopes can wrap an
 extra result in `inScope` naming the scope that has them.
