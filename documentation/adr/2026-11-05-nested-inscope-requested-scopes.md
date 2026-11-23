@@ -1,11 +1,11 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-19 21:00
+updated: 2026-11-23 13:23
 status: accepted
 kind: fix
-issues: [1880, 1883, 1897, 1915, 1917, 1920]
-prs: [1884, 1913, 1914, 1919, 2034]
+issues: [1880, 1883, 1897, 1915, 1917, 1920, 2035]
+prs: [1884, 1913, 1914, 1919, 2034, 2043]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
   - evita_query/src/main/java/io/evitadb/api/query
@@ -15,13 +15,16 @@ areas:
   - evita_engine/src/main/java/io/evitadb/core/query/extraResult
   - evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference
   - evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference/producer
+  - evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/histogram
+  - evita_engine/src/main/java/io/evitadb/core/query/sort/price
   - evita_engine/src/main/java/io/evitadb/core/query/QueryPlanner.java
   - evita_engine/src/main/java/io/evitadb/core/collection
 supersedes: []
 superseded-by: []
 relates: [2026-10-08-scope-faithful-planning-and-facet-summary-parity,
   2026-10-20-reference-content-filter-row-by-row, 2026-10-21-one-locale-per-entity-level,
-  2026-11-19-direct-entity-calls-check-requested-content]
+  2026-11-19-direct-entity-calls-check-requested-content, 2026-05-06-reference-histogram-statistics,
+  2026-11-19-one-histogram-store-per-group, 2026-09-05-duplicate-content-requirements-reduction]
 ---
 
 # A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
@@ -351,6 +354,167 @@ without the bound, so the fetch never evaluates that bound.
   (`2026-11-19-direct-entity-calls-check-requested-content`), and the same query without the wrapper is refused
   today. Changing that is a separate decision covering every query, not one this fix makes for the wrapper alone.
 
+### #2035 — histograms inside a require-level `inScope`
+
+The user documentation promised a histogram inside `inScope(S, …)` for the entities of `S`; the engine only checked
+the indexes of `S` and computed over everything the query matched. Measured on `dev` (`0ad50efa40`) with one live
+product (price 12.1, `metric` 1) and one archived (121, `metric` 5), prices and `metric` indexed in both scopes, in a
+query searching both scopes:
+
+- `priceHistogram` and `attributeHistogram` under `inScope(LIVE, …)` or `inScope(ARCHIVED, …)` counted 2 where the
+  same query searching that scope alone counts 1. `PriceHistogramTranslator` handed the producer the whole-query
+  filtering formula; `AttributeHistogramTranslator` collected the filter index of every target index.
+- A `facetSummary` under the same wrapper already counted 1: the reference summary keeps only the indexes of its
+  processing scopes.
+- The `histogramStatistics` of a reference summary ignored the wrapper and, without one, reported only the last
+  scope: `ReferenceHistogramAccumulator` computed one histogram per query scope and the later `put` overwrote the
+  earlier (`share` 3 live, 7 archived: count 1, 7..7 under `inScope(LIVE, …)` and unwrapped alike).
+- The same histogram asked for twice - one wrapper per scope, or wrapped beside unwrapped - was answered with one
+  histogram over both scopes. GraphQL already refused both shapes ("Even across different scopes").
+
+#### Option X — the histogram of the matched entities that live in `S` (chosen)
+
+Restrict what the query matched to the entities of `S`: the attribute histogram takes only the target indexes of
+`S`, the price histogram intersects the filtering formula with the global indexes of `S`, the reference histogram
+reads the indexes of the scopes it was planned in. Without a require-level `inScope` the price and attribute
+histograms plan exactly as before; a reference histogram of a query searching several scopes combines them.
+
+- **Pros:** the histogram describes the entities the client gets back ("what you see is what you get"), as the facet
+  summary already did; one cheap restriction per histogram, nothing re-planned.
+- **Cons:** for a filter whose answer depends on the searched scopes it differs from a query searching `S` alone -
+  see Option Y.
+
+#### Option Y — the histogram of the same query planned for `S` alone (declined)
+
+The literal reading of the documentation's "only for entities in live scope".
+
+- **Pros:** equal to a separate single-scope query for every filter.
+- **Rejected because:** a filter crossing scopes matches differently. `referenceHaving(brands, entityHaving(code =
+  b))` with brand `b` archived matches a live product in a query searching both scopes (`[1, 2]`) and none searching
+  `LIVE` alone (`[]`); under `not(…)` the two answer `[3]` and `[1, 3]`. The histogram would then describe entities
+  the client did not get and leave out ones it did, and every wrapped histogram would need a second plan of the
+  filter. The project owner chose X: "histogram must reflect entities returned to user".
+
+#### Option Z — merge one histogram slot asked for in several scope sets (declined)
+
+The behaviour the attribute producer was written for: a repeat with equal bucket count and behaviour widened the
+index list (`c5342c3926`).
+
+- **Pros:** no newly refused query.
+- **Rejected because:** the response has one price histogram, one histogram per attribute and one per named
+  histogram of a reference; a merged one answers a requirement for `S` with entities outside `S`. The project owner
+  chose refusal, which also matches GraphQL. The merge itself was never reached: the translator resolved the same
+  index list for every repeat, so it added nothing, and it was removed with the refusal.
+
+### #2035, review round — the boundary entity and the controls of a reference histogram
+
+The adversarial review of the first implementation found five gaps around reference histograms, each shown red by a
+test before it was fixed (Verification):
+
+- The boundary entity of an **ungrouped** histogram (`HistogramContract#getMinReferencedEntity` and its maximum
+  twin) was picked among every referenced entity carrying the bound value, so it could name one that only an owner
+  the query excluded references. Grouped histograms already preferred candidates of the owners they count.
+- The facet sorter, group predicate and group fetch were held once per reference: with two summaries of one
+  reference in `inScope(LIVE, …)` and `inScope(ARCHIVED, …)`, every histogram of the reference used the last
+  summary's controls, built in its scope, so a LIVE boundary tie was broken by a sorter built for ARCHIVED.
+- Boundary ties ignored the query's scopes: an ARCHIVED candidate with a lower primary key, or ranked first by the
+  facet sorter, beat a LIVE one in a query searching `scope(LIVE, ARCHIVED)`, and in a query searching `LIVE` alone
+  it won the pick, did not load and left the histogram without boundary entities.
+- GraphQL resolved an unwrapped reference histogram's names in `LIVE` only, whatever the query's `scope`.
+- REST read a query body into a JSON tree in which the last of two equal properties wins, so a second `inScope` of
+  the root `require` dropped the first without an error.
+
+#### Option AA — confine every boundary pick to the counted owners (chosen)
+
+Every reference histogram, grouped or not and with or without `entityFetch`, prefers the candidates referenced by the
+owners it counts at the bound, falls back to every candidate when none qualifies, and carries the pick among every
+candidate as the alternative for a preferred entity that does not load. An ungrouped histogram checks the owners
+through the reference partitions of its type index: the owner of a single-owner registry row, the owner bitmap of a
+materialized partition.
+
+- **Pros:** the boundary entity is one a counted owner references whenever such a candidate exists and loads; the
+  pick among all candidates is kept only as the bound's fallback. The same query names the same entity whatever
+  `entityFetch` it carries. Boundary entities are returned without `entityFetch` too, with identity and standard
+  metadata only.
+- **Cons:** an ungrouped bound checks every tied candidate through its partition, without the early stop of the
+  grouped merge. Measured (Verification): no cost the benchmark resolves at 1,000 tied candidates.
+
+#### Option AB — confine the ungrouped pick only when the histogram requests `entityFetch` (declined)
+
+The first implementation of the fix: no owner work for a histogram without `entityFetch`.
+
+- **Pros:** a histogram without `entityFetch` keeps its cost exactly.
+- **Rejected because:** boundary entities are returned without `entityFetch` too, so adding an empty `entityFetch()`
+  changed which entity the same query named, and the saving it bought was below what the benchmark resolves. Worth
+  revisiting only if a workload ties many thousands of referenced entities at a bound and the confined scan
+  measurably costs there.
+
+#### Option AC — rank the candidates by the query's `scope(...)` order inside the pick (chosen)
+
+Before the facet sorter or the lowest primary key decides a tie, a candidate of an earlier scope of
+`EvitaRequest#getScopesAsArray()` wins; a candidate in no searched scope - in an unsearched scope, or a referenced
+entity that is not stored at all - ranks last. Owned before unowned still comes first, and a chosen entity that
+lacks the query's locale still falls back to the alternative.
+
+- **Pros:** decided on primary keys before anything is fetched, with one read of each scope's global primary keys
+  per reference.
+- **Cons:** a reference to an entity that is not stored no longer wins a tie by its primary key: eight existing
+  expectations changed, which the project owner accepted.
+
+#### Option AD — retry a pick the fetch rejects as out of scope (declined)
+
+A side channel from `EntityCollection` reported a picked body outside the fetched scopes, and the accumulator fetched
+the next candidate.
+
+- **Pros:** no ranking structure in the pick.
+- **Rejected because:** it put a hook for one extra result into the general fetch path and paid a second fetch;
+  ranking before the fetch needs neither.
+
+#### Option AE — keep "defined in every processing scope" in the engine and fix GraphQL (chosen)
+
+`ReferenceHistogramStatisticsTranslator#resolveDescriptor` still refuses a histogram missing from a processing scope
+("Histogram `x` is not defined on reference `r` in scope `S`."). GraphQL resolves an unwrapped histogram's names
+against the query's `filterBy` `scope` (default `LIVE`) and a wrapped one against its wrapper's scope, so it returns
+what the Java API returns and refuses what it refuses.
+
+#### Option AF — accept a histogram defined in at least one processing scope (declined)
+
+- **Pros:** an unwrapped query searching both scopes returns a histogram defined in one of them.
+- **Rejected because:** the project owner's rule: a histogram that exists in one scope is addressed with
+  `inScope(<that scope>, …)`, as every other scope-specific index is. The relaxation had been forced by a GraphQL test
+  that demanded a result the Java API refuses.
+
+The other two fixes had no alternative on the table. Each histogram request carries the sorter, group predicate and
+group fetch of the summary that declared it, built in that summary's processing scopes, except that a histogram
+declared by the generic summary takes the reference-specific summary's controls when one exists - the override rule
+of `2026-09-05-duplicate-content-requirements-reduction` ("a reference-specific summary governs its reference
+entirely"). REST reads query bodies with strict duplicate detection and answers a repeated property with HTTP 400
+naming it; no list form for several root `inScope` wrappers was added.
+
+#### Option AG — no boundary entities for an unmanaged referenced type (chosen)
+
+Found while correcting the API descriptions of the boundary entities: a histogram over a reference whose referenced
+entity type evitaDB does not manage failed the whole query. The pick named the unmanaged type and the boundary
+prefetch asked for its collection (`EntityCollectionRequiredException: Collection type is required in query in order
+to compute fetch entities!`, from `BoundaryEntityCache#prefetch`). The same pick and fetch exist on `dev`.
+`computePendingHistogram` now returns `BoundaryPks.NONE` for such a reference before any boundary work; the
+histogram itself is returned whole.
+
+- **Pros:** nothing is picked that cannot be loaded; the API descriptions ("referenced entities that can be loaded")
+  hold for every reference.
+- **Cons:** a client gets no anchor entity for the ends of such a histogram, only its `min` and `max`.
+
+An `entityFetch` inside such a histogram stays refused at planning, as the summary's own `entityFetch` on the
+reference is; the refusal's message ("EntityFetch constraint is probably incorrectly nested in require part of the
+query.") names the wrong cause and was left as it is.
+
+#### Option AH — return the picked primary key as a bare reference (declined)
+
+- **Pros:** a client would learn which external entity anchors each end.
+- **Rejected because:** the boundary slots are typed as full entities in all four APIs (`SealedEntity` in
+  `HistogramContract`, `GrpcSealedEntity`, the GraphQL and REST entity objects); carrying a bare reference is a
+  contract change across them, not a fix. Worth revisiting if clients ask for anchors of external references.
+
 ## Decision
 
 **Chosen: Option A, with the checks Options G and H decline to do without.** Option A is the only option under which a
@@ -378,6 +542,18 @@ scopes the fetch reads it in - every scope the query searches, unless a referenc
 bodies - as the fetch, the pre-flight and the direct calls already did. The shapes it newly refuses were all
 refused without the wrapper, and all but the folded hierarchy bound were refused under it for other data; the project
 owner accepted the folded bound's refusal too, and labelled the change breaking with an upgrade note on #1920.
+
+**#2035: Option X**, by the project owner's decision. A histogram describes the entities the query matches: inside a
+require-level `inScope(S, …)` those that live in `S`, without one those of every searched scope - for the price
+histogram, attribute histograms and the histograms of a reference summary. One histogram slot requested with
+different scope sets is refused (Option Z declined).
+
+**#2035, review round: Options AA, AC and AE**, by the project owner's decisions. The boundary entity of a reference
+histogram is a candidate of the owners the histogram counts where one exists, ranked by the query's scope order,
+whether or not the histogram requests `entityFetch`; the owner chose to confine always (AA over AB) after the cost
+was measured. The engine keeps refusing a histogram missing from a processing scope, and GraphQL follows it. A
+reference to an unmanaged entity type resolves no boundary entities (Option AG); the project owner had the fix folded
+into the same pull request.
 
 ## Key technical details
 
@@ -488,6 +664,50 @@ owner accepted the folded bound's refusal too, and labelled the change breaking 
 - `ReferencedEntityFetcher#verifyReferenceContentConstraints` takes the requested scopes of the owners explicitly; NULL
   keeps the five-argument `deriveCopyWith`, which unites the scopes of the query with the searched ones. Its shortcut
   reusing the context of the query applies only then, so a self-referencing type cannot skip a scope of its bodies.
+- **Histogram scopes (#2035).** `AttributeHistogramTranslator` keeps the target indexes whose key names a processing
+  scope, as `ReferenceSummaryTranslator` does for facets. `PriceHistogramTranslator#restrictToScopes` wraps the
+  filtering formula in `new AndFormula(F, or(global index of each scope))` only when the processing scopes differ
+  from the query's - not `FormulaFactory.and`, which flattens `F` and drops its memoized result, and not
+  `FilterByVisitor#getSuperSetFormula(Scope)`, which depends on the visitor's frame and falls back to candidate index
+  sets. `ReferenceHistogramStatisticsTranslator` stores the processing scopes in each `HistogramRequest`, and
+  `ReferenceHistogramAccumulator` computes one histogram per request and group from the indexes of all its scopes,
+  resolving the boundary entities across them.
+- **Slider relaxation is unchanged (#2035):** a histogram ignores its own range constraints in `userFilter`, wrapped
+  exactly like unwrapped; the scope restriction applies to that relaxed baseline. An adversarial review read "what you
+  see is what you get" as excluding the relaxed entities too; that would make a wrapped slider shrink itself.
+- **One slot, one scope set (#2035):** `PriceHistogramProducer`, `AttributeHistogramProducer` (per attribute name,
+  not per producer - GraphQL wraps each attribute in its own `inScope`) and
+  `ReferenceSummaryProducer#addHistogramRequest` compare scope sets, never index lists, so the refusal does not depend
+  on which scope holds data.
+- **Removed as dead (#2035):** the `FilteredPricesSorter` lookup result the price histogram reused was assigned in
+  `sortAndSlice`, at execution, and read while the plan was built - always null. The lookup, its sorter field, the
+  planner's `findSorter` and the collector constructor taking it went with it.
+- **Cache keys need no scope (#2035):** the price computer hashes its filtering formula, which carries the scope
+  restriction, and the attribute computer hashes the ids of its filter indexes; two requests over the same indexes and
+  formula compute the same histogram and may share the entry.
+- **Boundary owners (#2035).** `ReferenceHistogramAccumulator#computePendingHistogram` passes the histogram's filter
+  indexes as the owner filter of every pick, and a query planning context to an ungrouped one; `countedOwners`
+  reads the owners at the bound narrowed by the baseline. An ungrouped pick maps its candidates to partition
+  primary keys (`ReferencedTypeEntityIndex#getIndexPrimaryKeys`), splits them (`ReferencePartitions#split`) and
+  checks each virtual row's owner and each materialized partition's owner bitmap
+  (`referencedByCountedOwners(…, QueryPlanningContext)`), every tied candidate. A grouped pick without a sorter keeps
+  the merge that stops at the first owned candidate (`pickLowestOwnedBoundaryPk`). No path picks without an owner
+  filter; with no owner counted at the bound, every candidate stays.
+- **Scope order (#2035).** `ReferenceHistogramAccumulator.BoundaryScopeOrder` reads
+  `GlobalEntityIndex#getAllPrimaryKeys()` lazily, once per scope and reference: `contains` ranks the candidates the
+  merge pops, `restrict` ranks the small candidate sets of the other picks. A reference to an unmanaged entity type
+  never reads it: `computePendingHistogram` returns `BoundaryPks.NONE` first (Option AG).
+- **Controls per histogram (#2035).** `ReferenceSummaryProducer.RegisteredHistogram` holds the request with the
+  sorter, group predicate and group fetcher captured when its summary registered it; `resolveHistogramControls`
+  swaps in the reference-specific summary's controls for a histogram the generic summary declared. A synthetic
+  group shared by several histograms keeps one body, fetched by the lowest histogram name that requests one.
+- **External APIs (#2035).** GraphQL: `QueryEntitiesDataFetcher` passes `filterBy` to `buildRequire`, and
+  `ReferenceSummaryResolver#resolveHistogramIndexDefinition` takes the scopes. REST: `QueryOrientedEntitiesHandler`
+  reads query, list and delete-by-query bodies with `StreamReadFeature.STRICT_DUPLICATE_DETECTION`
+  (`parseQueryBody`); the shared mapper is unchanged. The schema descriptions of `minReferencedEntity` and
+  `maxReferencedEntity` - `ReferenceHistogramDescriptor`, which GraphQL and REST share, and `GrpcExtraResults.proto`
+  with its generated classes - state when both are returned and what they carry, without naming `entityFetch` as
+  the condition: one text serves GraphQL, where the field selection is the request, and REST, where it is not.
 
 ## Verification
 
@@ -652,6 +872,66 @@ owner accepted the folded bound's refusal too, and labelled the change breaking 
   one in the nine release-upgrade classes and reading `Fixture ... is not on the class path` - the release fixtures
   were not generated, because the sandbox could not resolve release 2026.2.18 offline. The pull request's CI builds
   them.
+- **#2035, red first.** `RequireInScopeHistogramFunctionalTest` on `dev` `0ad50efa40`: 9 tests, 4 failures (price and
+  attribute histogram under either wrapper). Extended on `870631292c` before the fix: 40 tests, 27 failures - the
+  scoped price and attribute cases, the duplicate refusals, the wrapped and the merged reference histograms. With
+  the fix the class holds 51 tests, all green, every query without a forced route run with the debug modes
+  `VERIFY_ALTERNATIVE_INDEX_RESULTS` and `VERIFY_POSSIBLE_CACHING_TREES` switched on (whether the first varies the
+  plan is an open question below). The route tests prove their route: `PlanPreference` asserts `EXECUTION_PREFETCH`
+  in the telemetry of the prefetch arm and its absence on the index scan, and with the price restriction off 15
+  tests fail, all six route invocations among them, after their route assertion. Hierarchy statistics
+  (`hierarchyOfReference` with queried entity and children counts) under either wrapper equal the single-scope query.
+- **#2035, counterfactuals** on the 40-test class, each mechanism broken alone, each failing exactly its own tests:
+  the attribute index scope filter off - 5; the price `AndFormula` restriction off - 10; the duplicate-scope
+  refusals off - 8; the reference histogram requests back on the query's scopes - 4; one histogram per scope with
+  the overwrite back - 2. The last two were repeated after the review rounds, and the tests added by the
+  code-quality pass for a group held in the later scope only and for referenced-entity boundaries in each scope fail
+  when the outer group loop or the global-index loop is limited to the first scope.
+- **#2035, neighbours** after the first implementation: 4,139 tests in the histogram, price, attribute, facet and
+  reference-summary suites, 0 failures, 1 skip (an existing assumption); `CatalogGraphQLQueryEntityQueryFunctionalTest`
+  269 and `CatalogRestQueryEntityQueryFunctionalTest` 188, green.
+- **#2035, full suite** on `870631292c` plus the change, `-P unitAndFunctional`, 16:06 min, with the release fixtures
+  generated: bitmap 19,215 tests with 0 failures and 1 skip; functional 39,874 with 0 failures, 0 errors and 70
+  skipped.
+- **#2035 review round, red first**, each on the branch before its fix: REST duplicate properties 2 of 2 (`Expected
+  status code <400> but was <200>`); ungrouped boundary owners 2 of 2 (`expected: <102> but was: <100>`, `<302>`
+  but `<300>` for a referenced-entity attribute); sibling-summary controls 1 (`<102>` but `<100>`); scope order 7 of
+  12 (the LIVE-first ties, the LIVE-only boundary absent, the wrapped one); GraphQL scopes 2 of 3; the boundary
+  without `entityFetch` 2 of 2 (`<102>` but `<100>`, `<302>` but `<300>`).
+- **#2035 review round, counterfactuals**, each mechanism broken alone: duplicate detection off - only the 2 REST
+  cases fail; the ungrouped owner list empty - only the 2 owner cases; controls re-resolved per reference - only
+  the sibling case; the GraphQL lookup in `LIVE` only - 2 of the 4 GraphQL cases; every reference `UNRANKED` - 20
+  invocations of 8 tests, each a scope-order witness or an expectation that depends on the order; the
+  generic-summary override bypassed - 1; the `entityFetch` condition back on
+  the ungrouped owner list - the 2 no-fetch cases and the 2 call-count cases that pin the owner reads, of 1,237
+  tests in the 40 gate classes.
+- **Cost of always confining (AA).** JMH, embedded engine with the formula and result caches off, 100,000 products
+  each referencing 8 of 5,000 targets, a filter keeping 10,000; 1, 100 or 1,000 targets tied at the minimum, each
+  referenced by 1 counted owner (a virtual partition) or 50 (a materialized one); a grouped reference as control,
+  whose two arms do identical work. The arms: the histogram without `entityFetch` (not confined before AA) and with
+  an empty one (confined). Sweep, one fork, 3 x 2 s warm-up, 5 x 2 s: no axis moved the ratio beyond the control's
+  own 0.72-1.05. Final, tie 1,000, both owner shapes, three rounds alternating which arm ran first, one fork, 5 x
+  2 s warm-up, 10 x 2 s: 10-13 ms per query; confinement minus the control's arm difference -0.51 to +1.05 ms
+  (-4.4% to +8.6%), while the control's identical arms differed by up to 2.4 ms on the three-round mean. A debugger
+  on the same harness confirmed the work measured: every minimum bound checked all 1,000 tied candidates, 999 of
+  them owned, through 1,000 virtual rows or 1,000 materialized partitions. The benchmark was written for this
+  decision and not kept.
+- **#2035 review round, full suite** on `0f0568ee5a` plus the review round, `-P unitAndFunctional`, 18:12 min: bitmap
+  19,215 tests with 0 failures and 1 skip; functional 39,901 with 1 failure, 0 errors and 70 skipped. The failure,
+  `ChangeCaptureRingBufferTest#shouldHandleParallelOfferAndCopyToOperations`, is a concurrency test of the change
+  capture ring buffer, which the change does not touch; its class passed 41 of 41 when rerun alone.
+- **Boundary entities without `entityFetch`, per API** - the evidence behind the corrected descriptions: the Java
+  API returns both (`RequireInScopeHistogramFunctionalTest`, the no-fetch cases); REST returns them with
+  `primaryKey`, `type`, `version`, `scope` and locales in the recorded documentation example
+  `reference-summary-histograms`, whose `histogramStatistics` has no fetch; the gRPC builder sets both fields
+  whenever the histogram has them (`GrpcReferenceHistogramConversionTest`). No gRPC call was run end to end.
+- **Unmanaged referenced types (AG)**, `UnmanagedReferenceHistogramBoundaryFunctionalTest`: red first on `eba12480e9`,
+  both cases without `entityFetch` (ungrouped, and with a managed group) with `EntityCollectionRequiredException:
+  Collection type is required in query in order to compute fetch entities!` from `BoundaryEntityCache#prefetch`. Five
+  cases: those two, a reference without facets summarized by `referenceSummary`, and the two planning refusals of
+  `entityFetch` (inside the histogram, and the summary's own), each asserted by class and message. The guard removed
+  alone fails exactly the three cases without `entityFetch`. Full `-P unitAndFunctional` run: bitmap 19,215 tests,
+  0 failures; functional 39,906 tests, 0 failures, 0 errors, 70 skipped.
 
 ## Consequences & open follow-ups
 
@@ -757,11 +1037,43 @@ owner accepted the folded bound's refusal too, and labelled the change breaking 
     technical details), the defect #1920 fixed for the main fetch. A fix would widen what those bodies admit.
   - #2027: a main fetch per scope (`inScope(LIVE, entityFetch(…)), inScope(ARCHIVED, entityFetch(…))`) is refused by
     the generic single-constraint lookup with `MoreThanSingleResultException`, when the plan is executed.
-  - #2035: a `priceHistogram` or `attributeHistogram` inside a require-level `inScope(S, …)` is checked against the
-    indexes of `S` but computed over every searched scope - measured: count 2 where the same query searching `S`
-    alone counts 1. The project owner decided that it describes the entities of `S` only, as the user documentation
-    says; a `facetSummary` under the same wrapper already does. Open with it: the single histogram slot asked for by
-    a wrapper per scope, or by a wrapped and an unwrapped histogram, is answered with one histogram today.
+- **Visible to clients, #2035.** A histogram inside a require-level `inScope` changes its numbers in a query
+  searching more than one scope: it counts the matched entities of its scope only. A reference histogram of a query
+  searching several scopes without the wrapper now covers all of them, where it showed the last one. The same
+  histogram requested with different scope sets is refused in EvitaQL, Java, REST and gRPC, as GraphQL already did;
+  equal scope sets stay accepted. The upgrade note is on #2035.
+- **Visible to clients, #2035 review round.** The boundary entity of a reference histogram may change: it is one a
+  counted owner references where one exists, for ungrouped histograms too and with or without `entityFetch`. Ties
+  follow the query's scope order, and a referenced entity that is not stored, or lives in an unsearched scope, ranks
+  last. With a summary of one reference in each of two require-level `inScope` containers, each histogram breaks its
+  ties and fetches its groups by the summary that requested it, where the last summary's settings applied to all. A
+  REST query body repeating a property is answered with HTTP 400. GraphQL returns an unwrapped reference histogram
+  defined in the searched scopes. The GraphQL, REST and gRPC schema descriptions of `minReferencedEntity` and
+  `maxReferencedEntity` say what the APIs return; the text change alone changes no response. The upgrade note is on
+  #2035.
+- **Known corner, the override rule.** A histogram declared by a generic summary in `inScope(LIVE, …)` takes the
+  controls of a reference-specific summary in `inScope(ARCHIVED, …)`, so its ties are broken by a sorter built in
+  ARCHIVED. That is what the rule of `2026-09-05-duplicate-content-requirements-reduction` says; no test asks for
+  anything else.
+- **Visible to clients, unmanaged referenced types.** A reference summary with a histogram over a reference to an
+  entity type evitaDB does not manage returns the histogram without boundary entities, where the whole query failed
+  with `EntityCollectionRequiredException`. An `entityFetch` inside such a histogram is refused at planning.
+- **Open, left by #2035** - found by its adversarial code reviews, outside the change:
+  - **Shown by a probe, decision pending:** a reference whose group type is unmanaged loses its histogram. The index
+    writer stores it under the group's primary key (`ReferenceIndexMutator`), but the accumulator reads such a
+    reference as ungrouped (`ReferenceHistogramAccumulator#computeForReference` treats only a managed group as
+    grouped), so the group comes back with its facets and without the histogram. Neither side is changed by #2035;
+    the probe test was not kept.
+  - **Suspected:** a managed referenced type whose collection does not exist yet - allowed until the schema is
+    validated when the session closes - would fail the boundary fetch the way an unmanaged one did.
+  - #2053: a `histogramHaving` keeps no scope, so `or(inScope(LIVE, histogramHaving(…)), inScope(ARCHIVED,
+    histogramHaving(…)))` on one histogram is refused as two siblings, and a range inside `inScope(ARCHIVED, …)`
+    marks the buckets of a LIVE histogram `requested`. Both shown red.
+  - **Suspected:** `PriceHistogramComputer` drops the cache-admission callback its clone receives, so a price
+    histogram is probably never cached; the debug mode verifying alternative plans iterates its policies without
+    using the loop variable (`QueryPlanner`).
+  - **Suspected, external APIs:** GraphQL refuses a histogram requested at the root and in `inScope` of the one
+    searched scope, and refuses a repeated reference summary.
 - **Backport: none, by the project owner's decision.** The `ClassCastException` stays on `release_2026-2`, where it
   depends on the data. The refusal never shipped, because that branch has no residual check.
 
@@ -777,6 +1089,12 @@ owner accepted the folded bound's refusal too, and labelled the change breaking 
   every way to match instead, so a locale below `or` gives the bodies none, while a scope below `or` adds its scope.
 - `2026-11-19-direct-entity-calls-check-requested-content` — closes the open `getEntity` follow-up above: the direct
   calls check the requested content next to the scope check this record added.
+- `2026-05-06-reference-histogram-statistics`, `2026-11-19-one-histogram-store-per-group` — the reference histograms
+  and the per-group store #2035 combines across the scopes a histogram is requested in. The boundary pick of the
+  latter gained an owner filter for every histogram here (Option AA): an ungrouped pick checks every tied candidate
+  through its partitions, outside the merge that record describes.
+- `2026-09-05-duplicate-content-requirements-reduction` — the rule that a reference-specific summary governs its
+  reference entirely, which the controls per histogram keep for a histogram the generic summary declares.
 
 ## Timeline
 
@@ -808,3 +1126,16 @@ owner accepted the folded bound's refusal too, and labelled the change breaking 
   own design first and reaching the same contract; it moved the detection of the main fetch from the frame depth to
   the structure. The project owner chose R, accepted the refusal of the folded hierarchy bound and the `breaking
   change` label. #2027 split off, and #2035 from the review's histogram finding.
+- **2026-11-20** — #2035: a failing test on `dev` showed the wrapped price and attribute histograms counting both
+  scopes. The design was reviewed by an advisor and by an adversarial review that measured the reference histograms'
+  overwrite and the scope-dependent `entityHaving`; the project owner chose Option X ("what you see is what you get")
+  and refusal over merging. Implemented with a 40-test class red on `dev`, one counterfactual per mechanism, two
+  review rounds and a code-quality pass.
+- **2026-11-22** — #2035 review round: the review's histogram findings fixed in four rounds - owners of ungrouped
+  boundaries, controls per histogram, scope-ordered ties, GraphQL scopes, REST duplicates - each red first with a
+  counterfactual; one round reverted an engine relaxation the project owner had not decided (Option AF). The owner
+  chose to confine every boundary pick (AA) after a benchmark and a debugger count showed no resolvable cost, and
+  accepted that unstored referenced entities rank last. #2053 filed from the review's `histogramHaving` finding.
+- **2026-11-23** — The external API descriptions of the boundary entities corrected to what the APIs return. A
+  histogram over a reference to an unmanaged entity type, suspected while checking them, reproduced as a failing query
+  and was fixed in the same pull request (Option AG); its review found the unmanaged-group gap left open above.

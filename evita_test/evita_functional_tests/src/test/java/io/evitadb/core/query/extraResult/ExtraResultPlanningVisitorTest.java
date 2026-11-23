@@ -36,7 +36,6 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.Tag;
@@ -78,7 +77,7 @@ class ExtraResultPlanningVisitorTest {
 		final Formula formula = mock(Formula.class);
 		final FilterByVisitor filterByVisitor = mock(FilterByVisitor.class);
 		return new ExtraResultPlanningVisitor(
-			queryContext, indexes, formula, filterByVisitor, Collections.emptyList(), null
+			queryContext, indexes, formula, filterByVisitor, null
 		);
 	}
 

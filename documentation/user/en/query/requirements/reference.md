@@ -622,8 +622,16 @@ histogramStatistics(
     </dd>
     <dt>requireConstraint:entityFetch?</dt>
     <dd>
-        optional fetch describing how richly the **referenced (option) entities** that contributed to the histogram
-        should be loaded. In EvitaQL, place [`entityFetch`](fetching.md#entity-fetch) before or after the index names.
+        optional fetch describing how richly the two **boundary entities** of the histogram - the referenced
+        (option) entities anchoring its minimum and its maximum - are loaded. Without it they carry only their
+        identity and standard metadata. Both are returned when an entity can be loaded for each bound, otherwise
+        neither is.
+        Each bound prefers a referenced entity at that value that one of the entities counted by the histogram
+        references; when there is none, it picks among all candidates at that value. If the preferred entity cannot
+        be loaded, the bound takes the pick among all candidates instead.
+        Candidates are ranked by the query's `scope(...)` order, with entities outside the searched scopes last, and
+        then by the summary's facet ordering, or by the lowest primary key when the summary orders none.
+        In EvitaQL, place [`entityFetch`](fetching.md#entity-fetch) before or after the index names.
         When the fetch comes before the names, the optional behavior may appear on either side of the fetch.
     </dd>
     <dt>argument:string!+</dt>
@@ -641,11 +649,20 @@ require constraint can only appear as a child of [`referenceSummary`](#reference
 `parameterValues` and the bucketed index is `intervalParameterValues`, you get one histogram per parameter group
 (*height*, *weight*, *thickness*, …) inside the corresponding reference group of the summary.
 
+An unwrapped summary computes one histogram per group using the references of entities from all searched scopes.
+Wrap the summary in [`inScope`](behavioral.md#in-scope) to compute histograms from references of matching entities
+in the named scope. The [histogram baseline rules](../filtering/behavioral.md#how-userfilter-shapes-predictions) apply.
+Each named histogram of a reference can be requested for one scope set per query. Requests for the same named
+histogram with different scope sets are rejected. A histogram is computed only for a reference that defines it in
+every scope the histogram covers: a reference-specific summary rejects the query otherwise, and a generic summary
+skips such a reference and rejects a histogram name that no reference qualifies for. Wrap the summary in `inScope`
+to request a histogram defined in one scope only.
+
 The numeric value plotted in each bucket comes from the `valueExpression` declared on the reference schema's
 bucketed index (typically a numeric attribute on the reference or its referenced entity, such as `basicUnitValue`).
 The output histogram exposes:
 
-- the catalog-wide `[min, max]` span of the underlying value (the slider's outer handles)
+- the `[min, max]` span of the underlying value within the histogram's scopes (the slider's outer handles)
 - the bucket list with `threshold` (lower bound, inclusive), `occurrences` and `relativeFrequency`
 - a `requested` flag that is true when the bucket's threshold is within the inclusive range set by an applicable
   [`histogramHaving`](../filtering/references.md#histogram-having). With no applicable range, every bucket is requested.
@@ -666,9 +683,10 @@ present different slices of the same underlying value.
 
 </Note>
 
-The `[min, max]` span is computed by **peeling out** every value-range carrier under `userFilter` — both
-`histogramHaving` and `attributeBetween` siblings — so moving a slider does not contract its own outer handles and
-sibling sliders in the same family also keep their catalog-wide spans. See
+The `[min, max]` span is computed by **peeling out** every value-range carrier under `userFilter` - both
+`histogramHaving` and `attributeBetween` siblings - so moving a slider does not contract its own outer handles, and
+sibling sliders in the same family keep their spans over the histogram's scopes. Everything else still narrows the
+span: the mandatory filter, the other `userFilter` constraints and the scopes the histogram covers. See
 [the peel-by-family rule in behavioral filtering](../filtering/behavioral.md#how-userfilter-shapes-predictions)
 for the full matrix.
 
@@ -765,11 +783,17 @@ referenceSummaryOfReference(
 
 The <LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceSummaryOfReference.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceSummaryOfReference.cs</SourceClass></LS>
 requirement either stands alone (when only one reference needs a summary) or coexists with a generic
-[`referenceSummary`](#reference-summary) to **override its baseline for that single reference**. The override is
-total: nothing written on the generic constraint reaches the reference the per-reference variant names, so that
-variant has to define all of its own requirements. The generic constraint keeps governing every reference that has
-no per-reference variant, which is what lets you keep a one-line generic baseline and customise only the references
-that need it.
+[`referenceSummary`](#reference-summary) to **override its baseline for that single reference**. The override
+covers everything except histograms: no setting written on the generic constraint reaches the reference the
+per-reference variant names, so that variant has to define all of its own requirements. The generic constraint keeps
+governing every reference that has no per-reference variant, which is what lets you keep a one-line generic baseline
+and customise only the references that need it.
+
+Histograms are the exception. A [`histogramStatistics`](#histogram-statistics) of the generic constraint is still
+computed for a reference that has a per-reference variant, if the reference defines that histogram. Every histogram
+of a reference - whether the generic constraint or the per-reference variant requests it - uses the per-reference
+variant's facet ordering, group filter and group fetch when the reference has one, and keeps its own scopes and its
+own boundary `entityFetch`.
 
 <Note type="info">
 
@@ -781,7 +805,8 @@ that need it.
 It is simply not computed for that reference. Nothing crosses over from the generic constraint — no `entityFetch`,
 no `entityGroupFetch`, no `filterBy` / `filterGroupBy` and no `orderBy` / `orderGroupBy` — so a
 `referenceSummaryOfReference` carrying no `entityFetch` returns bare entity references even when the generic
-`referenceSummary` beside it asks for attributes.
+`referenceSummary` beside it asks for attributes. The only exception is a `histogramStatistics` of the generic
+constraint, described above.
 
 </Note>
 

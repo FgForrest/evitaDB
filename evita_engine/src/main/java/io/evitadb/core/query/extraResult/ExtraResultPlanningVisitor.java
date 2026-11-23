@@ -193,11 +193,6 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Getter private final FilterByVisitor filterByVisitor;
 	/**
-	 * Contains prepared sorter implementation that takes output of the {@link #filteringFormula} and sorts the entity
-	 * primary keys according to {@link OrderConstraint} in {@link EvitaRequest}.
-	 */
-	@Getter private final Collection<Sorter> sorters;
-	/**
 	 * The outer query plan's {@link PrefetchFormulaVisitor}. Nested filter plans produced by
 	 * {@link #getFilteringFormulaForStatisticsBase} merge their prefetch demand into this visitor so the outer
 	 * query plan can fold them into its single one-shot prefetch decision. May be {@code null} in test contexts
@@ -259,14 +254,12 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		@Nonnull TargetIndexes<?> indexSetToUse,
 		@Nonnull Formula filteringFormula,
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nullable Collection<Sorter> sorters,
 		@Nullable PrefetchFormulaVisitor outerPrefetchFormulaVisitor
 	) {
 		this.queryContext = queryContext;
 		this.indexSetToUse = indexSetToUse;
 		this.filteringFormula = filteringFormula;
 		this.filterByVisitor = filterByVisitor;
-		this.sorters = sorters;
 		this.outerPrefetchFormulaVisitor = outerPrefetchFormulaVisitor;
 		this.attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
 		final LinkedList<Set<Scope>> requestedScopes = new LinkedList<>();
@@ -822,21 +815,6 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			orderBy, locale, entityCollection, stepDescriptionSupplier,
 			this.queryContext, getProcessingScope().getScopes()
 		);
-	}
-
-	/**
-	 * Method finds sorter of specified type in the current {@link #sorters} or sorters that are chained in it as secondary
-	 * or tertiary sorters.
-	 */
-	@Nullable
-	public <T extends Sorter> T findSorter(@Nonnull Class<T> sorterType) {
-		for (Sorter sorter : this.sorters) {
-			if (sorterType.isInstance(sorter)) {
-				//noinspection unchecked
-				return (T) sorter;
-			}
-		}
-		return null;
 	}
 
 	@Override

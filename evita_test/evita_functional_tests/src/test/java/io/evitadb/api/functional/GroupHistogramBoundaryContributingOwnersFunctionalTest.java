@@ -399,25 +399,18 @@ class GroupHistogramBoundaryContributingOwnersFunctionalTest implements EvitaTes
 	 *   at the brand 10 without an order, at the brand 13 with the descending one.
 	 * - Over the share, the anchor product references the brand 11, which no entity is stored for, with the share 10
 	 *   and the brand 13 with the share 20, while the product references the brand 10 with the share 10, all at the
-	 *   first rank. The boundary is picked by the primary keys of the candidates before any brand is loaded: the brand
-	 *   11 is the only brand the anchor product references at the smallest value, so the smallest value is picked at
-	 *   it, and the query cannot load it. The bound then takes the brand picked among every brand holding the value,
-	 *   the brands 10 and 11: without an order the brand 10, which loads, so the histogram is anchored at the brands 10
-	 *   and 13; with the descending order the brand 11 again, so the histogram has neither boundary entity - the brand
-	 *   10 does not take its place there.
+	 *   first rank. The brand 11 is the only brand the anchor product references at the smallest value. The query
+	 *   cannot load it, so the bound takes the unrestricted pick, which prefers the LIVE brand 10 in both orders.
+	 *   The histogram is anchored at the brands 10 and 13.
 	 * - Over the share, the same owners with the anchor product referencing the brand 12 instead of the brand 11, and
 	 *   the brand 12 moved to the archived scope, which the query does not ask for. The smallest value is picked at the
 	 *   brand 12, the only brand the anchor product references holding it, and the query cannot load it. Among every
-	 *   brand holding the value - the brands 10 and 12 - the bound takes the brand 10 without an order, which loads, so
-	 *   the histogram is anchored at the brands 10 and 13; with the descending order the brand 12 again, so the
-	 *   histogram has neither boundary entity.
+	 *   brand holding the value, the alternative pick prefers the LIVE brand 10 in both orders. The histogram is
+	 *   anchored at the brands 10 and 13.
 	 * - Over the share, the anchor product references the brand 11 with the share 10 and the brand 13 with the share
 	 *   20, while the product references the brands 9, 10 and 14 with the share 10, all at the first rank; no entity is
-	 *   stored for the brands 9, 11 and 14. The smallest value is picked at the brand 11 of the anchor product, and
-	 *   among every brand holding it at the brand 9 without an order and at the brand 14 with the descending one.
-	 *   Neither loads, so the histogram has neither boundary entity in both orders: the brand 10, which holds the value
-	 *   and loads, does not take their place, because the bound falls back only to the brand picked among every brand
-	 *   holding the value.
+	 *   stored for the brands 9, 11 and 14. The primary pick is brand 11 of the anchor product. The alternative is
+	 *   brand 10 in both orders because it is the only candidate in the searched scope.
 	 * - Over the weight of the brand, the query asks for the English locale and both owners are named in it, the brands
 	 *   10 and 13 too, while the brand 12 is named only in Czech. The anchor product references the brands 12 and 13 at
 	 *   the first rank, the product the brand 10 at the second one. The smallest weight 10 is picked at the brand 12,
@@ -582,7 +575,7 @@ class GroupHistogramBoundaryContributingOwnersFunctionalTest implements EvitaTes
 					anchoredRange(ANCHOR_VALUE, SECOND_ANCHOR_BRAND_PK, ANCHOR_VALUE, SECOND_ANCHOR_BRAND_PK)
 				),
 				new Scenario(
-					"ANCHOR_KEPT_CONTRIBUTOR_NOT_LOADABLE",
+					"ANCHOR_KEPT_CONTRIBUTOR_NOT_STORED",
 					HistogramValueSource.REFERENCE_ATTRIBUTE, ANCHOR_PK, null, null, null, 0,
 					List.of(),
 					List.of(
@@ -593,7 +586,7 @@ class GroupHistogramBoundaryContributingOwnersFunctionalTest implements EvitaTes
 						)
 					),
 					anchoredRange(ANCHOR_VALUE, BRAND_PK, SECOND_ANCHOR_VALUE, SECOND_ANCHOR_BRAND_PK),
-					withoutBoundaryEntities
+					anchoredRange(ANCHOR_VALUE, BRAND_PK, SECOND_ANCHOR_VALUE, SECOND_ANCHOR_BRAND_PK)
 				),
 				new Scenario(
 					"ANCHOR_KEPT_CONTRIBUTOR_OUTSIDE_REQUESTED_SCOPES",
@@ -601,10 +594,10 @@ class GroupHistogramBoundaryContributingOwnersFunctionalTest implements EvitaTes
 					List.of(archiveBrand(FIRST_ANCHOR_BRAND_PK, ANCHOR_VALUE)),
 					List.of(createProduct(BRAND_PK, FIRST_RANK, ANCHOR_VALUE), createAnchor(FIRST_RANK, true)),
 					anchoredRange(ANCHOR_VALUE, BRAND_PK, SECOND_ANCHOR_VALUE, SECOND_ANCHOR_BRAND_PK),
-					withoutBoundaryEntities
+					anchoredRange(ANCHOR_VALUE, BRAND_PK, SECOND_ANCHOR_VALUE, SECOND_ANCHOR_BRAND_PK)
 				),
 				new Scenario(
-					"ANCHOR_KEPT_CONTRIBUTOR_AND_ALTERNATIVE_NOT_LOADABLE",
+					"ANCHOR_KEPT_CONTRIBUTOR_AND_OTHER_TIED_CANDIDATES_NOT_STORED",
 					HistogramValueSource.REFERENCE_ATTRIBUTE, ANCHOR_PK, null,
 					List.of(),
 					List.of(
@@ -617,7 +610,7 @@ class GroupHistogramBoundaryContributingOwnersFunctionalTest implements EvitaTes
 							SECOND_ANCHOR_BRAND_PK, SECOND_ANCHOR_VALUE
 						)
 					),
-					withoutBoundaryEntities
+					anchoredRange(ANCHOR_VALUE, BRAND_PK, SECOND_ANCHOR_VALUE, SECOND_ANCHOR_BRAND_PK)
 				),
 				new Scenario(
 					"ANCHOR_KEPT_OVER_BRAND_WEIGHT_CONTRIBUTOR_LACKS_QUERY_LOCALE",

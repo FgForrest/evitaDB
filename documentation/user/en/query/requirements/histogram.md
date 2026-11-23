@@ -125,10 +125,11 @@ Yes. Several `attributeHistogram` requirements may be written side by side, and 
 count and behaviour to the attributes it names - a query asking for 20 buckets of one attribute and 3 of another
 gets exactly that.
 
-One attribute may be requested only once, though: it occupies a single slot in the result, so two requirements
-naming it with a different bucket count or behaviour have no answer that satisfies both and are refused with an
-exception. Requesting it twice with the *same* bucket count and behaviour is accepted, which is how one attribute
-asked for in two scopes is computed across both of them.
+Each attribute has one histogram slot in the result. Repeating a request for the same attribute is allowed when the
+bucket count, behaviour, and scope set agree. The query rejects conflicting requests. An unwrapped requirement uses
+all searched scopes. Wrap the requirement in [`inScope`](behavioral.md#in-scope) to compute the histogram for entities
+in the named scope that the query matches, using the
+[histogram baseline rules](#baseline-relaxation--sliders-dont-contract-under-their-own-handles).
 
 </Note>
 

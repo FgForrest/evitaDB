@@ -156,8 +156,10 @@ public interface GrpcHistogramOrBuilder extends
 
   /**
    * <pre>
-   * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
-   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * Referenced entity whose value anchors the minimum bucket of the histogram. Set only on histograms computed over
+   * references, together with `maxReferencedEntity`, when both bounds resolve to referenced entities that can be
+   * loaded; otherwise both are unset. Carries the content the histogram's entity fetch requests, or only the
+   * entity's identity and standard metadata when it requests none.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
@@ -166,8 +168,10 @@ public interface GrpcHistogramOrBuilder extends
   boolean hasMinReferencedEntity();
   /**
    * <pre>
-   * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
-   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * Referenced entity whose value anchors the minimum bucket of the histogram. Set only on histograms computed over
+   * references, together with `maxReferencedEntity`, when both bounds resolve to referenced entities that can be
+   * loaded; otherwise both are unset. Carries the content the histogram's entity fetch requests, or only the
+   * entity's identity and standard metadata when it requests none.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
@@ -176,8 +180,10 @@ public interface GrpcHistogramOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getMinReferencedEntity();
   /**
    * <pre>
-   * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
-   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * Referenced entity whose value anchors the minimum bucket of the histogram. Set only on histograms computed over
+   * references, together with `maxReferencedEntity`, when both bounds resolve to referenced entities that can be
+   * loaded; otherwise both are unset. Carries the content the histogram's entity fetch requests, or only the
+   * entity's identity and standard metadata when it requests none.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity minReferencedEntity = 5;</code>
@@ -186,8 +192,10 @@ public interface GrpcHistogramOrBuilder extends
 
   /**
    * <pre>
-   * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
-   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * Referenced entity whose value anchors the maximum bucket of the histogram. Set only on histograms computed over
+   * references, together with `minReferencedEntity`, when both bounds resolve to referenced entities that can be
+   * loaded; otherwise both are unset. Carries the content the histogram's entity fetch requests, or only the
+   * entity's identity and standard metadata when it requests none.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
@@ -196,8 +204,10 @@ public interface GrpcHistogramOrBuilder extends
   boolean hasMaxReferencedEntity();
   /**
    * <pre>
-   * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
-   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * Referenced entity whose value anchors the maximum bucket of the histogram. Set only on histograms computed over
+   * references, together with `minReferencedEntity`, when both bounds resolve to referenced entities that can be
+   * loaded; otherwise both are unset. Carries the content the histogram's entity fetch requests, or only the
+   * entity's identity and standard metadata when it requests none.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>
@@ -206,8 +216,10 @@ public interface GrpcHistogramOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getMaxReferencedEntity();
   /**
    * <pre>
-   * Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
-   * reference-scope histograms when an entity fetch is requested for the associated reference.
+   * Referenced entity whose value anchors the maximum bucket of the histogram. Set only on histograms computed over
+   * references, together with `minReferencedEntity`, when both bounds resolve to referenced entities that can be
+   * loaded; otherwise both are unset. Carries the content the histogram's entity fetch requests, or only the
+   * entity's identity and standard metadata when it requests none.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity maxReferencedEntity = 6;</code>

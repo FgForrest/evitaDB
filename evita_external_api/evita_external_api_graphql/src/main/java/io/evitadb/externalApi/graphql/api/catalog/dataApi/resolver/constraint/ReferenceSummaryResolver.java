@@ -27,8 +27,10 @@ import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
+import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.EntityFetch;
@@ -108,9 +110,18 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 
+	/**
+	 * Translates selected reference summaries, resolving unwrapped histogram names in the searched scopes.
+	 *
+	 * @param extraResultsSelectionSet extra result fields selected by the query
+	 * @param queryFilterBy the resolved filter at the queried entity level
+	 * @param desiredLocale locale inherited by entity content selections
+	 * @return the reference summary requirements for the Java query
+	 */
 	@Nonnull
 	public Collection<RequireConstraint> resolve(
 		@Nonnull SelectionSetAggregator extraResultsSelectionSet,
+		@Nullable FilterBy queryFilterBy,
 		@Nullable Locale desiredLocale
 	) {
 		final List<SelectedField> referenceSummaryFields = extraResultsSelectionSet.getImmediateFields(
@@ -123,6 +134,11 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 			return List.of();
 		}
 
+		final EntityScope queryScope = queryFilterBy == null ? null : QueryUtils.findConstraint(
+			queryFilterBy, EntityScope.class, SeparateEntityScopeContainer.class
+		);
+		final Scope[] queryScopes = queryScope == null ? Scope.DEFAULT_SCOPES : queryScope.getScopesInRequestedOrder();
+
 		return referenceSummaryFields.stream()
 			.flatMap(facetSummaryField -> {
 				final Scope scope = resolveScope(facetSummaryField);
@@ -134,6 +150,7 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 					     resolveFacetSummaryOfReference(
 							facetSummaryOfReferenceField,
 							scope,
+							queryScopes,
 							desiredLocale
 						)
 					);
@@ -147,10 +164,22 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 			.values();
 	}
 
+	/**
+	 * Resolves the facets and histograms selected for a single reference.
+	 *
+	 * @param field the selected reference field
+	 * @param scope the scope named by an enclosing wrapper, if any
+	 * @param queryScopes the scopes searched by the query
+	 * @param desiredLocale locale inherited by entity content selections
+	 * @return the reference name and its requirement
+	 */
 	@Nonnull
-	private Entry<String, RequireConstraint> resolveFacetSummaryOfReference(@Nonnull SelectedField field,
-																			@Nullable Scope scope,
-	                                                                        @Nullable Locale desiredLocale) {
+	private Entry<String, RequireConstraint> resolveFacetSummaryOfReference(
+		@Nonnull SelectedField field,
+		@Nullable Scope scope,
+		@Nonnull Scope[] queryScopes,
+		@Nullable Locale desiredLocale
+	) {
 		final ReferenceSchemaContract referenceSchema = this.entitySchema.getReferenceByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
 			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + this.entitySchema.getName() + "`."));
 		final String referenceName = referenceSchema.getName();
@@ -199,12 +228,9 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 			Optional.ofNullable(QueryUtils.resolveLocale(filterGroupBy)).orElse(desiredLocale), referenceName
 		).orElse(null);
 
-		// detect requested histogram statistics fields — the schema indexes must be resolved for the effective scope
-		// coming from the query tree (or the default scope when no `inScope` wrapper is present). Each histogram
-		// statistics constraint carries its own EntityFetch synthesized from the anchor-entity selections on that
-		// specific index, independent of the facet entity fetch.
-		final List<ReferenceHistogramStatistics> histogramStatistics =
-			resolveHistogramStatistics(field, referenceSchema, scope, desiredLocale);
+		final List<ReferenceHistogramStatistics> histogramStatistics = resolveHistogramStatistics(
+			field, referenceSchema, scope, scope == null ? queryScopes : new Scope[]{scope}, desiredLocale
+		);
 
 		final FacetStatisticsDepth depth = resolveStatisticsDepth(field);
 
@@ -241,32 +267,34 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 	}
 
 	/**
-	 * Resolves histogram statistics constraints based on histogram index fields requested in the selection set.
-	 * Follows the pattern of {@link AttributeHistogramResolver}: collects histogram requests keyed by index name
-	 * (each entry carries its own bucket count and behavior), then groups entries sharing the same
-	 * `(requestedBucketCount, behavior)` pair into a single {@link ReferenceHistogramStatistics} constraint.
+	 * Resolves one constraint per selected histogram name with its bucket options and boundary entity fetch.
+	 * Aliases of the same histogram must agree on the bucket count and behavior.
 	 *
-	 * Histogram fields share the same bucket count and behavior when requested on the same reference via different
-	 * GraphQL aliases — a common limitation since one physical histogram computation is triggered per constraint.
+	 * The effective scopes come from the enclosing wrapper or the query filter.
 	 *
-	 * Only histogram indexes defined on the reference schema in the effective `scope` parsed from the query tree are
-	 * considered — any field referring to an index not present in that scope is ignored.
+	 * @param field the selected reference field
+	 * @param referenceSchema the schema advertising the histogram names
+	 * @param scope the enclosing wrapper's scope, if present
+	 * @param effectiveScopes the scopes in which to resolve histogram names
+	 * @param desiredLocale locale inherited by boundary entity selections
+	 * @return the resolved histogram requirements
 	 */
 	@Nonnull
 	private List<ReferenceHistogramStatistics> resolveHistogramStatistics(
 		@Nonnull SelectedField field,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Scope scope,
+		@Nonnull Scope[] effectiveScopes,
 		@Nullable Locale desiredLocale
 	) {
-		// collect histogram index names defined on the reference schema in the effective scope (or the default scope
-		// when no `inScope` wrapper is present)
-		final Scope effectiveScope = scope == null ? Scope.DEFAULT_SCOPE : scope;
-		if (!referenceSchema.isBucketedInScope(effectiveScope)) {
-			return List.of();
+		boolean hasHistogram = false;
+		for (final Scope effectiveScope : effectiveScopes) {
+			if (!referenceSchema.getHistogramIndexDefinitions(effectiveScope).isEmpty()) {
+				hasHistogram = true;
+				break;
+			}
 		}
-		final Set<String> histogramIndexNames = referenceSchema.getHistogramIndexDefinitions(effectiveScope).keySet();
-		if (histogramIndexNames.isEmpty()) {
+		if (!hasHistogram) {
 			return List.of();
 		}
 
@@ -289,11 +317,9 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 			.forEach(histogramStatisticsField -> {
 				// each named histogram index field lives directly under the wrapper
 				for (final SelectedField histogramIndexField : SelectionSetAggregator.getImmediateFields(histogramStatisticsField.getSelectionSet())) {
-					final HistogramIndexDefinition histogramIndexDefinition = referenceSchema
-						.getHistogramIndexDefinitionByName(effectiveScope, histogramIndexField.getName(), PROPERTY_NAME_NAMING_CONVENTION)
-						.orElseThrow(() -> new GraphQLQueryResolvingInternalError(
-							"Missing histogram index definition for `" + histogramIndexField.getName() + "` in reference `" + referenceSchema.getName() + "`."
-						));
+					final HistogramIndexDefinition histogramIndexDefinition = resolveHistogramIndexDefinition(
+						referenceSchema, effectiveScopes, histogramIndexField.getName()
+					);
 					final String originalIndexName = histogramIndexDefinition.nameOfTheIndex();
 
 					final List<SelectedField> bucketsFields = SelectionSetAggregator.getImmediateFields(
@@ -366,6 +392,31 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 				return histogramStatistics;
 			})
 			.toList();
+	}
+
+	/**
+	 * Finds the schema name corresponding to a GraphQL field in the effective scopes.
+	 *
+	 * @param referenceSchema the schema in which the histogram is defined
+	 * @param scopes the effective scopes, in requested order
+	 * @param fieldName the GraphQL name of the selected histogram
+	 * @return the histogram definition
+	 */
+	@Nonnull
+	private static HistogramIndexDefinition resolveHistogramIndexDefinition(
+		@Nonnull ReferenceSchemaContract referenceSchema, @Nonnull Scope[] scopes, @Nonnull String fieldName
+	) {
+		for (final Scope scope : scopes) {
+			final HistogramIndexDefinition definition = referenceSchema
+				.getHistogramIndexDefinitionByName(scope, fieldName, PROPERTY_NAME_NAMING_CONVENTION).orElse(null);
+			if (definition != null) {
+				return definition;
+			}
+		}
+		throw new GraphQLQueryResolvingInternalError(
+			"Missing histogram index definition for `" + fieldName + "` in reference `" +
+				referenceSchema.getName() + "`."
+		);
 	}
 
 	@Nonnull
