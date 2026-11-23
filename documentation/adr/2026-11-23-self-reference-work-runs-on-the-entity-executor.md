@@ -5,7 +5,7 @@ updated: 2026-11-23 17:28
 status: accepted
 kind: fix
 issues: [2002]
-prs: []
+prs: [2066]
 areas: [evita_engine/src/main/java/io/evitadb/core/collection,
   evita_engine/src/main/java/io/evitadb/index/mutation/local,
   evita_engine/src/main/java/io/evitadb/index/mutation/storagePart,
