@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-23 15:43
+updated: 2026-11-23 17:31
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917, 1920, 2035]
@@ -506,8 +506,10 @@ histogram itself is returned whole.
 - **Cons:** a client gets no anchor entity for the ends of such a histogram, only its `min` and `max`.
 
 An `entityFetch` inside such a histogram stays refused at planning, as the summary's own `entityFetch` on the
-reference is; the refusal's message ("EntityFetch constraint is probably incorrectly nested in require part of the
-query.") names the wrong cause and was left as it is.
+reference is. #2043 left both refusals with messages naming the wrong cause ("EntityFetch constraint is probably
+incorrectly nested in require part of the query." and `EntityCollectionRequiredException`); the follow-up pull
+request made them, and the summary's `entityGroupFetch` on an unmanaged group type, throw `EntityNotManagedException`
+naming the type - the exception `referenceContent` and `facetHaving` already throw for the same request.
 
 #### Option AH — return the picked primary key as a bare reference (declined)
 
@@ -1058,7 +1060,9 @@ into the same pull request.
   anything else.
 - **Visible to clients, unmanaged referenced types.** A reference summary with a histogram over a reference to an
   entity type evitaDB does not manage returns the histogram without boundary entities, where the whole query failed
-  with `EntityCollectionRequiredException`. An `entityFetch` inside such a histogram is refused at planning.
+  with `EntityCollectionRequiredException`. An `entityFetch` inside such a histogram or of a reference summary on
+  such a reference, and the summary's `entityGroupFetch` on an unmanaged group type, are refused at planning with
+  `EntityNotManagedException`, as `referenceContent` refuses them.
 - **Open, left by #2035** - found by its adversarial code reviews, outside the change:
   - #2062: a reference whose group type is unmanaged loses its histogram - the group comes back with its facets and
     without the histogram. Shown red; the routing behind it (the index writer stores the values under the group's
@@ -1142,3 +1146,5 @@ into the same pull request.
 - **2026-11-23** — The external API descriptions of the boundary entities corrected to what the APIs return. A
   histogram over a reference to an unmanaged entity type, suspected while checking them, reproduced as a failing query
   and was fixed in the same pull request (Option AG); its review found the unmanaged-group gap, filed as #2062.
+  After #2043 merged, a follow-up pull request pointed this record at #2062 and gave the refusals of a fetch on an
+  unmanaged type `EntityNotManagedException` (Option AG); the larger open items above stay follow-ups.
