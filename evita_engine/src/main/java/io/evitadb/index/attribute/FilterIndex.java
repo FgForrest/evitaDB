@@ -1286,14 +1286,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 		while (iterator.hasNext()) {
 			final TransactionalRangePoint point = iterator.next();
 			final long threshold = point.getThreshold();
-			surplus = openRanges(activeSet, point.getStarts(), surplus);
-			// the levels after the first empty one are spare and empty too
-			for (final Bitmap repeatedStarts : point.getRepeatedStarts()) {
-				if (repeatedStarts.isEmpty()) {
-					break;
-				}
-				surplus = openRanges(activeSet, repeatedStarts, surplus);
-			}
+			surplus = openRangesOfPoint(activeSet, point, surplus);
 			// sentinel thresholds (Long.MIN_VALUE / Long.MAX_VALUE) cannot be materialized as
 			// bucket keys — they would overflow the inner numeric type. Their `starts` / `ends`
 			// bitmaps MUST still mutate the active set, however: records with open-ended ranges
@@ -1311,13 +1304,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 					)
 				);
 			}
-			closeRanges(activeSet, point.getEnds(), surplus);
-			for (final Bitmap repeatedEnds : point.getRepeatedEnds()) {
-				if (repeatedEnds.isEmpty()) {
-					break;
-				}
-				closeRanges(activeSet, repeatedEnds, surplus);
-			}
+			closeRangesOfPoint(activeSet, point, surplus);
 		}
 		final ValueToRecordBitmap[] bucketArray = buckets.toArray(new ValueToRecordBitmap[0]);
 		// range-histogram staleness stays whole-index coarse: the buckets are assembled from the RangeIndex point
@@ -1332,6 +1319,173 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 			this.memoizedRangeHistogramSubSet = result;
 		}
 		return result;
+	}
+
+	/**
+	 * Returns the buckets {@link #getRangeHistogramOfAllRecords(Class, int)} would emit for one filter index holding
+	 * the ranges of all `filterIndexes`: a bucket at every threshold any of them holds but the two open-end sentinels,
+	 * carrying every record one of whose ranges in any of the indexes covers that threshold.
+	 *
+	 * Sweeping each index on its own and merging the buckets by threshold gives a different result, because an index
+	 * emits only at its own thresholds and its bucket lacks the records of another index whose ranges span that
+	 * threshold. The merged buckets cannot be repaired afterwards either: an open-ended range and a gap between two
+	 * ranges of one record leave no trace in them. This method therefore sweeps the range points of all indexes at
+	 * once - at each threshold it opens the starts of every index, emits one bucket, and only then closes the ends of
+	 * every index, which is what the single-index sweep does with the union of their borders.
+	 *
+	 * A record id held by several indexes is one record holding all of their ranges, as if they had been added to one
+	 * index. The indexes must belong to one range attribute schema and therefore share its inner numeric type, which
+	 * is checked for each index, and its `BigDecimal` scale, which is not. Nothing is memoized: the result belongs to
+	 * the combination of indexes, not to any one of them.
+	 *
+	 * @param filterIndexes         the filter indexes of one range attribute, each with its {@link RangeIndex}
+	 *                              companion
+	 * @param innerNumericType      the inner numeric type of the source `NumberRange` (e.g. `Integer` for
+	 *                              `IntegerNumberRange`); used to materialize bucket keys
+	 * @param retainedDecimalPlaces decimal-places scale used by `BigDecimalNumberRange` to encode its `long`
+	 *                              threshold; ignored for all other inner numeric types
+	 * @return the buckets, sorted ascending by threshold
+	 * @throws GenericEvitaInternalError when an index has no range companion or its attribute type resolves to another
+	 *                                   inner numeric type
+	 */
+	@Nonnull
+	public static ValueToRecordBitmap[] getRangeHistogramOfAllRecords(
+		@Nonnull List<FilterIndex> filterIndexes,
+		@Nonnull Class<? extends Number> innerNumericType,
+		int retainedDecimalPlaces
+	) {
+		final int indexCount = filterIndexes.size();
+		@SuppressWarnings("unchecked")
+		final Iterator<TransactionalRangePoint>[] iterators = new Iterator[indexCount];
+		// the point each index's sweep is at, null once the index has no point left
+		final TransactionalRangePoint[] heads = new TransactionalRangePoint[indexCount];
+		int remainingIndexes = 0;
+		final boolean inTransaction = isTransactionAvailable();
+		int capacityHint = 16;
+		for (int i = 0; i < indexCount; i++) {
+			final FilterIndex filterIndex = filterIndexes.get(i);
+			final RangeIndex rangeIndex = filterIndex.rangeIndex;
+			if (rangeIndex == null) {
+				throw new GenericEvitaInternalError(
+					"getRangeHistogramOfAllRecords over several filter indexes got one without a RangeIndex " +
+						"companion (attribute `" + filterIndex.attributeIndexKey + "`)."
+				);
+			}
+			final Class<? extends Number> expectedInnerType =
+				EvitaDataTypes.resolveRangeInnerNumericType(filterIndex.attributeType);
+			if (expectedInnerType != innerNumericType) {
+				throw new GenericEvitaInternalError(
+					"getRangeHistogramOfAllRecords over several filter indexes called with innerNumericType `" +
+						innerNumericType + "` but FilterIndex attributeType `" + filterIndex.attributeType.getName() +
+						"` resolves to inner type `" + expectedInnerType + "` (attribute `" +
+						filterIndex.attributeIndexKey + "`) - schema/index drift."
+				);
+			}
+			iterators[i] = rangeIndex.rangesIterator();
+			if (iterators[i].hasNext()) {
+				heads[i] = iterators[i].next();
+				remainingIndexes++;
+			}
+			// 16 plus the point count of each index less its two sentinels: an upper bound, since indexes may share
+			// thresholds; inside a transaction the count would force a merge, so the hint stays at 16 there
+			if (!inTransaction) {
+				capacityHint += Math.max(0, rangeIndex.getRangePointCount() - 2);
+			}
+		}
+		final List<ValueToRecordBitmap> buckets = new ArrayList<>(capacityHint);
+		// the active set is mutated in place; we snapshot via clone() into each emitted bucket
+		final BaseBitmap activeSet = new BaseBitmap();
+		// open ranges beyond the first per record, counted across all indexes; null until the first such record is met
+		IntIntHashMap surplus = null;
+		while (remainingIndexes > 0) {
+			// the next threshold of the sweep is the smallest one any index is at
+			long threshold = Long.MAX_VALUE;
+			for (final TransactionalRangePoint head : heads) {
+				if (head != null && head.getThreshold() < threshold) {
+					threshold = head.getThreshold();
+				}
+			}
+			// open the starts of every index at this threshold before the single emission, so a range of one index
+			// starting here is in the bucket even when a range of another index ends here
+			for (final TransactionalRangePoint head : heads) {
+				if (head != null && head.getThreshold() == threshold) {
+					surplus = openRangesOfPoint(activeSet, head, surplus);
+				}
+			}
+			// the sentinel thresholds cannot be materialized as bucket keys, but their starts and ends - the open
+			// ends of ranges - have to be applied all the same (see the single-index sweep)
+			if (threshold != Long.MIN_VALUE && threshold != Long.MAX_VALUE) {
+				buckets.add(
+					new ValueToRecordBitmap(
+						toBucketKey(threshold, innerNumericType, retainedDecimalPlaces),
+						new BaseBitmap(activeSet)
+					)
+				);
+			}
+			// close the ends of every index at this threshold only after the emission, then move those indexes on
+			for (int i = 0; i < indexCount; i++) {
+				final TransactionalRangePoint head = heads[i];
+				if (head != null && head.getThreshold() == threshold) {
+					closeRangesOfPoint(activeSet, head, surplus);
+					if (iterators[i].hasNext()) {
+						heads[i] = iterators[i].next();
+					} else {
+						heads[i] = null;
+						remainingIndexes--;
+					}
+				}
+			}
+		}
+		return buckets.toArray(new ValueToRecordBitmap[0]);
+	}
+
+	/**
+	 * Opens every range starting at `point` during the range-histogram sweep: the records of its first occurrence
+	 * level, then those of each repeated level, each level through {@link #openRanges}. The repeated levels stop at the
+	 * first empty one - the levels after it are spare and empty too.
+	 *
+	 * @param activeSet the records holding at least one open range, mutated in place
+	 * @param point     the point at the swept threshold
+	 * @param surplus   open ranges beyond the first per record, or `null` while no record holds more than one
+	 * @return the surplus counter, created when this call is the first to need it
+	 */
+	@Nullable
+	private static IntIntHashMap openRangesOfPoint(
+		@Nonnull BaseBitmap activeSet,
+		@Nonnull TransactionalRangePoint point,
+		@Nullable IntIntHashMap surplus
+	) {
+		IntIntHashMap result = openRanges(activeSet, point.getStarts(), surplus);
+		for (final Bitmap repeatedStarts : point.getRepeatedStarts()) {
+			if (repeatedStarts.isEmpty()) {
+				break;
+			}
+			result = openRanges(activeSet, repeatedStarts, result);
+		}
+		return result;
+	}
+
+	/**
+	 * Closes every range ending at `point` during the range-histogram sweep: the records of its first occurrence
+	 * level, then those of each repeated level, each level through {@link #closeRanges}. The repeated levels stop at
+	 * the first empty one - the levels after it are spare and empty too.
+	 *
+	 * @param activeSet the records holding at least one open range, mutated in place
+	 * @param point     the point at the swept threshold
+	 * @param surplus   open ranges beyond the first per record, or `null` while no record holds more than one
+	 */
+	private static void closeRangesOfPoint(
+		@Nonnull BaseBitmap activeSet,
+		@Nonnull TransactionalRangePoint point,
+		@Nullable IntIntHashMap surplus
+	) {
+		closeRanges(activeSet, point.getEnds(), surplus);
+		for (final Bitmap repeatedEnds : point.getRepeatedEnds()) {
+			if (repeatedEnds.isEmpty()) {
+				break;
+			}
+			closeRanges(activeSet, repeatedEnds, surplus);
+		}
 	}
 
 	/**

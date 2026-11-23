@@ -481,6 +481,12 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 * by the caller (typically via
 	 * {@link io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer}) so this method performs no
 	 * additional formula-tree surgery — it simply threads the filter through the bucket-array combiner.
+	 *
+	 * A range attribute read from several indexes, every one of them with its range companion, is swept over all of
+	 * them at once by {@link FilterIndex#getRangeHistogramOfAllRecords(List, Class, int)}: the buckets of their own
+	 * sweeps, merged by threshold, would each lack the records of the other indexes whose ranges span it. The merged
+	 * buckets cannot be repaired either, because an open-ended range and a gap between two ranges of one record leave
+	 * no trace in them. Indexes of which only some carry a range companion keep the per-index merge.
 	 */
 	private ValueToRecordBitmap[] computeNarrowedHistogramBuckets(
 		@Nonnull AttributeHistogramComputer histogramComputer,
@@ -488,34 +494,29 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator
 	) {
 		if (this.memoizedNarrowedBuckets == null) {
-			// dispatch per-leaf: range-typed leaves go through the sentinel-skipping sweep over the
-			// RangeIndex companion; scalar leaves use the existing InvertedIndex-backed bucket array.
-			// Mixed inputs are valid — sources for the same histogram name may be reused across scalar
-			// and range attributes in the same query (multi-histogram support).
 			final AttributeHistogramRequest request = histogramComputer.getRequest();
 			final Class<? extends Number> innerNumericType = EvitaDataTypes.resolveRangeInnerNumericType(
 				request.attributeSchema().getType()
 			);
 			final int retainedDecimalPlaces = request.getDecimalPlaces();
 			final List<FilterIndex> attributeIndexList = histogramComputer.getAttributeIndexes();
-			final ValueToRecord[][] attributeIndexes = new ValueToRecord[attributeIndexList.size()][];
-			for (int i = 0; i < attributeIndexList.size(); i++) {
-				final FilterIndex fi = attributeIndexList.get(i);
-				final InvertedIndexSubSet subset;
-				if (fi.getRangeIndex() != null) {
-					if (innerNumericType == null) {
-						throw new GenericEvitaInternalError(
-							"Filter index for attribute `" + request.getAttributeName() + "` carries a " +
-								"RangeIndex companion but the attribute schema type `" +
-								request.attributeSchema().getType().getName() + "` is not a supported " +
-								"NumberRange subtype — schema/index drift."
-						);
-					}
-					subset = fi.getRangeHistogramOfAllRecords(innerNumericType, retainedDecimalPlaces);
-				} else {
-					subset = fi.getHistogramOfAllRecords();
-				}
-				attributeIndexes[i] = subset.getBuckets();
+			final ValueToRecord[][] attributeIndexes;
+			// the sweep over several indexes needs the range companion of every one of them; a scalar index beside a
+			// range index keeps the per-index merge
+			if (
+				innerNumericType != null && attributeIndexList.size() > 1 &&
+					everyIndexHasRangeCompanion(attributeIndexList)
+			) {
+				// a range attribute in several indexes: one sweep over all of them, as if they were one index
+				attributeIndexes = new ValueToRecord[][]{
+					FilterIndex.getRangeHistogramOfAllRecords(
+						attributeIndexList, innerNumericType, retainedDecimalPlaces
+					)
+				};
+			} else {
+				attributeIndexes = getOwnBucketsOfEachIndex(
+					request, attributeIndexList, innerNumericType, retainedDecimalPlaces
+				);
 			}
 
 			this.memoizedNarrowedBuckets = AttributeHistogramProducer.getCombinedAndFilteredBucketArray(
@@ -523,6 +524,67 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			);
 		}
 		return this.memoizedNarrowedBuckets;
+	}
+
+	/**
+	 * Tests whether every index carries its {@link io.evitadb.index.range.RangeIndex} companion, which the sweep over
+	 * several indexes needs.
+	 *
+	 * @param attributeIndexList the indexes the histogram is computed from
+	 * @return `true` when no index lacks the range companion
+	 */
+	private static boolean everyIndexHasRangeCompanion(@Nonnull List<FilterIndex> attributeIndexList) {
+		for (int i = 0; i < attributeIndexList.size(); i++) {
+			if (attributeIndexList.get(i).getRangeIndex() == null) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Returns the own buckets of every index, in the order of `attributeIndexList`, for the bucket-array combiner to
+	 * merge by threshold. A range-typed index goes through the sentinel-skipping sweep over its
+	 * {@link io.evitadb.index.range.RangeIndex} companion, a scalar index through its inverted index. Mixed inputs are
+	 * valid: sources for the same histogram name may be reused across scalar and range attributes in the same query
+	 * (multi-histogram support).
+	 *
+	 * @param request               the histogram request, naming the attribute and its schema
+	 * @param attributeIndexList    the indexes the histogram is computed from
+	 * @param innerNumericType      the inner numeric type of the attribute's `NumberRange` type, or `null` when the
+	 *                              attribute is not of a supported range type
+	 * @param retainedDecimalPlaces decimal-places scale used by `BigDecimalNumberRange` to encode its `long` threshold
+	 * @return the buckets of each index, one array per index
+	 * @throws GenericEvitaInternalError when an index carries a range companion but the attribute schema type is not a
+	 *                                   supported `NumberRange` subtype
+	 */
+	@Nonnull
+	private static ValueToRecord[][] getOwnBucketsOfEachIndex(
+		@Nonnull AttributeHistogramRequest request,
+		@Nonnull List<FilterIndex> attributeIndexList,
+		@Nullable Class<? extends Number> innerNumericType,
+		int retainedDecimalPlaces
+	) {
+		final ValueToRecord[][] attributeIndexes = new ValueToRecord[attributeIndexList.size()][];
+		for (int i = 0; i < attributeIndexList.size(); i++) {
+			final FilterIndex fi = attributeIndexList.get(i);
+			final InvertedIndexSubSet subset;
+			if (fi.getRangeIndex() != null) {
+				if (innerNumericType == null) {
+					throw new GenericEvitaInternalError(
+						"Filter index for attribute `" + request.getAttributeName() + "` carries a " +
+							"RangeIndex companion but the attribute schema type `" +
+							request.attributeSchema().getType().getName() + "` is not a supported " +
+							"NumberRange subtype — schema/index drift."
+					);
+				}
+				subset = fi.getRangeHistogramOfAllRecords(innerNumericType, retainedDecimalPlaces);
+			} else {
+				subset = fi.getHistogramOfAllRecords();
+			}
+			attributeIndexes[i] = subset.getBuckets();
+		}
+		return attributeIndexes;
 	}
 
 }
