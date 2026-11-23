@@ -1,0 +1,5 @@
+mutation {
+  makeCatalogAliveWithProgress(name: "evita") {
+    progressId
+  }
+}

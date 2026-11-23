@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,17 +28,18 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for header arguments of {@link SystemRootDescriptor#SWITCH_CATALOG_TO_ALIVE_STATE}
- * query.
+ * Descriptor for header arguments of the engine mutations of {@link SystemRootDescriptor} that target a single catalog
+ * by its name: create, activate, deactivate, delete, make alive, make immutable and make mutable, in both their
+ * blocking and `...WithProgress` variants.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-public interface SwitchCatalogToAliveStateMutationHeaderDescriptor {
+public interface CatalogNameMutationHeaderDescriptor {
 
 	PropertyDescriptor NAME = PropertyDescriptor.builder()
 		.name("name")
 		.description("""
-			Name of a catalog that will be switched to ALIVE state.
+			Name of the catalog the operation targets.
 			""")
 		.type(nonNull(String.class))
 		.build();

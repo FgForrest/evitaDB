@@ -77,6 +77,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 	private static final String ON_SYSTEM_CHANGE_UNTYPED_PATH = "payload.data.onSystemChangeUntyped";
 	private static final String ON_CATALOG_CHANGE_PATH = "payload.data.onCatalogChange";
 	private static final String ON_CATALOG_CHANGE_UNTYPED_PATH = "payload.data.onCatalogChangeUntyped";
+	private static final String ON_ENGINE_MUTATION_PROGRESS_CHANGE_PATH = "payload.data.onEngineMutationProgressChange";
 	public static final String GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API = "GraphQLEmptySystemForSystemApi";
 
 	/**
@@ -1060,6 +1061,83 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 					.isString()
 					.isNotBlank();
 				assertEquals(2, receivedEvents.size(), "No event may follow the refusal: " + receivedEvents);
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should deliver the outcome of an asynchronous engine operation to a subscriber by its progress id")
+	void shouldDeliverOutcomeOfAsynchronousOperation(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String catalogName = "progressCatalog" + subscriptionId;
+		evita.defineCatalog(catalogName);
+
+		final String progressId = tester.test(SYSTEM_URL)
+			.document("mutation { makeCatalogAliveWithProgress(name: \"%s\") { progressId } }", catalogName)
+			.executeAndExpectOkAndThen()
+			.extract()
+			.path("data.makeCatalogAliveWithProgress.progressId");
+		// let the operation finish first, so the subscriber deterministically receives just the final message
+		evita.getEngineMutationProgress(catalogName)
+			.ifPresent(progress -> progress.onCompletion().toCompletableFuture().join());
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			ctx -> {
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
+					subscriptionId,
+					"onEngineMutationProgressChange(progressId: \\\"" + progressId + "\\\") " +
+						"{ progressId percentCompleted finished catalogVersion catalogSchemaVersion }"
+				));
+			},
+			3, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				final String finalEvent = receivedEvents.get(receivedEvents.size() - 1);
+				assertThatJson(finalEvent).node("type").isEqualTo("complete");
+				final String lastNext = receivedEvents.get(receivedEvents.size() - 2);
+				assertNextEvent(lastNext, subscriptionId)
+					.node(ON_ENGINE_MUTATION_PROGRESS_CHANGE_PATH + ".finished")
+					.isEqualTo(true);
+				assertNextEvent(lastNext, subscriptionId)
+					.node(ON_ENGINE_MUTATION_PROGRESS_CHANGE_PATH + ".progressId")
+					.isEqualTo(progressId);
+				assertNextEvent(lastNext, subscriptionId)
+					.node(ON_ENGINE_MUTATION_PROGRESS_CHANGE_PATH + ".percentCompleted")
+					.isEqualTo(100);
+				assertNextEvent(lastNext, subscriptionId)
+					.node(ON_ENGINE_MUTATION_PROGRESS_CHANGE_PATH + ".catalogVersion")
+					.isNotNull();
+			}
+		);
+		evita.deleteCatalogIfExists(catalogName);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should end a subscription to an unknown progress id with an error")
+	void shouldEndSubscriptionToUnknownProgressIdWithError(GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			ctx -> {
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
+					subscriptionId,
+					"onEngineMutationProgressChange(progressId: \\\"" + UUID.randomUUID() + "\\\") " +
+						"{ progressId finished }"
+				));
+				ctx.tryAwaitEvents(3, REFUSED_SUBSCRIPTION_QUIET_WINDOW);
+			},
+			2, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertErrorEvent(receivedEvents.get(1), subscriptionId)
+					.node("payload[0].message")
+					.isString()
+					.contains("unknown or its outcome has already expired");
+				assertEquals(2, receivedEvents.size(), "No event may follow the error: " + receivedEvents);
 			}
 		);
 	}

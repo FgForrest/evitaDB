@@ -1006,6 +1006,35 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	@Test
+	void shouldResolveGraphQLQueryComplexityLimitsFromConfiguration() {
+		// the limits passed as property overrides must reach the GraphQL options
+		final EvitaServer evitaServer = new EvitaServer(
+			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
+			constructTestArguments(
+				new HashMap<>(),
+				List.of(
+					property("api.endpoints.graphQL.maxQueryDepth", "15"),
+					property("api.endpoints.graphQL.maxQueryFieldsCount", "2000")
+				),
+				Set.of(GraphQLProvider.CODE)
+			)
+		);
+		try {
+			evitaServer.run();
+
+			final GraphQLProvider graphQLProvider = evitaServer.getExternalApiServer()
+				.getExternalApiProviderByCode(GraphQLProvider.CODE);
+			assertNotNull(graphQLProvider);
+			assertEquals(15, graphQLProvider.getConfiguration().getMaxQueryDepth());
+			assertEquals(2000, graphQLProvider.getConfiguration().getMaxQueryFieldsCount());
+		} catch (Exception ex) {
+			fail(ex);
+		} finally {
+			closeServerAndEvita(evitaServer);
+		}
+	}
+
 	/**
 	 * A user configuration that leaves `parallelize` absent, empty or `null` must keep the documented default of
 	 * parallel GraphQL fetching, while an explicit `false` still turns it off. The YAML merge lets an empty or

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,17 +26,13 @@ package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.http.EndpointResponse;
-import io.evitadb.externalApi.http.NotFoundEndpointResponse;
-import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.dto.UpdateCatalogRequestDto;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.api.system.model.UpdateCatalogRequestDescriptor;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
-import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -45,56 +41,27 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Updates and returns single evitaDB catalog by its name.
+ * Changes a single evitaDB catalog by its name: renames it, changes its state or its mutability - exactly one of
+ * these per request, so that each request performs exactly one engine operation. Serves both the blocking
+ * `PATCH /catalogs/{name}` and the asynchronous `PATCH /catalogs-async/{name}`.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class UpdateCatalogHandler extends CatalogHandler {
+public class UpdateCatalogHandler extends EngineOperationHandler {
 
-	public UpdateCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
-		super(restApiHandlingContext);
-	}
-
-	@Override
-	protected boolean modifiesData() {
-		return true;
+	public UpdateCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext, boolean async) {
+		super(restApiHandlingContext, async);
 	}
 
 	@Nonnull
 	@Override
-	protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull RestEndpointExecutionContext executionContext) {
-		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
-		final Map<String, Object> parameters = getParametersFromRequest(executionContext);
+	protected CompletableFuture<EngineOperation> prepareOperation(
+		@Nonnull RestEndpointExecutionContext executionContext,
+		@Nonnull Map<String, Object> parameters
+	) {
+		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
 		return parseRequestBody(executionContext, UpdateCatalogRequestDto.class)
-			.thenCompose(requestBody -> {
-				requestExecutedEvent.finishInputDeserialization();
-
-				return executionContext.executeAsyncInTransactionThreadPool(() -> {
-					final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-					final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-						this.restHandlingContext.getEvita().getCatalogInstance(catalogName));
-					if (catalog.isEmpty()) {
-						requestExecutedEvent.finishOperationExecution();
-						requestExecutedEvent.finishResultSerialization();
-						return new NotFoundEndpointResponse();
-					};
-
-					final CatalogContract updatedCatalog = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
-						final Optional<String> newCatalogName = renameCatalog(catalog.get(), requestBody);
-						switchCatalogToAliveState(catalog.get(), requestBody);
-
-						final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
-						return this.restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
-							.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
-					});
-					requestExecutedEvent.finishOperationExecution();
-
-					final Object result = convertResultIntoSerializableObject(executionContext, updatedCatalog);
-					requestExecutedEvent.finishResultSerialization();
-
-					return new SuccessEndpointResponse(result);
-				});
-			});
+			.thenApply(requestBody -> toOperation(catalogName, requestBody));
 	}
 
 	@Nonnull
@@ -109,44 +76,69 @@ public class UpdateCatalogHandler extends CatalogHandler {
 		return DEFAULT_SUPPORTED_CONTENT_TYPES;
 	}
 
+	/**
+	 * Translates the request body into the engine operation it requests.
+	 *
+	 * @throws RestInvalidArgumentException when the body does not contain exactly one change or requests an
+	 *                                      unsupported state
+	 */
 	@Nonnull
-	private Optional<String> renameCatalog(@Nonnull CatalogContract catalog,
-	                                       @Nonnull UpdateCatalogRequestDto requestBody) {
-		final Evita evita = this.restHandlingContext.getEvita();
-
-		final Optional<String> newCatalogName = Optional.ofNullable(requestBody.name());
-		if (newCatalogName.isEmpty()) {
-			return Optional.empty();
+	private static EngineOperation toOperation(@Nonnull String catalogName, @Nonnull UpdateCatalogRequestDto body) {
+		final int changes = (body.name() == null ? 0 : 1) + (body.state() == null ? 0 : 1) +
+			(body.readOnly() == null ? 0 : 1);
+		if (changes != 1) {
+			throw new RestInvalidArgumentException(
+				"Exactly one of `" + UpdateCatalogRequestDescriptor.NAME.name() + "`, `" +
+					UpdateCatalogRequestDescriptor.STATE.name() + "` and `" +
+					UpdateCatalogRequestDescriptor.READ_ONLY.name() + "` must be set, but " + changes + " were."
+			);
 		}
 
-		final boolean overwriteTarget = Optional.ofNullable(requestBody.overwriteTarget()).orElse(false);
-		if (overwriteTarget) {
-			evita.replaceCatalog(catalog.getName(), newCatalogName.get());
+		final String newName = body.name();
+		if (newName != null) {
+			return new EngineOperation(
+				(evita, catalog) -> Optional.of(evita.renameCatalogWithProgress(catalog.getName(), newName)),
+				newName
+			);
+		}
+		final Boolean readOnly = body.readOnly();
+		if (readOnly != null) {
+			return new EngineOperation(
+				(evita, catalog) -> Optional.of(
+					readOnly ?
+						evita.makeCatalogImmutableWithProgress(catalog.getName()) :
+						evita.makeCatalogMutableWithProgress(catalog.getName())
+				),
+				catalogName
+			);
+		}
+		final CatalogState state = body.state();
+		if (state == CatalogState.ALIVE) {
+			return new EngineOperation(
+				(evita, catalog) -> Optional.of(makeAlive(evita, catalog)),
+				catalogName
+			);
+		} else if (state == CatalogState.INACTIVE) {
+			return new EngineOperation(
+				(evita, catalog) -> Optional.of(evita.deactivateCatalogWithProgress(catalog.getName())),
+				catalogName
+			);
 		} else {
-			evita.renameCatalog(catalog.getName(), newCatalogName.get());
+			throw new RestInvalidArgumentException(
+				"A catalog can be switched only to the `" + CatalogState.ALIVE + "` or `" + CatalogState.INACTIVE +
+					"` state, but `" + state + "` was requested."
+			);
 		}
-
-		return newCatalogName;
 	}
 
-	private void switchCatalogToAliveState(
-		@Nonnull CatalogContract catalog,
-		@Nonnull UpdateCatalogRequestDto requestBody
-	) {
-		final Optional<CatalogState> newCatalogState = Optional.ofNullable(requestBody.catalogState());
-		if (newCatalogState.isEmpty()) {
-			return;
-		}
-
-		Assert.isTrue(
-			newCatalogState.get() == CatalogState.ALIVE,
-			() -> new RestInvalidArgumentException("A catalog can be switched only to the `ALIVE` state.")
-		);
-		Assert.isTrue(
-			catalog.getCatalogState() == CatalogState.WARMING_UP,
-			() -> new RestInvalidArgumentException("Only a catalog in the `WARMING_UP` state can be switched to the `ALIVE` state.")
-		);
-
-		this.restHandlingContext.getEvita().makeCatalogAlive(catalog.getName());
+	/**
+	 * `ALIVE` activates an inactive catalog and makes a warming-up catalog alive; the engine refuses whatever does
+	 * not apply to the current state of the catalog.
+	 */
+	@Nonnull
+	private static Progress<?> makeAlive(@Nonnull Evita evita, @Nonnull CatalogContract catalog) {
+		return catalog.getCatalogState() == CatalogState.INACTIVE ?
+			evita.activateCatalogWithProgress(catalog.getName()) :
+			evita.makeCatalogAliveWithProgress(catalog.getName());
 	}
 }

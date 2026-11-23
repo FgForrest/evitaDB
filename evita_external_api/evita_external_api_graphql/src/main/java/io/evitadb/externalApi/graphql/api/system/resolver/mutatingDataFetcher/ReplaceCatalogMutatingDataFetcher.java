@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,34 +23,35 @@
 
 package io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher;
 
-import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.model.ReplaceCatalogMutationHeaderDescriptor;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Objects;
+
+import static io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.EngineOperationArguments.getStringArgument;
 
 /**
- * Returns single catalog dto by name.
+ * Replaces the catalog `nameToBeReplaced` with the catalog `nameToBeReplacedWith` and returns it under
+ * the replaced name.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-@RequiredArgsConstructor
-public class ReplaceCatalogMutatingDataFetcher implements DataFetcher<CatalogContract>, WriteDataFetcher {
+public class ReplaceCatalogMutatingDataFetcher extends EngineOperationMutatingDataFetcher {
 
-    private final Evita evita;
+	public ReplaceCatalogMutatingDataFetcher(@Nonnull Evita evita) {
+		super(evita);
+	}
 
-    @Nonnull
-    @Override
-    public CatalogContract get(DataFetchingEnvironment environment) throws Exception {
-        final String catalogNameToBeReplaced = Objects.requireNonNull(environment.getArgument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED.name()));
-        final String catalogNameToBeReplacedWith = Objects.requireNonNull(environment.getArgument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED_WITH.name()));
-
-	    this.evita.replaceCatalog(catalogNameToBeReplacedWith, catalogNameToBeReplaced);
-        return this.evita.getCatalogInstanceOrThrowException(catalogNameToBeReplaced);
-    }
+	@Nonnull
+	@Override
+	protected String executeOperation(@Nonnull DataFetchingEnvironment environment) {
+		final String nameToBeReplaced =
+			getStringArgument(environment, ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED);
+		this.evita.replaceCatalog(
+			getStringArgument(environment, ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED_WITH),
+			nameToBeReplaced
+		);
+		return nameToBeReplaced;
+	}
 }

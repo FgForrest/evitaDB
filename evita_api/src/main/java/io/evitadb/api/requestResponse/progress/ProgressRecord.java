@@ -30,6 +30,8 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -55,6 +57,11 @@ public class ProgressRecord<T> implements Progress<T> {
 	 * Represents the name of the operation being tracked.
 	 */
 	private final String operationName;
+
+	/**
+	 * The id under which the engine tracks this operation, or null when it is not tracked by an engine.
+	 */
+	@Nullable private final UUID progressId;
 
 	/**
 	 * Optional observer that can be notified about progress updates.
@@ -108,6 +115,7 @@ public class ProgressRecord<T> implements Progress<T> {
 		@Nullable IntConsumer progressObserver
 	) {
 		this.operationName = operationName;
+		this.progressId = null;
 		if (progressObserver != null) {
 			this.progressObservers.add(progressObserver);
 		}
@@ -132,6 +140,7 @@ public class ProgressRecord<T> implements Progress<T> {
 		@Nonnull Executor executor
 	) {
 		this(
+			null,
 			operationName,
 			progressObserver,
 			progressingFuture,
@@ -146,6 +155,8 @@ public class ProgressRecord<T> implements Progress<T> {
 	 * The {@code onProgressExecution} consumer is called during construction (before the future starts), and
 	 * {@code onProgressCompletion} is called when the future completes.
 	 *
+	 * @param progressId           id under which the engine tracks the operation, see {@link Progress#progressId()};
+	 *                             null when the operation is not tracked by an engine
 	 * @param operationName        name of the operation being tracked
 	 * @param progressObserver     optional observer notified on progress changes; may be null
 	 * @param progressingFuture    the future whose progress will be tracked
@@ -154,6 +165,7 @@ public class ProgressRecord<T> implements Progress<T> {
 	 * @param executor             the executor used to run the progressing future
 	 */
 	public ProgressRecord(
+		@Nullable UUID progressId,
 		@Nonnull String operationName,
 		@Nullable IntConsumer progressObserver,
 		@Nonnull ProgressingFuture<T> progressingFuture,
@@ -161,6 +173,7 @@ public class ProgressRecord<T> implements Progress<T> {
 		@Nonnull Consumer<ProgressRecord<T>> onProgressCompletion,
 		@Nonnull Executor executor
 	) {
+		this.progressId = progressId;
 		this.operationName = operationName;
 		if (progressObserver != null) {
 			this.progressObservers.add(progressObserver);
@@ -177,6 +190,12 @@ public class ProgressRecord<T> implements Progress<T> {
 		updatePercentCompleted(0);
 		onProgressExecution.accept(this);
 		progressingFuture.execute(executor);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<UUID> progressId() {
+		return Optional.ofNullable(this.progressId);
 	}
 
 	@Override

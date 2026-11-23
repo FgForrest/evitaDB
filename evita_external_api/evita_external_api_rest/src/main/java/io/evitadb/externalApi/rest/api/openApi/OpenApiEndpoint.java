@@ -76,6 +76,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 
 	private static final String STATUS_CODE_OK = String.valueOf(HttpStatus.OK.code());
 	private static final String STATUS_CODE_NO_CONTENT = String.valueOf(HttpStatus.NO_CONTENT.code());
+	private static final String STATUS_CODE_ACCEPTED = String.valueOf(HttpStatus.ACCEPTED.code());
 	private static final String STATUS_CODE_INTERNAL_SERVER_ERROR = String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.code());
 	private static final String STATUS_CODE_METHOD_NOT_ALLOWED = String.valueOf(HttpStatus.METHOD_NOT_ALLOWED.code());
 	private static final String STATUS_CODE_NOT_FOUND = String.valueOf(HttpStatus.NOT_FOUND.code());
@@ -149,6 +150,14 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 				createResponse(
 					"Request was successful.",
 					null
+				)
+			);
+		} else if (this.successResponse instanceof OpenApiAccepted acceptedResponse) {
+			responses.addApiResponse(
+				STATUS_CODE_ACCEPTED,
+				createResponse(
+					"Request was accepted, it is processed in the background.",
+					acceptedResponse.getWrappedType()
 				)
 			);
 		} else {

@@ -102,6 +102,7 @@ import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.session.SuspensionInformation;
 import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.core.transaction.engine.EngineMutationPrecondition;
+import io.evitadb.core.transaction.engine.EngineMutationProgressStatus;
 import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.core.transaction.engine.operators.DefaultUpgradeExecutor;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -150,6 +151,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1369,6 +1371,29 @@ public final class Evita implements EvitaContract {
 	@Nonnull
 	public Optional<Progress<?>> getEngineMutationProgress(@Nonnull String catalogName) {
 		return this.engineTransactionManager.getEngineMutationProgress(catalogName);
+	}
+
+	/**
+	 * Returns a publisher of the progress of the engine mutation with the given progress id. Every engine mutation
+	 * is tracked automatically; its id is available as {@link Progress#progressId()} of the progress returned by the
+	 * `...WithProgress` methods. Each subscriber first receives the current state of the operation, then every further
+	 * change; a successful operation ends with a final item carrying the resulting versions followed by `onComplete`,
+	 * a failed one with `onError` ({@link io.evitadb.core.exception.EngineMutationFailedException}), an unknown or
+	 * expired id with `onError` ({@link io.evitadb.core.exception.EngineMutationProgressNotFoundException}). When the
+	 * engine shuts down, open subscriptions end with `onComplete` **without** a final item - a subscriber that saw no
+	 * finished item before `onComplete` must treat the outcome as unknown. The outcome of a finished operation is
+	 * retained only for a limited time - see
+	 * {@link io.evitadb.api.configuration.ServerOptions#engineMutationProgressRetentionInSeconds()} - and in memory
+	 * only.
+	 *
+	 * The method is server-side only and therefore not part of {@link EvitaContract}.
+	 *
+	 * @param progressId id of the operation
+	 * @return publisher of the progress of the operation
+	 */
+	@Nonnull
+	public Flow.Publisher<EngineMutationProgressStatus> subscribeToEngineMutationProgress(@Nonnull UUID progressId) {
+		return this.engineTransactionManager.subscribeToEngineMutationProgress(progressId);
 	}
 
 	/**

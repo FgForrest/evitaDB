@@ -23,7 +23,7 @@ supersedes: []
 superseded-by: []
 relates: [2026-10-08-scope-faithful-planning-and-facet-summary-parity,
   2026-10-20-reference-content-filter-row-by-row, 2026-10-21-one-locale-per-entity-level,
-  2026-11-17-direct-entity-calls-check-requested-content, 2026-05-06-reference-histogram-statistics,
+  2026-11-19-direct-entity-calls-check-requested-content, 2026-05-06-reference-histogram-statistics,
   2026-11-19-one-histogram-store-per-group, 2026-09-05-duplicate-content-requirements-reduction]
 ---
 
@@ -351,7 +351,7 @@ without the bound, so the fetch never evaluates that bound.
 
 - **Pros:** would keep the one newly refused shape no fetch can fail on answered under the wrapper.
 - **Rejected because:** planning validates the requirements as written, the rule the project owner set for #1949
-  (`2026-11-17-direct-entity-calls-check-requested-content`), and the same query without the wrapper is refused
+  (`2026-11-19-direct-entity-calls-check-requested-content`), and the same query without the wrapper is refused
   today. Changing that is a separate decision covering every query, not one this fix makes for the wrapper alone.
 
 ### #2035 — histograms inside a require-level `inScope`
@@ -815,7 +815,7 @@ into the same pull request.
 - **#1915, measured and left alone.** A named localized attribute of bodies with no locale source was refused by a
   planned query and answered by `getEntity`, alike for a locale below `or` and a filter without any `entityHaving`
   (`$GroupBodyScopes#shouldRefusePlannedLocalizedBodyAttributesWhenFetchLocaleIsMissing`). Since #1949
-  (`2026-11-17-direct-entity-calls-check-requested-content`) `getEntity` refuses it too
+  (`2026-11-19-direct-entity-calls-check-requested-content`) `getEntity` refuses it too
   (`$GroupBodyScopes#shouldRefuseDirectFetchWhenNeitherShapeSuppliesBodyLocale`). The price criteria of the bodies
   are read from the code only: the data set has no prices.
 
@@ -964,7 +964,7 @@ into the same pull request.
   - **Resolved in #1949:** `getEntity` planned no fetch, so it did not refuse the named localized attribute above,
     which a planned query refuses; it returned the entity, or the referenced entity bodies, without the attribute.
     The direct calls now check the requested content against the schema next to the scope check
-    (`2026-11-17-direct-entity-calls-check-requested-content`).
+    (`2026-11-19-direct-entity-calls-check-requested-content`).
   - **Resolved in #1920:** an `inScope` in the require section narrowed the scopes the planning checks of the main
     fetch inherited, while the pre-flight and the fetch did not. They now check it in the query's searched scopes
     (Option R).
@@ -1087,7 +1087,7 @@ into the same pull request.
 - `2026-10-21-one-locale-per-entity-level` — the body chain of `QueryUtils#resolveReferenceBodyLocale` reads the
   extraction of the body level, which since #1915 follows `and` only. The scope of the bodies uses the summary of
   every way to match instead, so a locale below `or` gives the bodies none, while a scope below `or` adds its scope.
-- `2026-11-17-direct-entity-calls-check-requested-content` — closes the open `getEntity` follow-up above: the direct
+- `2026-11-19-direct-entity-calls-check-requested-content` — closes the open `getEntity` follow-up above: the direct
   calls check the requested content next to the scope check this record added.
 - `2026-05-06-reference-histogram-statistics`, `2026-11-19-one-histogram-store-per-group` — the reference histograms
   and the per-group store #2035 combines across the scopes a histogram is requested in. The boundary pick of the
@@ -1120,7 +1120,7 @@ into the same pull request.
 - **2026-11-11** — PR #1919 merged.
 - **2026-11-13** — PR #1913 merged.
 - **2026-11-17** — #1949: the direct calls check the requested content, recorded in
-  `2026-11-17-direct-entity-calls-check-requested-content`.
+  `2026-11-19-direct-entity-calls-check-requested-content`.
 - **2026-11-19** — #1920: probes on `dev` showed the fetch ignoring a require-level `inScope` and the narrowed checks
   depending on the data. Option R reviewed by an advisor and two adversarial Codex reviews, one of them writing its
   own design first and reaching the same contract; it moved the detection of the main fetch from the frame depth to

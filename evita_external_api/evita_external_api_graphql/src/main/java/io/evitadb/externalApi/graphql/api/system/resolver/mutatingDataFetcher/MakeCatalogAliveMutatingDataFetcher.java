@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,32 +23,30 @@
 
 package io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher;
 
-import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
-import io.evitadb.externalApi.graphql.api.system.model.SwitchCatalogToAliveStateMutationHeaderDescriptor;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.externalApi.graphql.api.system.model.CatalogNameMutationHeaderDescriptor;
 
 import javax.annotation.Nonnull;
-import java.util.Objects;
+
+import static io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.EngineOperationArguments.getStringArgument;
 
 /**
- * Tries to switch a {@link CatalogContract} to {@link io.evitadb.api.CatalogState#ALIVE} state.
+ * Switches a catalog from the `WARMING_UP` to the `ALIVE` state and returns it.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-@RequiredArgsConstructor
-public class SwitchCatalogToAliveStateMutatingDataFetcher implements DataFetcher<Boolean>, WriteDataFetcher {
+public class MakeCatalogAliveMutatingDataFetcher extends EngineOperationMutatingDataFetcher {
 
-    private final Evita evita;
+	public MakeCatalogAliveMutatingDataFetcher(@Nonnull Evita evita) {
+		super(evita);
+	}
 
-    @Nonnull
-    @Override
-    public Boolean get(DataFetchingEnvironment environment) throws Exception {
-        final String catalogName = Objects.requireNonNull(environment.getArgument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.name()));
-        this.evita.makeCatalogAlive(catalogName);
-        return true;
-    }
+	@Nonnull
+	@Override
+	protected String executeOperation(@Nonnull DataFetchingEnvironment environment) {
+		final String catalogName = getStringArgument(environment, CatalogNameMutationHeaderDescriptor.NAME);
+		this.evita.makeCatalogAlive(catalogName);
+		return catalogName;
+	}
 }

@@ -35,6 +35,8 @@ server:                                           # [see Server configuration](#
   readOnly: false
   quiet: false
   usageStatisticsTracking: true
+  engineMutationProgressRetentionInSeconds: 300
+  engineMutationProgressRetentionLimit: 100
   trafficRecording:
     enabled: false
     sourceQueryTracking: false
@@ -144,6 +146,8 @@ api:                                              # [see API configuration](#api
       keepAlive: null
       parallelize: true
       documentCacheSizeInBytes: 16MB
+      maxQueryDepth: 100
+      maxQueryFieldsCount: 100000
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -506,6 +510,26 @@ This section contains general settings for the evitaDB server. It allows configu
            what changes is that each row reports itself as **not measured** instead of reporting zeros. Treat that
            distinction as load-bearing: a zero request count against a live observation window reads as *"nothing uses
            this flag, drop it"*, which is a destructive conclusion to draw when the truth is that nobody was counting.</p>
+    </dd>
+    <dt>engineMutationProgressRetentionInSeconds</dt>
+    <dd>
+        <p>**Default:** `300` (5 minutes); `0` forgets the outcome immediately</p>
+        <p>Every engine-level operation (creating, renaming, replacing, duplicating, activating, deactivating, deleting
+           a catalog, switching it alive or changing its mutability) is tracked under a progress id. The GraphQL and
+           REST system APIs hand the id to the client of a `...WithProgress` / asynchronous call, and the client
+           subscribes to the progress of the operation with it. This setting specifies how long, counted from its
+           completion, the outcome of a finished operation stays available, so that a client which subscribes after
+           the operation has finished still learns how it ended. Running operations are never forgotten.</p>
+        <p>The outcomes are kept in memory only: after a server restart, or on another node of a cluster, the id is
+           unknown and the client has to read the state of the catalog instead.</p>
+    </dd>
+    <dt>engineMutationProgressRetentionLimit</dt>
+    <dd>
+        <p>**Default:** `100`; `0` retains no outcome</p>
+        <p>Maximum number of finished operation outcomes retained at once (see
+           `engineMutationProgressRetentionInSeconds`). Running operations never count towards the limit. The limit is
+           shared by all clients and all APIs (including gRPC and the Java API), so a burst of engine operations issued by
+           other clients may evict an outcome before a slow client subscribes to it.</p>
     </dd>
 </dl>
 
@@ -1411,6 +1435,24 @@ when constructing endpoint options programmatically without a TLS mode.
         are dominated by a fixed cost of several hundred bytes). The cache of a catalog is
         discarded whenever its GraphQL schema is rebuilt (e.g. after a catalog schema change).</p>
         <p>Set to `0` to disable the cache. Negative values are rejected.</p>
+    </dd>
+    <dt>maxQueryDepth</dt>
+    <dd>
+        <p>**Default:** `100`</p>
+        <p>Maximum depth of field selections in a GraphQL query, with fragments expanded. A deeper query is rejected
+        with a validation error before it is executed. The limit is checked on the query document sent by the
+        client, so it does not depend on the size of the catalog schema or of the result.</p>
+        <p>Introspection queries are additionally capped by graphql-java to a depth of 20 and 500 fields, whatever
+        the configured limits are.</p>
+        <p>The value must be positive.</p>
+    </dd>
+    <dt>maxQueryFieldsCount</dt>
+    <dd>
+        <p>**Default:** `100000`</p>
+        <p>Maximum number of fields in a GraphQL query, counted with every fragment spread expanded. A query with more
+        fields is rejected with a validation error before it is executed. Like `maxQueryDepth`, the limit protects
+        the server against needlessly expensive documents and applies to the query document, not to the result.</p>
+        <p>The value must be positive.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>

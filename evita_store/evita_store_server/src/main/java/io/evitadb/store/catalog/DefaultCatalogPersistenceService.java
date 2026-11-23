@@ -35,6 +35,7 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -2607,24 +2608,15 @@ public class DefaultCatalogPersistenceService
 				final EntityCollectionFileHeader compactedHeader = entityCollectionPersistenceService.compact(
 					this.catalogName, catalogVersion, headerInfoSupplier, newDescriptor.getFileSize()
 				);
-				final DefaultEntityCollectionPersistenceService newPersistenceService = this.entityCollectionPersistenceServices.computeIfAbsent(
+				final DefaultEntityCollectionPersistenceService newPersistenceService = registerCompactedCollection(
 					new CollectionFileReference(
 						entityCollectionHeader.entityType(),
 						entityCollectionHeader.entityTypePrimaryKey(),
 						compactedHeader.entityTypeFileIndex(),
 						compactedHeader.fileLocation()
 					),
-					eType -> new DefaultEntityCollectionPersistenceService(
-						catalogVersion,
-						this.catalogName,
-						this.catalogStoragePath,
-						compactedHeader,
-						this.storageSettings,
-						this.offHeapMemoryManager,
-						this.observableOutputKeeper,
-						this.recordTypeRegistry,
-						this.checkpointCoordinator
-					)
+					catalogVersion,
+					compactedHeader
 				);
 				if (dataStoreBuffer instanceof WarmUpDataStoreMemoryBuffer warmUpDataStoreMemoryBuffer) {
 					warmUpDataStoreMemoryBuffer.setPersistenceService(
@@ -3838,6 +3830,62 @@ public class DefaultCatalogPersistenceService
 					.toArray(ExceptionThrowingRunnable[]::new)
 			);
 			this.catalogStoragePartPersistenceService.clear();
+		}
+	}
+
+	/**
+	 * Opens the storage of a collection that has just been compacted and registers it, unless this service has been
+	 * closed meanwhile.
+	 *
+	 * A compaction runs inside a collection write, and the termination of a warming-up catalog does not wait for the
+	 * collection writes of a flush still in progress - so a compaction can finish after {@link #close()} has closed
+	 * and dropped every registered collection storage, and a storage registered then would keep its file handles open
+	 * for the life of the process. The new storage is therefore opened and registered under
+	 * {@link #historyHorizonLock}, which `close()` flips {@link #closed} under: either it is registered before the
+	 * flip and `close()` closes it with the rest, or the flip came first and nothing is opened at all. The refusal
+	 * throws before the caller parks the retirement of the old file, which stays where the published record names
+	 * it; no published record names the compacted file, so a refused compaction leaves only unreferenced bytes.
+	 *
+	 * The storage is opened under the lock rather than opened first and closed when it turns out not to be needed:
+	 * every storage of one file shares that file's output in {@link #observableOutputKeeper}, so closing a second
+	 * storage would close the output of the one already registered, even in the middle of its write. The price is
+	 * that the open, which reads the offset index of the compacted file, delays the version pins and releases of
+	 * sessions once per compaction. It adds no lock order: the constructor takes only locks of the objects it
+	 * creates, and nothing that holds a bin of {@link #entityCollectionPersistenceServices} waits for the lock.
+	 *
+	 * @param compactedReference the file reference of the compacted collection storage
+	 * @param catalogVersion     the catalog version the compaction ran at
+	 * @param compactedHeader    the header the compaction wrote
+	 * @return the registered storage - the one already registered under the same reference, when there is one
+	 * @throws InstanceTerminatedException when this service has been closed meanwhile
+	 */
+	@Nonnull
+	private DefaultEntityCollectionPersistenceService registerCompactedCollection(
+		@Nonnull CollectionFileReference compactedReference,
+		long catalogVersion,
+		@Nonnull EntityCollectionFileHeader compactedHeader
+	) {
+		this.historyHorizonLock.lock();
+		try {
+			if (this.closed) {
+				throw new InstanceTerminatedException("catalog `" + this.catalogName + "` storage");
+			}
+			return this.entityCollectionPersistenceServices.computeIfAbsent(
+				compactedReference,
+				reference -> new DefaultEntityCollectionPersistenceService(
+					catalogVersion,
+					this.catalogName,
+					this.catalogStoragePath,
+					compactedHeader,
+					this.storageSettings,
+					this.offHeapMemoryManager,
+					this.observableOutputKeeper,
+					this.recordTypeRegistry,
+					this.checkpointCoordinator
+				)
+			);
+		} finally {
+			this.historyHorizonLock.unlock();
 		}
 	}
 

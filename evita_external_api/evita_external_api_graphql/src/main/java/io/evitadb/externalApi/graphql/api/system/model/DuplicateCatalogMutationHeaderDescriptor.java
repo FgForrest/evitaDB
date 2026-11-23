@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,17 +28,24 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for header arguments of {@link SystemRootDescriptor#DELETE_CATALOG_IF_EXISTS}
- * query.
+ * Descriptor for header arguments of {@link SystemRootDescriptor#DUPLICATE_CATALOG} and
+ * {@link SystemRootDescriptor#DUPLICATE_CATALOG_WITH_PROGRESS} mutations.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-public interface DeleteCatalogIfExistsMutationHeaderDescriptor {
+public interface DuplicateCatalogMutationHeaderDescriptor {
 
 	PropertyDescriptor NAME = PropertyDescriptor.builder()
 		.name("name")
 		.description("""
-			Name of the catalog to delete.
+			Name of the existing catalog to duplicate.
+			""")
+		.type(nonNull(String.class))
+		.build();
+	PropertyDescriptor NEW_NAME = PropertyDescriptor.builder()
+		.name("newName")
+		.description("""
+			Name of the new catalog the contents are copied into. No catalog of this name may exist.
 			""")
 		.type(nonNull(String.class))
 		.build();

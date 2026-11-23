@@ -195,8 +195,10 @@ referenceSummary(
 <LS to="e,j,r,c">
 
 The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceSummary.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceSummary.cs</SourceClass></LS>
-requirement triggers the calculation of the <LS to="j,e,r"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/ReferenceSummary.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/ExtraResults/ReferenceSummary.cs</SourceClass></LS>
-extra result. The summary is **always computed as a side effect of the main entity query** and respects the same
+requirement triggers the calculation of the <LS to="j,e,r">
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/ReferenceSummary.java</SourceClass></LS>
+<LS to="c"><SourceClass>EvitaDB.Client/Models/ExtraResults/FacetSummary.cs</SourceClass></LS> extra result.
+The summary is **always computed as a side effect of the main entity query** and respects the same
 filtering scope as the main result (excluding the [`userFilter`](../filtering/behavioral.md#user-filter) part). It
 covers every reference whose schema marks it as `faceted`. Per-reference overrides — different fetch / filter /
 ordering settings or different histogram requirements — can be supplied with
@@ -595,9 +597,8 @@ histogramStatistics(
     <dt>argument:int!</dt>
     <dd>
         mandatory `requestedBucketCount` — the desired number of histogram columns to compute. Pick a value that
-        matches the pixel width of the histogram widget in the UI; typical values are **10–50**. The actual bucket
-        count may be lower under `OPTIMIZED` (empty buckets dropped) and under `EQUALIZED` / `EQUALIZED_OPTIMIZED`
-        (a value held by many entities collapses several quantile intervals into one), but never higher.
+        matches the pixel width of the histogram widget in the UI. Typical values are **10–50**. The actual bucket
+        count can be lower than requested, depending on the behavior and the data.
     </dd>
     <dt>argument:enum(STANDARD|OPTIMIZED|EQUALIZED|EQUALIZED_OPTIMIZED)?</dt>
     <dd>
@@ -607,7 +608,8 @@ histogramStatistics(
         controlling how the bucket boundaries are placed and whether empty buckets are kept:</p>
 
         <p>
-        - **STANDARD**: exactly `requestedBucketCount` equal-width buckets, including empty ones
+        - **STANDARD** uses an equal-width grid with up to `requestedBucketCount` buckets, including empty ones.
+          A single-value span produces one bucket. A narrow span at the indexed precision can also reduce the count.
         - **OPTIMIZED**: same as `STANDARD`, but empty buckets are removed for a denser display (actual count ≤
             requested)
         - **EQUALIZED**: **frequency-equalised** boundaries (each bucket ends up with roughly the same number of
@@ -662,8 +664,8 @@ The output histogram exposes:
 
 - the `[min, max]` span of the underlying value within the histogram's scopes (the slider's outer handles)
 - the bucket list with `threshold` (lower bound, inclusive), `occurrences` and `relativeFrequency`
-- a `requested` flag per bucket indicating whether it intersects an active
-  [`histogramHaving`](../filtering/references.md#histogram-having) range carrier
+- a `requested` flag that is true when the bucket's threshold is within the inclusive range set by an applicable
+  [`histogramHaving`](../filtering/references.md#histogram-having). With no applicable range, every bucket is requested.
 
 <Note type="info">
 
