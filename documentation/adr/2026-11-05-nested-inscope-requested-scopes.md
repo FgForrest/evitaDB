@@ -1,11 +1,11 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-23 17:31
+updated: 2026-11-23 17:35
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917, 1920, 2035]
-prs: [1884, 1913, 1914, 1919, 2034, 2043]
+prs: [1884, 1913, 1914, 1919, 2034, 2043, 2067]
 areas:
   - evita_api/src/main/java/io/evitadb/api/requestResponse
   - evita_query/src/main/java/io/evitadb/api/query
