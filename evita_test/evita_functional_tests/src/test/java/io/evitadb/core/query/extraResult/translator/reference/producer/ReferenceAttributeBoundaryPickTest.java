@@ -172,7 +172,7 @@ class ReferenceAttributeBoundaryPickTest {
 			final ReferenceHistogramAccumulator.BoundaryPick pick =
 				ReferenceHistogramAccumulator.pickBoundaryPkFromReferenceAttribute(
 					fixture.filters(), fixture.indexes(), 10, List.of(fixture.owners()),
-					null, fixture.scope(), null, null, ReferenceHistogramAccumulator.BoundaryScopeOrder.UNRANKED
+					null, fixture.scope(), null, null, EMPTY_SCOPE_ORDER
 				);
 
 			assertSame(alternative, pick.resolve(Map.of(1, alternative, 10, third)));
@@ -300,7 +300,7 @@ class ReferenceAttributeBoundaryPickTest {
 				ReferenceHistogramAccumulator.pickBoundaryPkFromReferenceAttribute(
 					new FilterIndex[]{candidates}, new EntityIndex[]{index}, 10,
 					List.of(filter(Integer.class)), null, new BaseBitmap(1, 9), null,
-					mock(QueryPlanningContext.class), ReferenceHistogramAccumulator.BoundaryScopeOrder.UNRANKED
+					mock(QueryPlanningContext.class), EMPTY_SCOPE_ORDER
 				);
 			assertEquals(1, pick.pk());
 			assertNull(pick.alternativePk());

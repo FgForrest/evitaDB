@@ -231,11 +231,10 @@ final class ReferenceHistogramAccumulator {
 			&& referenceSchema.isReferencedGroupTypeManaged();
 		final String referenceName = referenceSchema.getName();
 		final String entityType = Objects.requireNonNull(context.getQueryContext().getEntityType());
-		final BoundaryScopeOrder scopeOrder = referenceSchema.isReferencedEntityTypeManaged() ?
-			new BoundaryScopeOrder(
-				context.getEvitaRequest().getScopesAsArray(), context.getQueryContext(),
-				referenceSchema.getReferencedEntityType()
-			) : BoundaryScopeOrder.UNRANKED;
+		final BoundaryScopeOrder scopeOrder = new BoundaryScopeOrder(
+			context.getEvitaRequest().getScopesAsArray(), context.getQueryContext(),
+			referenceSchema.getReferencedEntityType()
+		);
 
 		// Stage 1: compute one cacheable histogram per request and group. Probe the requested scopes for
 		// a capacity estimate before collecting the contributing indexes.
@@ -518,6 +517,7 @@ final class ReferenceHistogramAccumulator {
 	 *
 	 * The raw bounds are the keys exactly as stored in the histogram's {@link FilterIndex}. If either bound is
 	 * {@code null}, as with a legacy cache entry, the histogram is emitted without boundary entities.
+	 * Histograms over references to unmanaged entity types also have no boundary entities.
 	 *
 	 * Histogram filter indexes identify the owners counted at the bound (see {@link #countedOwners}). A grouped
 	 * histogram checks owners in the reduced group indexes. An ungrouped histogram checks owners
@@ -556,7 +556,7 @@ final class ReferenceHistogramAccumulator {
 		}
 		final Serializable rawMin = cacheable.getRawMin();
 		final Serializable rawMax = cacheable.getRawMax();
-		if (rawMin == null || rawMax == null) {
+		if (!req.referenceSchema().isReferencedEntityTypeManaged() || rawMin == null || rawMax == null) {
 			return Optional.of(new PendingHistogram(groupPk, req, cacheable, BoundaryPks.NONE));
 		}
 		final EntityIndex[] boundaryContext = joinBoundaryContexts(sources);
@@ -1867,12 +1867,10 @@ final class ReferenceHistogramAccumulator {
 	}
 
 	/**
-	 * Requested scope order for a managed target, with one lazily loaded primary-key bitmap per scope.
-	 * The final priority contains all candidates outside the requested scopes.
+	 * Requested scope order for the referenced entity type. Boundary resolution for managed targets lazily loads
+	 * one primary-key bitmap per scope. The final priority contains all candidates outside the requested scopes.
 	 */
 	static final class BoundaryScopeOrder {
-		static final BoundaryScopeOrder UNRANKED = new BoundaryScopeOrder(new Scope[0], null, null);
-
 		private final Scope[] scopes;
 		private final QueryPlanningContext context;
 		private final String entityType;
@@ -1882,11 +1880,12 @@ final class ReferenceHistogramAccumulator {
 		 * Creates a scope order whose index lookups are shared across the groups and bounds of a reference.
 		 *
 		 * @param scopes requested scopes in client order
-		 * @param context provides the target collection's global indexes
-		 * @param entityType the managed target collection
+		 * @param context provides the global indexes for boundary resolution
+		 * @param entityType referenced entity type, read to load scope membership during boundary resolution
+		 *                   for managed targets
 		 */
-		private BoundaryScopeOrder(
-			@Nonnull Scope[] scopes, @Nullable QueryPlanningContext context, @Nullable String entityType
+		BoundaryScopeOrder(
+			@Nonnull Scope[] scopes, @Nonnull QueryPlanningContext context, @Nonnull String entityType
 		) {
 			this.scopes = scopes;
 			this.context = context;
@@ -1956,9 +1955,9 @@ final class ReferenceHistogramAccumulator {
 			if (cached != null) {
 				return cached;
 			}
-			final GlobalEntityIndex index = Objects.requireNonNull(this.context).getGlobalEntityIndexIfExists(
-				Objects.requireNonNull(this.entityType), this.scopes[priority]
-			).orElse(null);
+			final GlobalEntityIndex index = this.context
+				.getGlobalEntityIndexIfExists(this.entityType, this.scopes[priority])
+				.orElse(null);
 			final PersistentRoaringBitmap loaded = RoaringBitmapBackedBitmap.getRoaringBitmap(
 				index == null ? EmptyBitmap.INSTANCE : index.getAllPrimaryKeys()
 			);
@@ -2033,9 +2032,9 @@ final class ReferenceHistogramAccumulator {
 
 	/**
 	 * Resolved pair of boundary picks (plus the entity type they resolve against). The {@link #NONE}
-	 * sentinel is used when no resolution was attempted or produced — for example, when the histogram has no raw
-	 * bounds, when no index of the boundary context holds a filter index of a reference attribute, or when the
-	 * boundary context tracks no referenced entity. A single bound no candidate qualifies for holds
+	 * sentinel is used when no resolution was attempted or produced — for example, when the reference targets an
+	 * unmanaged entity type, the histogram has no raw bounds, no index of the boundary context holds a filter index
+	 * of a reference attribute, or the boundary context tracks no referenced entity. A bound with no candidate holds
 	 * {@link BoundaryPick#NONE} next to a resolved entity type instead, and so do both bounds of a referenced entity
 	 * attribute whose collection holds no filter index of the attribute in any contributing scope. When the smallest
 	 * and the largest value are equal, both bounds hold the same pick.

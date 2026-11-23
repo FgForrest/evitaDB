@@ -132,7 +132,8 @@ public interface HistogramContract extends Serializable {
 	 *
 	 * Histograms computed over references populate both boundary entities when both bounds resolve to loadable entities
 	 * (see {@link ReferenceSummary.ReferenceGroupStatistics#getHistogramStatistics()}). Both are empty when either
-	 * bound has no resolved pick or none of its picks can be loaded. The entity carries the content requested by the
+	 * bound has no resolved pick or none of its picks can be loaded. Histograms over references to entity types
+	 * that evitaDB does not manage have no boundary entities. The entity carries the content requested by the
 	 * histogram's `entityFetch`. With no content requirements it carries the entity's identity and standard metadata.
 	 *
 	 * @return the minimum boundary entity, or an empty optional for an unresolved pair, a non-reference histogram,

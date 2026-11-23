@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.reference.producer;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
@@ -45,9 +46,16 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
 
 /** Real reduced indexes, with representative rank splits and independently populated candidate and owner indexes. */
 final class ReferenceAttributeBoundaryTestSupport {
+	/** Uses the single fallback priority for every candidate, without reading any scope indexes. */
+	static final ReferenceHistogramAccumulator.BoundaryScopeOrder EMPTY_SCOPE_ORDER =
+		new ReferenceHistogramAccumulator.BoundaryScopeOrder(
+			new Scope[0], mock(QueryPlanningContext.class), "brand"
+		);
+
 	/** Prevents construction of the support utility. */
 	private ReferenceAttributeBoundaryTestSupport() {
 	}
@@ -137,8 +145,7 @@ final class ReferenceAttributeBoundaryTestSupport {
 			final ReferenceHistogramAccumulator.BoundaryPick result =
 				ReferenceHistogramAccumulator.pickBoundaryPkFromReferenceAttribute(
 					this.filters, this.indexes, value, List.of(this.owners),
-					this.baseline, this.scope, sorter, null,
-					ReferenceHistogramAccumulator.BoundaryScopeOrder.UNRANKED
+					this.baseline, this.scope, sorter, null, EMPTY_SCOPE_ORDER
 				);
 			return new ReferenceAttributeBoundaryOracle.Pair(result.pk(), result.alternativePk());
 		}

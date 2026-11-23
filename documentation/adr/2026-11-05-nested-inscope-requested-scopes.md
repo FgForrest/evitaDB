@@ -1,7 +1,7 @@
 ---
 title: A nested `inScope` is admitted by the requested scopes and evaluated by the processed ones, and a misplaced scope is refused up front
 date: 2026-11-05
-updated: 2026-11-23 11:52
+updated: 2026-11-23 13:23
 status: accepted
 kind: fix
 issues: [1880, 1883, 1897, 1915, 1917, 1920, 2035]
@@ -491,6 +491,30 @@ of `2026-09-05-duplicate-content-requirements-reduction` ("a reference-specific 
 entirely"). REST reads query bodies with strict duplicate detection and answers a repeated property with HTTP 400
 naming it; no list form for several root `inScope` wrappers was added.
 
+#### Option AG — no boundary entities for an unmanaged referenced type (chosen)
+
+Found while correcting the API descriptions of the boundary entities: a histogram over a reference whose referenced
+entity type evitaDB does not manage failed the whole query. The pick named the unmanaged type and the boundary
+prefetch asked for its collection (`EntityCollectionRequiredException: Collection type is required in query in order
+to compute fetch entities!`, from `BoundaryEntityCache#prefetch`). The same pick and fetch exist on `dev`.
+`computePendingHistogram` now returns `BoundaryPks.NONE` for such a reference before any boundary work; the
+histogram itself is returned whole.
+
+- **Pros:** nothing is picked that cannot be loaded; the API descriptions ("referenced entities that can be loaded")
+  hold for every reference.
+- **Cons:** a client gets no anchor entity for the ends of such a histogram, only its `min` and `max`.
+
+An `entityFetch` inside such a histogram stays refused at planning, as the summary's own `entityFetch` on the
+reference is; the refusal's message ("EntityFetch constraint is probably incorrectly nested in require part of the
+query.") names the wrong cause and was left as it is.
+
+#### Option AH — return the picked primary key as a bare reference (declined)
+
+- **Pros:** a client would learn which external entity anchors each end.
+- **Rejected because:** the boundary slots are typed as full entities in all four APIs (`SealedEntity` in
+  `HistogramContract`, `GrpcSealedEntity`, the GraphQL and REST entity objects); carrying a bare reference is a
+  contract change across them, not a fix. Worth revisiting if clients ask for anchors of external references.
+
 ## Decision
 
 **Chosen: Option A, with the checks Options G and H decline to do without.** Option A is the only option under which a
@@ -527,7 +551,9 @@ different scope sets is refused (Option Z declined).
 **#2035, review round: Options AA, AC and AE**, by the project owner's decisions. The boundary entity of a reference
 histogram is a candidate of the owners the histogram counts where one exists, ranked by the query's scope order,
 whether or not the histogram requests `entityFetch`; the owner chose to confine always (AA over AB) after the cost
-was measured. The engine keeps refusing a histogram missing from a processing scope, and GraphQL follows it.
+was measured. The engine keeps refusing a histogram missing from a processing scope, and GraphQL follows it. A
+reference to an unmanaged entity type resolves no boundary entities (Option AG); the project owner had the fix folded
+into the same pull request.
 
 ## Key technical details
 
@@ -669,8 +695,8 @@ was measured. The engine keeps refusing a histogram missing from a processing sc
   filter; with no owner counted at the bound, every candidate stays.
 - **Scope order (#2035).** `ReferenceHistogramAccumulator.BoundaryScopeOrder` reads
   `GlobalEntityIndex#getAllPrimaryKeys()` lazily, once per scope and reference: `contains` ranks the candidates the
-  merge pops, `restrict` ranks the small candidate sets of the other picks. Unmanaged referenced types are
-  `UNRANKED`.
+  merge pops, `restrict` ranks the small candidate sets of the other picks. A reference to an unmanaged entity type
+  never reads it: `computePendingHistogram` returns `BoundaryPks.NONE` first (Option AG).
 - **Controls per histogram (#2035).** `ReferenceSummaryProducer.RegisteredHistogram` holds the request with the
   sorter, group predicate and group fetcher captured when its summary registered it; `resolveHistogramControls`
   swaps in the reference-specific summary's controls for a histogram the generic summary declared. A synthetic
@@ -899,6 +925,13 @@ was measured. The engine keeps refusing a histogram missing from a processing sc
   `primaryKey`, `type`, `version`, `scope` and locales in the recorded documentation example
   `reference-summary-histograms`, whose `histogramStatistics` has no fetch; the gRPC builder sets both fields
   whenever the histogram has them (`GrpcReferenceHistogramConversionTest`). No gRPC call was run end to end.
+- **Unmanaged referenced types (AG)**, `UnmanagedReferenceHistogramBoundaryFunctionalTest`: red first on `eba12480e9`,
+  both cases without `entityFetch` (ungrouped, and with a managed group) with `EntityCollectionRequiredException:
+  Collection type is required in query in order to compute fetch entities!` from `BoundaryEntityCache#prefetch`. Five
+  cases: those two, a reference without facets summarized by `referenceSummary`, and the two planning refusals of
+  `entityFetch` (inside the histogram, and the summary's own), each asserted by class and message. The guard removed
+  alone fails exactly the three cases without `entityFetch`. Full `-P unitAndFunctional` run: bitmap 19,215 tests,
+  0 failures; functional 39,906 tests, 0 failures, 0 errors, 70 skipped.
 
 ## Consequences & open follow-ups
 
@@ -1022,7 +1055,17 @@ was measured. The engine keeps refusing a histogram missing from a processing sc
   controls of a reference-specific summary in `inScope(ARCHIVED, …)`, so its ties are broken by a sorter built in
   ARCHIVED. That is what the rule of `2026-09-05-duplicate-content-requirements-reduction` says; no test asks for
   anything else.
-- **Open, left by #2035** - found by its adversarial code review, outside the change:
+- **Visible to clients, unmanaged referenced types.** A reference summary with a histogram over a reference to an
+  entity type evitaDB does not manage returns the histogram without boundary entities, where the whole query failed
+  with `EntityCollectionRequiredException`. An `entityFetch` inside such a histogram is refused at planning.
+- **Open, left by #2035** - found by its adversarial code reviews, outside the change:
+  - **Shown by a probe, decision pending:** a reference whose group type is unmanaged loses its histogram. The index
+    writer stores it under the group's primary key (`ReferenceIndexMutator`), but the accumulator reads such a
+    reference as ungrouped (`ReferenceHistogramAccumulator#computeForReference` treats only a managed group as
+    grouped), so the group comes back with its facets and without the histogram. Neither side is changed by #2035;
+    the probe test was not kept.
+  - **Suspected:** a managed referenced type whose collection does not exist yet - allowed until the schema is
+    validated when the session closes - would fail the boundary fetch the way an unmanaged one did.
   - #2053: a `histogramHaving` keeps no scope, so `or(inScope(LIVE, histogramHaving(…)), inScope(ARCHIVED,
     histogramHaving(…)))` on one histogram is refused as two siblings, and a range inside `inScope(ARCHIVED, …)`
     marks the buckets of a LIVE histogram `requested`. Both shown red.
@@ -1093,4 +1136,6 @@ was measured. The engine keeps refusing a histogram missing from a processing sc
   counterfactual; one round reverted an engine relaxation the project owner had not decided (Option AF). The owner
   chose to confine every boundary pick (AA) after a benchmark and a debugger count showed no resolvable cost, and
   accepted that unstored referenced entities rank last. #2053 filed from the review's `histogramHaving` finding.
-  The external API descriptions of the boundary entities corrected to what the APIs return.
+- **2026-11-23** — The external API descriptions of the boundary entities corrected to what the APIs return. A
+  histogram over a reference to an unmanaged entity type, suspected while checking them, reproduced as a failing query
+  and was fixed in the same pull request (Option AG); its review found the unmanaged-group gap left open above.
