@@ -199,7 +199,7 @@ The evitaDB web APIs are maintained by a separate class <SourceClass>evita_exter
 You must instantiate and configure this class and pass it a reference to the
 <SourceClass>evita_engine/src/main/java/io/evitadb/core/Evita.java</SourceClass> instance:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/server-startup.java" local>
+<SourceCodeTabs local>
 [Example of web API startup in Java](/documentation/user/en/get-started/example/api-startup.java)
 </SourceCodeTabs>
 

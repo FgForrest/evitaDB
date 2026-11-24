@@ -1,7 +1,7 @@
 ---
 title: Readiness discovery-phase probe failures log at DEBUG; only a known-good endpoint failing logs ERROR
 date: 2026-08-03
-updated: 2026-08-03 09:17
+updated: 2026-11-24 15:20
 status: proposed
 kind: fix
 issues: [1364]
@@ -9,7 +9,7 @@ prs: [1366]
 areas: [evita_external_api/evita_external_api_core, evita_external_api/evita_external_api_rest, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_system, evita_external_api/evita_external_api_observability, evita_external_api/evita_external_api_lab, evita_external_api/evita_external_api_grpc]
 supersedes: []
 superseded-by: []
-relates: []
+relates: [2026-11-24-readiness-waits-for-catalog-publication]
 ---
 
 # Readiness discovery-phase probe failures log at DEBUG; only a known-good endpoint failing logs ERROR
@@ -125,6 +125,12 @@ past the grace period — 3/3 passing.
 - The 60s grace period is a single named constant (`ReadinessDiscoveryStallTracker.GRACE_PERIOD`); if a
   deployment's catalog load routinely exceeds it, the only symptom is one extra (calm) `WARN` line, not
   a functional regression.
+
+## Related work
+
+- [2026-11-24-readiness-waits-for-catalog-publication](2026-11-24-readiness-waits-for-catalog-publication.md) —
+  readiness also waits for the start-up catalogs to be published by GraphQL and REST. That gate is evaluated
+  separately from the providers' `isReady()`, where discovery runs, so it does not prolong discovery.
 
 ## Timeline
 

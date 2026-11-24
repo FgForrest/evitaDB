@@ -115,9 +115,10 @@ the elapsed time, and clamp the result at zero, since both are wall-clock readin
 ## Readiness and liveness probes
 
 The evitaDB server provides endpoints for Kubernetes [readiness and liveness probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/). The liveness probe is also 
-configured as [healthcheck](https://docs.docker.com/reference/dockerfile/#healthcheck) by default in our Docker image. By default the health check waits `30s` before it
-starts checking the server health, for larger databases you may need to increase this value using environment variable 
-`HEALTHCHECK_START_DELAY` so that they have enough time to be loaded into memory.
+configured as [healthcheck](https://docs.docker.com/reference/dockerfile/#healthcheck) by default in our Docker image.
+The health check has a start period of five minutes, during which failed checks are not counted. The start period is
+part of the image and cannot be changed by an environment variable - override it when you start the container, with
+`docker run --health-start-period=10m ...` or with `healthcheck.start_period` in Docker Compose.
 
 <Note type="warning">
 
@@ -143,6 +144,21 @@ curl -k "http://localhost:5555/system/readiness" \
 
 The probe will return `200 OK` if the server is ready to accept traffic, otherwise it will return `503 Service Unavailable`.
 Probe internally calls all enabled APIs via HTTP call on the server side to check if they are ready to serve traffic. 
+
+After the server starts, the probe also waits for the catalogs. A catalog stops holding the probe back when:
+
+- it is active and every enabled API that serves catalogs (GraphQL and REST) has published it,
+- it failed to load - it becomes corrupted and the cause is written to the log,
+- it is inactive or missing, so it is not supposed to be loaded.
+
+Loading a catalog has no time limit - a large catalog keeps the probe at `503` for as long as it loads. Publishing a
+loaded catalog through an API is limited by the
+[`catalogPublicationTimeoutInMillis`](configure.md#observability-configuration) setting (five minutes by default).
+A publication that fails, or does not finish in time, is logged as an error and stops holding the probe back, so the
+server always becomes ready. The probe checks the catalogs only until none of them holds it back - after that,
+creating, activating, deactivating or renaming a catalog does not change the probe's result.
+The server status reported by the gRPC API follows the same rule.
+
 Example response:
 
 ```json
@@ -163,7 +179,7 @@ The overall status may be one of the following constants:
 
 <dl>
     <dt>STARTING</dt>
-    <dd>At least one API is not yet ready.</dd>
+    <dd>At least one API is not yet ready, or at least one catalog still holds the probe back.</dd>
     <dt>READY</dt>
     <dd>The server is ready to serve traffic.</dd>
     <dt>STALLING</dt>
@@ -173,7 +189,23 @@ The overall status may be one of the following constants:
 </dl>
 
 Each of the enabled APIs has its own status so that you can see which particular API is not ready in case of `STARTING` 
-or `STALLING` status.
+or `STALLING` status. While the probe waits for the catalogs, the response also carries `catalogsPending` - the number
+of catalogs that still hold it back:
+
+```json
+{
+  "status": "STARTING",
+  "catalogsPending": 2,
+  "apis": {
+	"gRPC": "ready",
+	"graphQL": "ready",
+	"lab": "ready",
+	"observability": "ready",
+	"rest": "ready",
+	"system": "ready"
+  }
+}
+```
 
 ### Liveness probe
 
@@ -183,6 +215,7 @@ curl -k "http://localhost:5555/system/liveness" \
 ```
 
 If the server is healthy, the probe will return `200 OK`. Otherwise, it will return `503 Service Unavailable`.
+Unlike the readiness probe, it does not wait for the catalogs to be loaded or published.
 Example response:
 
 ```json
