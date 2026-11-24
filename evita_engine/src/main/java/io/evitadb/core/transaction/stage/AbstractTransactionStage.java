@@ -130,8 +130,18 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask>
 				getName(), task.catalogName(), ex.getMessage()
 			);
 		}
-		task.commitProgress().completeExceptionally(ex);
+		failTask(task, ex);
 		this.onException.accept(task, ex);
+	}
+
+	/**
+	 * Reports the failure of a pipeline task to its commit progress.
+	 *
+	 * @param task the failed task
+	 * @param failure the cause to report
+	 */
+	protected void failTask(@Nonnull T task, @Nonnull Throwable failure) {
+		task.commitProgress().completeExceptionally(failure);
 	}
 
 	@Override

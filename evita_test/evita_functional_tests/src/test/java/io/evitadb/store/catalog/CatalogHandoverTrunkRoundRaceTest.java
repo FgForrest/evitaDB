@@ -41,6 +41,7 @@ import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.engine.ExpandedEngineState.CatalogSwapOutcome;
 import io.evitadb.core.exception.SessionBusyException;
 import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.SuspendOperation;
@@ -308,7 +309,7 @@ class CatalogHandoverTrunkRoundRaceTest implements EvitaTestSupport {
 				"Precondition: the discarded target must be ahead, or the version comparison alone would refuse it."
 			);
 			engine.replaceCatalog(SOURCE, TARGET);
-			assertFalse(engine.getEngineState().replaceCatalogReference(oldTarget));
+			assertEquals(CatalogSwapOutcome.SKIPPED, engine.getEngineState().replaceCatalogReference(oldTarget));
 			assertEquals(source.getCatalogId(), engine.getCatalogInstanceOrThrowException(TARGET).getCatalogId());
 			assertEntities(engine, TARGET, BASELINE_PRIMARY_KEY);
 			writeAndRead(engine, TARGET);
