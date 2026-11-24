@@ -193,13 +193,15 @@ class MetricHandlerDurationTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Limits the handler to the readiness event, so it registers no JVM metrics and records nothing else.
+	 * Limits the handler to readiness events.
+	 *
+	 * @return endpoint options allowing readiness events
 	 */
 	@Nonnull
 	private static ObservabilityOptions createObservabilityOptions() {
 		return new ObservabilityOptions(
 			null, "localhost:5555", null, null, null, null, null,
-			List.of(ReadinessEvent.class.getName()), null, null, null
+			List.of(ReadinessEvent.class.getName()), null, null, null, null
 		);
 	}
 

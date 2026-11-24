@@ -34,6 +34,7 @@ import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.observability.ObservabilityManager;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
+import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -55,11 +56,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static java.util.Optional.ofNullable;
 
@@ -97,6 +100,14 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 	private final AtomicLong lastSeenJavaGarbageCollections = new AtomicLong(0L);
 	private final AtomicBoolean seenReady = new AtomicBoolean();
 	private final AtomicReference<ReadinessWithTimestamp> lastReadinessSeen = new AtomicReference<>();
+	/** Startup catalog routing scan, created on first use with the configured publication timeout. */
+	private final AtomicReference<CatalogRoutingReadiness> catalogRoutingReadiness = new AtomicReference<>();
+	/** Guards the periodic scan and the closed flag, so no scan is scheduled after {@link #close()}. */
+	private final ReentrantLock catalogRoutingEvaluationLock = new ReentrantLock();
+	/** Periodic startup scan, or null until scheduled. Guarded by `catalogRoutingEvaluationLock`. */
+	@Nullable private ScheduledFuture<?> catalogRoutingEvaluation;
+	/** Whether {@link #close()} has run. Guarded by `catalogRoutingEvaluationLock`. */
+	private boolean closed;
 	private ExecutorService internalExecutor;
 	@Nullable private ObservabilityManager observabilityManager;
 
@@ -243,8 +254,94 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 		return currentReadiness;
 	}
 
+	/**
+	 * Evaluates catalog routing once after the API ports open and, unless that scan already settled it, keeps scanning
+	 * every second on the engine's service executor. Otherwise a scan runs only when a readiness or server status
+	 * request asks. The periodic scan settles routing and logs overdue publications even without such requests.
+	 * The task is cancelled once routing settles or the detector closes, and only the first call schedules it.
+	 *
+	 * @param evita engine served by the APIs
+	 * @param externalApiServer running API server
+	 */
+	@Override
+	public void onServerStarted(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer) {
+		final CatalogRoutingReadiness readiness = this.getOrCreateCatalogRoutingReadiness(externalApiServer);
+		final CatalogRoutingSettlement outcome =
+			readiness.evaluateCatalogRouting(evita, externalApiServer.getRegisteredApiProviders());
+		this.catalogRoutingEvaluationLock.lock();
+		try {
+			if (!this.closed && this.catalogRoutingEvaluation == null && !outcome.settled()) {
+				final ScheduledFuture<?> task = evita.getServiceExecutor().scheduleWithFixedDelay(
+					() -> {
+						try {
+							readiness.evaluateCatalogRouting(evita, externalApiServer.getRegisteredApiProviders());
+						} catch (RuntimeException ex) {
+							log.error("Startup catalog routing evaluation failed.", ex);
+						}
+					}, 1, 1, TimeUnit.SECONDS
+				);
+				this.catalogRoutingEvaluation = task;
+				readiness.whenSettled(() -> task.cancel(false));
+			}
+		} finally {
+			this.catalogRoutingEvaluationLock.unlock();
+		}
+	}
+
+	/**
+	 * Evaluates the catalog routing startup gate.
+	 *
+	 * @param evita engine serving catalog state
+	 * @param externalApiServer server providing the routing obligations and timeout configuration
+	 * @return whether startup catalog routing has settled and the number of catalogs still pending
+	 */
+	@Nonnull
+	@Override
+	public CatalogRoutingSettlement getCatalogRoutingSettlement(
+		@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer
+	) {
+		return this.getOrCreateCatalogRoutingReadiness(externalApiServer)
+			.evaluateCatalogRouting(evita, externalApiServer.getRegisteredApiProviders());
+	}
+
+	/**
+	 * Returns the detector's startup scan, creating it with the configured publication budget on first use.
+	 *
+	 * @param externalApiServer API server supplying observability options
+	 * @return the detector's catalog routing scan
+	 */
+	@Nonnull
+	private CatalogRoutingReadiness getOrCreateCatalogRoutingReadiness(@Nonnull ExternalApiServer externalApiServer) {
+		return this.catalogRoutingReadiness.updateAndGet(existing -> {
+			if (existing != null) {
+				return existing;
+			}
+			final ObservabilityOptions options =
+				externalApiServer.getApiOptions().getEndpointConfiguration(ObservabilityProvider.CODE);
+			return new CatalogRoutingReadiness(
+				System::nanoTime,
+				options == null ? ObservabilityOptions.DEFAULT_CATALOG_PUBLICATION_TIMEOUT_IN_MILLIS :
+					options.getCatalogPublicationTimeoutInMillis()
+			);
+		});
+	}
+
+	/**
+	 * Stops catalog routing evaluation and shuts down the API probe executor.
+	 *
+	 * @throws IOException if closing probe resources fails
+	 */
 	@Override
 	public void close() throws IOException {
+		this.catalogRoutingEvaluationLock.lock();
+		try {
+			this.closed = true;
+			if (this.catalogRoutingEvaluation != null) {
+				this.catalogRoutingEvaluation.cancel(false);
+			}
+		} finally {
+			this.catalogRoutingEvaluationLock.unlock();
+		}
 		if (this.internalExecutor != null) {
 			this.internalExecutor.shutdown();
 		}

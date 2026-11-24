@@ -36,6 +36,7 @@ LABEL vendor="FG Forrest, a.s." \
       io.evitadb.version="${VERSION}" \
       io.evitadb.release-date="${RELEASE_DATE}"
 
+# The start period shares the five-minute default of api.endpoints.observability.catalogPublicationTimeoutInMillis.
 HEALTHCHECK --start-period=5m --interval=10s --timeout=2s --retries=3 \
     CMD curl -f http://localhost:$SYSTEM_API_PORT/system/liveness || exit 1
 

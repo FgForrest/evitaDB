@@ -56,7 +56,9 @@ import io.evitadb.core.management.FileManagementService;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.api.system.ProbesProvider.ApiState;
+import io.evitadb.externalApi.api.system.ProbesProvider.CatalogRoutingSettlement;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.HeaderOptions;
@@ -232,7 +234,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	}
 
 	/**
-	 * Retrieves the server status.
+	 * Retrieves server status, including readiness of the startup catalog routes.
 	 *
 	 * @param request          the request for server status
 	 * @param responseObserver the observer for receiving the server status response
@@ -244,9 +246,16 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				final SystemStatus systemStatus = this.management.getSystemStatus();
 
 				final String[] enabledApiEndpoints = this.externalApiServer.getApiOptions().getEnabledApiEndpoints();
-				final Optional<Readiness> readiness = this.externalApiServer.getProbeProviders().stream()
-					.findFirst()
+				final Optional<ProbesProvider> readinessProbe = this.externalApiServer.getProbeProviders()
+					.stream().findFirst();
+				final Optional<Readiness> readiness = readinessProbe
 					.map(it -> it.getReadiness(this.evita, this.externalApiServer, enabledApiEndpoints));
+				final ReadinessState reportedReadiness = readiness.map(Readiness::state).orElse(ReadinessState.UNKNOWN);
+				final boolean routingSettled = readinessProbe
+					.map(it -> it.getCatalogRoutingSettlement(this.evita, this.externalApiServer).settled())
+					.orElse(true);
+				final ReadinessState readinessState =
+					CatalogRoutingSettlement.resolveReadinessState(reportedReadiness, routingSettled);
 
 				final GrpcEvitaServerStatusResponse.Builder responseBuilder = GrpcEvitaServerStatusResponse
 					.newBuilder()
@@ -260,7 +269,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					.setCatalogsOk(systemStatus.catalogsActive())
 					.setCatalogsActive(systemStatus.catalogsActive())
 					.setCatalogsInactive(systemStatus.catalogsInactive())
-					.setReadiness(toGrpcReadinessState(readiness.map(Readiness::state).orElse(ReadinessState.UNKNOWN)))
+					.setReadiness(toGrpcReadinessState(readinessState))
 					.setReadOnly(this.evita.getConfiguration().server().readOnly());
 
 				this.externalApiServer.getProbeProviders().stream()

@@ -182,6 +182,7 @@ api:
         protocol: ${api.endpoints.observability.tracing.protocol:grpc}
       allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}
       exportedQueryLabels: !include ${api.endpoints.observability.exportedQueryLabels:null}
+      catalogPublicationTimeoutInMillis: ${api.endpoints.observability.catalogPublicationTimeoutInMillis:300K}
       errorOriginLogging: ${api.endpoints.observability.errorOriginLogging:INTERNAL}
       mTLS:
         enabled: ${api.endpoints.observability.mTLS.enabled:null}
