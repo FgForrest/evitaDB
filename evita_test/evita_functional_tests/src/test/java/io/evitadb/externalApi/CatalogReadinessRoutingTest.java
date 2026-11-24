@@ -441,7 +441,9 @@ class CatalogReadinessRoutingTest implements EvitaTestSupport {
 			final CountDownLatch release = new CountDownLatch(1);
 			final AtomicReference<RegistrationGate> graphQLGate = new AtomicReference<>(new RegistrationGate(release));
 			final AtomicReference<RegistrationGate> restGate = new AtomicReference<>(new RegistrationGate(release));
-			try (final Evita evita = lateWiring ? new Evita(config) : new Evita(config, false, null, null, false)) {
+			// real thread pools in both cases: a test run's default inline executor would run the readiness handler on
+			// an event loop, where it blocks the API self-probes that the same loop has to answer
+			try (final Evita evita = new Evita(config, lateWiring, null, null, false)) {
 				if (lateWiring) {
 					evita.waitUntilFullyInitialized();
 				}
