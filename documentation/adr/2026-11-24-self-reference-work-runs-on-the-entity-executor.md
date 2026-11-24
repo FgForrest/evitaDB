@@ -1,7 +1,7 @@
 ---
 title: Self-reference work runs on the entity executor
-date: 2026-11-23
-updated: 2026-11-23 18:10
+date: 2026-11-24
+updated: 2026-11-24 08:26
 status: accepted
 kind: fix
 issues: [2002]

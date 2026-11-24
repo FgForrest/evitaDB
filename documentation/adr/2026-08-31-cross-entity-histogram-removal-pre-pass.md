@@ -12,7 +12,7 @@ superseded-by: []
 relates: [2026-04-23-bucketed-histogram-indexing, 2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-09-09-sibling-resolver-partition-cardinality,
   2026-11-11-reference-histogram-net-change-per-run,
   2026-11-23-cross-entity-dispatch-reads-array-histogram-sources-from-storage,
-  2026-11-23-self-reference-work-runs-on-the-entity-executor]
+  2026-11-24-self-reference-work-runs-on-the-entity-executor]
 ---
 
 # Cross-entity histogram removal is gated on the pre-mutation condition, captured before the batch is applied

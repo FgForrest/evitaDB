@@ -11,7 +11,7 @@ supersedes: []
 superseded-by: []
 relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-17-row-scoped-reference-having-body,
   2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-11-20-reference-owner-scope,
-  2026-11-23-self-reference-work-runs-on-the-entity-executor]
+  2026-11-24-self-reference-work-runs-on-the-entity-executor]
 ---
 
 # Every scope a reference is indexed in must carry `REFERENCED_ENTITY`, and a stored catalog lacking it refuses loudly

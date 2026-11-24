@@ -13,7 +13,7 @@ relates: [2026-08-31-cross-entity-histogram-removal-pre-pass, 2026-04-23-buckete
   2026-10-08-cross-entity-condition-pins-only-what-it-reads,
   2026-11-11-reference-histogram-net-change-per-run,
   2026-11-23-cross-entity-dispatch-reads-array-histogram-sources-from-storage,
-  2026-11-23-self-reference-work-runs-on-the-entity-executor]
+  2026-11-24-self-reference-work-runs-on-the-entity-executor]
 ---
 
 # A cross-entity condition is answered per `(referencedEntity, owner)` contribution, not per owner

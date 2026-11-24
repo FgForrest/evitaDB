@@ -14,7 +14,7 @@ superseded-by: []
 relates: [2026-08-31-cross-entity-histogram-removal-pre-pass,
   2026-09-08-conditional-histogram-per-contribution-verdicts,
   2026-11-11-reference-histogram-net-change-per-run,
-  2026-11-23-self-reference-work-runs-on-the-entity-executor]
+  2026-11-24-self-reference-work-runs-on-the-entity-executor]
 ---
 
 # Cross-entity dispatch reads array histogram sources from storage
