@@ -37,6 +37,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
@@ -69,15 +70,14 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.ORDER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Verifies that the chains of `Predecessor` and `ReferencedEntityPredecessor` reference attributes order the owners
- * and references of single-owner partitions kept as registry rows exactly as they order them when every partition is
- * an index object: a row is a singleton chain read out of the registry - on the block route of an entity ordering,
- * and on the by-key route of `referenceContent(orderBy)`, for the original reference and for its reflection, whose
- * chain is read in the other collection.
+ * Verifies chain ordering and query validation with single-owner partitions represented either as registry rows or
+ * as index objects. A partition chain orders owners by a `Predecessor` attribute. Within `referenceContent`, a
+ * referenced-entity predecessor orders the owner's own rows or follows the forward chain when inherited by reflection.
  *
  * Every catalog is built in one engine together with the object catalogs of its {@link MaterializedPartitionTwin}s -
  * one cloning each collection, because the original reference and its reflection are owned by different collections
@@ -193,11 +193,12 @@ class VirtualChainParityTest implements EvitaTestSupport {
 		cleanupTestPaths(this.paths);
 	}
 
+	/**
+	 * Checks the chain orders of the materialized twins against the owners’ bodies.
+	 */
 	@Test
 	@DisplayName("the object catalogs order every strict chain of the fixture as the entity bodies do")
 	void shouldOrderTheStrictChainsOfTheObjectCatalogsAsTheBodiesDo() {
-		// the references of a value ordered by its `ReferencedEntityPredecessor` are left out - the engine does not
-		// order them by the chain in any representation (#1691, defect 1)
 		final String product = ParameterValuesShapedFixture.ENTITY_PRODUCT;
 		final String value = ParameterValuesShapedFixture.ENTITY_PARAMETER_VALUE;
 		final String parameterValuesReference = ParameterValuesShapedFixture.REFERENCE_PARAMETER_VALUES;
@@ -268,15 +269,51 @@ class VirtualChainParityTest implements EvitaTestSupport {
 		assertEquals(16, proven, "Every strict chain must have been proven");
 	}
 
+	/**
+	 * Checks both directions of the order encoded in the original reference rows.
+	 */
+	@Test
+	@DisplayName("should order the products of a value by the chain of the referenced entity its rows declare")
+	void shouldOrderTheProductsOfAValueByTheirChain() {
+		// the original reference carries a `ReferencedEntityPredecessor` ordering the products of each value; the
+		// references of a value fetched in that order must follow the chain its rows declare
+		final List<String> mismatches = new ArrayList<>(8);
+		for (final OrderDirection direction : OrderDirection.values()) {
+			for (final int owner : new int[]{
+				ParameterValuesShapedFixture.FIRST_SHARED_VALUE, ParameterValuesShapedFixture.FIRST_SHARED_VALUE + 1,
+				OWN_VALUE_OF_PRODUCT_1, ParameterValuesShapedFixture.LONELY_PARAMETER_VALUE
+			}) {
+				final List<Integer> bodies = directed(
+					chainOfReferences(
+						ParameterValuesShapedFixture.ENTITY_PARAMETER_VALUE,
+						ParameterValuesShapedFixture.REFERENCE_PRODUCTS,
+						owner, ParameterValuesShapedFixture.ATTRIBUTE_ORDER
+					),
+					direction
+				);
+				final Map<Integer, List<Integer>> rows = queryReferenceOrder(
+					CATALOG_PARAMETERS, ParameterValuesShapedFixture.ENTITY_PARAMETER_VALUE, Scope.LIVE,
+					entityPrimaryKeyInSet(owner), ParameterValuesShapedFixture.REFERENCE_PRODUCTS,
+					attributeNatural(ParameterValuesShapedFixture.ATTRIBUTE_ORDER, direction)
+				);
+				proveEqual(mismatches, bodies, rows.get(owner), "The products of value " + owner + " " + direction);
+			}
+		}
+		assertTrue(mismatches.isEmpty(), () -> mismatches.size() + " mismatches: " + mismatches);
+	}
+
+	/**
+	 * Compares predecessor ordering and the refusal to order owners by their own reference lists.
+	 */
 	@Test
 	@DisplayName("should order the owners of a single-owner partition and a real chain identically on the block route")
 	void shouldOrderBlocksOfVirtualSingletonAndRealChainIdentically() {
 		final List<String> differences = new ArrayList<>(16);
-		for (String attribute : new String[]{
+		for (final String attribute : new String[]{
 			ParameterValuesShapedFixture.ATTRIBUTE_ORDER, ParameterValuesShapedFixture.ATTRIBUTE_POSITION
 		}) {
-			for (OrderDirection targetDirection : OrderDirection.values()) {
-				for (OrderDirection direction : OrderDirection.values()) {
+			for (final OrderDirection targetDirection : OrderDirection.values()) {
+				for (final OrderDirection direction : OrderDirection.values()) {
 					// the reflected side: products in the blocks of parameter values
 					final OrderConstraint productOrdering = referenceProperty(
 						ParameterValuesShapedFixture.REFERENCE_PARAMETER_VALUES,
@@ -300,14 +337,34 @@ class VirtualChainParityTest implements EvitaTestSupport {
 						ParameterValuesShapedFixture.REFERENCE_PRODUCTS,
 						entityPrimaryKeyInSet(ParameterValuesShapedFixture.LONELY_OWNER, 1)
 					);
-					for (Scope scope : Scope.values()) {
-						for (MaterializedPartitionTwin twin : new MaterializedPartitionTwin[]{
+					for (final Scope scope : Scope.values()) {
+						for (final MaterializedPartitionTwin twin : new MaterializedPartitionTwin[]{
 							this.parameterProducts, this.parameterValues
 						}) {
 							final boolean products = twin == this.parameterProducts;
 							final String entityType = twin.ownerType();
 							final FilterConstraint selection = products ? productSelection : valueSelection;
 							final OrderConstraint ordering = products ? productOrdering : valueOrdering;
+							final String referencedEntityPredecessor = products ?
+								ParameterValuesShapedFixture.ATTRIBUTE_POSITION :
+								ParameterValuesShapedFixture.ATTRIBUTE_ORDER;
+							if (attribute.equals(referencedEntityPredecessor)) {
+								final String expected = assertThrows(
+									EvitaInvalidUsageException.class,
+									() -> queryPrimaryKeys(twin.objectCatalog(), entityType, scope, selection, ordering)
+								).getMessage();
+								assertTrue(expected.contains("cannot order the owners"), expected);
+								assertEquals(
+									expected,
+									assertThrows(
+										EvitaInvalidUsageException.class,
+										() -> queryPrimaryKeys(
+											twin.rowCatalog(), entityType, scope, selection, ordering
+										)
+									).getMessage()
+								);
+								continue;
+							}
 							final List<Integer> expected = twin.expectedAnswer(
 								entityType, queryPrimaryKeys(twin.objectCatalog(), entityType, scope, selection, ordering)
 							);

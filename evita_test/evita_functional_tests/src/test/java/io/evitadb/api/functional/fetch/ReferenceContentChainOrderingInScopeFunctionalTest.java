@@ -65,6 +65,7 @@ import org.mockito.ArgumentCaptor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
 
 import static io.evitadb.api.SessionTraits.SessionFlags.DRY_RUN;
@@ -504,7 +505,8 @@ class ReferenceContentChainOrderingInScopeFunctionalTest {
 					for (final SealedEntity owner : queryOwners(session, requirement)) {
 						final ReferenceContract[] rows = owner.getReferences(ITEMS).toArray(ReferenceContract[]::new);
 						ReferenceComparator.sort(
-							comparator, owner.getPrimaryKeyOrThrowException(), owner.getScope(), rows, 0, rows.length
+							comparator, owner.getPrimaryKeyOrThrowException(), owner.getScope(), rows, 0, rows.length,
+							Arrays.asList(rows)
 						);
 					}
 					final ArgumentCaptor<RepresentativeReferenceKey> partitionKey =

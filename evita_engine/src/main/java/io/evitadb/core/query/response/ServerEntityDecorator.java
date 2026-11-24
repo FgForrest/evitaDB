@@ -594,8 +594,16 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	}
 
 	/**
-	 * Before filling the unnamed view, builds the named reference sets the server fetcher prepared - each filtered,
-	 * sorted in the owner's scope and sliced by its own requirement.
+	 * Builds named reference sets in the owner's scope and slices them before filling the unnamed view.
+	 *
+	 * @param entityPrimaryKey owner of the reference rows
+	 * @param entitySchema owner's schema
+	 * @param referencePredicate requested reference data
+	 * @param referenceFetcher access to filters, ordering and prefetched bodies
+	 * @param inputReferences original reference rows
+	 * @param outputReferences destination for the unnamed view
+	 * @param evitaRequest request containing the named reference requirements
+	 * @return number of original rows omitted from the unnamed view
 	 */
 	@Override
 	protected int fillFilteredSortedAndFetchedReferences(
@@ -723,7 +731,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							namedReferencePredicate,
 							referenceFilter,
 							fetchedReferenceComparator,
-							0, keptCount
+							0, keptCount, inputReferences, start, end
 						);
 						// only the references this entity kept - the group prefetch index is shared by the whole
 						// batch, so a reference a filterBy excluded says nothing about what this entity read

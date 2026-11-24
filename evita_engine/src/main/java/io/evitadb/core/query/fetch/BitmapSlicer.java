@@ -441,7 +441,7 @@ class BitmapSlicer {
 	 * @param validityMapping             per-source validity formula (same gate the unsorted twin applies)
 	 * @param referenceContractsAccessor  per-source-entity accessor for the source entity's reference contracts
 	 *                                    (with attributes) so this method can pre-sort by the configured `orderBy`
-	 *                                    before fetching
+	 *                                    before fetching. Row-aware comparators receive this unfiltered collection.
 	 * @param comparator                  the orderBy comparator chain (must not be {@link ReferenceComparator#DEFAULT})
 	 * @return PKs to actually fetch — exactly the post-fetch sort+chunk winners (no over-fetch, no under-fetch)
 	 */
@@ -520,7 +520,9 @@ class BitmapSlicer {
 		if (filteredRefs.length == 0) {
 			return EmptyFormula.INSTANCE;
 		}
-		ReferenceComparator.sort(comparator, ownerPrimaryKey, ownerScope, filteredRefs, 0, filteredRefs.length);
+		ReferenceComparator.sort(
+			comparator, ownerPrimaryKey, ownerScope, filteredRefs, 0, filteredRefs.length, sourceRefs
+		);
 		final OffsetAndLimit offsetAndLimit = this.offsetAndLimitForSize.apply(filteredRefs.length);
 		final int[] sliced = materializeSlicedPks(filteredRefs, offsetAndLimit);
 		return sliced.length == 0 ? EmptyFormula.INSTANCE : ReferencedEntityFetcher.toFormula(sliced);

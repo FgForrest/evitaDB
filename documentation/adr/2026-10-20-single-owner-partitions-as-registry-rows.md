@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
 date: 2026-10-20
-updated: 2026-11-17 01:20
+updated: 2026-11-21 17:51
 status: accepted
 kind: optimization
 issues: [1615]
@@ -36,6 +36,7 @@ relates: [2026-11-03-release-catalog-upgrade-from-surviving-index-parts,
   2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision,
   2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics,
   2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures, 2026-11-19-one-histogram-store-per-group,
+  2026-11-21-referenced-entity-predecessor-owner-local-order,
   2026-11-23-self-reference-work-runs-on-the-entity-executor]
 ---
 
@@ -152,10 +153,9 @@ Both designs agreed on these. They are recorded so they are not re-opened:
   `2026-09-17-row-scoped-reference-having-body` measured at 10.9 s for 32,000 partitions.
 - **Filter and unique data need nothing new.** The type index already holds them keyed by partition primary key, and
   one partition primary key is one row, so a body evaluated there is row-scoped by construction.
-- **Chains are not deferred.** A row present in a chain answers position `0` for the record id the write path indexes:
-  the owner's primary key for `Predecessor`, the referenced primary key for `ReferencedEntityPredecessor`. It is absent
-  only without a chain entry. Answering "no chain" would be wrong, not degraded: `ReferencePredecessorComparator` maps a
-  missing chain to `-2` and sorts it before a found position.
+- **`Predecessor` chains are stored with the partition.** A row holding a predecessor answers position `0` for its
+  owner. A row without a chain entry contributes no position. A `ReferencedEntityPredecessor` stays in the
+  entity's reference rows.
 - **Block orderings (traverse, chains) consume partition handles** and stay agnostic to #1670's route rule.
 - **Transitions keep the partition's primary key and `RepresentativeReferenceKey`.** These are the identity every
   persisted pointer and cached formula uses.
@@ -807,7 +807,7 @@ production probes counted work. All of it is gone. What replaced it:
   set from the entity bodies through the public API, paginated, requires a matching row (one owner) or object (two or
   more), rejects every extra, and checks owners, sort values with their order per sort key, and `Predecessor` chains.
   An independent key → primary-key ledger (`PartitionIdentityLedger`) catches an unnecessary reallocation the
-  index-derived identity cannot. `ReferencedEntityPredecessor` chains stay out of it (#1691).
+  index-derived identity cannot. T2 expects partition chains only for `Predecessor`.
 - **T3, a materialized twin in one engine** (`MaterializedPartitionTwin`). The fixture is built twice: as it is, and
   with every owner cloned at `pk + OFFSET`, so every partition has two owners and is an object reached through real
   promotions. Real page requests on the row catalog must equal slices of an independently obtained full order; each case
@@ -1113,7 +1113,7 @@ Accepted by the maintainer on 2026-10-11:
 - **L4:** the twin's comparison of type-level cardinalities, standalone unique mappings and session enrollment - dev's
   structures, which this work does not change.
 - **L5:** the closed-world entry count of the registry. T2 is closed-world over keys, but a surplus sort-value or chain
-  entry under a valid key is invisible; `ReferencedEntityPredecessor` chains stay outside T2 (#1691).
+  entry under a valid key is invisible. T2 expects no `ReferencedEntityPredecessor` entries.
 - **L6:** the per-test non-vacuity listing of the functional suite; its last numbers are above.
 - **L7:** runtime evidence of which consuming stage answered rows. Five of six stages have an answer-level
   counterfactual; the exact-set lookup cannot (a row has one owner, and `attributeSetExact` sorts a single partition).
@@ -1224,10 +1224,8 @@ Found later in the cleanup and accepted by the maintainer on 2026-10-12:
 - **#1679:** server-side reference cardinality checks are dead.
 - **#1685:** reduced indexes of duplicate-allowing references receive owner data of variants the owner does not belong
   to.
-- **#1691:** `ReferencedEntityPredecessor` is indexed into target-grouped partitions. Rows reproduce the object path's
-  behaviour; a demoted row lacks the shared predecessor, pinned by
-  `VirtualPartitionPromotionLifecycleTest#shouldDemoteWithoutTheReferencedEntityPredecessorBothOwnersShared`, which must
-  flip with the fix, and T2 leaves those chains out.
+- **Referenced-entity predecessors stay in reference rows.** The demotion test verifies that neither partition
+  representation stores the chain and that reference ordering follows the surviving owner's rows.
 - **#1696 / #1699:** 2026.2 catalogs misbehaving after the upgrade, and range borders shared by two owners - their own
   PR, built on a single generic rebuild step in `Migration_2026_3`. This work carried a migration of targeted repairs
   for them until 2026-10-06, when its estimate had grown sixfold through review rounds that kept finding pre-existing

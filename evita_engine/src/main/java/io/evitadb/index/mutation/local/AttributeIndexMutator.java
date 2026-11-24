@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
@@ -140,6 +141,9 @@ public interface AttributeIndexMutator {
 	 *
 	 * When the `existingValueSupplier` returns no prior value, the removal half of the update is simply skipped.
 	 *
+	 * An attribute of type {@link ReferencedEntityPredecessor} touches no index at all: it describes only its owner's
+	 * own list of references and is kept solely in the owner's reference rows.
+	 *
 	 * @param executor                the executor that owns the target indexes and provides schema / primary-key context
 	 * @param referenceSchema         the reference schema when the attribute belongs to a reference, `null` for entity
 	 *                                attributes
@@ -178,6 +182,10 @@ public interface AttributeIndexMutator {
 		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.getAttributeSchema(
 			attributeKey.attributeName());
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.attributeName() + "` not defined in schema!");
+		if (ReferencedEntityPredecessor.class.equals(attributeDefinition.getPlainType())) {
+			// The predecessor describes the owner's own list and is stored only in its reference rows.
+			return;
+		}
 
 		final Serializable valueToInsert = NumberUtils.normalizeForIndexing(
 			Objects.requireNonNull(
@@ -290,6 +298,8 @@ public interface AttributeIndexMutator {
 	 *   this attribute is updated: its old compound key is removed and, if remaining component values are all non-null,
 	 *   a new compound key is inserted without the removed attribute (treated as `null`).
 	 *
+	 * An attribute of type {@link ReferencedEntityPredecessor} is not indexed, so its removal touches no index either.
+	 *
 	 * @param executor                the executor that owns the target indexes and provides schema / primary-key context
 	 * @param referenceSchema         the reference schema when the attribute belongs to a reference, `null` for entity
 	 *                                attributes
@@ -325,6 +335,10 @@ public interface AttributeIndexMutator {
 		final String attributeName = attributeKey.attributeName();
 		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.getAttributeSchema(attributeName);
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeName + "` not defined in schema!");
+		if (ReferencedEntityPredecessor.class.equals(attributeDefinition.getPlainType())) {
+			// The predecessor describes the owner's own list and is stored only in its reference rows.
+			return;
+		}
 
 		final Set<Locale> allowedLocales = entitySchema.getLocales();
 		final Locale locale = attributeKey.locale();

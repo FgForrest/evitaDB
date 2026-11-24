@@ -65,7 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Exact ordering refuses predecessor values before execution, at entity level and inside every reference ordering.
- * Both chain types receive the same explanation under either execution route preference.
+ * Each chain type receives the same explanation under either execution route preference.
  */
 @DisplayName("Exact ordering rejects chain attributes consistently")
 @ExtendWith(EvitaParameterResolver.class)
@@ -189,7 +189,7 @@ class ReferenceChainExactOrderingFunctionalTest {
 	}
 
 	/**
-	 * Requires the same explanation for both chain types in every reference ordering, with or without a name collision.
+	 * Checks the diagnostic for each chain type and reference ordering, including colliding attribute names.
 	 *
 	 * @param reference reference whose attribute is ordered
 	 * @param attribute chain attribute name
@@ -219,7 +219,14 @@ class ReferenceChainExactOrderingFunctionalTest {
 				), EntityReference.class
 			)
 		);
-		assertChainRefusal(exception, attribute, type);
+		if (type == ReferencedEntityPredecessor.class) {
+			assertTrue(exception.getMessage().contains(type.getSimpleName()), exception::getMessage);
+			assertTrue(exception.getMessage().contains("`" + attribute + "`"), exception::getMessage);
+			assertTrue(exception.getMessage().contains("cannot order the owners"), exception::getMessage);
+			assertRefusedDuringPlanning(exception);
+		} else {
+			assertChainRefusal(exception, attribute, type);
+		}
 	}
 
 	/**
@@ -298,8 +305,11 @@ class ReferenceChainExactOrderingFunctionalTest {
 	}
 
 	/**
-	 * Requires an actionable diagnostic from translation, before query execution is entered - a `QueryPlan#execute`
-	 * frame on the stack would mean the refusal came from execution instead.
+	 * Checks the explanation for an exact order over a predecessor chain.
+	 *
+	 * @param exception reported planning error
+	 * @param attribute name of the ordered attribute
+	 * @param type declared type of the chain attribute
 	 */
 	private static void assertChainRefusal(
 		@Nonnull EvitaInvalidUsageException exception, @Nonnull String attribute, @Nonnull Class<?> type
@@ -311,6 +321,15 @@ class ReferenceChainExactOrderingFunctionalTest {
 				"`traverseByEntityProperty` or no explicit traversal, not `pickFirstByEntityProperty`.",
 			exception.getMessage()
 		);
+		assertRefusedDuringPlanning(exception);
+	}
+
+	/**
+	 * Checks that planning rejects the ordering before execution begins.
+	 *
+	 * @param exception reported planning error
+	 */
+	private static void assertRefusedDuringPlanning(@Nonnull EvitaInvalidUsageException exception) {
 		assertFalse(
 			Arrays.stream(exception.getStackTrace()).anyMatch(
 				frame -> frame.getClassName().equals(QueryPlan.class.getName()) &&

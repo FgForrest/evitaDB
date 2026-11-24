@@ -25,7 +25,6 @@ package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
-import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.metric.event.transaction.NewCatalogVersionPropagatedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionIncorporatedToTrunkEvent;
@@ -83,6 +82,14 @@ public final class TrunkIncorporationTransactionStage
 		return "trunk incorporation";
 	}
 
+	/**
+	 * Incorporates the task's durable WAL round and publishes it. When the version has already been finalized, or
+	 * processing yields no round of its own, the task waits until the live view reaches the version instead - the
+	 * WAL drainer may be the one to publish it. Visibility is completed through the pending registry's claim, which
+	 * the drainer's range fan-out shares, so the session is terminated once.
+	 *
+	 * @param task the durable transaction to incorporate
+	 */
 	@Override
 	protected void handleNext(@Nonnull TrunkIncorporationTransactionTask task) {
 		// taking up a task here is progress towards every record waiting for incorporation - unlike conflict
@@ -93,11 +100,7 @@ public final class TrunkIncorporationTransactionStage
 			// the transaction has been already processed
 			// but we can't mark transaction as processed until it's propagated to the "live view"
 			this.transactionManager.waitUntilLiveVersionReaches(task.catalogVersion());
-			task.commitProgress().complete(
-				CommitBehavior.WAIT_FOR_CHANGES_VISIBLE,
-				commitVersions,
-				this.transactionManager.getRequestExecutor()
-			);
+			completeChangesVisible(task.commitProgress(), commitVersions);
 			log.debug("Skipping version " + task.catalogVersion() + " as it has been already processed.");
 		} else {
 			// emit queue event
@@ -130,20 +133,45 @@ public final class TrunkIncorporationTransactionStage
 							0,
 							0
 						).commit();
-						// processTransactions returned empty: a concurrent trunk-incorporation task
-						// already drained the mutation stream while we were waiting for the lock.
-						// Complete the commit progress the same way the "already processed" branch does
-						// — wait until the live view catches up, then mark this stage done. Without this
-						// completion the record would hang with `onChangesVisible` pending forever.
+						// If another round is still publishing, the drainer will take up the WAL backlog.
+						// Either publisher can bring this version into the live view.
 						this.transactionManager.waitUntilLiveVersionReaches(task.catalogVersion());
-						task.commitProgress().complete(
-							CommitBehavior.WAIT_FOR_CHANGES_VISIBLE,
-							commitVersions,
-							this.transactionManager.getRequestExecutor()
-						);
+						completeChangesVisible(task.commitProgress(), commitVersions);
 					}
 				);
 		}
+	}
+
+	/**
+	 * Fails the task through the pending registry instead of failing its record directly, so this failure and a WAL
+	 * drainer publishing the same version settle the commit once: whichever claims the record first wins.
+	 *
+	 * @param task    the failed trunk task
+	 * @param failure the cause to report
+	 */
+	@Override
+	protected void failTask(@Nonnull TrunkIncorporationTransactionTask task, @Nonnull Throwable failure) {
+		this.transactionManager.getPendingCommitProgressRegistry().failChangesVisible(
+			task.catalogVersion(), task.commitProgress(), failure
+		);
+	}
+
+	/**
+	 * Completes the visibility of a task's commit through the pending registry, which shares the completion claim with
+	 * the range fan-out and the failure paths, so the session is terminated exactly once.
+	 *
+	 * @param commitProgress the commit progress of the task
+	 * @param commitVersions the versions assigned to the task
+	 */
+	private void completeChangesVisible(
+		@Nonnull CommitProgressRecord commitProgress,
+		@Nonnull CommitVersions commitVersions
+	) {
+		this.transactionManager.getPendingCommitProgressRegistry().completeChangesVisible(
+			commitProgress,
+			commitVersions,
+			this.transactionManager.getRequestExecutor()
+		);
 	}
 
 	/**
@@ -166,13 +194,14 @@ public final class TrunkIncorporationTransactionStage
 
 		final NewCatalogVersionPropagatedEvent event = new NewCatalogVersionPropagatedEvent(catalogName);
 		try {
-			this.transactionManager.propagateCatalogSnapshot(catalog);
-			log.debug("Snapshot propagating task for catalog `" + catalogName + "` completed (" + catalog.getEntityTypes() + ")!");
-			commitProgressRecord.complete(
-				CommitBehavior.WAIT_FOR_CHANGES_VISIBLE,
-				commitVersions,
-				this.transactionManager.getRequestExecutor()
+			this.transactionManager.propagateCatalogSnapshot(
+				result.previousCatalogVersion(), catalog,
+				failure -> this.transactionManager.getPendingCommitProgressRegistry().failChangesVisible(
+					commitVersions.catalogVersion(), commitProgressRecord, failure
+				)
 			);
+			log.debug("Snapshot propagating task for catalog `" + catalogName + "` completed (" + catalog.getEntityTypes() + ")!");
+			completeChangesVisible(commitProgressRecord, commitVersions);
 			// fan out WAIT_FOR_CHANGES_VISIBLE to every record greedily incorporated in this batch:
 			// the live catalog has advanced past every version in (current task, live view], so their
 			// changes are already visible and the records can be completed immediately instead of
@@ -185,7 +214,9 @@ public final class TrunkIncorporationTransactionStage
 				);
 		} catch (Throwable ex) {
 			log.error("Error while processing snapshot propagating task for catalog `" + catalogName + "`!", ex);
-			commitProgressRecord.completeExceptionally(ex);
+			this.transactionManager.getPendingCommitProgressRegistry().failChangesVisible(
+				commitVersions.catalogVersion(), commitProgressRecord, ex
+			);
 		}
 
 		// emit the event

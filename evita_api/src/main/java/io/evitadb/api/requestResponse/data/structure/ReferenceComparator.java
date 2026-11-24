@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 
 /**
@@ -84,7 +85,9 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 	 * Sorts admitted rows in place, advancing to the next applicable link with the unranked suffix.
 	 * The same walk is used before fetching reference bodies and when ordering the decorated rows. A link whose
 	 * scope does not admit the owner is skipped without being prepared, and the rows no applicable link ranks are
-	 * ordered by {@link #DEFAULT} last.
+	 * ordered by {@link #DEFAULT} last. A stage whose comparator (a link's delegate, or a bare comparator) is an
+	 * {@link OwnerReferencesAwareComparator} is prepared from `ownerReferences` rather than from the owner's key and
+	 * scope, so it can rank by rows outside the sorted range, such as rows the reference filter or the page hides.
 	 *
 	 * @param comparator head of the ordering chain
 	 * @param ownerPrimaryKey primary key of the entity owning the rows
@@ -92,6 +95,7 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 	 * @param references array of reference rows
 	 * @param from inclusive start of the admitted rows
 	 * @param to exclusive end of the admitted rows
+	 * @param ownerReferences unfiltered rows of this owner and reference name, in stored order
 	 */
 	@Internal("shared by reference prefetch and decoration")
 	static void sort(
@@ -100,7 +104,8 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 		@Nonnull Scope ownerScope,
 		@Nonnull ReferenceContract[] references,
 		int from,
-		int to
+		int to,
+		@Nonnull Collection<? extends ReferenceContract> ownerReferences
 	) {
 		ReferenceContract[] unranked = null;
 		ReferenceComparator current = comparator;
@@ -108,7 +113,12 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 			final Link link = current instanceof Link stage ? stage : null;
 			final boolean appliesToOwner = link == null || link.ownerScope == null || link.ownerScope == ownerScope;
 			if (appliesToOwner) {
-				current.prepareOwner(ownerPrimaryKey, ownerScope);
+				final ReferenceComparator delegate = link == null ? current : link.delegate;
+				if (delegate instanceof OwnerReferencesAwareComparator rowAware) {
+					rowAware.prepareOwner(ownerReferences);
+				} else {
+					current.prepareOwner(ownerPrimaryKey, ownerScope);
+				}
 
 				// Scan the ranked prefix and the first unranked run in place. A mixed suffix needs one buffer,
 				// reused by later links, to preserve the order of the unranked rows as ranked rows move forward.
@@ -167,6 +177,20 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 	 */
 	default boolean canRank(@Nonnull ReferenceContract reference) {
 		return true;
+	}
+
+	/**
+	 * A comparator that builds its ordering from all original rows of the owner's reference.
+	 */
+	@Internal("prepares reference orderings that depend on rows outside the admitted window")
+	interface OwnerReferencesAwareComparator extends ReferenceComparator {
+
+		/**
+		 * Prepares this comparator when its link admits the owner and has rows left to rank.
+		 *
+		 * @param ownerReferences original rows of the reference, including rows filtered out of the result
+		 */
+		void prepareOwner(@Nonnull Collection<? extends ReferenceContract> ownerReferences);
 	}
 
 	/**

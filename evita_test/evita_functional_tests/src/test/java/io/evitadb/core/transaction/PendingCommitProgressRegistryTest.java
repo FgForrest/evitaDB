@@ -34,10 +34,13 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -256,6 +259,91 @@ class PendingCommitProgressRegistryTest {
 	}
 
 	@Nested
+	@DisplayName("Visibility claim shared by trunk tasks, fan-out and failures")
+	class VisibilityClaimTest {
+
+		@Test
+		@DisplayName("should settle a record the registry does not hold directly")
+		void shouldSettleARecordTheRegistryDoesNotHoldDirectly() {
+			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
+			final CommitProgressRecord completed = new CommitProgressRecord();
+			final CommitProgressRecord failed = new CommitProgressRecord();
+			final CommitVersions versions = new CommitVersions(5L, 1);
+			preCompleteUpstreamStages(completed, versions);
+
+			registry.completeChangesVisible(completed, versions, SYNCHRONOUS);
+			registry.failChangesVisible(5L, failed, new TransactionException("trunk task failed"));
+
+			assertTrue(completed.isCompletedSuccessfully(), "an unregistered record must be completed directly");
+			assertTrue(failed.isCompletedExceptionally(), "an unregistered record must be failed directly");
+		}
+
+		@Test
+		@DisplayName("should complete only the passed record when another record holds its version")
+		void shouldCompleteOnlyThePassedRecordWhenAnotherHoldsItsVersion() {
+			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
+			final CommitProgressRecord registered = new CommitProgressRecord();
+			final CommitProgressRecord passed = new CommitProgressRecord();
+			final CommitVersions versions = new CommitVersions(5L, 1);
+			registry.register(5L, registered, versions);
+			preCompleteUpstreamStages(passed, versions);
+
+			registry.completeChangesVisible(passed, versions, SYNCHRONOUS);
+
+			assertTrue(passed.isCompletedSuccessfully());
+			assertFalse(registered.isDone(), "the record registered under the version is not the one completed");
+			assertEquals(1, registry.size());
+		}
+
+		/**
+		 * A publisher completes visibility by its trunk task while the range fan-out of another publisher covers the
+		 * same version. Termination runs before the future completion is queued, so only the shared claim keeps the
+		 * session from being terminated twice while that completion waits for the request executor.
+		 */
+		@Test
+		@DisplayName("should run session termination once when the trunk task and the fan-out both complete")
+		void shouldRunTerminationOnceWhenTheTrunkTaskAndTheFanOutBothComplete() {
+			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
+			final AtomicInteger terminations = new AtomicInteger();
+			final CommitProgressRecord record = new CommitProgressRecord(
+				(committedVersions, failure) -> terminations.incrementAndGet()
+			);
+			final CommitVersions versions = new CommitVersions(5L, 1);
+			final List<Runnable> queued = new ArrayList<>(1);
+			registry.register(5L, record, versions);
+			preCompleteUpstreamStages(record, versions);
+
+			registry.completeChangesVisible(record, versions, queued::add);
+			registry.completeChangesVisibleInRange(4L, 5L, SYNCHRONOUS);
+			queued.forEach(Runnable::run);
+
+			assertEquals(1, terminations.get(), "the second completion must find the claim taken");
+			assertTrue(record.isCompletedSuccessfully());
+		}
+
+		@Test
+		@DisplayName("should keep a claimed success when the trunk task reports a failure afterwards")
+		void shouldKeepAClaimedSuccessWhenTheTrunkTaskReportsAFailureAfterwards() {
+			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
+			final AtomicInteger terminations = new AtomicInteger();
+			final CommitProgressRecord record = new CommitProgressRecord(
+				(committedVersions, failure) -> terminations.incrementAndGet()
+			);
+			final CommitVersions versions = new CommitVersions(5L, 1);
+			final List<Runnable> queued = new ArrayList<>(1);
+			registry.register(5L, record, versions);
+			preCompleteUpstreamStages(record, versions);
+
+			registry.completeChangesVisible(record, versions, queued::add);
+			registry.failChangesVisible(5L, record, new TransactionException("propagation failed late"));
+			queued.forEach(Runnable::run);
+
+			assertEquals(1, terminations.get(), "the failure must not terminate the session a second time");
+			assertTrue(record.isCompletedSuccessfully(), "the success that claimed the record first must stand");
+		}
+	}
+
+	@Nested
 	@DisplayName("Watchdog for lost records via sweepStalledRecords")
 	class StalledSweepTest {
 
@@ -451,6 +539,55 @@ class PendingCommitProgressRegistryTest {
 				record.isCompletedSuccessfully(),
 				"a record that completed successfully before the sweep must stay successful"
 			);
+		}
+
+		/**
+		 * A round that has just made a record visible claims its success, runs the session termination and queues the
+		 * completion of the future on the request executor. A sweep landing before that executor runs it sees an old
+		 * record the live view has reached - and failing it would report a visible commit, whose session already ended
+		 * as successful, as lost.
+		 */
+		@Test
+		@DisplayName("should spare a record whose visibility completion is queued")
+		void shouldSpareARecordWhoseVisibilityCompletionIsQueued() {
+			final CommitProgressRecord record = new CommitProgressRecord();
+			final CommitVersions versions = new CommitVersions(5L, 1);
+			final List<Runnable> queued = new ArrayList<>(1);
+			at(0);
+			this.registry.register(5L, record, versions);
+			preCompleteUpstreamStages(record, versions);
+
+			at(101);
+			this.registry.completeChangesVisibleInRange(4L, 5L, queued::add);
+			final int failed = this.registry.sweepStalledRecords(MAX_STALL, 5L);
+
+			assertEquals(0, failed, "a record whose successful completion is merely queued must not be failed");
+			queued.forEach(Runnable::run);
+			assertTrue(record.isCompletedSuccessfully(), "the queued completion must settle the record successfully");
+		}
+
+		/**
+		 * A queued completion the request executor never runs - one a shut-down executor dropped, or one stuck behind
+		 * a blocked client callback - leaves the client waiting, so the sweep still fails it once it has not run for
+		 * the whole bound.
+		 */
+		@Test
+		@DisplayName("should fail a queued visibility completion that has not run for the whole bound")
+		void shouldFailAQueuedVisibilityCompletionThatNeverRan() {
+			final CommitProgressRecord record = new CommitProgressRecord();
+			final CommitVersions versions = new CommitVersions(5L, 1);
+			final List<Runnable> queued = new ArrayList<>(1);
+			at(0);
+			this.registry.register(5L, record, versions);
+			preCompleteUpstreamStages(record, versions);
+			at(101);
+			this.registry.completeChangesVisibleInRange(4L, 5L, queued::add);
+
+			at(201);
+			final int failed = this.registry.sweepStalledRecords(MAX_STALL, 5L);
+
+			assertEquals(1, failed, "a queued completion that has not run for the whole bound is stranded");
+			assertTrue(record.onChangesVisible().toCompletableFuture().isCompletedExceptionally());
 		}
 	}
 

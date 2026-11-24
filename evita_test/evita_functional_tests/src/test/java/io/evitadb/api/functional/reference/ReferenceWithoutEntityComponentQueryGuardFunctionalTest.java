@@ -119,8 +119,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * nothing that needs the reduced entity indexes can be answered from it, because they were never built. Every query
  * path that reads them used to answer with an empty result, silently; a negation over one inverted into the whole
  * collection. Each path must now refuse loudly, naming the reference and the scope that lacks the component. Facet
- * computation reads a different structure and the filter of `referenceContent` reads the fetched rows themselves, so
- * both must keep working, which the controls below pin.
+ * computation reads a different structure. Filtering and referenced-entity predecessor ordering in
+ * `referenceContent` use fetched reference rows, so the controls also verify those paths.
  *
  * **How the stored shape is produced.** The shape can no longer be committed through the public API, but validation
  * runs only when the session closes, so the session that defines it sees it - schema and indexes both - exactly as a
@@ -183,8 +183,7 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 	 */
 	private static final String ATTR_ORDER = "order";
 	/**
-	 * Referenced-entity predecessor attribute on {@link #REF_GROUP_ONLY}, ordering the rows of one product through the
-	 * chain index kept in the reduced entity index. Set only by the test that orders by it.
+	 * Referenced-entity predecessor attribute on {@link #REF_GROUP_ONLY}, ordering the rows of one product.
 	 */
 	private static final String ATTR_CHAIN = "chain";
 	/**
@@ -361,6 +360,41 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 				referenced,
 				"Product " + PRODUCT_A_PK + " must carry its one row on `" + REF_GROUP_ONLY + "`"
 			);
+		}
+
+		/**
+		 * Checks that plain reference ordering can use the owner's rows with only the group component indexed.
+		 */
+		@Test
+		@Tag(ORDER)
+		@Tag(REQUIRE)
+		@DisplayName("Should order plain reference content from the owner even without the entity component")
+		void shouldOrderReferenceContentByTheOwnersPredecessors() {
+			final List<Integer> referenced = queryInStoredShapeSession(session -> {
+				session.upsertEntity(
+					session.createNewEntity(PRODUCT, TWO_ROW_PRODUCT_PK)
+						.setReference(
+							REF_GROUP_ONLY, OTHER_ROOT_CATEGORY_PK,
+							whichIs -> whichIs.setGroup(CATEGORY_GROUP, GROUP_B_PK)
+								.setAttribute(ATTR_CHAIN, ReferencedEntityPredecessor.HEAD)
+						)
+						.setReference(
+							REF_GROUP_ONLY, CHILD_CATEGORY_PK,
+							whichIs -> whichIs.setGroup(CATEGORY_GROUP, GROUP_A_PK)
+								.setAttribute(ATTR_CHAIN, new ReferencedEntityPredecessor(OTHER_ROOT_CATEGORY_PK))
+						)
+				);
+				return fetchReferencedPks(
+					session,
+					query(
+						collection(PRODUCT),
+						filterBy(entityPrimaryKeyInSet(TWO_ROW_PRODUCT_PK)),
+						require(entityFetch(referenceContent(REF_GROUP_ONLY, orderBy(attributeNatural(ATTR_CHAIN)))))
+					),
+					REF_GROUP_ONLY
+				);
+			});
+			assertEquals(List.of(OTHER_ROOT_CATEGORY_PK, CHILD_CATEGORY_PK), referenced);
 		}
 
 	}
@@ -595,52 +629,6 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 				REF_GROUP_ONLY_IN_ARCHIVE, Scope.ARCHIVED, Scope.LIVE,
 				"archived product " + ARCHIVED_PRODUCT_PK + " carries the highest order, so it belongs first, which the " +
 					"blind lookup cannot know"
-			);
-		}
-
-		/**
-		 * `referenceContent` ordered by a predecessor attribute reads the chain index kept in the reduced entity index
-		 * of every row - a lookup of its own, outside the filter and `referenceProperty` paths. Without it every row
-		 * sorts as if it had no predecessor, and the rows come back in an order nobody asked for.
-		 */
-		@Test
-		@Tag(ORDER)
-		@Tag(REQUIRE)
-		@DisplayName("should refuse ordering referenceContent by a predecessor attribute")
-		void shouldRefusePredecessorOrderedReferenceContent() {
-			assertRefused(
-				() -> {
-					final EvitaSessionContract session = currentSession();
-					session.upsertEntity(
-						session.createNewEntity(PRODUCT, TWO_ROW_PRODUCT_PK)
-							.setReference(
-								REF_GROUP_ONLY, OTHER_ROOT_CATEGORY_PK,
-								whichIs -> whichIs
-									.setGroup(CATEGORY_GROUP, GROUP_B_PK)
-									.setAttribute(ATTR_CHAIN, ReferencedEntityPredecessor.HEAD)
-							)
-							.setReference(
-								REF_GROUP_ONLY, CHILD_CATEGORY_PK,
-								whichIs -> whichIs
-									.setGroup(CATEGORY_GROUP, GROUP_A_PK)
-									.setAttribute(ATTR_CHAIN, new ReferencedEntityPredecessor(OTHER_ROOT_CATEGORY_PK))
-							)
-					);
-					return fetchReferencedPks(
-						session,
-						query(
-							collection(PRODUCT),
-							filterBy(entityPrimaryKeyInSet(TWO_ROW_PRODUCT_PK)),
-							require(
-								entityFetch(referenceContent(REF_GROUP_ONLY, orderBy(attributeNatural(ATTR_CHAIN))))
-							)
-						),
-						REF_GROUP_ONLY
-					);
-				},
-				REF_GROUP_ONLY, Scope.LIVE,
-				"the chain orders category " + OTHER_ROOT_CATEGORY_PK + " before category " + CHILD_CATEGORY_PK +
-					", the reverse of the primary-key order the blind lookup falls back to"
 			);
 		}
 

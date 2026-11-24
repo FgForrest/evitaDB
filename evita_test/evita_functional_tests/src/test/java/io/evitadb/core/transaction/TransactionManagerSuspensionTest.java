@@ -43,8 +43,11 @@ import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.transaction.TransactionManager.CatalogSuspension;
 import io.evitadb.core.transaction.TransactionManager.ProcessResult;
+import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage;
+import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage.ConflictResolutionAndWalAppendingTransactionTask;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.checksum.ChecksumFactory;
@@ -65,6 +68,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
@@ -78,6 +82,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -417,6 +422,57 @@ class TransactionManagerSuspensionTest {
 			parked.onChangesVisible().toCompletableFuture().isCompletedExceptionally(),
 			"a commit parked on a pipeline that will never run again must be completed exceptionally in bounded time, " +
 				"never left waiting"
+		);
+	}
+
+	@Test
+	@DisplayName("reports a commit it appends after the suspension as written, never as failed")
+	void shouldReportACommitAsWrittenWhenItIsAppendedAfterSuspension() {
+		final ConflictResolutionAndWalAppendingTransactionStage conflictStage =
+			new ConflictResolutionAndWalAppendingTransactionStage(
+				Runnable::run, 16, this.transactionManager, (task, ex) -> {
+				}
+			);
+		conflictStage.handleNext(conflictResolutionTask(INITIAL_VERSION));
+		verify(this.catalog, times(1)).appendWalAndDiscardDeferringSync(any(), any());
+
+		// a commit that passed the suspension check of `commit` may still wait in the conflict stage's buffer when an
+		// incorporation fails - the stage then resolves it and appends it to the shared WAL, which a reload replays
+		this.transactionManager.suspend(new IOException("no space left on device"), false, FAILING_VERSION);
+		final ConflictResolutionAndWalAppendingTransactionTask lateTask = conflictResolutionTask(INITIAL_VERSION + 1);
+		conflictStage.handleNext(lateTask);
+
+		verify(this.catalog, times(2)).appendWalAndDiscardDeferringSync(any(), any());
+		assertFalse(
+			lateTask.commitProgress().onConflictResolved().toCompletableFuture().isCompletedExceptionally(),
+			"a commit the stage goes on to append must not be reported as failed - a reload replays it, so a client " +
+				"retrying it would write it twice"
+		);
+		assertFalse(
+			lateTask.commitProgress().onWalAppended().toCompletableFuture().isCompletedExceptionally(),
+			"the appended commit is in the WAL and must be reported so"
+		);
+		assertEquals(INITIAL_VERSION + 2, this.transactionManager.getLastWrittenCatalogVersion());
+	}
+
+	/**
+	 * Builds a conflict-free task of an empty transaction the conflict stage resolves and appends.
+	 *
+	 * @param sessionCatalogVersion the catalog version the committing session read
+	 * @return a task with a fresh commit progress record
+	 */
+	@Nonnull
+	private static ConflictResolutionAndWalAppendingTransactionTask conflictResolutionTask(long sessionCatalogVersion) {
+		return new ConflictResolutionAndWalAppendingTransactionTask(
+			CATALOG_NAME,
+			sessionCatalogVersion,
+			UUID.randomUUID(),
+			0,
+			0L,
+			0,
+			Set.of(),
+			mock(LogRecordReference.class),
+			new CommitProgressRecord()
 		);
 	}
 }

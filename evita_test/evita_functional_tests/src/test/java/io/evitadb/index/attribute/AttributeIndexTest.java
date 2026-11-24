@@ -40,7 +40,6 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Predecessor;
-import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -137,8 +136,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 	 * - `priority` — {@link Integer} sortable (sort index)
 	 * - `order` — {@link Predecessor} sortable (chain index)
 	 * - `range` — {@link IntegerNumberRange} filterable (filter value index + range companion)
-	 * - reference `brand` — indexed, with a filterable `code` and a {@link ReferencedEntityPredecessor} `order`
-	 * (that type is valid only on a reference, so it must live here rather than at entity level)
+	 * - reference `brand` — indexed, with a filterable `code`
 	 */
 	private static final EntitySchemaContract SCHEMA = new InternalEntitySchemaBuilder(
 		CATALOG_SCHEMA, PRODUCT_SCHEMA
@@ -157,7 +155,6 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				// a reference must be indexed before it may carry filterable / sortable attributes
 				ref.indexed();
 				ref.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::filterable);
-				ref.withAttribute(ATTRIBUTE_ORDER, ReferencedEntityPredecessor.class, AttributeSchemaEditor::sortable);
 			}
 		)
 		.toInstance();
@@ -208,12 +205,6 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 	 */
 	private static final AttributeSchemaContract BRAND_CODE_ATTRIBUTE =
 		BRAND_REFERENCE.getAttribute(ATTRIBUTE_CODE).orElseThrow();
-	/**
-	 * Sortable reference-level `order` attribute of a {@link ReferencedEntityPredecessor} type — routed to the chain
-	 * index by value. Lives on {@link #BRAND_REFERENCE}; pass that reference schema alongside it.
-	 */
-	private static final AttributeSchemaContract REFERENCED_CHAIN_ORDER =
-		BRAND_REFERENCE.getAttribute(ATTRIBUTE_ORDER).orElseThrow();
 
 	/**
 	 * Builds a single-entry shared value index + filter view for the given key/type/records and returns a
@@ -557,23 +548,6 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("chain index upsert via ReferencedEntityPredecessor")
-		void shouldCommitChainIndexViaReferencedEntityPredecessor() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-
-			assertStateAfterCommit(
-				index,
-				original -> original.insertSortAttribute(
-					BRAND_REFERENCE, REFERENCED_CHAIN_ORDER, ALLOWED_LOCALES, null, ReferencedEntityPredecessor.HEAD, 1
-				),
-				(original, committed) -> {
-					assertFalse(committed.isAttributeIndexEmpty());
-					assertEquals(1, committed.getChainIndexes().size());
-				}
-			);
-		}
-
-		@Test
 		@DisplayName("original unchanged after commit (T2)")
 		void shouldLeaveOriginalUnchangedAfterCommit() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
@@ -865,18 +839,6 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 
 			index.insertSortAttribute(null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
-
-			assertEquals(1, index.getChainIndexes().size());
-			assertTrue(index.getSortIndexes().isEmpty());
-		}
-
-		@Test
-		@DisplayName("ReferencedEntityPredecessor routes to chain index")
-		void shouldRouteReferencedEntityPredecessorToChainIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-
-			index.insertSortAttribute(
-				BRAND_REFERENCE, REFERENCED_CHAIN_ORDER, ALLOWED_LOCALES, null, ReferencedEntityPredecessor.HEAD, 1);
 
 			assertEquals(1, index.getChainIndexes().size());
 			assertTrue(index.getSortIndexes().isEmpty());

@@ -222,10 +222,13 @@ Nth arguments of this constraint.
 Chain attributes of type [`Predecessor`](../../use/data-types.md#predecessor) or `ReferencedEntityPredecessor` are
 refused when the query is translated, both at entity level and inside
 [`referenceProperty`](./reference.md#reference-property) orderings. A chain orders by predecessor links, so its
-values cannot be listed in an exact value order. Use [`attributeNatural`](./comparable.md#attribute-natural) to follow
-the chain instead. Inside `referenceProperty`, that needs
-[`traverseByEntityProperty`](./reference.md#traverse-by-entity-property) or no traversal constraint at all, because
-[`pickFirstByEntityProperty`](./reference.md#pick-first-by-entity-property) cannot order by a chain.
+values cannot be listed in an exact value order.
+
+Use [`attributeNatural`](./comparable.md#attribute-natural) to follow a `Predecessor` chain. To order owners by a
+`Predecessor` reference attribute, put `attributeNatural` inside `referenceProperty` with
+[`traverseByEntityProperty`](./reference.md#traverse-by-entity-property) or with no traversal constraint.
+For a `ReferencedEntityPredecessor` attribute, use `orderBy(attributeNatural(...))` in
+[`referenceContent`](../requirements/fetching.md#reference-content) to order each owner's references.
 
 </Note>
 

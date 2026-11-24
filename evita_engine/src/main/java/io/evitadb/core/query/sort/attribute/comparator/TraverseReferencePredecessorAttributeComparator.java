@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefiniti
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -122,7 +123,6 @@ public class TraverseReferencePredecessorAttributeComparator
 	 * Creates a chain comparator whose row selection follows the supplied providers on both routes.
 	 *
 	 * @param attributeName         the chain attribute
-	 * @param type                  the predecessor type
 	 * @param referenceSchema       the ordered reference
 	 * @param locale                the locale of the chain attribute, if localized
 	 * @param orderDirection        the direction of the chain
@@ -130,7 +130,6 @@ public class TraverseReferencePredecessorAttributeComparator
 	 */
 	public TraverseReferencePredecessorAttributeComparator(
 		@Nonnull String attributeName,
-		@Nonnull Class<?> type,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection,
@@ -138,7 +137,7 @@ public class TraverseReferencePredecessorAttributeComparator
 	) {
 		super(
 			attributeName,
-			type,
+			Predecessor.class,
 			// a predecessor carries no decimal places to compare at
 			0,
 			referenceSchema,

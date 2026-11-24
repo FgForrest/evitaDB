@@ -24,7 +24,7 @@
 package io.evitadb.api.functional.histogram;
 
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.exception.EntityCollectionRequiredException;
+import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.require.EntityFetch;
@@ -32,15 +32,15 @@ import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.ReferenceHistogramStatistics;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -50,8 +50,10 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 
 import static io.evitadb.api.query.Query.query;
@@ -63,10 +65,12 @@ import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Exercises histograms of reference attributes when the target type has no collection in the catalog.
- * Two products contribute distinct values and reference distinct external primary keys.
+ * Exercises references whose target or group type evitaDB does not manage. Reference attribute histograms work for
+ * unmanaged targets, while a fetch of an unmanaged type - a histogram boundary entity, or an entity or group body of
+ * a summary or facet summary - is refused with {@link EntityNotManagedException} naming that type. A fetch of the
+ * managed side of such a reference is accepted.
  */
-@DisplayName("Reference attribute histograms for unmanaged targets")
+@DisplayName("Reference attribute histograms and fetches for unmanaged types")
 @Tag(CONTRACT)
 @Tag(HISTOGRAM)
 @Tag(REFERENCE)
@@ -74,10 +78,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class UnmanagedReferenceHistogramBoundaryFunctionalTest implements EvitaTestSupport {
 	private static final String UNGROUPED_FIXTURE = "unmanagedReferenceHistogramUngrouped";
 	private static final String GROUPED_FIXTURE = "unmanagedReferenceHistogramGrouped";
+	private static final String UNMANAGED_GROUP_FIXTURE = "unmanagedReferenceHistogramUnmanagedGroup";
+	private static final String MANAGED_TARGET_FIXTURE = "referenceSummaryManagedTargetUnmanagedGroup";
 	private static final String NOT_FACETED_FIXTURE = "unmanagedReferenceHistogramNotFaceted";
 	private static final String PRODUCT = "Product";
 	private static final String TARGET = "ExternalParameter";
 	private static final String GROUP = "ParameterGroup";
+	private static final String EXTERNAL_GROUP = "ExternalParameterGroup";
 	private static final String REFERENCE_NAME = "externalParameter";
 	private static final String SHARE = "share";
 	private static final String SHARE_HISTOGRAM = "shareHistogram";
@@ -90,7 +97,7 @@ class UnmanagedReferenceHistogramBoundaryFunctionalTest implements EvitaTestSupp
 	 */
 	@DataSet(value = UNGROUPED_FIXTURE, expectedCatalogState = CatalogState.WARMING_UP, destroyAfterClass = true)
 	void setUpUngroupedFixture(@Nonnull Evita evita) {
-		setUpFixture(evita, false, true);
+		setUpFixture(evita, null, true);
 	}
 
 	/**
@@ -100,7 +107,42 @@ class UnmanagedReferenceHistogramBoundaryFunctionalTest implements EvitaTestSupp
 	 */
 	@DataSet(value = GROUPED_FIXTURE, expectedCatalogState = CatalogState.WARMING_UP, destroyAfterClass = true)
 	void setUpGroupedFixture(@Nonnull Evita evita) {
-		setUpFixture(evita, true, true);
+		setUpFixture(evita, GROUP, true);
+	}
+
+	/**
+	 * Creates the faceted reference fixture with an unmanaged group and unmanaged targets.
+	 *
+	 * @param evita engine in which to create the fixture
+	 */
+	@DataSet(value = UNMANAGED_GROUP_FIXTURE, expectedCatalogState = CatalogState.WARMING_UP, destroyAfterClass = true)
+	void setUpUnmanagedGroupFixture(@Nonnull Evita evita) {
+		setUpFixture(evita, EXTERNAL_GROUP, true);
+	}
+
+	/**
+	 * Creates a faceted reference with two managed targets and an unmanaged group.
+	 *
+	 * @param evita engine in which to create the fixture
+	 */
+	@DataSet(value = MANAGED_TARGET_FIXTURE, expectedCatalogState = CatalogState.WARMING_UP, destroyAfterClass = true)
+	void setUpManagedTargetFixture(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.defineEntitySchema(TARGET).withoutGeneratedPrimaryKey().updateVia(session);
+			session.createNewEntity(TARGET, 101).upsertVia(session);
+			session.createNewEntity(TARGET, 102).upsertVia(session);
+			session.defineEntitySchema(PRODUCT)
+				.withoutGeneratedPrimaryKey()
+				.withReferenceToEntity(
+					REFERENCE_NAME, TARGET, Cardinality.ZERO_OR_MORE,
+					reference -> reference.withGroupType(EXTERNAL_GROUP).facetedInScope(LIVE)
+				)
+				.updateVia(session);
+			session.createNewEntity(PRODUCT, 1)
+				.setReference(REFERENCE_NAME, 101, reference -> reference.setGroup(EXTERNAL_GROUP, GROUP_PK))
+				.setReference(REFERENCE_NAME, 102, reference -> reference.setGroup(EXTERNAL_GROUP, GROUP_PK))
+				.upsertVia(session);
+		});
 	}
 
 	/**
@@ -110,36 +152,38 @@ class UnmanagedReferenceHistogramBoundaryFunctionalTest implements EvitaTestSupp
 	 */
 	@DataSet(value = NOT_FACETED_FIXTURE, expectedCatalogState = CatalogState.WARMING_UP, destroyAfterClass = true)
 	void setUpNotFacetedFixture(@Nonnull Evita evita) {
-		setUpFixture(evita, false, false);
+		setUpFixture(evita, null, false);
 	}
 
 	/**
 	 * Persists the schema and inserts two owners of the reference.
 	 *
 	 * @param evita engine in which to create the fixture
-	 * @param grouped whether to create a managed reference group
+	 * @param groupType type of the reference group, or null for an ungrouped reference
 	 * @param faceted whether the reference is faceted
 	 */
-	private static void setUpFixture(@Nonnull Evita evita, boolean grouped, boolean faceted) {
+	private static void setUpFixture(@Nonnull Evita evita, @Nullable String groupType, boolean faceted) {
 		evita.updateCatalog(TEST_CATALOG, session -> {
-			if (grouped) {
+			if (GROUP.equals(groupType)) {
 				session.defineEntitySchema(GROUP).withoutGeneratedPrimaryKey().updateVia(session);
 				session.createNewEntity(GROUP, GROUP_PK).upsertVia(session);
 			}
 			session.defineEntitySchema(PRODUCT)
 				.withoutGeneratedPrimaryKey()
 				.withReferenceTo(REFERENCE_NAME, TARGET, Cardinality.ZERO_OR_MORE, reference -> {
-					final ReferenceSchemaBuilder builder = grouped
-						? reference.withGroupTypeRelatedToEntity(GROUP)
-						: reference;
-					builder.indexedForFilteringAndPartitioningInScope(LIVE)
+					if (GROUP.equals(groupType)) {
+						reference.withGroupTypeRelatedToEntity(groupType);
+					} else if (groupType != null) {
+						reference.withGroupType(groupType);
+					}
+					reference.indexedForFilteringAndPartitioningInScope(LIVE)
 						.indexedWithComponentsInScope(LIVE, ReferenceIndexedComponents.values())
 						.withAttribute(SHARE, Integer.class, attribute -> attribute.filterableInScope(LIVE))
 						.bucketedInScope(
 							LIVE, SHARE_HISTOGRAM, ExpressionFactory.parse("$reference.attributes['share']")
 						);
 					if (faceted) {
-						builder.facetedInScope(LIVE);
+						reference.facetedInScope(LIVE);
 					}
 				})
 				.updateVia(session);
@@ -148,8 +192,8 @@ class UnmanagedReferenceHistogramBoundaryFunctionalTest implements EvitaTestSupp
 				final int value = ownerPk == 1 ? 3 : 7;
 				session.createNewEntity(PRODUCT, ownerPk)
 					.setReference(REFERENCE_NAME, 100 + ownerPk, reference -> {
-						if (grouped) {
-							reference.setGroup(GROUP, GROUP_PK);
+						if (groupType != null) {
+							reference.setGroup(groupType, GROUP_PK);
 						}
 						reference.setAttribute(SHARE, value);
 					})
@@ -220,6 +264,20 @@ class UnmanagedReferenceHistogramBoundaryFunctionalTest implements EvitaTestSupp
 	}
 
 	/**
+	 * Expects the action to be refused with exactly {@link EntityNotManagedException} naming the given type.
+	 *
+	 * @param unmanagedType entity type the refusal must name
+	 * @param action action expected to be refused
+	 */
+	private static void assertRefusedAsNotManaged(@Nonnull String unmanagedType, @Nonnull Executable action) {
+		final EntityNotManagedException exception = assertThrowsExactly(EntityNotManagedException.class, action);
+		assertEquals(
+			"Cannot execute the operation, entity type `" + unmanagedType + "` is not managed by evitaDB!",
+			exception.getMessage()
+		);
+	}
+
+	/**
 	 * Covers histogram and summary fetch requirements for an ungrouped reference.
 	 */
 	@Nested
@@ -257,8 +315,7 @@ class UnmanagedReferenceHistogramBoundaryFunctionalTest implements EvitaTestSupp
 		}
 
 		/**
-		 * Verifies that planning refuses a histogram boundary entity fetch for an unmanaged target.
-		 * Planning also refuses the summary's own entity fetch for that target.
+		 * Verifies that the histogram boundary fetch reports the unmanaged reference target type.
 		 *
 		 * @param evita engine containing the ungrouped fixture
 		 */
@@ -266,21 +323,16 @@ class UnmanagedReferenceHistogramBoundaryFunctionalTest implements EvitaTestSupp
 		@UseDataSet(UNGROUPED_FIXTURE)
 		@DisplayName("Refuses a histogram boundary fetch requirement")
 		void shouldThrowExceptionWhenHistogramRequestsEntityFetch(@Nonnull Evita evita) {
-			final EvitaInvalidUsageException exception = assertThrowsExactly(
-				EvitaInvalidUsageException.class,
+			assertRefusedAsNotManaged(
+				TARGET,
 				() -> assertHistogram(
 					evita, false, true, histogramStatistics(10, entityFetch(attributeContentAll()), SHARE_HISTOGRAM)
 				)
 			);
-			// the refusal of the fetch's planning, not a refusal of the histogram or a failed fetch
-			assertEquals(
-				"EntityFetch constraint is probably incorrectly nested in require part of the query.",
-				exception.getMessage()
-			);
 		}
 
 		/**
-		 * Verifies that planning refuses the summary's entity fetch because the target has no collection.
+		 * Verifies that the reference-specific summary fetch reports the unmanaged reference target type.
 		 *
 		 * @param evita engine containing the ungrouped fixture
 		 */
@@ -288,8 +340,8 @@ class UnmanagedReferenceHistogramBoundaryFunctionalTest implements EvitaTestSupp
 		@UseDataSet(UNGROUPED_FIXTURE)
 		@DisplayName("Refuses a summary entity fetch requirement")
 		void shouldThrowExceptionWhenSummaryRequestsEntityFetch(@Nonnull Evita evita) {
-			final EntityCollectionRequiredException exception = assertThrowsExactly(
-				EntityCollectionRequiredException.class,
+			assertRefusedAsNotManaged(
+				TARGET,
 				() -> evita.queryCatalog(TEST_CATALOG, session -> {
 					session.query(
 						query(
@@ -300,11 +352,183 @@ class UnmanagedReferenceHistogramBoundaryFunctionalTest implements EvitaTestSupp
 					);
 				})
 			);
-			// the schema lookup of planning, not the entity fetch of execution
-			assertEquals(
-				"Collection type is required in query in order to compute access entity schema!",
-				exception.getMessage()
+		}
+
+		/**
+		 * Verifies that the deprecated reference-specific facet summary reports the unmanaged reference target type.
+		 *
+		 * @param evita engine containing the ungrouped fixture
+		 */
+		@Test
+		@UseDataSet(UNGROUPED_FIXTURE)
+		@DisplayName("Refuses a facet summary entity fetch requirement")
+		void shouldThrowExceptionWhenFacetSummaryRequestsEntityFetch(@Nonnull Evita evita) {
+			assertRefusedAsNotManaged(
+				TARGET,
+				() -> evita.queryCatalog(TEST_CATALOG, session -> {
+					session.query(
+						query(
+							collection(PRODUCT),
+							require(facetSummaryOfReference(REFERENCE_NAME, entityFetch(attributeContentAll())))
+						),
+						EntityReferenceContract.class
+					);
+				})
 			);
+		}
+
+		/**
+		 * Verifies that an all-references histogram boundary fetch reports the unmanaged reference target type.
+		 *
+		 * @param evita engine containing the ungrouped fixture
+		 */
+		@Test
+		@UseDataSet(UNGROUPED_FIXTURE)
+		@DisplayName("Refuses a histogram boundary fetch in an all-references summary")
+		void shouldThrowExceptionWhenGenericSummaryHistogramRequestsEntityFetch(@Nonnull Evita evita) {
+			assertRefusedAsNotManaged(
+				TARGET,
+				() -> evita.queryCatalog(TEST_CATALOG, session -> {
+					session.query(
+						query(
+							collection(PRODUCT),
+							require(referenceSummaryWithHistograms(
+								null, null, null,
+								histogramStatistics(10, entityFetch(attributeContentAll()), SHARE_HISTOGRAM)
+							))
+						),
+						EntityReferenceContract.class
+					);
+				})
+			);
+		}
+	}
+
+	/**
+	 * Covers summary fetches of a reference whose group type evitaDB does not manage.
+	 */
+	@Nested
+	@DisplayName("Unmanaged group")
+	class UnmanagedGroup {
+		/**
+		 * Verifies that a reference-specific summary group fetch reports the unmanaged group type.
+		 *
+		 * @param evita engine containing the fixture with an unmanaged group
+		 */
+		@Test
+		@UseDataSet(UNMANAGED_GROUP_FIXTURE)
+		@DisplayName("Refuses a summary group fetch")
+		void shouldThrowExceptionWhenSummaryRequestsUnmanagedGroupFetch(@Nonnull Evita evita) {
+			assertRefusedAsNotManaged(
+				EXTERNAL_GROUP,
+				() -> evita.queryCatalog(TEST_CATALOG, session -> {
+					final ReferenceSchemaContract reference = session.getEntitySchema(PRODUCT).orElseThrow()
+						.getReference(REFERENCE_NAME).orElseThrow();
+					assertEquals(EXTERNAL_GROUP, reference.getReferencedGroupType());
+					assertFalse(reference.isReferencedGroupTypeManaged());
+					assertFalse(session.getAllEntityTypes().contains(EXTERNAL_GROUP));
+					return session.query(
+						query(
+							collection(PRODUCT),
+							require(
+								referenceSummaryOfReference(REFERENCE_NAME, entityGroupFetch(attributeContentAll()))
+							)
+						),
+						EntityReferenceContract.class
+					);
+				})
+			);
+		}
+
+		/**
+		 * Verifies that the deprecated reference-specific facet summary group fetch reports the unmanaged group type.
+		 *
+		 * @param evita engine containing the fixture with an unmanaged group
+		 */
+		@Test
+		@UseDataSet(UNMANAGED_GROUP_FIXTURE)
+		@DisplayName("Refuses a facet summary group fetch")
+		void shouldThrowExceptionWhenFacetSummaryRequestsUnmanagedGroupFetch(@Nonnull Evita evita) {
+			assertRefusedAsNotManaged(
+				EXTERNAL_GROUP,
+				() -> evita.queryCatalog(TEST_CATALOG, session -> {
+					session.query(
+						query(
+							collection(PRODUCT),
+							require(facetSummaryOfReference(REFERENCE_NAME, entityGroupFetch(attributeContentAll())))
+						),
+						EntityReferenceContract.class
+					);
+				})
+			);
+		}
+
+		/**
+		 * Verifies that summary group fetch validation uses the group's management flag.
+		 *
+		 * @param evita engine containing the fixture with managed targets and an unmanaged group
+		 */
+		@Test
+		@UseDataSet(MANAGED_TARGET_FIXTURE)
+		@DisplayName("Refuses a summary group fetch even when the target is managed")
+		void shouldThrowExceptionWhenSummaryRequestsUnmanagedGroupFetchForManagedTarget(@Nonnull Evita evita) {
+			evita.queryCatalog(TEST_CATALOG, session -> {
+				final ReferenceSchemaContract reference = session.getEntitySchema(PRODUCT).orElseThrow()
+					.getReference(REFERENCE_NAME).orElseThrow();
+				assertEquals(TARGET, reference.getReferencedEntityType());
+				assertTrue(reference.isReferencedEntityTypeManaged());
+				assertTrue(session.getAllEntityTypes().contains(TARGET));
+				assertEquals(EXTERNAL_GROUP, reference.getReferencedGroupType());
+				assertFalse(reference.isReferencedGroupTypeManaged());
+				assertFalse(session.getAllEntityTypes().contains(EXTERNAL_GROUP));
+
+				assertRefusedAsNotManaged(
+					EXTERNAL_GROUP,
+					() -> session.query(
+						query(
+							collection(PRODUCT),
+							require(
+								referenceSummaryOfReference(REFERENCE_NAME, entityGroupFetch(attributeContentAll()))
+							)
+						),
+						EntityReferenceContract.class
+					)
+				);
+			});
+		}
+
+		/**
+		 * Expects the summary to fetch the managed targets: the unmanaged group does not refuse a fetch of the targets.
+		 *
+		 * @param evita engine containing the fixture with managed targets and an unmanaged group
+		 */
+		@Test
+		@UseDataSet(MANAGED_TARGET_FIXTURE)
+		@DisplayName("Fetches the managed targets")
+		void shouldReturnSummaryWithTargetEntitiesWhenTargetIsManaged(@Nonnull Evita evita) {
+			evita.queryCatalog(TEST_CATALOG, session -> {
+				final ReferenceSchemaContract reference = session.getEntitySchema(PRODUCT).orElseThrow()
+					.getReference(REFERENCE_NAME).orElseThrow();
+				assertTrue(reference.isReferencedEntityTypeManaged());
+				assertFalse(reference.isReferencedGroupTypeManaged());
+
+				final EvitaResponse<EntityReferenceContract> response = session.query(
+					query(
+						collection(PRODUCT),
+						require(referenceSummaryOfReference(REFERENCE_NAME, entityFetch(attributeContentAll())))
+					),
+					EntityReferenceContract.class
+				);
+
+				final ReferenceSummary summary = response.getExtraResult(ReferenceSummary.class);
+				assertNotNull(summary);
+				final ReferenceGroupStatistics group = summary.getReferenceGroupStatistics(REFERENCE_NAME, GROUP_PK);
+				assertNotNull(group);
+				assertEquals(2, group.getFacetStatistics().size());
+				for (final FacetStatistics facet : group.getFacetStatistics()) {
+					assertEquals(TARGET, assertInstanceOf(SealedEntity.class, facet.getFacetEntity()).getType());
+				}
+			});
 		}
 	}
 
@@ -318,5 +542,39 @@ class UnmanagedReferenceHistogramBoundaryFunctionalTest implements EvitaTestSupp
 	@DisplayName("Returns the histogram for an assigned managed group")
 	void shouldReturnHistogramWhenReferenceHasManagedGroup(@Nonnull Evita evita) {
 		assertHistogram(evita, true, true, histogramStatistics(10, SHARE_HISTOGRAM));
+	}
+
+	/**
+	 * Expects the summary to fetch the managed group of a reference whose targets are unmanaged: the unmanaged targets
+	 * do not refuse a fetch of the group.
+	 *
+	 * @param evita engine containing the grouped fixture
+	 */
+	@Test
+	@UseDataSet(GROUPED_FIXTURE)
+	@DisplayName("Fetches the managed group of a reference to unmanaged targets")
+	void shouldReturnSummaryWithGroupEntityWhenGroupIsManaged(@Nonnull Evita evita) {
+		evita.queryCatalog(TEST_CATALOG, session -> {
+			final ReferenceSchemaContract reference = session.getEntitySchema(PRODUCT).orElseThrow()
+				.getReference(REFERENCE_NAME).orElseThrow();
+			assertFalse(reference.isReferencedEntityTypeManaged());
+			assertTrue(reference.isReferencedGroupTypeManaged());
+
+			final EvitaResponse<EntityReferenceContract> response = session.query(
+				query(
+					collection(PRODUCT),
+					require(referenceSummaryOfReference(REFERENCE_NAME, entityGroupFetch(attributeContentAll())))
+				),
+				EntityReferenceContract.class
+			);
+
+			final ReferenceSummary summary = response.getExtraResult(ReferenceSummary.class);
+			assertNotNull(summary);
+			final ReferenceGroupStatistics group = summary.getReferenceGroupStatistics(REFERENCE_NAME, GROUP_PK);
+			assertNotNull(group);
+			final SealedEntity groupEntity = assertInstanceOf(SealedEntity.class, group.getGroupEntity());
+			assertEquals(GROUP, groupEntity.getType());
+			assertEquals(GROUP_PK, groupEntity.getPrimaryKey());
+		});
 	}
 }
