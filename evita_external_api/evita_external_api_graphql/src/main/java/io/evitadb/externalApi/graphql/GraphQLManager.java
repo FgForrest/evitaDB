@@ -29,6 +29,7 @@ import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
@@ -56,6 +57,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -65,7 +68,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
-import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Manages the whole GraphQL API (its endpoints, lifecycle, etc).
@@ -100,10 +102,26 @@ public class GraphQLManager {
 	/**
 	 * Already registered catalogs (corresponds to existing endpoints as well)
 	 */
-	@Nonnull private final Set<String> registeredCatalogs = createHashSet(20);
+	@Nonnull private final Set<String> registeredCatalogs = Collections.newSetFromMap(createConcurrentHashMap(20));
 
 	/**
-	 * Completable future that is completed when all initial catalogs are registered.
+	 * Catalogs whose latest attempted publication failed. A successful registration or refresh removes the catalog.
+	 */
+	@Nonnull private final Set<String> failedCatalogs = Collections.newSetFromMap(createConcurrentHashMap(20));
+
+	/**
+	 * Catalogs this manager owes no publication for, because they were already active when it subscribed to catalog
+	 * events and their announcement may have preceded the subscription.
+	 */
+	@Nonnull private final Set<String> catalogsNotOwed = Collections.newSetFromMap(createConcurrentHashMap(20));
+
+	/**
+	 * Whether the system change capture subscription has terminated.
+	 */
+	private volatile boolean catalogRoutingSubscriptionAbandoned;
+
+	/**
+	 * Tracks completion of the initial engine catalog loads for logging.
 	 */
 	private final CompletableFuture<Void> fullyInitialized;
 
@@ -122,6 +140,13 @@ public class GraphQLManager {
 	 */
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createConcurrentHashMap(20);
 
+	/**
+	 * Creates this manager, subscribes to catalog changes and publishes the system API.
+	 *
+	 * @param evita engine serving the API
+	 * @param headers HTTP header configuration
+	 * @param graphQLConfig endpoint configuration
+	 */
 	public GraphQLManager(@Nonnull Evita evita, @Nonnull HeaderOptions headers, @Nonnull GraphQLOptions graphQLConfig) {
 		this.evita = evita;
 		this.graphQLConfig = graphQLConfig;
@@ -143,6 +168,13 @@ public class GraphQLManager {
 				)
 				.build()
 		).subscribe(new SystemGraphQLRefreshingObserver(this));
+
+		// Already active catalogs can have published their live-tail event before this subscription was installed.
+		for (final CatalogContract catalog : this.evita.getCatalogs()) {
+			if (catalog.getCatalogState().isActive()) {
+				this.catalogsNotOwed.add(catalog.getName());
+			}
+		}
 
 		// register initial endpoints
 		registerSystemApi();
@@ -170,12 +202,34 @@ public class GraphQLManager {
 	}
 
 	/**
-	 * Determines whether the current {@code GraphQLManager} instance has been fully initialized.
+	 * Reports whether this manager has settled the catalog's routing obligation.
 	 *
-	 * @return {@code true} if the initialization process is complete, otherwise {@code false}.
+	 * @param catalogName name whose routing is being checked
+	 * @return true if the route is registered, publication failed, this manager owes no publication, or the catalog
+	 *         event subscription has terminated
 	 */
-	public boolean isFullyInitialized() {
-		return this.fullyInitialized.isDone();
+	public boolean isCatalogRoutingSettled(@Nonnull String catalogName) {
+		return this.catalogRoutingSubscriptionAbandoned || this.catalogsNotOwed.contains(catalogName) ||
+			this.failedCatalogs.contains(catalogName) || this.registeredCatalogs.contains(catalogName);
+	}
+
+	/**
+	 * Records termination of the catalog routing subscription.
+	 *
+	 * @param failure error that terminated the subscription, or null for normal completion
+	 */
+	public void catalogRoutingSubscriptionTerminated(@Nullable Throwable failure) {
+		this.catalogRoutingSubscriptionAbandoned = true;
+		if (failure != null) {
+			final List<String> unpublishedCatalogs = this.evita.getCatalogs().stream()
+				.filter(catalog -> catalog.getCatalogState().isActive())
+				.map(CatalogContract::getName)
+				.filter(name -> !this.registeredCatalogs.contains(name))
+				.sorted()
+				.toList();
+			log.error("GraphQL catalog routing subscription failed. Active catalogs left unpublished: {}",
+				unpublishedCatalogs, failure);
+		}
 	}
 
 	/**
@@ -226,14 +280,16 @@ public class GraphQLManager {
 	}
 
 	/**
-	 * Registers new Evita catalog to API. It creates new endpoint and {@link GraphQL} instance for it.
-	 * An internal error while building or publishing the APIs is logged and leaves no route, registration or build
-	 * statistics of the catalog behind; any other exception propagates.
+	 * Builds and publishes the GraphQL endpoints for a catalog. An unusable catalog is skipped and stays owed. A failed
+	 * build marks the catalog's publication failed, which settles its routing until a later registration or refresh
+	 * succeeds: an internal error is logged and the partial registration cleaned up, any other failure propagates.
+	 * A {@link CatalogGoingLiveException} propagates without the mark and leaves the catalog owed; the host event that
+	 * announces the live catalog triggers its publication.
 	 *
 	 * @param catalogName name of the catalog to publish
-	 * @return true when both APIs of the catalog are published, false when the catalog is unusable and was skipped or
-	 *         its APIs failed with an internal error
+	 * @return true when published, false when skipped or publication failed with an internal error
 	 * @throws GraphQLInternalError when the catalog is already registered
+	 * @throws CatalogGoingLiveException when access is interrupted by the catalog going live
 	 */
 	public boolean registerCatalog(@Nonnull String catalogName) {
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
@@ -294,8 +350,12 @@ public class GraphQLManager {
 				() -> new GraphQLInternalError("No build statistics found for catalog `" + catalogName + "`")
 			);
 			this.catalogBuildStatistics.put(catalogName, schemaBuildStatistics);
+			this.failedCatalogs.remove(catalogName);
 			return true;
+		} catch (CatalogGoingLiveException ex) {
+			throw ex;
 		} catch (EvitaInternalError ex) {
+			this.failedCatalogs.add(catalogName);
 			// log and skip the catalog entirely
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by GraphQL API.", ex);
 
@@ -304,13 +364,18 @@ public class GraphQLManager {
 			this.graphQLRouter.unregisterCatalogApis(catalogName);
 			this.catalogBuildStatistics.remove(catalogName);
 			return false;
+		} catch (Throwable ex) {
+			this.failedCatalogs.add(catalogName);
+			throw ex;
 		}
 	}
 
 	/**
 	 * Rebuilds the DATA and SCHEMA {@link GraphQL} instances of a registered catalog and swaps them in behind its
 	 * existing endpoints. Both instances are built before either is swapped, so a build failure propagates and leaves
-	 * the previous instances serving. A catalog that is not registered yet is registered by
+	 * the previous instances serving. Any failure other than a {@link CatalogGoingLiveException} also marks the
+	 * catalog's publication failed, which settles its routing even if the caller then withdraws the endpoints; a
+	 * successful rebuild clears the mark. A catalog that is not registered yet is registered by
 	 * {@link #registerCatalog(String)} instead.
 	 *
 	 * @param catalogName name of the catalog to refresh or register
@@ -326,6 +391,25 @@ public class GraphQLManager {
 			return registerCatalog(catalogName);
 		}
 
+		try {
+			this.rebuildCatalogApis(catalogName);
+			this.failedCatalogs.remove(catalogName);
+			return true;
+		} catch (CatalogGoingLiveException ex) {
+			throw ex;
+		} catch (Throwable ex) {
+			this.failedCatalogs.add(catalogName);
+			throw ex;
+		}
+	}
+
+	/**
+	 * Rebuilds the DATA and SCHEMA {@link GraphQL} instances of a registered catalog, swaps them in behind its
+	 * existing endpoints and refreshes its build statistics.
+	 *
+	 * @param catalogName name of the registered catalog
+	 */
+	private void rebuildCatalogApis(@Nonnull String catalogName) {
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
 
 		// rebuild data API instance
@@ -376,8 +460,6 @@ public class GraphQLManager {
 			schemaApiSchemaBuildDuration,
 			countGraphQLSchemaLines(schemaApiSchema)
 		);
-
-		return true;
 	}
 
 	/**

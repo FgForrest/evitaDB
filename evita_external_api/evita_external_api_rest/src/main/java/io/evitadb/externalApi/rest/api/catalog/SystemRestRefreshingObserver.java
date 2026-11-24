@@ -206,13 +206,21 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 		}
 	}
 
+	/**
+	 * Records a failed catalog routing subscription.
+	 *
+	 * @param throwable cause of the subscription failure
+	 */
 	@Override
-	public void onError(Throwable throwable) {
-		// do nothing, there are no resources to free, logging happens in the caller
+	public void onError(@Nonnull Throwable throwable) {
+		this.restManager.catalogRoutingSubscriptionTerminated(throwable);
 	}
 
+	/**
+	 * Records normal completion of the catalog routing subscription.
+	 */
 	@Override
 	public void onComplete() {
-		// do nothing, there are no resources to free
+		this.restManager.catalogRoutingSubscriptionTerminated(null);
 	}
 }
