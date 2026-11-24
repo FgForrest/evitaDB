@@ -37,6 +37,9 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
@@ -52,6 +55,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
+import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.mutation.ContributionVerdicts;
@@ -83,7 +87,9 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation.computeLocalMutationsForEntityRemoval;
@@ -447,6 +453,7 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	 * Executes a given entity mutation within the context of the specified entity schema,
 	 * optionally checking consistency and generating implicit mutations.
 	 *
+	 * @param <T>                       the type of the requested result
 	 * @param session                   the active session for query evaluation during index mutation
 	 *                                  dispatch (index-trigger phase), may be null during WAL replay
 	 * @param entitySchema              the schema of the entity to which the mutation applies
@@ -462,8 +469,10 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	 * @param entityIndexUpdater        executor to update the entity index with the mutations
 	 * @param requestUpdatedEntity      the request specifying how to fetch the updated entity,
 	 *                                  or null if no entity body is needed
-	 * @return the updated entity with fetch count if {@code requestUpdatedEntity} is non-null and
-	 * the entity was updated, or entity reference
+	 * @param requestedResultType       the type of result requested by the caller
+	 * @return the requested entity with fetch count or entity reference, or an empty optional for {@code Void}
+	 * @throws GenericEvitaInternalError when the entity of `changeCollector` already has an executor in this root
+	 *                                   mutation; raised before anything is applied
 	 */
 	@Nonnull
 	public <T> Optional<T> execute(
@@ -478,10 +487,9 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 		@Nullable EvitaRequest requestUpdatedEntity,
 		@Nonnull Class<T> requestedResultType
 	) {
-		// first register all mutation applicators and mutations to the internal state
+		registerInFlightExecutor(changeCollector);
 		this.executors.add(entityIndexUpdater);
 		this.executors.add(changeCollector);
-		registerInFlightExecutor(changeCollector);
 		final LocalMutationExecutor[] orderedExecutors = {entityIndexUpdater, changeCollector};
 
 		// add the mutation to the list of mutations, but only for root level mutations
@@ -579,56 +587,11 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 				this.entityMutations.add(entityMutation);
 			}
 
-			for (final LocalMutation<?, ?> localMutation : localMutations) {
-				for (final LocalMutationExecutor executor : orderedExecutors) {
-					executor.applyMutation(localMutation);
-				}
-			}
-			for (final LocalMutationExecutor executor : orderedExecutors) {
-				executor.finishLocalMutationExecutionPhase();
-			}
-
-			LocalMutation<?, ?>[] implicitLocalMutations = null;
-			if (!generateImplicitMutations.isEmpty()) {
-				final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(
-					localMutations, generateImplicitMutations
-				);
-				implicitLocalMutations = implicitMutations.localMutations();
-				// Implicit local mutations fire cross-entity triggers of their own, and those need the same
-				// pre-pass guarantee the root batch gets. They cannot be captured alongside it: they are derived
-				// from the containers *after* the root batch has been applied, so at that point they do not exist
-				// yet. Here — after they are known, before any of them is applied — is the pre-state that matters
-				// for them, and put-if-absent keeps the root batch's earlier, genuinely pre-batch answer wherever
-				// the two fire the same trigger.
-				capturePreMutationConditionState(
-					session, entityIndexUpdater, Arrays.asList(implicitLocalMutations), entityRemoval
-				);
-				// immediately apply all local mutations
-				for (final LocalMutation<?, ?> localMutation : implicitLocalMutations) {
-					for (final LocalMutationExecutor executor : orderedExecutors) {
-						executor.applyMutation(localMutation);
-					}
-				}
-				for (final LocalMutationExecutor executor : orderedExecutors) {
-					executor.finishLocalMutationExecutionPhase();
-				}
-
-				// and for each external mutation - call external collection to apply it
-				for (final EntityMutation externalEntityMutations : implicitMutations.externalMutations()) {
-					final ServerEntityMutation serverEntityMutation = (ServerEntityMutation) externalEntityMutations;
-					this.catalog.getCollectionForEntityOrThrowException(externalEntityMutations.getEntityType())
-						.applyMutations(
-							session,
-							externalEntityMutations,
-							serverEntityMutation.shouldRollbackOnError(),
-							serverEntityMutation.shouldVerifyConsistency(),
-							null,
-							serverEntityMutation.getImplicitMutationsBehavior(),
-							this,
-							Void.class
-						);
-				}
-			}
+			applyBatch(orderedExecutors, localMutations);
+			final LocalMutation<?, ?>[] implicitLocalMutations = applyImplicitMutations(
+				session, changeCollector, entityIndexUpdater, orderedExecutors, localMutations,
+				generateImplicitMutations, entityRemoval
+			);
 
 			// Verify consistency BEFORE dispatching any cross-entity index trigger mutations (index-trigger phase).
 			// The container consistency check is independent of the index-trigger phase; running it first means a
@@ -727,6 +690,224 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	}
 
 	/**
+	 * Applies a batch and finishes its index and storage phases in that order.
+	 *
+	 * @param orderedExecutors index and storage executors in execution order
+	 * @param mutations        local mutations to apply
+	 */
+	private static void applyBatch(
+		@Nonnull LocalMutationExecutor[] orderedExecutors,
+		@Nonnull List<? extends LocalMutation<?, ?>> mutations
+	) {
+		for (final LocalMutation<?, ?> mutation : mutations) {
+			for (final LocalMutationExecutor executor : orderedExecutors) {
+				executor.applyMutation(mutation);
+			}
+		}
+		for (final LocalMutationExecutor executor : orderedExecutors) {
+			executor.finishLocalMutationExecutionPhase();
+		}
+	}
+
+	/**
+	 * Applies derived local mutations, then visits the generated entity mutations in encounter order.
+	 * Self-targeted upserts extend the current executor pair. Other targets execute before this level dispatches.
+	 *
+	 * A self-targeted upsert runs as a further batch on the same executors, without the reference inserts and
+	 * removals the derived batch has already applied, and derives its own implicit work by recursing into this method -
+	 * so the result concatenates the derived batch, each self batch and whatever each of them derived in turn. During
+	 * a full entity removal self-targeted upserts are skipped, because the removal batch already drops the entity's
+	 * references.
+	 *
+	 * @param session            the active session, or null during replay
+	 * @param changeCollector    storage executor of the entity being written
+	 * @param entityIndexUpdater index executor of the entity being written
+	 * @param orderedExecutors   index and storage executors in execution order
+	 * @param inputMutations     mutations identifying the references the current batch touched, including an insert
+	 *                           the preceding derived batch fulfilled
+	 * @param behaviors          implicit mutation behaviors of the current batch
+	 * @param entityRemoval      whether the root decomposed a full entity removal
+	 * @return the additional local mutations for the single index trigger dispatch, or null if none were requested
+	 */
+	@Nullable
+	private LocalMutation<?, ?>[] applyImplicitMutations(
+		@Nullable EvitaSessionContract session,
+		@Nonnull ContainerizedLocalMutationExecutor changeCollector,
+		@Nonnull EntityIndexLocalMutationExecutor entityIndexUpdater,
+		@Nonnull LocalMutationExecutor[] orderedExecutors,
+		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
+		@Nonnull EnumSet<ImplicitMutationBehavior> behaviors,
+		boolean entityRemoval
+	) {
+		if (behaviors.isEmpty()) {
+			return null;
+		}
+		final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(inputMutations, behaviors);
+		final LocalMutation<?, ?>[] implicitLocalMutations = implicitMutations.localMutations();
+		final List<LocalMutation<?, ?>> localBatch = Arrays.asList(implicitLocalMutations);
+		// Capture after the producing batch has applied so its writes are visible, and before the derived mutations
+		// change the conditions they touch. A capture from an earlier batch still supplies the first pre-state.
+		capturePreMutationConditionState(session, entityIndexUpdater, localBatch, entityRemoval);
+		entityIndexUpdater.prepareFurtherBatch(localBatch);
+		applyBatch(orderedExecutors, localBatch);
+
+		List<LocalMutation<?, ?>> allImplicitLocalMutations = null;
+		for (final EntityMutation externalMutation : implicitMutations.externalMutations()) {
+			final ServerEntityMutation serverMutation = (ServerEntityMutation) externalMutation;
+			if (targetsEntityOf(changeCollector, externalMutation)) {
+				if (entityRemoval) {
+					// The removal batch already drops this entity's references.
+					continue;
+				}
+				Assert.isPremiseValid(
+					externalMutation instanceof ServerEntityUpsertMutation,
+					"An implicit mutation targeting its own entity must be an upsert."
+				);
+				final List<? extends LocalMutation<?, ?>> selfMutations = externalMutation.getLocalMutations();
+				final List<? extends LocalMutation<?, ?>> selfBatch =
+					omitAppliedSelfReferenceChanges(selfMutations, localBatch);
+				capturePreMutationConditionState(session, entityIndexUpdater, selfBatch, false);
+				entityIndexUpdater.prepareFurtherBatch(selfBatch);
+				applyBatch(orderedExecutors, selfBatch);
+				// Keep the original self insert in the second pop to verify defaults on the locally inserted row.
+				final LocalMutation<?, ?>[] derivedSelfMutations = applyImplicitMutations(
+					session, changeCollector, entityIndexUpdater, orderedExecutors, selfMutations,
+					serverMutation.getImplicitMutationsBehavior(), false
+				);
+				// The check reads the shared executor's accumulated state, so it also covers the root's own changes -
+				// in replay too, where the root skips its own check and generated self upserts still request this one.
+				if (serverMutation.shouldVerifyConsistency()) {
+					changeCollector.verifyConsistency();
+				}
+				if (allImplicitLocalMutations == null) {
+					allImplicitLocalMutations = new ArrayList<>(localBatch.size() + selfBatch.size());
+					allImplicitLocalMutations.addAll(localBatch);
+				}
+				allImplicitLocalMutations.addAll(selfBatch);
+				if (derivedSelfMutations != null) {
+					allImplicitLocalMutations.addAll(Arrays.asList(derivedSelfMutations));
+				}
+			} else {
+				this.catalog.getCollectionForEntityOrThrowException(externalMutation.getEntityType())
+					.applyMutations(
+						session,
+						externalMutation,
+						serverMutation.shouldRollbackOnError(),
+						serverMutation.shouldVerifyConsistency(),
+						null,
+						serverMutation.getImplicitMutationsBehavior(),
+						this,
+						Void.class
+					);
+			}
+		}
+		return allImplicitLocalMutations == null ?
+			implicitLocalMutations : allImplicitLocalMutations.toArray(LocalMutation[]::new);
+	}
+
+	/**
+	 * Checks whether a generated entity mutation targets the entity a storage executor writes, so its work belongs on
+	 * that executor rather than on a new one.
+	 *
+	 * @param changeCollector storage executor of the entity being written
+	 * @param entityMutation  generated entity mutation, which always names its primary key
+	 * @return true when the mutation targets the same entity type and primary key
+	 */
+	private static boolean targetsEntityOf(
+		@Nonnull ContainerizedLocalMutationExecutor changeCollector,
+		@Nonnull EntityMutation entityMutation
+	) {
+		return changeCollector.getEntityType().equals(entityMutation.getEntityType())
+			&& changeCollector.getEntityPrimaryKey() == Objects.requireNonNull(entityMutation.getEntityPrimaryKey());
+	}
+
+	/**
+	 * Drops self inserts and removals already applied by the local implicit batch. The operation and the persistent
+	 * reference identity must both match, including for duplicate rows with the same name and target.
+	 *
+	 * @param selfBatch         mutations generated for the same entity
+	 * @param appliedLocalBatch implicit local mutations that have already run
+	 * @return the self batch with already applied reference inserts and removals omitted
+	 */
+	@Nonnull
+	private static List<? extends LocalMutation<?, ?>> omitAppliedSelfReferenceChanges(
+		@Nonnull List<? extends LocalMutation<?, ?>> selfBatch,
+		@Nonnull List<LocalMutation<?, ?>> appliedLocalBatch
+	) {
+		Set<ComparableReferenceKey> appliedInserts = null;
+		Set<ComparableReferenceKey> appliedRemovals = null;
+		for (final LocalMutation<?, ?> mutation : appliedLocalBatch) {
+			final ComparableReferenceKey insertKey = knownInsertKey(mutation);
+			if (insertKey != null) {
+				if (appliedInserts == null) {
+					appliedInserts = CollectionUtils.createHashSet(appliedLocalBatch.size());
+				}
+				appliedInserts.add(insertKey);
+			} else {
+				final ComparableReferenceKey removalKey = knownRemovalKey(mutation);
+				if (removalKey != null) {
+					if (appliedRemovals == null) {
+						appliedRemovals = CollectionUtils.createHashSet(appliedLocalBatch.size());
+					}
+					appliedRemovals.add(removalKey);
+				}
+			}
+		}
+		if (appliedInserts == null && appliedRemovals == null) {
+			return selfBatch;
+		}
+		List<LocalMutation<?, ?>> filtered = null;
+		for (int i = 0; i < selfBatch.size(); i++) {
+			final LocalMutation<?, ?> mutation = selfBatch.get(i);
+			final ComparableReferenceKey insertKey = appliedInserts == null ? null : knownInsertKey(mutation);
+			final ComparableReferenceKey removalKey = appliedRemovals == null ? null : knownRemovalKey(mutation);
+			final boolean alreadyApplied = (insertKey != null && appliedInserts.contains(insertKey))
+				|| (removalKey != null && appliedRemovals.contains(removalKey));
+			if (alreadyApplied) {
+				if (filtered == null) {
+					filtered = new ArrayList<>(selfBatch.size() - 1);
+					filtered.addAll(selfBatch.subList(0, i));
+				}
+			} else if (filtered != null) {
+				filtered.add(mutation);
+			}
+		}
+		return filtered == null ? selfBatch : filtered;
+	}
+
+	/**
+	 * Returns the identity of a reference insert that carries a known internal primary key. A temporary or unknown key
+	 * does not identify the same row in another batch, so such an insert is never matched.
+	 *
+	 * @param mutation the local mutation to inspect
+	 * @return the comparable key of the insert, or null when the mutation is not an insert with a known key
+	 */
+	@Nullable
+	private static ComparableReferenceKey knownInsertKey(@Nonnull LocalMutation<?, ?> mutation) {
+		if (mutation instanceof InsertReferenceMutation insert
+			&& insert.getReferenceKey().isKnownInternalPrimaryKey()) {
+			return insert.getComparableKey();
+		}
+		return null;
+	}
+
+	/**
+	 * Returns the identity of a reference removal that carries a known internal primary key. A temporary or unknown
+	 * key does not identify the same row in another batch, so such a removal is never matched.
+	 *
+	 * @param mutation the local mutation to inspect
+	 * @return the comparable key of the removal, or null when the mutation is not a removal with a known key
+	 */
+	@Nullable
+	private static ComparableReferenceKey knownRemovalKey(@Nonnull LocalMutation<?, ?> mutation) {
+		if (mutation instanceof RemoveReferenceMutation removal
+			&& removal.getReferenceKey().isKnownInternalPrimaryKey()) {
+			return removal.getComparableKey();
+		}
+		return null;
+	}
+
+	/**
 	 * Returns the accessor of the executor mutating the given entity within this root mutation - the
 	 * {@link InFlightEntityAccessorLookup} handed to every executor created for it. See {@link #inFlightExecutors}.
 	 *
@@ -770,19 +951,20 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	 * drops the storage parts of its entity read before it - the executor answers every read of the entity from now on,
 	 * and the entity's parts change with it (see {@link #foreignStorageParts}).
 	 *
-	 * An entity is expected to have at most one executor per root mutation: the external mutations an executor spawns
-	 * are merged per target entity, and the nested mutations spawn none that lead back to an entity already in flight.
-	 * Should a second one appear nevertheless, it replaces the first: it is the later one, so the reads issued after its
-	 * creation belong to its part of the root mutation.
+	 * External mutations are merged per target entity and self work uses the existing executor. Registering a
+	 * second executor for an entity (type and primary key) in the same root mutation is an internal error.
 	 *
 	 * @param executor the executor to register
+	 * @throws GenericEvitaInternalError if the entity already has an executor in this root mutation
 	 */
 	private void registerInFlightExecutor(@Nonnull ContainerizedLocalMutationExecutor executor) {
 		if (this.inFlightExecutors == null) {
 			this.inFlightExecutors = CollectionUtils.createHashMap(4);
 		}
 		final EntityReference key = new EntityReference(executor.getEntityType(), executor.getEntityPrimaryKey());
-		this.inFlightExecutors.put(key, executor);
+		if (this.inFlightExecutors.putIfAbsent(key, executor) != null) {
+			throw new GenericEvitaInternalError("An executor is already registered for " + key + ".");
+		}
 		if (this.foreignStorageParts != null) {
 			this.foreignStorageParts.remove(key);
 		}

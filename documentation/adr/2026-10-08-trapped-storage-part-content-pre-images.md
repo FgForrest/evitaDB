@@ -9,7 +9,8 @@ prs: [1724]
 areas: [evita_engine/core/buffer, evita_engine/core/collection, evita_engine/index/mutation/storagePart, evita_engine/spi/store/catalog/persistence/storageParts/entity]
 supersedes: []
 superseded-by: []
-relates: [2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-10-20-single-owner-partitions-as-registry-rows]
+relates: [2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-10-20-single-owner-partitions-as-registry-rows,
+  2026-11-24-self-reference-work-runs-on-the-entity-executor]
 ---
 
 # A trapped storage part is rolled back by content, not by slot
