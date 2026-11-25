@@ -320,8 +320,8 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 				externalApiServer.getApiOptions().getEndpointConfiguration(ObservabilityProvider.CODE);
 			return new CatalogRoutingReadiness(
 				System::nanoTime,
-				options == null ? ObservabilityOptions.DEFAULT_CATALOG_PUBLICATION_TIMEOUT_IN_MILLIS :
-					options.getCatalogPublicationTimeoutInMillis()
+				options == null ? ObservabilityOptions.DEFAULT_READINESS_CATALOG_ACTIVATION_TIMEOUT_IN_MILLIS :
+					options.getReadinessCatalogActivationTimeoutInMillis()
 			);
 		});
 	}

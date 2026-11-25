@@ -224,7 +224,7 @@ public class RestManager {
 				.filter(name -> !this.registeredCatalogs.contains(name))
 				.sorted()
 				.toList();
-			log.error("REST catalog routing subscription failed. Active catalogs left unpublished: {}",
+			log.error("REST catalog routing subscription failed. Active catalogs REST has not activated: {}",
 				unpublishedCatalogs, failure);
 		}
 	}

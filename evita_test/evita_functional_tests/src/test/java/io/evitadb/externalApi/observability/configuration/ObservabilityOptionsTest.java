@@ -89,14 +89,14 @@ class ObservabilityOptionsTest {
 	}
 
 	/**
-	 * Verifies that a publication budget must be strictly positive.
+	 * Verifies that the readiness catalog activation timeout must be strictly positive.
 	 *
-	 * @param timeoutInMillis invalid publication budget
+	 * @param timeoutInMillis invalid catalog activation timeout
 	 */
 	@ParameterizedTest
 	@ValueSource(longs = {0L, -1L})
-	@DisplayName("Should reject non-positive startup catalog publication timeouts")
-	void shouldRejectNonPositiveCatalogPublicationTimeout(long timeoutInMillis) {
+	@DisplayName("Should reject non-positive readiness catalog activation timeouts")
+	void shouldRejectNonPositiveCatalogActivationTimeout(long timeoutInMillis) {
 		final EvitaInvalidUsageException exception = assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> new ObservabilityOptions(
@@ -104,7 +104,7 @@ class ObservabilityOptionsTest {
 				null, null, null, null, timeoutInMillis
 			)
 		);
-		assertTrue(exception.getMessage().contains("catalogPublicationTimeoutInMillis"), exception::getMessage);
+		assertTrue(exception.getMessage().contains("readinessCatalogActivationTimeoutInMillis"), exception::getMessage);
 	}
 
 	@Test

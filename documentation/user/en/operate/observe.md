@@ -147,16 +147,18 @@ Probe internally calls all enabled APIs via HTTP call on the server side to chec
 
 After the server starts, the probe also waits for the catalogs. A catalog stops holding the probe back when:
 
-- it is active and every enabled API that serves catalogs (GraphQL and REST) has published it,
+- it is active and every enabled API that serves catalogs (GraphQL and REST) has finished activating it,
 - it failed to load - it becomes corrupted and the cause is written to the log,
 - it is inactive or missing, so it is not supposed to be loaded.
 
-Loading a catalog has no time limit - a large catalog keeps the probe at `503` for as long as it loads. Publishing a
-loaded catalog through an API is limited by the
-[`catalogPublicationTimeoutInMillis`](configure.md#observability-configuration) setting (five minutes by default).
-A publication that fails, or does not finish in time, is logged as an error and stops holding the probe back, so the
-server always becomes ready. The probe checks the catalogs only until none of them holds it back - after that,
-creating, activating, deactivating or renaming a catalog does not change the probe's result.
+Activating a catalog has two parts: loading it from disk, and building its GraphQL and REST APIs. Loading has no time
+limit - a large catalog keeps the probe at `503` for as long as it loads. Building the APIs is limited by the
+[`readinessCatalogActivationTimeoutInMillis`](configure.md#observability-configuration) setting (five minutes by
+default). The limit applies to each catalog separately, from the moment it finishes loading, so with several catalogs
+the limits do not add up: the catalogs hold the probe back at most this long after the last of them finishes loading.
+An API that fails to activate a catalog, or does not finish in time, is logged as an error and stops holding the probe
+back, so the server always becomes ready. The probe checks the catalogs only until none of them holds it back - after
+that, creating, activating, deactivating or renaming a catalog does not change the probe's result.
 The server status reported by the gRPC API follows the same rule.
 
 Example response:
@@ -215,7 +217,7 @@ curl -k "http://localhost:5555/system/liveness" \
 ```
 
 If the server is healthy, the probe will return `200 OK`. Otherwise, it will return `503 Service Unavailable`.
-Unlike the readiness probe, it does not wait for the catalogs to be loaded or published.
+Unlike the readiness probe, it does not wait for the catalogs to be activated.
 Example response:
 
 ```json

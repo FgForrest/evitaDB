@@ -53,9 +53,9 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 	 */
 	public static final int DEFAULT_OBSERVABILITY_PORT = 5555;
 	/**
-	 * Default budget for publishing an active catalog's API routes.
+	 * Default of {@link #readinessCatalogActivationTimeoutInMillis}: five minutes.
 	 */
-	public static final long DEFAULT_CATALOG_PUBLICATION_TIMEOUT_IN_MILLIS = 300_000L;
+	public static final long DEFAULT_READINESS_CATALOG_ACTIVATION_TIMEOUT_IN_MILLIS = 300_000L;
 	private static final String BASE_OBSERVABILITY_PATH = "observability";
 
 	/**
@@ -112,11 +112,12 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 	@Getter @Nonnull private final ErrorOriginLogging errorOriginLogging;
 
 	/**
-	 * Startup budget, in milliseconds and always greater than zero, for the APIs to publish the routes of an active
-	 * catalog. Once it elapses, the catalog no longer holds readiness back and each API that missed it is logged as an
-	 * error. Catalogs still in a transitional state are not bounded by it.
+	 * How long, in milliseconds and always greater than zero, startup readiness waits for the APIs to finish activating
+	 * a catalog that has loaded. Each catalog has its own clock, started by the first scan that finds it active but not
+	 * yet served by every API. Once it elapses, the catalog no longer holds readiness back and each API that missed it
+	 * is logged as an error. Catalogs still in a transitional state, such as loading, are not bounded by it.
 	 */
-	private final long catalogPublicationTimeoutInMillis;
+	private final long readinessCatalogActivationTimeoutInMillis;
 
 	/**
 	 * Creates enabled options listening on all interfaces at {@link #DEFAULT_OBSERVABILITY_PORT} without TLS.
@@ -128,7 +129,7 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 		this.allowedEvents = null;
 		this.exportedQueryLabels = null;
 		this.errorOriginLogging = ErrorOriginLogging.INTERNAL;
-		this.catalogPublicationTimeoutInMillis = DEFAULT_CATALOG_PUBLICATION_TIMEOUT_IN_MILLIS;
+		this.readinessCatalogActivationTimeoutInMillis = DEFAULT_READINESS_CATALOG_ACTIVATION_TIMEOUT_IN_MILLIS;
 	}
 
 	/**
@@ -143,7 +144,7 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 		this.allowedEvents = null;
 		this.exportedQueryLabels = null;
 		this.errorOriginLogging = ErrorOriginLogging.INTERNAL;
-		this.catalogPublicationTimeoutInMillis = DEFAULT_CATALOG_PUBLICATION_TIMEOUT_IN_MILLIS;
+		this.readinessCatalogActivationTimeoutInMillis = DEFAULT_READINESS_CATALOG_ACTIVATION_TIMEOUT_IN_MILLIS;
 	}
 
 	/**
@@ -160,9 +161,11 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 	 * @param exportedQueryLabels query labels exported as metric dimensions
 	 * @param errorOriginLogging error hierarchies whose origins are logged
 	 * @param mtlsConfiguration mutual TLS settings
-	 * @param catalogPublicationTimeoutInMillis startup budget for publishing active catalog routes, greater than zero;
-	 *                                          null resolves to {@link #DEFAULT_CATALOG_PUBLICATION_TIMEOUT_IN_MILLIS}
-	 * @throws EvitaInvalidUsageException if the TLS mode, exported query labels or publication timeout are invalid
+	 * @param readinessCatalogActivationTimeoutInMillis per-catalog time startup readiness waits for the APIs to finish
+	 *                                                  activating a loaded catalog, greater than zero; null resolves to
+	 *                                                  {@link #DEFAULT_READINESS_CATALOG_ACTIVATION_TIMEOUT_IN_MILLIS}
+	 * @throws EvitaInvalidUsageException if the TLS mode, exported query labels or catalog activation timeout are
+	 *                                    invalid
 	 */
 	@JsonCreator
 	public ObservabilityOptions(
@@ -177,7 +180,8 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 		@Nullable @JsonProperty("exportedQueryLabels") List<String> exportedQueryLabels,
 		@Nullable @JsonProperty("errorOriginLogging") ErrorOriginLogging errorOriginLogging,
 		@Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration,
-		@Nullable @JsonProperty("catalogPublicationTimeoutInMillis") Long catalogPublicationTimeoutInMillis
+		@Nullable @JsonProperty("readinessCatalogActivationTimeoutInMillis")
+		Long readinessCatalogActivationTimeoutInMillis
 	) {
 		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration, TlsMode.FORCE_NO_TLS);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_OBSERVABILITY_PATH);
@@ -204,20 +208,20 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 		}
 		this.exportedQueryLabels = exportedQueryLabels;
 		this.errorOriginLogging = Optional.ofNullable(errorOriginLogging).orElse(ErrorOriginLogging.INTERNAL);
-		this.catalogPublicationTimeoutInMillis = Optional.ofNullable(catalogPublicationTimeoutInMillis)
-			.orElse(DEFAULT_CATALOG_PUBLICATION_TIMEOUT_IN_MILLIS);
+		this.readinessCatalogActivationTimeoutInMillis = Optional.ofNullable(readinessCatalogActivationTimeoutInMillis)
+			.orElse(DEFAULT_READINESS_CATALOG_ACTIVATION_TIMEOUT_IN_MILLIS);
 		Assert.isTrue(
-			this.catalogPublicationTimeoutInMillis > 0,
-			"catalogPublicationTimeoutInMillis must be greater than zero."
+			this.readinessCatalogActivationTimeoutInMillis > 0,
+			"readinessCatalogActivationTimeoutInMillis must be greater than zero."
 		);
 	}
 
 	/**
-	 * Returns the budget for startup route publication of an active catalog.
+	 * Returns how long startup readiness waits for the APIs to finish activating each loaded catalog.
 	 *
-	 * @return publication timeout in milliseconds, always greater than zero
+	 * @return catalog activation timeout in milliseconds, always greater than zero
 	 */
-	public long getCatalogPublicationTimeoutInMillis() {
-		return this.catalogPublicationTimeoutInMillis;
+	public long getReadinessCatalogActivationTimeoutInMillis() {
+		return this.readinessCatalogActivationTimeoutInMillis;
 	}
 }

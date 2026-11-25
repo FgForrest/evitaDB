@@ -297,7 +297,7 @@ class CatalogReadinessRoutingTest implements EvitaTestSupport {
 					assertTrue(
 						appender.list.stream()
 							.map(ILoggingEvent::getFormattedMessage)
-							.noneMatch(message -> message.contains("Catalog `" + CATALOG + "`")),
+							.noneMatch(message -> message.contains("activating catalog `" + CATALOG + "`")),
 						"Pending publication must be quiet before the deadline"
 					);
 
@@ -313,8 +313,8 @@ class CatalogReadinessRoutingTest implements EvitaTestSupport {
 						appender.list.stream()
 							.filter(event -> event.getLevel() == Level.ERROR)
 							.map(ILoggingEvent::getFormattedMessage)
-							.filter(message -> message.contains("Catalog `" + CATALOG + "`"))
-							.map(message -> message.split("`")[3])
+							.filter(message -> message.contains("activating catalog `" + CATALOG + "`"))
+							.map(message -> message.split("`")[1])
 							.sorted().toList()
 					);
 				} finally {
@@ -385,12 +385,13 @@ class CatalogReadinessRoutingTest implements EvitaTestSupport {
 	 */
 	private static final class OverduePublicationAppender extends AppenderBase<ILoggingEvent> {
 		private static final String OVERDUE_MESSAGE =
-			"Catalog `%s` has not been published by API `%s` within the startup publication timeout.";
+			"API `%s` has not finished activating catalog `%s` within readinessCatalogActivationTimeoutInMillis; " +
+				"readiness no longer waits for it.";
 		private final CountDownLatch overdue = new CountDownLatch(2);
 		/** Outstanding messages, accessed only by the serialized appender callback. */
 		private final Set<String> expectedMessages = new HashSet<>(Set.of(
-			OVERDUE_MESSAGE.formatted(CATALOG, GraphQLProvider.CODE),
-			OVERDUE_MESSAGE.formatted(CATALOG, RestProvider.CODE)
+			OVERDUE_MESSAGE.formatted(GraphQLProvider.CODE, CATALOG),
+			OVERDUE_MESSAGE.formatted(RestProvider.CODE, CATALOG)
 		));
 
 		/**
@@ -411,14 +412,14 @@ class CatalogReadinessRoutingTest implements EvitaTestSupport {
 	 *
 	 * @param lateWiring whether to finish the engine load before constructing the API server
 	 * @param enableGrpc whether to expose the gRPC management service
-	 * @param catalogPublicationTimeoutInMillis publication budget, or null to use the default
+	 * @param catalogActivationTimeoutInMillis readiness catalog activation timeout, or null to use the default
 	 * @param scenario assertions to run with the fixture
 	 * @throws Exception if the scenario or fixture fails
 	 */
 	private void runCatalogReadinessScenario(
 		boolean lateWiring,
 		boolean enableGrpc,
-		@Nullable Long catalogPublicationTimeoutInMillis,
+		@Nullable Long catalogActivationTimeoutInMillis,
 		@Nonnull CatalogReadinessScenario scenario
 	) throws Exception {
 		final TestPaths paths = createTestPaths(TEST_NAME);
@@ -449,7 +450,7 @@ class CatalogReadinessRoutingTest implements EvitaTestSupport {
 				}
 				try (
 					final ExternalApiServer server = new ExternalApiServer(
-						evita, apiOptions(ports, catalogPublicationTimeoutInMillis), List.of(
+						evita, apiOptions(ports, catalogActivationTimeoutInMillis), List.of(
 							new SystemProviderRegistrar(), new ObservabilityProviderRegistrar(),
 							new GrpcProviderRegistrar(),
 							lateWiring ? new GraphQLProviderRegistrar() : new HeldGraphQLRegistrar(graphQLGate),
@@ -599,18 +600,18 @@ class CatalogReadinessRoutingTest implements EvitaTestSupport {
 	 * Enables the test APIs on separate loopback ports over plain HTTP.
 	 *
 	 * @param ports ports for system, observability, GraphQL, REST and optionally gRPC
-	 * @param catalogPublicationTimeoutInMillis publication budget, or null to use the default
+	 * @param catalogActivationTimeoutInMillis readiness catalog activation timeout, or null to use the default
 	 * @return options enabling the APIs with allocated ports
 	 */
 	@Nonnull
-	private static ApiOptions apiOptions(@Nonnull int[] ports, @Nullable Long catalogPublicationTimeoutInMillis) {
+	private static ApiOptions apiOptions(@Nonnull int[] ports, @Nullable Long catalogActivationTimeoutInMillis) {
 		final String noTls = TlsMode.FORCE_NO_TLS.name();
 		final String observabilityAddress = address(ports[1]);
-		final ObservabilityOptions observabilityOptions = catalogPublicationTimeoutInMillis == null
+		final ObservabilityOptions observabilityOptions = catalogActivationTimeoutInMillis == null
 			? new ObservabilityOptions(observabilityAddress)
 			: new ObservabilityOptions(
 				true, observabilityAddress, null, noTls, null, null, null, null, null, null, null,
-				catalogPublicationTimeoutInMillis
+				catalogActivationTimeoutInMillis
 			);
 		final ApiOptions.Builder apiOptions = ApiOptions.builder()
 			.certificate(CertificateOptions.builder().generateAndUseSelfSigned(false).build())

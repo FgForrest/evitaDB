@@ -227,7 +227,7 @@ public class GraphQLManager {
 				.filter(name -> !this.registeredCatalogs.contains(name))
 				.sorted()
 				.toList();
-			log.error("GraphQL catalog routing subscription failed. Active catalogs left unpublished: {}",
+			log.error("GraphQL catalog routing subscription failed. Active catalogs GraphQL has not activated: {}",
 				unpublishedCatalogs, failure);
 		}
 	}

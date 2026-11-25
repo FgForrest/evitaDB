@@ -1,7 +1,7 @@
 ---
 title: Readiness waits until every start-up catalog is published or can no longer be, decided in the observability stack
 date: 2026-11-24
-updated: 2026-11-24 16:16
+updated: 2026-11-25 13:53
 status: accepted
 kind: fix
 issues: [2082]
@@ -151,9 +151,13 @@ contract scoped to the API managers appears; Option E with clustering.
   `evita.getServiceExecutor()` until the latch closes, and cancels the task on settlement or close. Without the timer
   the clock would start only at the first readiness request, and a node probed only for liveness would latch whenever
   that first request happened to come.
-- **Setting:** `api.endpoints.observability.catalogPublicationTimeoutInMillis`, default `300K` (5 minutes, the same
-  as the Docker `--start-period`, which cannot be fed from an environment variable); values `<= 0` are rejected. It is
-  read even when the observability endpoint is disabled.
+- **Setting:** `api.endpoints.observability.readinessCatalogActivationTimeoutInMillis`, default `300K` (5 minutes,
+  the same as the Docker `--start-period`, which cannot be fed from an environment variable); values `<= 0` are
+  rejected. It is read even when the observability endpoint is disabled. Each catalog has its own clock, started when
+  its load ends, so several catalogs never add up: they hold readiness at most one timeout past the last load.
+- **Two vocabularies:** "publication" is this record's internal word, and it stays in the code's internals. User-facing
+  text - the setting, its docs, its log messages - calls loading a catalog and building its APIs together *catalog
+  activation*, after `CatalogState.BEING_ACTIVATED`; the `readiness` prefix says the timeout only gates readiness.
 - **One status rule:** `CatalogRoutingSettlement#resolveReadinessState` - while unsettled, only `READY` becomes
   `STARTING`; HTTP readiness and gRPC `serverStatus` both use it. The `503` body adds `catalogsPending` (a count, no
   catalog names on an unauthenticated endpoint); the `200` body is byte-identical.

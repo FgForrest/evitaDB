@@ -166,8 +166,9 @@ public final class CatalogRoutingReadiness {
 					catalogName, ignored -> CollectionUtils.createHashSet(providers.size())
 				).add(provider.getCode())) {
 					log.error(
-						"Catalog `{}` has not been published by API `{}` within the startup publication timeout.",
-						catalogName, provider.getCode()
+						"API `{}` has not finished activating catalog `{}` within " +
+							"readinessCatalogActivationTimeoutInMillis; readiness no longer waits for it.",
+						provider.getCode(), catalogName
 					);
 				}
 			}

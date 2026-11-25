@@ -195,7 +195,7 @@ api:                                              # [see API configuration](#api
         protocol: grpc
       allowedEvents: null
       exportedQueryLabels: null
-      catalogPublicationTimeoutInMillis: 300K
+      readinessCatalogActivationTimeoutInMillis: 300K
       errorOriginLogging: INTERNAL
       mTLS:
         enabled: null
@@ -1728,16 +1728,17 @@ for scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
         for why this default is inverted. Inherently high-cardinality labels (`trace-id`, `client-id`, `ip-address`,
         `uri`) are reserved and rejected at startup.</p>
     </dd>
-    <dt>catalogPublicationTimeoutInMillis</dt>
+    <dt>readinessCatalogActivationTimeoutInMillis</dt>
     <dd>
         <p>**Default:** `300K` (five minutes)</p>
-        <p>How long, in milliseconds, the [readiness probe](observe.md#readiness-probe) waits for the web APIs to
-        publish a catalog after the server has loaded it. GraphQL and REST build their schemas for every active
-        catalog; a catalog whose publication fails, or does not finish within this time, is logged as an error and no
-        longer holds the probe back, so the server always becomes ready. The time is measured for each catalog
-        separately, from the moment it finishes loading. Loading itself is not limited - a catalog keeps the probe
-        waiting for as long as it loads. The value must be greater than zero. The setting applies even when the
-        observability endpoint itself is disabled.</p>
+        <p>How long, in milliseconds, the [readiness probe](observe.md#readiness-probe) waits for GraphQL and REST to
+        finish activating a catalog once it has been loaded from disk - that is, to build the catalog's APIs. An API
+        that fails to activate the catalog, or does not finish within this time, is logged as an error and no longer
+        holds the probe back, so the server always becomes ready. The time is measured for each catalog separately,
+        from the moment it finishes loading, so with several catalogs the limits do not add up: the catalogs hold the
+        probe back at most this long after the last of them finishes loading. Loading itself is not limited - a catalog
+        keeps the probe waiting for as long as it loads. The value must be greater than zero. The setting applies even
+        when the observability endpoint itself is disabled.</p>
     </dd>
     <dt>errorOriginLogging</dt>
     <dd>

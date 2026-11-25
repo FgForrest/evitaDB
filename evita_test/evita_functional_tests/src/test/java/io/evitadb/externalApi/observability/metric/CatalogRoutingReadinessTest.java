@@ -226,8 +226,8 @@ class CatalogRoutingReadinessTest implements EvitaTestSupport {
 				appender.list.stream()
 					.filter(event -> event.getLevel() == Level.ERROR)
 					.map(ILoggingEvent::getFormattedMessage)
-					.filter(message -> message.contains("Catalog `" + FIRST + "`"))
-					.map(message -> message.split("`")[3])
+					.filter(message -> message.contains("activating catalog `" + FIRST + "`"))
+					.map(message -> message.split("`")[1])
 					.sorted()
 					.toList()
 			);
