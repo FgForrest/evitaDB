@@ -432,8 +432,8 @@ it.
 The second part - indexes are the place where all the complexity lies. The frequently used approach in databases is
 either a table / row locking mechanism, or the transaction id number stored along with the record pointer in some kind
 of the B-tree that is consulted when the record is about to be read / updated in a particular transaction (
-see [Goetz Graefe Modern B-Tree Techniques](https://w6113.github.io/files/papers/btreesurvey-graefe.pdf), or
-the [Concurrency Control for B-Trees with Differential Indices](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.85.602&rep=rep1&type=pdf)
+see [Goetz Graefe Modern B-Tree Techniques](https://doi.org/10.1561/1900000028), or
+the [Concurrency Control for B-Trees with Differential Indices](https://doi.org/10.1109/IDEAS.2000.880589)
 by the Helsinki University of Technology team). The indexes consist of multiple,
 so-called, [transactional data structures](#transactional-data-structures) described in more detail in following
 sections.
