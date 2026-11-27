@@ -2,13 +2,13 @@
 title: Transactions
 perex: |
   Transactions are a fundamental part of the database system. They ensure that the database remains in a consistent state even in the event of failures or concurrent access by multiple users. In this article, we will explore the concept of transactions, their properties, and how they are implemented in evitaDB.
-date: '16.5.2025'
+date: '27.11.2026'
 author: 'Jan Novotný'
 ---
 
 Readers who are familiar with database isolation levels may remember that evitaDB only supports [snapshot isolation](https://en.wikipedia.org/wiki/Snapshot_isolation), so they can skip this introductory chapter, which describes the context relating to this level of isolation.
 
-The key concept of a transaction is that data written by a transaction is only visible within that transaction, and not in other simultaneous reader sessions/transactions. Once a transaction has been committed, its changes become visible to any readers opening a new transaction afterwards. In the terminology of multi-version concurrency control, this is called 'snapshot isolation': each client behaves as if it has a full copy of the database at the time the transaction starts. If the client does not open the transaction explicitly, it is opened implicitly for each query or update statement and closed automatically when the statement finishes. This level of isolation prevents write-write conflicts — if two parallel transactions attempt to update the same record, one of them will be rolled back. However, it does not prevent read-write conflicts, also known as write skew. For example, if there are two transactions A and B, transaction A reads record X, adds 1 to the read value and stores the result to record Y, and transaction B reads record Y, subtracts 1 from the value and stores the result to record X, both transactions will be successfully committed without a conflict. We don't recommend using evitaDB for banking systems, but for most other use cases, this level of isolation is sufficient.
+The key concept of a transaction is that data written by a transaction is only visible within that transaction, and not in other simultaneous sessions. In the terminology of multi-version concurrency control, this is called 'snapshot isolation': each session behaves as if it had a full copy of the database as it was when the session was opened. A read-only session never opens a transaction — it reads the catalog version that was current when it started, for its entire lifetime. A read-write session opens its transaction together with the session and commits it when the session is closed (see [session and transaction handling](../use/api/write-data.md#session--transaction)); the changes become visible to sessions opened after the commit has reached [step 4 of its lifecycle](#4-new-catalog-version-propagation). Under the default [conflict policy](#conflict-resolution-levels), this level of isolation prevents write-write conflicts — if two parallel transactions attempt to update the same entity, the one that commits later is rolled back. However, it does not prevent read-write conflicts, also known as write skew. For example, if there are two transactions A and B, transaction A reads record X, adds 1 to the read value and stores the result to record Y, and transaction B reads record Y, subtracts 1 from the value and stores the result to record X, both transactions will be successfully committed without a conflict. We don't recommend using evitaDB for banking systems, but for most other use cases, this level of isolation is sufficient.
 
 ## Atomicity of individual entity mutations
 
@@ -37,12 +37,15 @@ First, let's fast forward to the point at which the transaction is committed. Th
 
 1. parallel transaction conflict resolution
 2. persistence of the transaction to the write-ahead log (WAL)
-3. processing contents of the WAL and building a new "version" of the database
-   - incorporating changes to the indexes and writing record payloads to the data storage files
-   - persisting changes in indexes to the data storage files
-   - compaction of the data storage files if necessary ([described in more detail here](storage-model.md#cleaning-up-the-clutter))
-4. swapping the new version of the database with the current one
-5. propagating the changes to the read nodes in a cluster setup
+3. processing contents of the WAL and building a new "version" of the catalog
+   - replaying the mutations into the indexes and writing changed record payloads and index pages to the data files
+   - compaction of the data files if necessary ([described in more detail here](storage-model.md#cleaning-up-the-clutter))
+4. swapping the new version of the catalog with the current one
+5. checkpoint — forcing the data files to the disk and publishing a new bootstrap record that points at them
+
+In a future [cluster setup](#horizontal-scaling), a sixth step will propagate the changes to the read nodes.
+
+The client chooses how far along this pipeline its commit waits, using the commit behavior of the session: `WAIT_FOR_CONFLICT_RESOLUTION` returns once step 1 has passed, `WAIT_FOR_WAL_PERSISTENCE` once step 2 has made the transaction durable, and `WAIT_FOR_CHANGES_VISIBLE` (the default) once step 4 has made the changes visible to newly opened sessions. Step 5 runs on its own cadence and no commit waits for it.
 
 In the following sections, we will describe each of these steps in detail.
 
@@ -194,7 +197,7 @@ session.defineEntitySchema("Product")
 	.updateVia(session);
 ```
 
-Here `quantity` (and every other `INHERITED` field) still collides with *any* concurrent write to the same product, while two `description` edits collide only with each other. The mirror image — pinning one consistency-critical field to the whole entity while the rest of the entity runs at attribute granularity — uses `ConflictResolutionOverride.ENTITY` on that one field.
+Here `quantity` (and every other `INHERITED` field) still collides with any concurrent write to the rest of the product, while two `description` edits collide only with each other. The mirror image — pinning one consistency-critical field to the whole entity while the rest of the entity runs at attribute granularity — uses `ConflictResolutionOverride.ENTITY` on that one field.
 
 </Note>
 
@@ -245,33 +248,37 @@ A bare scalar is accepted as shorthand for a coarse-only policy (`conflictPolicy
 
 ### 2. Write ahead log persistence
 
-All transactions and their mutations in evitaDB databases are first written to [the write-ahead log](https://en.wikipedia.org/wiki/Write-ahead_logging). The write-ahead log (WAL for short) is described in more detail in [the storage model article](storage-model.md#write-ahead-log-wal). Transactions are appended to the WAL in the order they are committed, with the catalog versions of subsequent transactions always being greater than those of previous transactions. Writing to the WAL is a blocking operation, meaning the transaction processor waits until the entire transaction has been successfully written to a WAL file and synchronized with the disk. This ensures that the transaction is durable and can be recovered in the event of a crash.
+All transactions and their mutations in evitaDB databases are first written to [the write-ahead log](https://en.wikipedia.org/wiki/Write-ahead_logging). The write-ahead log (WAL for short) is described in more detail in [the storage model article](storage-model.md#write-ahead-log-wal). Transactions are appended to the WAL in the order of their catalog versions, so the catalog version of each transaction is always greater than that of the previous one. A transaction is durable — and recoverable after a crash — once the WAL has been forced to the disk.
+
+The transaction processor does not wait for that force before it takes the next transaction. It appends the transaction to the WAL and moves on, while a separate task forces the WAL to the disk and only then reports the transactions it covered as durable. Everything appended while one force is in flight is carried to the disk by the next one, so a single device sync serves a whole batch of transactions (a technique known as *group commit*). Under load this lets a commit wait slightly longer at the tail, in exchange for commit throughput that is not capped by the cost of one disk sync per transaction. If forcing the WAL fails, the catalog stops accepting further commits, because none of them could be made durable.
 
 <Note type="info">
 
-In fact, there are two types of WAL file. The first type, an "isolated" WAL, is created for each transaction in a separate file. This enables transactions to be written to their respective isolated WALs simultaneously (in-parallel without blocking each other). The second type is the "global" WAL file, to which the isolated transaction WAL files are copied in a single low-level operation. This copy operation is executed sequentially in the "WAL persistence" step as each transaction is processed. Isolated WAL files are removed immediately after their contents are copied to the global WAL file.
+While a transaction is open, its mutations are recorded in a WAL of its own — an "isolated" WAL — so that concurrent transactions can record their mutations in parallel without blocking each other. The isolated WAL is kept in a region of an off-heap memory buffer that each catalog reserves for this purpose (`transactionMemoryBufferLimitSizeBytes`, split into `transactionMemoryRegionCount` regions, see [transaction configuration](../operate/configure.md#transaction-configuration)). When no region is free, or the transaction outgrows its region, the isolated WAL continues in a temporary file in `transactionWorkDirectory`, which is slower. On commit, the isolated WAL is appended to the shared WAL of the catalog as a single block, without deserializing its mutations, and its region or file is released.
 
 **Side note:** We made life easier by enforcing a single writer for all data files. In other words, this means we can process transactions sequentially. If we knew that the transactions were being written to non-overlapping data files, we could write the data in parallel. However, as this is not expected to be a common use case, we decided not to implement it.
 
 </Note>
 
-WAL does not participate in the standard [compaction process](storage-model.md#cleaning-up-the-clutter), so it would grow indefinitely. This is why a threshold is configured to limit the maximum size of the WAL file. If the threshold is reached, evitaDB starts writing to a separate file (segment), but leaves the original file in place. A single transaction must always be fully written to the same WAL segment, so huge transactions may cause WAL file sizes to exceed their configured limits. The number of WAL files kept is limited, and this limit can only be exceeded if the changes in them have not yet been applied to the indexes. The WAL files are removed once the transaction processor confirms that all changes have been applied to the indexes (and if running in distributed mode, also propagated to all other nodes).
+WAL does not participate in the standard [compaction process](storage-model.md#cleaning-up-the-clutter), so it would grow indefinitely. This is why a threshold is configured to limit the maximum size of the WAL file. If the threshold is reached, evitaDB starts writing to a separate file (segment), but leaves the original file in place. A single transaction must always be fully written to the same WAL segment, so huge transactions may cause WAL file sizes to exceed their configured limits. The number of WAL files kept is limited, and a file is removed only once every transaction in it is covered by a published [checkpoint](#5-checkpoint) — until then, the WAL is the only durable copy of those changes, so the limit may be exceeded temporarily.
 
 WAL files are a crucial part of the database and are used for the following:
 
 * applying a missed committed transaction to the indexes on the primary node (recovery after a crash).
-* change replication across multiple read nodes.
+* replication of changes to read nodes in a future [cluster setup](#horizontal-scaling).
 * [point-in-time backup and restore (PITR)](../operate/backup-restore.md)
 * [change data capture (CDC)](../use/api/capture-changes.md) — streaming changes to external systems
 * auditing in evitaLab
 
-Up to this point, if an exception occurs, the transaction is effectively rolled back, but the world keeps spinning.
+Up to this point, if an exception occurs, the transaction is effectively rolled back and other transactions carry on — with one exception: when the WAL cannot be forced to the disk, the catalog stops accepting commits, as described above.
 
 ### 3. Processing contents of the WAL
 
-In this phase, we read the unprocessed contents of the WAL file and apply changes to the indexes of the current catalog version and create payload records in shared data files. These changes are isolated and still invisible to other readers. This phase operates in a "time-window" manner, meaning that it tries to replay as many transactions as possible within a dedicated time window. When the time limit is reached or the entire contents of the WAL file have been processed, the transaction processor will create a new instance of the catalog data structure with a particular version (i.e. the last transaction processed will be assigned the value of the variable catalogVersion). This new instance is then passed to the next phase.
+In this phase, we read the unprocessed contents of the WAL and replay its mutations on top of the current catalog version, applying them to the indexes and writing changed record payloads and index pages to the data files. These changes are isolated and still invisible to other readers. This phase operates in a "time-window" manner, meaning that it tries to replay as many transactions as possible within a single round, bounded by `flushFrequencyInMillis`. When the time limit is reached or the entire contents of the WAL have been processed, the transaction processor merges the changes of all replayed transactions at once into a new instance of the catalog data structure with a particular version (i.e. the version of the last transaction processed). This new instance is then passed to the next phase. The data files are written within the round, but they are forced to the disk only at the next [checkpoint](#5-checkpoint).
 
-If the engine fails at this stage, all transaction processing will be halted. The engine cannot skip the committed transaction persisted in the WAL file, nor can it progress to the next one. It will try indefinitely to replay the last transaction from the WAL file. This ultimately indicates an error in the database engine that needs to be analyzed and corrected. However, the mechanism does not trap the thread in an infinite loop; it always attempts to process the problematic transaction again once a new transaction has been committed.
+The engine never skips a committed transaction persisted in the WAL. If replaying a transaction fails, the changes of the failed round are discarded and the round is tried again: a background task retries shortly afterwards — repeatedly while the cause looks transient, such as a WAL tail that cannot be read yet — and every newly committed transaction triggers another attempt. A replay that keeps failing therefore holds back all later transactions, which indicates an error in the database engine that needs to be analyzed and corrected.
+
+If the failure happens while the round's changes are being written to the data files or merged into the new catalog instance, repeating the round cannot help, so the engine suspends transaction processing for that catalog instead: further commits are refused, and commits already waiting in the pipeline fail. Readers are not affected; they continue to be served the last catalog version that was processed successfully. The log states which of two situations occurred. Either the failed version never reached the disk, which is intact at the version still being served, and reloading the catalog replays the transaction from the WAL; or the failed version had already reached the disk, in which case it must be verified before the catalog is reloaded, and a restore from a backup may be required.
 
 <Note type="info">
 
@@ -281,7 +288,13 @@ The storage model of evitaDB is strictly append-only. Once a record has been wri
 
 ### 4. New catalog version propagation
 
-This phase is very quick and simply involves replacing the root pointer of the "current" catalog instance with the newly created one. Once complete, the newly created sessions/transactions will see the changes made in that particular transaction. The old catalog instance is not removed immediately but kept in memory until all sessions using this version of the catalog are closed (as required by the snapshot isolation level). Once there are no more sessions using the old catalog instance, it is removed from memory, after which the Java garbage collector will take care of it.
+This phase is very quick and simply involves replacing the root pointer of the "current" catalog instance with the newly created one. Once complete, newly created sessions see the changes made in the processed transactions, and commits waiting for `WAIT_FOR_CHANGES_VISIBLE` are released. The old catalog instance is not removed immediately but kept in memory until all sessions using this version of the catalog are closed (as required by the snapshot isolation level). Once there are no more sessions using the old catalog instance, it is removed from memory, after which the Java garbage collector will take care of it.
+
+### 5. Checkpoint
+
+Making a new catalog version visible does not yet make the data files durable: the bytes written in phase 3 may still sit in the operating system page cache. A checkpoint forces them to the disk and then writes the [bootstrap record](storage-model.md#bootstrap-file) that points at them — the single act that makes the new state the one the catalog starts from after a restart. Checkpoints run every `checkpointIntervalInMillis` (by default, every second), or at the end of every round when the interval is set to `0`.
+
+This weakens no guarantee given to a client. An acknowledged commit is durable because it is in the WAL, not because the data files were checkpointed: anything written after the last checkpoint is replayed from the WAL on restart. What the interval trades is WAL retention and restart replay time for write throughput — a checkpoint costs a fixed number of disk syncs regardless of how many transactions it covers. The setting has no effect when `storage.syncWrites` is disabled.
 
 ## Horizontal scaling
 
@@ -291,12 +304,18 @@ Distributed mode of evitaDB is still a work in progress (see [issue #109](https:
 
 </Note>
 
-We plan to implement replication model similar to [streaming replication in PostgreSQL](https://scalegrid.io/blog/comparing-logical-streaming-replication-postgresql/)
-or [statement-based replication in MySQL](https://dev.mysql.com/doc/refman/8.0/en/replication-sbr-rbr.html). evitaDB is designed for read-heavy environments, so we plan to stick to single master, multiple reader nodes model with dynamic master (leader) election. All writes will target the master node, which will maintain the primary [WAL](storage-model.md#write-ahead-log-wal).
+evitaDB is designed for read-heavy environments, so the distributed mode will keep a single writer: one leader node will accept all writes and maintain the primary [WAL](storage-model.md#write-ahead-log-wal), while the replica nodes will stream that WAL and replay it locally. Once a transaction has reached the [catalog propagation](#4-new-catalog-version-propagation) phase on the leader, its mutations will be streamed to the replicas. As all conflicts are resolved on the leader before a transaction is written to the WAL, every replica is expected to replay every mutation successfully.
 
-All read nodes maintain an open connection to the master node, streaming and replaying changes in the WAL file locally. This connection is always open and downloads all changes present in the WAL file to each replica node. This means that, once the transaction processing has reached the final phase [catalog propagation](#4-new-catalog-version-propagation), mutations will start to be streamed to the replicas. As all conflicts are resolved on the master node before the transaction is committed and written to the WAL file, all mutations are expected to be successfully processed by all replicas.
+The nodes will coordinate using [Viewstamped Replication](https://dspace.mit.edu/handle/1721.1/71763), a replication protocol built around a single primary that replicas take over from when it fails — a model that matches the single-writer design above:
 
-When a new replica node is added to the cluster, it selects another replica or master node and fetches a binary version of their data storage files, which are cleaned of obsolete records (see [active backup](storage-model.md#backup-and-restore)). The streaming producer discards obsolete records from the storage file maintainer (the selected replica or master node) on the fly, so no obsolete data is streamed to the new node. The backup process is always locked to valid data in a particular catalog version (including the position in the WAL file), and, due to the append-only nature of the data files, processing new transactions on this node does not need to be paused, and the node operates as usual. As all these operations work at a "binary level", creating a new replica is a reasonably fast process.
+- information about the cluster topology will be versioned and stored in the engine state, which will progress only on the leader node
+- the leader will hold its leadership through a leased lock; when it fails to renew the lease or crashes, any replica that manages to lease the shared lock will be able to initiate a leader takeover
+- transactions will carry an epoch, so that a former leader cannot keep writing after a new one has taken over
+- evitaDB will define a generic API for this protocol, with an initial implementation for Kubernetes
+
+Clients will use two endpoints: `evita-ro` for read-only sessions and `evita-rw` for read-write sessions. When the leader fails, it will be removed from the `evita-rw` endpoint, and the new leader will register itself there once it has reconciled its state. Until then, the cluster will serve reads only, so a client whose read-write connection breaks will need to reconnect and retry.
+
+A new replica node will start from a binary copy of the data files of another node, cleaned of obsolete records in the same way as an [active backup](storage-model.md#backup-and-restore), and will then catch up by replaying the WAL. Because the data files are append-only, the node providing the copy will not need to pause its own transaction processing, and as the copy works at a "binary level", adding a replica will be a reasonably fast process.
 
 ## Parallel transaction isolation in detail
 
@@ -307,11 +326,11 @@ Two areas relating to transactions need to be addressed:
 
 ### Isolation of non-committed record payload data
 
-Non-committed transactions write their record payload data to temporary memory, which is cleared when the transaction is finished (either through a commit or a rollback). Long transactions with large payloads can currently affect the health of the database engine, so we recommend avoiding such transactions.
+Non-committed transactions keep their changes in two places, both of which are released when the transaction finishes (either through a commit or a rollback): the mutations are recorded in the transaction's isolated WAL (see [WAL persistence](#2-write-ahead-log-persistence)), which lives off-heap and spills to a temporary file, and the changed index structures and record payloads are kept in diff layers on the Java heap. Long transactions with large payloads can currently affect the health of the database engine, so we recommend avoiding such transactions.
 
 <Note type="warning">
 
-The transactional memory resides on the Java heap alongside all the other key evitaDB data structures. If the transaction is very large, it could consume all the available memory, causing an `OutOfMemoryException` and affecting the rest of the system, including read-only sessions. To avoid this, we need to limit the scope of the transaction. However, retrieving information about the size of data structures is not an easy task on the [Java platform](https://dzone.com/articles/java-object-size-estimation-measuring-verifying), and we can only retrieve a rough estimate. We plan to calculate an estimate of the transaction size and limit the total size of the transaction, as well as the total size of all transactions processed in parallel, to avoid exhausting all free memory. But this is still a work in progress - [see issue #877](https://github.com/FgForrest/evitaDB/issues/877).
+The diff layers reside on the Java heap alongside all the other key evitaDB data structures. If the transaction is very large, it could consume all the available memory, causing an `OutOfMemoryError` and affecting the rest of the system, including read-only sessions. To avoid this, we need to limit the scope of the transaction. However, retrieving information about the size of data structures is not an easy task on the [Java platform](https://dzone.com/articles/java-object-size-estimation-measuring-verifying), and we can only retrieve a rough estimate. We plan to calculate an estimate of the transaction size and limit the total size of the transaction, as well as the total size of all transactions processed in parallel, to avoid exhausting all free memory. But this is still a work in progress - [see issue #877](https://github.com/FgForrest/evitaDB/issues/877).
 
 </Note>
 
@@ -329,7 +348,7 @@ We isolate concurrent updates to the indexes made by different threads, placing 
 
 ##### Atomic transactions
 
-The only way to make transactional changes atomic is to gather all changes in a volatile diff layer that is only used for the particular transaction. When a transaction is committed, a new instance of the entire catalog data structure must be built (i.e. new instances of updated entity collections, indexes, etc.). This new instance then replaces the current catalog instance with a single call to the `AtomicReference#compareAndExchange` method.
+The only way to make transactional changes atomic is to gather all changes in a volatile diff layer that is only used by the particular transaction. While the transaction is open, this layer lets it read its own changes; the mutations themselves are recorded in its isolated WAL. On commit, the layer has done its job and is discarded — the changes are applied to the shared catalog in [phase 3](#3-processing-contents-of-the-wal), where the mutations of one or more committed transactions are replayed from the WAL on top of the latest catalog version, again into diff layers, and merged at once into a new instance of the catalog data structure (i.e. new instances of updated entity collections, indexes, etc.). This new instance then replaces the current catalog instance with a single atomic reference swap.
 
 <Note type="info">
 
@@ -337,11 +356,11 @@ Although we state that the entire catalog data structure is to be reinstantiated
 
 </Note>
 
-If the transaction is rolled back, we simply discard the entire memory block of the diff layer from the ThreadLocal variable and allow the Java garbage collector to take over.
+If the transaction is rolled back, we simply discard the entire memory block of the diff layer from the ThreadLocal variable, release its isolated WAL, and allow the Java garbage collector to take over.
 
 <Note type="info">
 
-The diff layer approach is not used in the special case of <SourceClass>evita_store/evita_store_key_value/src/main/java/io/evitadb/store/offsetIndex/OffsetIndex.java</SourceClass>. This index tracks all record positions in a data file within a single hash map, providing quick O(1) access to the payload records. Rebuilding this index using the diff layer would involve constantly reallocating the entire hash map, which would be inefficient. Therefore, this index only keeps the most recent record pointers, and tracks all changes to this map between the current and previous catalog versions. This history is retained for as long as there is a session using a particular old catalog version. Sessions targeting old catalog versions land on a value they should not see, so they analyze the history of this record and recover the correct pointer for their catalog version.
+The diff layer approach is not used in the special case of <SourceClass>evita_store/evita_store_key_value/src/main/java/io/evitadb/store/offsetIndex/OffsetIndex.java</SourceClass>. This index tracks the position of every record in a data file in a single map, providing quick O(1) access to the payload records. Instead of a diff layer, it keeps one immutable [persistent hash map](https://en.wikipedia.org/wiki/Hash_array_mapped_trie) of record positions per retained catalog version. A new version copies only the part of the map that changed and shares the rest with its predecessor, so keeping many versions costs little memory. A session targeting an older catalog version simply reads the map of the newest version not exceeding its own — a single lock-free lookup. Versions no session uses any more are released when the next version is published.
 
 </Note>
 
@@ -355,7 +374,7 @@ Such issues occur during development, so there must be a way to identify and sol
 
 ##### Testing
 
-The integrity of the data structures is vital for the database. In addition to the standard unit tests, there is always one "generational" test that uses [a property based testing approach](https://en.wikipedia.org/wiki/Property_testing) approach. These tests use two data structures: our tested STM implementation and a [test double](https://en.wikipedia.org/wiki/Test_double) represented by a well-proven external implementation. For instance, in the generational test of the <SourceClass>evita_engine/src/main/java/io/evitadb/index/map/TransactionalMap.java</SourceClass> data structure, we use the JDK HashMap implementation as the test double.
+The integrity of the data structures is vital for the database. In addition to the standard unit tests, there is always one "generational" test that uses [a property based testing](https://en.wikipedia.org/wiki/Property_testing) approach. These tests use two data structures: our tested STM implementation and a [test double](https://en.wikipedia.org/wiki/Test_double) represented by a well-proven external implementation. For instance, in the generational test of the <SourceClass>evita_engine/src/main/java/io/evitadb/index/map/TransactionalMap.java</SourceClass> data structure, we use the JDK HashMap implementation as the test double.
 
 The testing sequence is always similar.
 
@@ -367,31 +386,19 @@ The testing sequence is always similar.
    - the transaction is committed
 4. after the commit, the contents of both data structures are compared and must be equal
 5. new instances of the data structures are created with initial data taken from the result of the commit
-6. steps 3-5 are repeated infinitely
+6. steps 3-5 are repeated until the configured time budget runs out; each run draws a new random seed, which is reported so that a failing run can be reproduced exactly
 
 Once this generational test has run for a few minutes without any problems, we can be confident that the STM data structure is correctly implemented. However, there is always a small chance that the test itself is incorrect. [Quis custodiet ipsos custodes?](https://en.wikipedia.org/wiki/Quis_custodiet_ipsos_custodes%3F)
 
 ## Transactional data structures
 
-<Note type="warning">
-
-**Data structures are planned to be replaced**
-
-Most transactional data structures are suboptimal because they copy the entire contents to a new instance of the class at the moment of committing (the original instance must remain unchanged for other readers). Our primary focus was on read performance, so write performance was not a priority. We plan to improve the performance of these data structures in the future (see issue [#760](https://github.com/FgForrest/evitaDB/issues/760)), and to create Clojure data structures that are proven and work in an immutable-friendly fashion (for example [HAMT](https://en.wikipedia.org/wiki/Hash_array_mapped_trie)).
-
-</Note>
+Our indexes are composed of a small number of transactional data structures. Because the original instance must remain unchanged for other readers, the cost of a commit depends on how much of a structure has to be copied. The structures that hold large or frequently changing data — B+ trees, persistent hash maps and bitmaps — therefore share everything that did not change with the previous version and copy only the parts touched by the transaction, so the cost of a commit is proportional to the size of the change rather than to the size of the index. The same granularity reaches the disk: a large tree-backed index is stored as separate leaf pages, and a commit rewrites only the pages it changed.
 
 ### Transactional array (ordered)
 
-The transactional array (e.g. <SourceClass>evita_engine/src/main/java/io/evitadb/index/array/TransactionalIntArray.java</SourceClass> and similar) mimics the behavior of a plain array, and there are multiple implementations of it.
+The <SourceClass>evita_engine/src/main/java/io/evitadb/index/array/TransactionalIntArray.java</SourceClass> mimics the behavior of a plain array of primitive `int` numbers. The array is naturally ordered and does not allow duplicate values. Therefore, in the event of any insertions/removals, the array knows which indexes will be affected internally. It is not possible to set a value on an index passed from outside logic. The database uses it for small sets of record ids, such as the children of a node in the hierarchy index.
 
-- TransactionalIntArray: for storing primitive `int` numbers
-- TransactionalObjectArray: for storing plain objects of any type
-- TransactionalComplexObjectArray: for storing nested object structures that allow merging and the automatic removal of "empty" containers.
-
-All arrays are naturally ordered by default. In the case of object implementations, the object must be comparable. The array implementation does not allow duplicate values. Therefore, in the event of any insertions/removals, the array knows which indexes will be affected internally. It is not possible to set a value on an index passed from outside logic.
-
-All these implementations share the same idea: in transactional mode, all updates go to the transactional overlay that traps:
+In transactional mode, all updates go to the transactional overlay that traps:
 
 - inserts on certain indexes in an internal array of inserted values
 - deletions on certain indexes in an internal array of removed indexes.
@@ -402,54 +409,11 @@ Using this information, the STM array can build a new array combining the origin
 * `contains`
 * `length`
 
-The <SourceClass>evita_engine/src/main/java/io/evitadb/index/array/TransactionalComplexObjArray.java</SourceClass> class is much more complex — it accepts functions that operate on nested structures.
-
-- `BiConsumer producer`: this function takes two containers and combines them into one output container containing an aggregate of their nested data
-- `BiConsumer reducer`: this function takes two containers and removes/subtracts the nested data of the second container from that of the first
-- `Predicate obsoleteChecker`: this function tests whether the container contains any nested data. If not, the container may be considered removed; the predicate is consulted after the reduce operation
-
-This implementation provides the ability to partially update the objects held within it. For example, consider a record with the following structure:
-
-* `String: label`
-* `int[]: recordIds`
-
-If we then insert two such records into the TransactionalComplexObjectArray with the following data:
-
-* label = `a` recordIds = `[1, 2]`
-* label = `a` recordIds = `[3, 4]`
-
-The array will produce the result with one record: `a`: `[1, 2, 3, 4]`.
-
-If we remove the record `a`: `[2, 4]`, the array will produce the result: `a`: `[1, 3]`.
-
-If we apply the removal of the record again - `a`: `[1, 3]`, the array will produce an empty result.
-
-Unfortunately, with this implementation, we cannot provide optimized methods such as:
-
-* `indexOf`
-* `length`
-
-We have to compute the entire merged array first in order to access these properties. While this data structure could be subject to significant optimizations, it is also quite challenging to implement correctly due to the nature of nested structures.
-
 ### Transactional unordered array
 
-This version of the transactional array differs from the [previous one](#transactional-array-ordered) in that it allows duplicate values. It is also unordered and enables the client to control where new values are inserted or existing ones removed.
+This version of the transactional array differs from the [previous one](#transactional-array-ordered) in that it is unordered and lets the client control the position at which new values are inserted or existing ones removed. The values remain unique. The database uses a single implementation of this structure: <SourceClass>evita_engine/src/main/java/io/evitadb/index/array/TransactionalUnorderedIntArray.java</SourceClass>, which holds the order of records in sort and chain indexes.
 
-The database requires only a single implementation of this structure: <SourceClass>evita_engine/src/main/java/io/evitadb/index/array/TransactionalUnorderedIntArray.java</SourceClass>.
-
-The diff layer implementation for the unordered array is essentially the same as for the [ordered array](#transactional-array-ordered), with one exception. The inserted values retain information about the relative index within the segment inserted at a specific position within the original array.
-
-This array has a special, fast implementation that works on the diff layer for the following methods:
-
-* `indexOf`
-* `contains`
-* `length`
-
-### Transactional list
-
-The <SourceClass>evita_engine/src/main/java/io/evitadb/index/list/TransactionalList.java</SourceClass> mimics the behaviour of the Java util List interface, enabling it to contain any object. The list can contain duplicates and is unordered. The current implementation is suboptimal and could be improved in the same way as the [unordered array](#transactional-unordered-array).
-
-The diff layer contains a sorted set of indexes that were removed from the original list, as well as a map of new values and the indexes at which they were inserted. When a new item is inserted or removed from the diff layer, all the indexes after this value need to be incremented or decremented. Therefore, the "add/remove first" operation always has O(N) complexity. Conversely, the unordered array splits inserts into multiple segments, so the complexity is usually lower — O(N) is only the worst-case complexity for an unordered array.
+The array keeps no diff layer of its own. It is a façade over two coordinated [B+ trees](#b-tree): a *position tree* that keeps the values in their logical order and answers positional queries by counting along its nodes, and a *value index* that maps every value to its place in the position tree. Both trees isolate transactional changes the same way every B+ tree does, so inserting, removing and looking up the position of a value (`indexOf`) all take O(log N), with no reallocation of the whole array.
 
 ### Transactional map
 
@@ -457,32 +421,37 @@ The <SourceClass>evita_engine/src/main/java/io/evitadb/index/map/TransactionalMa
 
 When logic attempts to retrieve a value from the map, the diff layer is first consulted to determine whether the key exists in the original map with no removal order in the layer or whether it has been added to the layer. The iterator of entries/keys/values first iterates over all existing, non-removed entries, and then iterates through entries added to the diff layer.
 
+The plain transactional map rebuilds its whole underlying map when a transaction is committed. Maps that are large or change often use a persistent variant instead, built on a [CHAMP](https://michael.steindorfer.name/publications/oopsla15.pdf) hash trie: it stages the same diff during the transaction, but on commit applies it to an immutable snapshot by copying only the paths to the changed keys and sharing the rest, so the cost of the commit is proportional to the number of changed keys rather than to the size of the map.
+
 ### Transactional set
 
-The <SourceClass>evita_engine/src/main/java/io/evitadb/index/set/TransactionalSet.java</SourceClass> class mimics the behaviour of the Java `java.util.Set` interface. In this case, the implementation is straightforward: the diff layer contains a set of all keys removed from the original map, as well as a set of added keys.
+The <SourceClass>evita_engine/src/main/java/io/evitadb/index/set/TransactionalSet.java</SourceClass> class mimics the behaviour of the Java `java.util.Set` interface. In this case, the implementation is straightforward: the diff layer contains a set of all keys removed from the original set, as well as a set of added keys.
 
 ### Transactional bitmap
 
-A bitmap is a set of unique integers in ascending order. This data structure is similar to a [transactional array](#transactional-array-ordered), but is limited to integers only and enables much faster operations on the number set. This implementation wraps an instance of the internal class RoaringBitmap. The reasons for using this data structure, and more detailed information about [RoaringBitmaps](https://github.com/RoaringBitmap/RoaringBitmap), are stated in the [the query evaluation chapter](https://evitadb.io/research/in-memory/thesis#boolean-algebra). RoaringBitmap is a mutable data structure and a third-party library. As we have no control over it, we wanted to hide it with our interface. This is why the <SourceClass>evita_engine/src/main/java/io/evitadb/index/bitmap/Bitmap.java</SourceClass> interface was created, to ensure that the entire codebase works with it instead of `RoaringBitmap` directly.
+A bitmap is a set of unique integers in ascending order. This data structure is similar to a [transactional array](#transactional-array-ordered), but is limited to integers only and enables much faster operations on the number set. It is backed by [RoaringBitmap](https://github.com/RoaringBitmap/RoaringBitmap). The reasons for using this data structure are stated in [the query evaluation chapter](https://evitadb.io/research/in-memory/thesis#boolean-algebra). evitaDB uses its own fork of the library, kept in sync with the upstream project, and hides it behind the <SourceClass>evita_engine/src/main/java/io/evitadb/index/bitmap/Bitmap.java</SourceClass> interface, so the rest of the codebase never works with the bitmap implementation directly.
 
-The <SourceClass>evita_engine/src/main/java/io/evitadb/index/bitmap/TransactionalBitmap.java</SourceClass> allows insertions and deletions to be trapped from the original bitmap in the diff layer. When the bitmap needs to be used for reading, a new `RoaringBitmap` is computed by applying insertions by boolean AND on the original bitmap and applying removals by boolean AND NOT on the fly. To avoid this costly operation, the result is cached for subsequent read requests, but must be cleared upon the first subsequent write.
+The <SourceClass>evita_engine/src/main/java/io/evitadb/index/bitmap/TransactionalBitmap.java</SourceClass> traps insertions and deletions in the diff layer instead of applying them to the original bitmap. When the bitmap needs to be read, the current content is computed on the fly by applying the insertions with a boolean OR and the removals with a boolean AND NOT; the result is cached for subsequent reads until the next write.
 
-This computational method clones the entire original `RoaringBitmap` twice and is therefore suboptimal. Unfortunately, `RoaringBitmap` does not provide us with better options. An ideal implementation would require `RoaringBitmap` to be internally immutable and produce a new instance every time a write operation occurs. As `RoaringBitmaps` work internally with separate blocks of data, the new immutable version could reuse all the blocks that were not affected by the write action, cloning or altering only the blocks where the changes occurred. However, this would require substantial changes to the internal implementation and would probably be dismissed by the authoring team.
+A RoaringBitmap internally splits the number range into separate containers. Our fork exploits this: the result of such an operation, as well as a clone, shares every container it carries over unchanged with its source, and copies a container only at the moment it is about to be modified. Producing a new version of a bitmap therefore costs memory proportional to the containers the transaction touched, not to the size of the whole bitmap.
 
 ### B+ tree
 
-This is a standard B+ tree implementation with a transactional diff layer. The implementation creates a diff layer for each modified leaf segment of the tree, as well as for the parent chain to the root, with new instances that refer to the underlying diff layers (and the original, non-modified leaves). The new B+ tree is materialized at the moment of commit. The entire process resembles copy-on-write data structures, but the copied blocks are quite small compared to the entire tree. The B+ tree is used for all indexes that require a sorted order of keys.
+This is a standard B+ tree implementation with a transactional diff layer. Each modified node of the tree — the leaf being changed and the chain of its parents up to the root — gets its own transactional copy, which refers to the original, unmodified nodes everywhere else. The new tree is materialized at the moment of commit. The entire process resembles copy-on-write data structures, but the copied blocks are quite small compared to the entire tree.
+
+evitaDB uses a family of B+ trees that differ in the types of their keys and values, so that primitive keys and values are never boxed. They hold the values of filter, unique, range and sort indexes and the price records, among others — wherever a sorted order of keys is needed. A tree that spans more than one leaf is also persisted leaf by leaf, so a commit writes only the leaf pages it changed.
 
 ### Sequences
 
 evitaDB uses several sequences to assign unique, monotonic identifiers to various objects. These sequences are not part of the transaction process and their progress is not rolled back. All sequences are implemented internally as either an `AtomicLong` or an `AtomicInteger`, which allow the retrieval of incremented values in a thread-safe manner.
 
-Currently, we do not plan to support multiple writer mode in the [distributed setup](#horizontal-scaling), which means we can safely use Java's internal atomic types to manage sequences because new numbers will always be issued by a single master node (JVM).
+We do not plan to support multiple writer mode in the [distributed setup](#horizontal-scaling), which means we can safely use Java's internal atomic types to manage sequences because new numbers will always be issued by a single leader node (JVM).
 
 The sequences managed by the evitaDB are:
 
 * entity type sequence: assigns a new ID to each entity collection, allowing the collection to be addressed by a small number instead of duplicating and increasing the size of the string value
-* entity primary key sequence: assigns a new ID to each created entity, in case the entity schema requires it automatic primary key assignment
 * entity primary key sequence: assigns a new ID to each created entity, in case the entity schema requires automatic primary key assignment
 * index primary key sequence: assigns a new ID to each created internal index
-* transaction ID Sequence: assigns a new ID to each opened transaction
+* price ID sequence: assigns a new internal ID to each created price
+
+Transactions are not numbered by a sequence; each transaction is identified by a random UUID.
