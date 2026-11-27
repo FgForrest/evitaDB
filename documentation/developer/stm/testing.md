@@ -234,7 +234,7 @@ Every generational test class lives in `evita_test/evita_long_running_tests` and
 | `TransactionalLongBPlusTree`   | `LongRunningTransactionalLongBPlusTreeTest` | Ins/upsert/rm, search/bit add → order |
 | `TransactionalObjectBPlusTree`  | `LongRunningTransactionalObjectBPlusTreeTest` | Insert/upsert/delete → value order |
 | `TransactionalElementBPlusTree` | `LongRunningTransactionalElementBPlusTreeTest` | Insert/delete → both ID orders |
-| `TransactionalIntToLongBPlusTree` | `LongRunningTransactionalIntToLongBPlusTreeTest` | Insert/upsert/rm → value scan |
+| `TransactionalIntToLongBPlusTree` | `LongRunningTransactionalIntToLongBPlusTreeTest` | Insert/overwrite/remove → ordered keys and value lookups |
 | `CumulativeWeightBPlusTree`  | `LongRunningCumulativeWeightBPlusTreeTest` | Insert/remove/reweight → order and ranks |
 | `PersistentTransactionalMap`      | `LongRunningPersistentTransactionalMapTest` | Put/rm, edit/rm entries → ChampMap |
 | `PersistentTransactionalProducerMap` | `LongRunningPersistentTransactionalProducerMapTest` | Put/rm, edit+mark → map |

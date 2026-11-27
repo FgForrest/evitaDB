@@ -95,7 +95,7 @@ class BucketRecordTierTest {
 	 */
 	@Nonnull
 	private static TransactionalBucketBPlusTree<Integer> emptyTree() {
-		return new TransactionalBucketBPlusTree<>(LEAF_BLOCK_SIZE, Integer.class);
+		return new TransactionalBucketBPlusTree<>(LEAF_BLOCK_SIZE, Integer.class, null);
 	}
 
 	/**
@@ -1061,7 +1061,9 @@ class BucketRecordTierTest {
 		@DisplayName("array buckets survive a leaf split with every record intact")
 		void shouldKeepArrayBucketsAcrossASplit() {
 			// a small block size forces splits after a handful of buckets, moving array slots between leaves
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(5, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				5, Integer.class, null
+			);
 			for (int value = 0; value < 40; value++) {
 				tree.addRecord(value, value * 10 + 1, value * 10 + 2, value * 10 + 3);
 			}
@@ -1079,7 +1081,9 @@ class BucketRecordTierTest {
 		@Test
 		@DisplayName("array buckets survive the leaf merges a bulk deletion causes")
 		void shouldKeepArrayBucketsAcrossMerges() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(5, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				5, Integer.class, null
+			);
 			for (int value = 0; value < 40; value++) {
 				tree.addRecord(value, value * 10 + 1, value * 10 + 2, value * 10 + 3);
 			}

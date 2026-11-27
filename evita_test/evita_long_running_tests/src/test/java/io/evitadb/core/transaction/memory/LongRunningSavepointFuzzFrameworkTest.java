@@ -26,6 +26,7 @@ package io.evitadb.core.transaction.memory;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -458,7 +459,9 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Nonnull
 	private static TransactionalObjectBPlusTree<Integer, Integer> newSeededObjectTree(@Nonnull Random random) {
 		final TransactionalObjectBPlusTree<Integer, Integer> tree = new TransactionalObjectBPlusTree<>(
-			8, 3, 7, 3, Integer.class, Integer.class
+			8, 3, 7, 3, Integer.class, Integer.class,
+			null,
+			null
 		);
 		final int size = random.nextInt(KEY_SPACE);
 		for (int i = 0; i < size; i++) {
@@ -511,8 +514,12 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	 */
 	@Nonnull
 	private static TransactionalBucketBPlusTree<Integer> newSeededBucketTree(@Nonnull Random random) {
+		@SuppressWarnings("unchecked")
+		final ValueColumnFactory<Integer> columnFactory =
+			(ValueColumnFactory<Integer>) ValueColumnFactory.forKey(Integer.class, null);
 		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
-			8, 3, 7, 3, Integer.class, null
+			8, 3, 7, 3, Integer.class, null,
+			columnFactory
 		);
 		final int size = random.nextInt(KEY_SPACE);
 		for (int i = 0; i < size; i++) {

@@ -85,7 +85,8 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 	@Nonnull
 	private static TransactionalBucketBPlusTree<Integer> buildTree(@Nonnull TreeMap<Integer, TreeSet<Integer>> reference) {
 		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
-			16, 7, 7, 3, Integer.class, null
+			16, 7, 7, 3, Integer.class, null,
+			capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
 		);
 		for (final Map.Entry<Integer, TreeSet<Integer>> entry : reference.entrySet()) {
 			tree.addRecord(entry.getKey(), toArray(entry.getValue()));
@@ -269,7 +270,7 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 		System.out.println("LongRunningTransactionalBucketBPlusTreeTest (warm-up) seed: " + seed);
 
 		// one long-lived bare tree churned directly (no transaction) at a small block size so splits / merges are dense
-		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class, null);
 		final TreeMap<Integer, TreeSet<Integer>> reference = new TreeMap<>();
 		final Random seedRandom = new Random(seed);
 		do {

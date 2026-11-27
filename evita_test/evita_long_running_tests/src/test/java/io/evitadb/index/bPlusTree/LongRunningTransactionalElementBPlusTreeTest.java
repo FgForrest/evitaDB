@@ -38,6 +38,7 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.Iterator;
+import java.util.PrimitiveIterator;
 import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.TreeSet;
@@ -165,10 +166,11 @@ class LongRunningTransactionalElementBPlusTreeTest implements TimeBoundedTestSup
 
 		// reverse element iteration: descending keys
 		index = expectedKeys.length;
-		final Iterator<PriceRecordContract> reverse = tree.valueReverseIterator();
+		final PrimitiveIterator.OfInt reverse = tree.keyReverseIterator();
 		while (reverse.hasNext()) {
-			final PriceRecordContract record = reverse.next();
-			assertEquals(expectedKeys[--index], record.internalPriceId(), "Reverse iterator key mismatch at " + index);
+			final int key = reverse.nextInt();
+			assertEquals(expectedKeys[--index], key, "Reverse iterator key mismatch at " + index);
+			assertEquals(rec(key), tree.search(key), "Reverse iterator content mismatch at " + index);
 		}
 		assertEquals(0, index, "Reverse iterator produced a different element count");
 		assertThrows(NoSuchElementException.class, reverse::next, "Reverse iterator should be exhausted");

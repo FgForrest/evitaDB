@@ -305,7 +305,9 @@ public class BPlusTreeCursorAllocationBenchmark {
 	private static TransactionalObjectBPlusTree<Integer, Object> newObjectTree(int blockSize) {
 		return new TransactionalObjectBPlusTree<>(
 			blockSize, minBlock(blockSize), minBlock(blockSize), minInternal(blockSize),
-			Integer.class, Object.class
+			Integer.class, Object.class,
+			null,
+			null
 		);
 	}
 

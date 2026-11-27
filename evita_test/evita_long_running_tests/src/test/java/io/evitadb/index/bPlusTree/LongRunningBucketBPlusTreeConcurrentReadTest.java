@@ -381,7 +381,8 @@ class LongRunningBucketBPlusTreeConcurrentReadTest {
 		return new TransactionalBucketBPlusTree<>(
 			MULTILEVEL_VALUE_BLOCK_SIZE, MULTILEVEL_MIN_VALUE_BLOCK_SIZE,
 			MULTILEVEL_INTERNAL_BLOCK_SIZE, MULTILEVEL_MIN_INTERNAL_BLOCK_SIZE,
-			Integer.class, null
+			Integer.class, null,
+			capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
 		);
 	}
 
@@ -441,7 +442,7 @@ class LongRunningBucketBPlusTreeConcurrentReadTest {
 	 */
 	private static void runOneRound(@Nonnull ExecutorService readers, @Nonnull int[] keys) throws Exception {
 		final TransactionalBucketBPlusTree<Integer> tree =
-			new TransactionalBucketBPlusTree<>(BLOCK_SIZE, Integer.class);
+			new TransactionalBucketBPlusTree<>(BLOCK_SIZE, Integer.class, null);
 		final AtomicBoolean writing = new AtomicBoolean(true);
 		final AtomicInteger widestCount = new AtomicInteger();
 		final CountDownLatch readerStarted = new CountDownLatch(1);

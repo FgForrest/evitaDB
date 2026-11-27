@@ -110,7 +110,7 @@ sealed interface ValueColumn<M extends Comparable<M>>
 ```
 
 A `ValueColumn` behaves like a fixed-slot array (insert / remove / `copyRangeTo` / `fillEmpty` /
-`clearAt`) but is free to store the slots in a packed primitive representation. Implementations:
+`fillEmpty`) and can store the slots in a packed primitive representation. Implementations:
 
 | Implementation | Physical storage | Routes which values |
 |----------------|------------------|---------------------|

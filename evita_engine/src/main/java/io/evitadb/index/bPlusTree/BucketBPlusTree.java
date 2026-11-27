@@ -165,11 +165,6 @@ public interface BucketBPlusTree<K extends Comparable<K>> extends
 	void removeValueIdMinter();
 
 	/**
-	 * @return `true` when every bucket in this tree carries a stable value id
-	 */
-	boolean carriesValueIds();
-
-	/**
 	 * Returns the stable id of a distinct value, in a single tree descent.
 	 *
 	 * @param value the bucket value to resolve (may be null ⇒ unassigned)
@@ -183,13 +178,6 @@ public interface BucketBPlusTree<K extends Comparable<K>> extends
 	 * published version — after a commit merge, after a load, and when value ids are first switched on.
 	 */
 	void rebuildValueIdDirectory();
-
-	/**
-	 * Commit-merge variant of {@link #rebuildValueIdDirectory()} that re-stamps only the leaves the merge actually
-	 * rebuilt. Valid ONLY straight after a commit merge — an in-place mutation changes a leaf's content without
-	 * changing its instance, which this variant would skip.
-	 */
-	void rebuildValueIdDirectoryAfterMerge();
 
 	/**
 	 * Resolves a stable value id back to the distinct value it names — the reverse of {@link #valueIdOf}.
@@ -208,18 +196,6 @@ public interface BucketBPlusTree<K extends Comparable<K>> extends
 	 */
 	@Nullable
 	K valueOf(int valueId);
-
-	/**
-	 * Resolves a stable value id to the version token of the leaf its bucket lives in — the per-page staleness token a
-	 * consumer folds into a formula cache key, and the reverse-lookup counterpart of the leaf id a forward scan reads
-	 * off its cursor.
-	 *
-	 * The same caller obligation as {@link #valueOf(int)} applies: this method makes no transaction check either.
-	 *
-	 * @param valueId the id whose leaf is wanted
-	 * @return the leaf's version id, or `0` when the id resolves to nothing live
-	 */
-	long leafVersionOf(int valueId);
 
 	/**
 	 * Returns the heap the value id directory's location array occupies, in bytes; `0` when the tree carries none.

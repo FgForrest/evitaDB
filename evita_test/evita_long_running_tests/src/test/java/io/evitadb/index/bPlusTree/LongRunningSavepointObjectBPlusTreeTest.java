@@ -82,7 +82,9 @@ class LongRunningSavepointObjectBPlusTreeTest extends AbstractSavepointFuzzTest<
 	@Nonnull
 	private static TransactionalObjectBPlusTree<Integer, Integer> newSeededTree(@Nonnull Random random) {
 		final TransactionalObjectBPlusTree<Integer, Integer> tree = new TransactionalObjectBPlusTree<>(
-			8, 3, 7, 3, Integer.class, Integer.class
+			8, 3, 7, 3, Integer.class, Integer.class,
+			null,
+			null
 		);
 		final int size = random.nextInt(KEY_SPACE);
 		for (int i = 0; i < size; i++) {

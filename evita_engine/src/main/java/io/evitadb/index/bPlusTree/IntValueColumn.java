@@ -201,14 +201,6 @@ final class IntValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 	}
 
 	@Override
-	public void clearAt(int index) {
-		if (index < this.size) {
-			Arrays.fill(this.keys, index, this.size, 0);
-			this.size = index;
-		}
-	}
-
-	@Override
 	public void copyRangeTo(int srcPos, @Nonnull ValueColumn<M> dst, int dstPos, int length) {
 		assertSourceRangeIsLive(srcPos, length);
 		final IntValueColumn<M> target = asSameKind(dst);
@@ -289,7 +281,11 @@ final class IntValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 		return boxed;
 	}
 
-	@Override
+	/**
+	 * Computes the heap occupied by the column and its backing storage.
+	 *
+	 * @return the occupied heap in bytes
+	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
 		long size = layout.sizeOfObject(layout.referenceSize() + 2L * Integer.BYTES);

@@ -131,7 +131,11 @@ final class UnpublishedChildSlotSupport {
 	 */
 	static void tear(@Nonnull InternalBPlusTreeNode<?> node) {
 		final int peek = node.getPeek();
-		node.setPeek(peek + 1);
+		switch (node) {
+			case AbstractIntKeyedInternalNode<?> intNode -> intNode.setPeek(peek + 1);
+			case TransactionalLongBPlusTree.BPlusInternalTreeNode longNode -> longNode.setPeek(peek + 1);
+			default -> throw new IllegalArgumentException("Unsupported internal node: " + node.getClass());
+		}
 		assertEquals(peek + 1, node.getPeek(), "the fixture must raise peek");
 		assertNull(
 			node.getChildren()[peek + 1], "the admitted slot must read null - that unpublished slot IS the defect"

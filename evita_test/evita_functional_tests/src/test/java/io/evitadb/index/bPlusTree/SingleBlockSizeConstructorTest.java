@@ -202,10 +202,9 @@ class SingleBlockSizeConstructorTest {
 	@ValueSource(ints = {3, 4, 5, 6, 7, 8, 10, 64, 255, 256})
 	void shouldBuildBucketTree(int valueBlockSize) {
 		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
-			valueBlockSize, Integer.class
+			valueBlockSize, Integer.class,
+			null
 		);
-		assertEquals(valueBlockSize, tree.getValueBlockSize());
-		assertEquals(deriveInternalNodeBlockSize(valueBlockSize), tree.getInternalNodeBlockSize());
 		fillAndDrain(
 			valueBlockSize, tree,
 			key -> tree.addRecord(key, key),
@@ -222,8 +221,6 @@ class SingleBlockSizeConstructorTest {
 		final TransactionalElementBPlusTree<Integer> tree = new TransactionalElementBPlusTree<>(
 			valueBlockSize, Integer.class, Integer::intValue
 		);
-		assertEquals(valueBlockSize, tree.getValueBlockSize());
-		assertEquals(deriveInternalNodeBlockSize(valueBlockSize), tree.getInternalNodeBlockSize());
 		fillAndDrain(
 			valueBlockSize, tree,
 			tree::insert,
@@ -238,8 +235,6 @@ class SingleBlockSizeConstructorTest {
 	@ValueSource(ints = {3, 4, 5, 6, 7, 8, 10, 64, 255, 256})
 	void shouldBuildIntToLongTree(int valueBlockSize) {
 		final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(valueBlockSize);
-		assertEquals(valueBlockSize, tree.getValueBlockSize());
-		assertEquals(deriveInternalNodeBlockSize(valueBlockSize), tree.getInternalNodeBlockSize());
 		fillAndDrain(
 			valueBlockSize, tree,
 			key -> tree.insert(key, key * 10L),
@@ -254,8 +249,6 @@ class SingleBlockSizeConstructorTest {
 	@ValueSource(ints = {3, 4, 5, 6, 7, 8, 10, 64, 255, 256})
 	void shouldBuildLongTree(int valueBlockSize) {
 		final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(valueBlockSize, String.class);
-		assertEquals(valueBlockSize, tree.getValueBlockSize());
-		assertEquals(deriveInternalNodeBlockSize(valueBlockSize), tree.getInternalNodeBlockSize());
 		fillAndDrain(
 			valueBlockSize, tree,
 			key -> tree.insert(key, String.valueOf(key)),
@@ -270,10 +263,9 @@ class SingleBlockSizeConstructorTest {
 	@ValueSource(ints = {3, 4, 5, 6, 7, 8, 10, 64, 255, 256})
 	void shouldBuildObjectTree(int valueBlockSize) {
 		final TransactionalObjectBPlusTree<Integer, String> tree = new TransactionalObjectBPlusTree<>(
-			valueBlockSize, Integer.class, String.class
+			valueBlockSize, Integer.class, String.class,
+			null
 		);
-		assertEquals(valueBlockSize, tree.getValueBlockSize());
-		assertEquals(deriveInternalNodeBlockSize(valueBlockSize), tree.getInternalNodeBlockSize());
 		fillAndDrain(
 			valueBlockSize, tree,
 			key -> tree.insert(key, String.valueOf(key)),

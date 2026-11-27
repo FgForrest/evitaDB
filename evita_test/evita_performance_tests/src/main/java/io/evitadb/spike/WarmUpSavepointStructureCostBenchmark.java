@@ -28,6 +28,7 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.range.RangeIndex;
@@ -487,9 +488,15 @@ public class WarmUpSavepointStructureCostBenchmark {
 		@SuppressWarnings("unchecked")
 		@Override
 		protected void setUpStructures() {
+			@SuppressWarnings("unchecked")
+			final ValueColumnFactory<Integer> columnFactory =
+				(ValueColumnFactory<Integer>) ValueColumnFactory.forKey(Integer.class, null);
 			this.trees = new TransactionalBucketBPlusTree[MAX_INSTANCES];
 			for (int i = 0; i < MAX_INSTANCES; i++) {
-				final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(Integer.class);
+				final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+					64, 31, 31, 15, Integer.class, null,
+					columnFactory
+				);
 				for (int pk = 1; pk <= PREPOPULATED_ENTRIES; pk++) {
 					tree.addRecord(pk, pk);
 				}

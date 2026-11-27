@@ -144,7 +144,7 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 		final int limitElements = 1000;
 		final Comparator<Integer> reverse = Comparator.reverseOrder();
 		final TransactionalObjectBPlusTree<Integer, String> theTree = new TransactionalObjectBPlusTree<>(
-			16, 7, 7, 3, Integer.class, String.class, reverse
+			16, 7, 7, 3, Integer.class, String.class, null, reverse
 		);
 		// reference double ordered by the very same comparator (RULE-T3)
 		final TreeMap<Integer, String> reference = new TreeMap<>(reverse);
@@ -298,7 +298,9 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 	@Nonnull
 	private static TransactionalObjectBPlusTree<Integer, String> buildTree(@Nonnull int[] keys, int blockSize) {
 		final TransactionalObjectBPlusTree<Integer, String> tree = new TransactionalObjectBPlusTree<>(
-			blockSize, 1, blockSize, 1, Integer.class, String.class
+			blockSize, 1, blockSize, 1, Integer.class, String.class,
+			null,
+			null
 		);
 		for (final int key : keys) {
 			tree.insert(key, "Value" + key);
@@ -397,9 +399,9 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 		final String[] expectedArray = Arrays.stream(keyArray).mapToObj(i -> "Value" + i).toArray(String[]::new);
 		final String[] reconstructedArray = new String[expectedArray.length];
 		int index = expectedArray.length;
-		final Iterator<String> it = tree.valueReverseIterator();
+		final Iterator<Integer> it = tree.keyReverseIterator();
 		while (it.hasNext()) {
-			reconstructedArray[--index] = it.next();
+			reconstructedArray[--index] = tree.search(it.next()).orElseThrow();
 			assertEquals(expectedArray[index], reconstructedArray[index]);
 		}
 
@@ -414,7 +416,9 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 	) {
 		final Random random = new Random(seed);
 		final TransactionalObjectBPlusTree<Integer, String> bPlusTree = new TransactionalObjectBPlusTree<>(
-			valueBlockSize, minValueBlockSize, internalNodeSize, minInternalNodeSize, Integer.class, String.class
+			valueBlockSize, minValueBlockSize, internalNodeSize, minInternalNodeSize, Integer.class, String.class,
+			null,
+			null
 		);
 		int[] plainArray = new int[0];
 		do {

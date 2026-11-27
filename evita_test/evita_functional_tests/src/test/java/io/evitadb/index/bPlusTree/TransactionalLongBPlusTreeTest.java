@@ -125,9 +125,9 @@ class TransactionalLongBPlusTreeTest {
 		final String[] expectedArray = Arrays.stream(keyArray).mapToObj(i -> "Value" + i).toArray(String[]::new);
 		final String[] reconstructedArray = new String[expectedArray.length];
 		int index = expectedArray.length;
-		final Iterator<String> it = tree.valueReverseIterator();
+		final PrimitiveIterator.OfLong it = tree.keyReverseIterator();
 		while (it.hasNext()) {
-			reconstructedArray[--index] = it.next();
+			reconstructedArray[--index] = tree.search(it.nextLong()).orElseThrow();
 			assertEquals(expectedArray[index], reconstructedArray[index]);
 		}
 
@@ -614,7 +614,8 @@ class TransactionalLongBPlusTreeTest {
 		@DisplayName("releases diff layer of a producer value replaced by a different instance via upsert")
 		void shouldNotLeakLayerWhenProducerValueIsReplacedByDifferentInstanceViaUpsert() {
 			final TransactionalLongBPlusTree<TransactionalBitmap> tree =
-				new TransactionalLongBPlusTree<>(TransactionalBitmap.class, TransactionalBitmap.class::cast);
+				new TransactionalLongBPlusTree<>(
+					64, 31, 31, 15, TransactionalBitmap.class, TransactionalBitmap.class::cast);
 			tree.insert(1, new TransactionalBitmap(10));
 
 			assertStateAfterCommit(
@@ -864,7 +865,8 @@ class TransactionalLongBPlusTreeTest {
 		@DisplayName("releases diff layer of a modified producer value that is deleted in the same transaction")
 		void shouldNotLeakLayerWhenModifiedProducerValueIsDeleted() {
 			final TransactionalLongBPlusTree<TransactionalBitmap> tree =
-				new TransactionalLongBPlusTree<>(TransactionalBitmap.class, TransactionalBitmap.class::cast);
+				new TransactionalLongBPlusTree<>(
+					64, 31, 31, 15, TransactionalBitmap.class, TransactionalBitmap.class::cast);
 			tree.insert(1, new TransactionalBitmap(10));
 
 			assertStateAfterCommit(
@@ -885,7 +887,8 @@ class TransactionalLongBPlusTreeTest {
 		@DisplayName("sweeps cleanly when a freshly created producer value is added and deleted in the same transaction")
 		void shouldNotLeakLayerWhenFreshlyCreatedProducerValueIsAddedThenDeleted() {
 			final TransactionalLongBPlusTree<TransactionalBitmap> tree =
-				new TransactionalLongBPlusTree<>(TransactionalBitmap.class, TransactionalBitmap.class::cast);
+				new TransactionalLongBPlusTree<>(
+					64, 31, 31, 15, TransactionalBitmap.class, TransactionalBitmap.class::cast);
 
 			assertStateAfterCommit(
 				tree,
@@ -1711,44 +1714,6 @@ class TransactionalLongBPlusTreeTest {
 	class ForwardEntryIterationTest {
 
 		@Test
-		@DisplayName("iterates entries from exact existing key")
-		void shouldIterateThroughLeafNodeEntriesLeftToRightFromExactPosition() {
-			final TreeTuple testTree = prepareRandomTree(42, 100);
-			final Iterator<Entry<String>> it = testTree.bPlusTree().greaterOrEqualEntryIterator(40);
-			final long[] plainFullArray = testTree.plainArray();
-			final InsertionPosition insertionPosition =
-				ArrayUtils.computeInsertPositionOfLongInOrderedArray(40, plainFullArray);
-
-			assertTrue(insertionPosition.alreadyPresent());
-			final int startPos = insertionPosition.position();
-			//noinspection unchecked
-			final Entry<String>[] partialCopy = new Entry[plainFullArray.length - startPos];
-			for (int i = startPos; i < plainFullArray.length; i++) {
-				partialCopy[i - startPos] = new Entry<>(plainFullArray[i], "Value" + plainFullArray[i]);
-			}
-
-			//noinspection unchecked
-			final Entry<String>[] reconstructedArray = new Entry[partialCopy.length];
-			int index = 0;
-			while (it.hasNext()) {
-				reconstructedArray[index++] = it.next();
-			}
-
-			assertArrayEquals(partialCopy, reconstructedArray);
-			assertThrows(NoSuchElementException.class, it::next);
-		}
-
-		@Test
-		@DisplayName("returns empty entry iterator when start key exceeds maximum")
-		void shouldFailToIterateEntriesLeftToRightThroughNonExistingValues() {
-			final TreeTuple testTree = prepareRandomTree(42, 100);
-			final long[] keys = testTree.plainArray();
-			final Iterator<Entry<String>> it = testTree.bPlusTree().greaterOrEqualEntryIterator(
-				keys[keys.length - 1] + 1000);
-			assertFalse(it.hasNext());
-		}
-
-		@Test
 		@DisplayName("traverses full tree key and value pairs in ascending order")
 		void shouldIterateEntireTreeViaEntryIterator() {
 			final TreeTuple testTree = prepareRandomTree(42, 50);
@@ -1763,33 +1728,6 @@ class TransactionalLongBPlusTreeTest {
 				index++;
 			}
 			assertEquals(keys.length, index);
-			assertThrows(NoSuchElementException.class, it::next);
-		}
-
-		@Test
-		@DisplayName("iterates entries when start key falls in the gap after the last key of a leaf")
-		void shouldIterateEntriesFromKeyInGapBetweenLeaves() {
-			// key 40 falls past the last key of the leaf [10,20,30] while the following leaf [50,60]
-			// still holds entries >= 40; the iterator must cross the gap and return both entries
-			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, String.class);
-			final long[] keys = {10, 20, 30, 50, 60};
-			for (final long key : keys) {
-				tree.insert(key, "Value" + key);
-			}
-
-			final Iterator<Entry<String>> it = tree.greaterOrEqualEntryIterator(40);
-			//noinspection unchecked
-			final Entry<String>[] reconstructed = new Entry[2];
-			int index = 0;
-			while (it.hasNext()) {
-				reconstructed[index++] = it.next();
-			}
-
-			//noinspection unchecked
-			final Entry<String>[] expected = new Entry[]{
-				new Entry<>(50, "Value50"), new Entry<>(60, "Value60")
-			};
-			assertArrayEquals(expected, reconstructed);
 			assertThrows(NoSuchElementException.class, it::next);
 		}
 
@@ -1816,186 +1754,6 @@ class TransactionalLongBPlusTreeTest {
 			verifyTreeConsistency(testTree.bPlusTree(), testTree.plainArray());
 			verifyReverseValueIterator(testTree.bPlusTree(), testTree.plainArray());
 			assertEquals(testTree.totalElements(), testTree.bPlusTree().size());
-		}
-
-		@Test
-		@DisplayName("iterates all values in descending key order")
-		void shouldIterateThroughLeafNodeValuesRightToLeft() {
-			final TreeTuple testTree = prepareRandomTree(System.currentTimeMillis(), 100);
-
-			final String[] reconstructedArray = new String[testTree.totalElements()];
-			int index = testTree.totalElements();
-			final Iterator<String> it = testTree.bPlusTree().valueReverseIterator();
-			while (it.hasNext()) {
-				reconstructedArray[--index] = it.next();
-			}
-
-			assertArrayEquals(testTree.asStringArray(), reconstructedArray);
-			assertThrows(NoSuchElementException.class, it::next);
-			assertEquals(testTree.totalElements(), testTree.bPlusTree().size());
-		}
-
-		@Test
-		@DisplayName("iterates values backwards from exact existing key")
-		void shouldIterateThroughLeafNodeValuesRightToLeftFromExactPosition() {
-			final TreeTuple testTree = prepareRandomTree(42, 100);
-			final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(40);
-			final long[] plainFullArray = testTree.plainArray();
-			final InsertionPosition insertionPosition =
-				ArrayUtils.computeInsertPositionOfLongInOrderedArray(40, plainFullArray);
-
-			assertTrue(insertionPosition.alreadyPresent());
-			final int endPos = insertionPosition.position();
-			final String[] partialCopy = new String[endPos + 1];
-			for (int i = endPos; i >= 0; i--) {
-				partialCopy[endPos - i] = "Value" + plainFullArray[i];
-			}
-
-			final String[] reconstructedArray = new String[partialCopy.length];
-			int index = 0;
-			while (it.hasNext()) {
-				reconstructedArray[index++] = it.next();
-			}
-
-			assertArrayEquals(partialCopy, reconstructedArray);
-			assertThrows(NoSuchElementException.class, it::next);
-		}
-
-		@Test
-		@DisplayName("iterates values backwards from non-existing key position")
-		void shouldIterateThroughLeafNodeValuesRightToLeftFromExactNonExistingPosition() {
-			final TreeTuple testTree = prepareRandomTree(42, 100);
-			final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(39);
-			final long[] plainFullArray = testTree.plainArray();
-			final InsertionPosition insertionPosition =
-				ArrayUtils.computeInsertPositionOfLongInOrderedArray(39, plainFullArray);
-
-			assertFalse(insertionPosition.alreadyPresent());
-			final int thePosition = insertionPosition.position();
-			final String[] partialCopy = new String[thePosition];
-			for (int i = partialCopy.length - 1; i >= 0; i--) {
-				partialCopy[thePosition - i - 1] = "Value" + plainFullArray[i];
-			}
-
-			final String[] reconstructedArray = new String[partialCopy.length];
-			int index = 0;
-			while (it.hasNext()) {
-				reconstructedArray[index++] = it.next();
-			}
-
-			assertArrayEquals(partialCopy, reconstructedArray);
-			assertThrows(NoSuchElementException.class, it::next);
-		}
-
-		@Test
-		@DisplayName("returns empty reverse iterator when below minimum")
-		void shouldFailToIterateValuesRightToLeftThroughNonExistingValues() {
-			final TreeTuple testTree = prepareRandomTree(42, 100);
-			final long[] keys = testTree.plainArray();
-
-			final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(keys[0] - 1000);
-			assertFalse(it.hasNext());
-
-			// start key above the maximum must yield the whole tree backwards, starting with the maximum
-			final Iterator<String> it2 = testTree.bPlusTree().lesserOrEqualValueIterator(
-				keys[keys.length - 1] + 1000);
-			assertTrue(it2.hasNext());
-			assertEquals("Value" + keys[keys.length - 1], it2.next());
-		}
-
-		@Test
-		@DisplayName("returns empty reverse iterator on empty tree")
-		void shouldIterateReverseOnEmptyTree() {
-			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, String.class);
-			final Iterator<String> it = tree.valueReverseIterator();
-			assertFalse(it.hasNext());
-		}
-
-		@Test
-		@DisplayName("reverse iterates single element tree")
-		void shouldIterateReverseOnSingleElementTree() {
-			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, String.class);
-			tree.insert(42, "Value42");
-			final Iterator<String> it = tree.valueReverseIterator();
-			assertTrue(it.hasNext());
-			assertEquals("Value42", it.next());
-			assertFalse(it.hasNext());
-		}
-
-		@Test
-		@DisplayName("iterates all elements backwards from maximum key")
-		void shouldIterateFromLastKeyReverse() {
-			final TreeTuple testTree = prepareRandomTree(42, 50);
-			final long[] keys = testTree.plainArray();
-			final long lastKey = keys[keys.length - 1];
-			final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(lastKey);
-			int count = 0;
-			while (it.hasNext()) {
-				it.next();
-				count++;
-			}
-			assertEquals(keys.length, count);
-		}
-
-		@Test
-		@DisplayName("iterates one element backwards from minimum key")
-		void shouldIterateFromFirstKeyReverse() {
-			final TreeTuple testTree = prepareRandomTree(42, 50);
-			final long[] keys = testTree.plainArray();
-			final long firstKey = keys[0];
-			final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(firstKey);
-			assertTrue(it.hasNext());
-			assertEquals("Value" + firstKey, it.next());
-			assertFalse(it.hasNext());
-		}
-
-		@Test
-		@DisplayName("iterates values backwards when start key falls in the gap before the first key of a leaf")
-		void shouldIterateValuesFromKeyInGapBetweenLeavesReverse() {
-			// key 40 falls below the first key of the leaf [50,60] while the preceding leaf [10,20,30]
-			// still holds values <= 40; the lesserOrEqualValueIterator must cross the inter-leaf gap and
-			// return, in descending order, every value <= 40
-			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, String.class);
-			final long[] keys = {10, 20, 30, 50, 60};
-			for (final long key : keys) {
-				tree.insert(key, "Value" + key);
-			}
-
-			final Iterator<String> it = tree.lesserOrEqualValueIterator(40);
-			final String[] reconstructed = new String[3];
-			int index = 0;
-			while (it.hasNext()) {
-				reconstructed[index++] = it.next();
-			}
-
-			assertArrayEquals(new String[]{"Value30", "Value20", "Value10"}, reconstructed);
-			assertThrows(NoSuchElementException.class, it::next);
-		}
-
-		@Test
-		@DisplayName("matches sorted reference for arbitrary gap start keys across many leaves")
-		void shouldMatchReferenceForGapStartKeysReverse() {
-			final TreeTuple testTree = prepareRandomTree(913, 200);
-			final long[] keys = testTree.plainArray();
-
-			// probe every possible start key from below the minimum to above the maximum
-			for (long startKey = keys[0] - 2; startKey <= keys[keys.length - 1] + 2; startKey++) {
-				final InsertionPosition position =
-					ArrayUtils.computeInsertPositionOfLongInOrderedArray(startKey, keys);
-				// the reverse iterator yields every key <= startKey in descending order; when startKey is
-				// already present the matching index is included, otherwise the insertion point is exclusive
-				int from = position.alreadyPresent() ? position.position() : position.position() - 1;
-
-				final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(startKey);
-				int index = from;
-				while (it.hasNext()) {
-					assertTrue(index >= 0, "Iterator returned more values than reference for key " + startKey);
-					assertEquals(
-						"Value" + keys[index], it.next(), "Mismatch at key " + startKey + ", index " + index);
-					index--;
-				}
-				assertEquals(-1, index, "Iterator stopped early for start key " + startKey);
-			}
 		}
 
 	}
@@ -2119,77 +1877,6 @@ class TransactionalLongBPlusTreeTest {
 	}
 
 	@Nested
-	@DisplayName("Reverse entry iteration")
-	class ReverseEntryIterationTest {
-
-		@Test
-		@DisplayName("iterates entries backwards from exact existing key")
-		void shouldIterateThroughLeafNodeEntriesRightToLeftFromExactPosition() {
-			final TreeTuple testTree = prepareRandomTree(42, 100);
-			final Iterator<Entry<String>> it = testTree.bPlusTree().lesserOrEqualEntryIterator(40);
-			final long[] plainFullArray = testTree.plainArray();
-			final InsertionPosition insertionPosition =
-				ArrayUtils.computeInsertPositionOfLongInOrderedArray(40, plainFullArray);
-
-			assertTrue(insertionPosition.alreadyPresent());
-			final int endPos = insertionPosition.position();
-			//noinspection unchecked
-			final Entry<String>[] partialCopy = new Entry[endPos + 1];
-			for (int i = endPos; i >= 0; i--) {
-				partialCopy[endPos - i] = new Entry<>(plainFullArray[i], "Value" + plainFullArray[i]);
-			}
-
-			//noinspection unchecked
-			final Entry<String>[] reconstructedArray = new Entry[partialCopy.length];
-			int index = 0;
-			while (it.hasNext()) {
-				reconstructedArray[index++] = it.next();
-			}
-
-			assertArrayEquals(partialCopy, reconstructedArray);
-			assertThrows(NoSuchElementException.class, it::next);
-		}
-
-		@Test
-		@DisplayName("returns empty reverse entry iterator when below minimum")
-		void shouldFailToIterateEntriesRightToLeftThroughNonExistingValues() {
-			final TreeTuple testTree = prepareRandomTree(42, 100);
-			final long[] keys = testTree.plainArray();
-			final Iterator<Entry<String>> it = testTree.bPlusTree().lesserOrEqualEntryIterator(
-				keys[0] - 1000);
-			assertFalse(it.hasNext());
-		}
-
-		@Test
-		@DisplayName("iterates entries backwards when start key falls in the gap before the first key of a leaf")
-		void shouldIterateEntriesFromKeyInGapBetweenLeavesReverse() {
-			// key 40 falls below the first key of the leaf [50,60] while the preceding leaf [10,20,30]
-			// still holds entries <= 40; the iterator must cross the gap and return them in descending order
-			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, String.class);
-			final long[] keys = {10, 20, 30, 50, 60};
-			for (final long key : keys) {
-				tree.insert(key, "Value" + key);
-			}
-
-			final Iterator<Entry<String>> it = tree.lesserOrEqualEntryIterator(40);
-			//noinspection unchecked
-			final Entry<String>[] reconstructed = new Entry[3];
-			int index = 0;
-			while (it.hasNext()) {
-				reconstructed[index++] = it.next();
-			}
-
-			//noinspection unchecked
-			final Entry<String>[] expected = new Entry[]{
-				new Entry<>(30, "Value30"), new Entry<>(20, "Value20"), new Entry<>(10, "Value10")
-			};
-			assertArrayEquals(expected, reconstructed);
-			assertThrows(NoSuchElementException.class, it::next);
-		}
-
-	}
-
-	@Nested
 	@DisplayName("Transactional semantics")
 	class TransactionalSemanticsTest {
 
@@ -2221,7 +1908,7 @@ class TransactionalLongBPlusTreeTest {
 		void shouldHandleTransactionalLayerProducers() {
 			final TransactionalLongBPlusTree<TransactionalBitmap> theTree =
 				new TransactionalLongBPlusTree<>(
-					TransactionalBitmap.class,
+					64, 31, 31, 15, TransactionalBitmap.class,
 					bitmap -> new TransactionalBitmap((Bitmap) bitmap)
 				);
 			theTree.insert(1, new TransactionalBitmap(1, 2));
@@ -2556,13 +2243,6 @@ class TransactionalLongBPlusTreeTest {
 			assertEquals(ConsistencyState.CONSISTENT, report.state());
 		}
 
-		@Test
-		@DisplayName("genericClass returns the raw tree class")
-		void shouldReturnCorrectGenericClass() {
-			final Class<TransactionalLongBPlusTree<String>> theClass = TransactionalLongBPlusTree.genericClass();
-			assertSame(TransactionalLongBPlusTree.class, theClass);
-		}
-
 	}
 
 	@Nested
@@ -2861,26 +2541,6 @@ class TransactionalLongBPlusTreeTest {
 			);
 		}
 
-		/** Checks the default block sizes for a producer-valued tree. */
-		@Test
-		@DisplayName("default block sizes are applied by the wrapper constructor")
-		void shouldSetDefaultBlockSizesWithWrapperConstructor() {
-			final TransactionalLongBPlusTree<TransactionalBitmap> tree =
-				new TransactionalLongBPlusTree<>(
-					TransactionalBitmap.class,
-					bitmap -> new TransactionalBitmap((Bitmap) bitmap)
-				);
-			assertEquals(64, tree.getValueBlockSize());
-			assertEquals(31, tree.getMinValueBlockSize());
-			assertEquals(31, tree.getInternalNodeBlockSize());
-			assertEquals(15, tree.getMinInternalNodeBlockSize());
-			assertEquals(0, tree.size());
-
-			// should work -- wrapper is provided
-			tree.insert(1, new TransactionalBitmap(1));
-			assertEquals(1, tree.size());
-		}
-
 	}
 
 	@Nested
@@ -3048,7 +2708,7 @@ class TransactionalLongBPlusTreeTest {
 		void shouldRollbackNestedTransactionalLayerProducerValues() {
 			final TransactionalLongBPlusTree<TransactionalBitmap> tree =
 				new TransactionalLongBPlusTree<>(
-					TransactionalBitmap.class,
+					64, 31, 31, 15, TransactionalBitmap.class,
 					bitmap -> new TransactionalBitmap((Bitmap) bitmap)
 				);
 			tree.insert(1, new TransactionalBitmap(1, 2));
@@ -3074,7 +2734,7 @@ class TransactionalLongBPlusTreeTest {
 		void shouldCommitMultipleTransactionalLayerProducerValues() {
 			final TransactionalLongBPlusTree<TransactionalBitmap> tree =
 				new TransactionalLongBPlusTree<>(
-					TransactionalBitmap.class,
+					64, 31, 31, 15, TransactionalBitmap.class,
 					bitmap -> new TransactionalBitmap((Bitmap) bitmap)
 				);
 			tree.insert(1, new TransactionalBitmap(1));
@@ -3709,7 +3369,7 @@ class TransactionalLongBPlusTreeTest {
 				tree.insert(key, "Value" + key);
 			}
 
-			assertInternalNodeCapacity(tree.getRoot(), tree.getInternalNodeBlockSize());
+			assertInternalNodeCapacity(tree.getRoot(), 3);
 		}
 
 	}
@@ -3922,7 +3582,10 @@ class TransactionalLongBPlusTreeTest {
 		void shouldBoundTheHeapWalkWhenPeekRunsAheadOfTheArrays() {
 			// this is the reader the guard exists for: EntityCollection#describeIndex takes no snapshot and holds no
 			// transaction, and hands a live index to IndexDetailProjection for exactly this walk
-			assertTrue(tornSingleLeafTree().getHeapSizeInBytes() > 0, "the heap walk must survive the torn leaf");
+			assertTrue(
+				tornSingleLeafTree().getHeapSizeInBytes(element -> 0L) > 0,
+				"the heap walk must survive the torn leaf"
+			);
 		}
 
 	}
@@ -4029,12 +3692,12 @@ class TransactionalLongBPlusTreeTest {
 			@Nonnull UnpublishedChildSlotSupport.TornSpine<TransactionalLongBPlusTree<String>> fixture
 		) {
 			final TransactionalLongBPlusTree<String> tree = fixture.tree();
-			final long heapBefore = tree.getHeapSizeInBytes();
+			final long heapBefore = tree.getHeapSizeInBytes(element -> 0L);
 
 			UnpublishedChildSlotSupport.tear(fixture.node());
 
 			assertEquals(
-				heapBefore, tree.getHeapSizeInBytes(),
+				heapBefore, tree.getHeapSizeInBytes(element -> 0L),
 				"the heap walk must step over the unpublished slot - the torn node owns no more heap than before"
 			);
 		}

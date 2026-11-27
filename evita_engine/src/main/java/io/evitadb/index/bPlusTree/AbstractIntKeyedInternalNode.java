@@ -234,7 +234,11 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 		}
 	}
 
-	@Override
+	/**
+	 * Moves the final live slot and clears any entries beyond a shortened live run.
+	 *
+	 * @param peek the new final live slot
+	 */
 	public void setPeek(int peek) {
 		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer == null) {
@@ -331,7 +335,11 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 		}
 	}
 
-	@Override
+	/**
+	 * Checks whether the node has reached its capacity.
+	 *
+	 * @return whether the node is full
+	 */
 	public boolean isFull() {
 		final SELF layer = this.transactionalLayer ?
 			Transaction.getTransactionalMemoryLayerIfExists(this) :
@@ -681,8 +689,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	}
 
 	/**
-	 * Searches for the child index that should contain the given key. This method avoids allocating a NodeWithIndex
-	 * record.
+	 * Searches for the child index that should contain the given key.
 	 *
 	 * Allocation-free: {@link Arrays#binarySearch(int[], int, int, int)} is folded directly into the child-index
 	 * mapping instead of routing through `ArrayUtils.computeInsertPositionOfIntInOrderedArray`, which allocates an

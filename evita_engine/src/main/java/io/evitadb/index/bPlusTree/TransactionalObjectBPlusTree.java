@@ -83,17 +83,17 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	/**
 	 * The type of the keys stored in the tree.
 	 */
-	@Getter private final Class<K> keyType;
+	private final Class<K> keyType;
 	/**
 	 * The type of the values stored in the tree.
 	 */
-	@Getter private final Class<V> valueType;
+	private final Class<V> valueType;
 	/**
 	 * Optional comparator that defines the total order of the keys. When `null`, the keys are ordered by their
 	 * natural [Comparable] order. The comparator (when present) is threaded into every node and drives every
 	 * key-comparison site so the tree can be ordered by an arbitrary total order (e.g. a locale-aware collator).
 	 */
-	@Nullable @Getter private final Comparator<K> comparator;
+	@Nullable private final Comparator<K> comparator;
 	/**
 	 * Operator that wraps the values in a transactional layer.
 	 */
@@ -329,17 +329,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	}
 
 	/**
-	 * Constructor to initialize the B+ Tree.
-	 *
-	 * @param valueBlockSize maximum number of values in a leaf node
-	 * @param keyType        the type of the keys stored in the tree
-	 * @param valueType      the type of the values stored in the tree
-	 */
-	public TransactionalObjectBPlusTree(int valueBlockSize, @Nonnull Class<K> keyType, @Nonnull Class<V> valueType) {
-		this(valueBlockSize, keyType, valueType, null);
-	}
-
-	/**
 	 * Constructor to initialize the B+ Tree with an optional comparator.
 	 *
 	 * The remaining block sizes are derived from `valueBlockSize` by
@@ -364,83 +353,14 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			deriveMinBlockSize(deriveInternalNodeBlockSize(valueBlockSize)),
 			keyType,
 			valueType,
+			null,
 			comparator
 		);
 	}
 
 	/**
-	 * Constructor to initialize the B+ Tree.
-	 *
-	 * @param valueBlockSize           maximum number of values in a leaf node
-	 * @param minValueBlockSize        minimum number of values in a leaf node
-	 *                                 (controls branching factor for leaf nodes)
-	 * @param internalNodeBlockSize    maximum number of keys in an internal node
-	 * @param minInternalNodeBlockSize minimum number of keys in an internal node
-	 *                                 (controls branching factor for internal nodes)
-	 * @param keyType                  the type of the keys stored in the tree
-	 * @param valueType                the type of the values stored in the tree
-	 */
-	public TransactionalObjectBPlusTree(
-		int valueBlockSize,
-		int minValueBlockSize,
-		int internalNodeBlockSize,
-		int minInternalNodeBlockSize,
-		@Nonnull Class<K> keyType,
-		@Nonnull Class<V> valueType
-	) {
-		this(
-			valueBlockSize,
-			minValueBlockSize,
-			internalNodeBlockSize,
-			minInternalNodeBlockSize,
-			keyType,
-			valueType,
-			null
-		);
-	}
-
-	/**
-	 * Constructor to initialize the B+ Tree with an optional comparator.
-	 *
-	 * @param valueBlockSize           maximum number of values in a leaf node
-	 * @param minValueBlockSize        minimum number of values in a leaf node
-	 *                                 (controls branching factor for leaf nodes)
-	 * @param internalNodeBlockSize    maximum number of keys in an internal node
-	 * @param minInternalNodeBlockSize minimum number of keys in an internal node
-	 *                                 (controls branching factor for internal nodes)
-	 * @param keyType                  the type of the keys stored in the tree
-	 * @param valueType                the type of the values stored in the tree
-	 * @param comparator               optional comparator defining the key order; `null` ⇒ natural order
-	 */
-	public TransactionalObjectBPlusTree(
-		int valueBlockSize,
-		int minValueBlockSize,
-		int internalNodeBlockSize,
-		int minInternalNodeBlockSize,
-		@Nonnull Class<K> keyType,
-		@Nonnull Class<V> valueType,
-		@Nullable Comparator<K> comparator
-	) {
-		this(
-			valueBlockSize,
-			minValueBlockSize,
-			internalNodeBlockSize,
-			minInternalNodeBlockSize,
-			keyType,
-			valueType,
-			comparator,
-			null,
-			new BPlusLeafTreeNode<>(valueBlockSize, keyType, valueType, comparator, null, true),
-			0
-		);
-	}
-
-	/**
-	 * Constructor to initialize the B+ Tree with explicit block sizes, a value wrapper and an optional comparator - the
-	 * wrapper-aware counterpart of
-	 * {@link #TransactionalObjectBPlusTree(int, int, int, int, Class, Class, Comparator)}, required when the value type
-	 * implements {@link TransactionalLayerProducer} (e.g. `ValueToRecordBitmap`) and therefore must be wrapped on
-	 * commit. Lets consumers tune the leaf block size for their workload (mirrors `SortIndex.VALUE_BLOCK_SIZE`).
+	 * Initializes the B+ tree with explicit block sizes and an optional value wrapper. Values that implement
+	 * {@link TransactionalLayerProducer} require a wrapper so the tree can commit their transactional layers.
 	 *
 	 * @param valueBlockSize            maximum number of values in a leaf node
 	 * @param minValueBlockSize         minimum number of values in a leaf node
@@ -448,7 +368,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	 * @param minInternalNodeBlockSize  minimum number of keys in an internal node
 	 * @param keyType                   the type of the keys stored in the tree
 	 * @param valueType                 the type of the values stored in the tree
-	 * @param transactionalLayerWrapper operator that wraps the values in a transactional layer
+	 * @param transactionalLayerWrapper wrapper for transactional values, or `null` for other values
 	 * @param comparator                optional comparator defining the key order; `null` ⇒ natural order
 	 */
 	public TransactionalObjectBPlusTree(
@@ -458,7 +378,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		int minInternalNodeBlockSize,
 		@Nonnull Class<K> keyType,
 		@Nonnull Class<V> valueType,
-		@Nonnull Function<Object, V> transactionalLayerWrapper,
+		@Nullable Function<Object, V> transactionalLayerWrapper,
 		@Nullable Comparator<K> comparator
 	) {
 		this(
@@ -654,30 +574,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	}
 
 	/**
-	 * Returns an iterator that traverses the B+ tree keys from left to right starting from the specified key or
-	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return an iterator that traverses the B+ tree keys from left to right starting from the specified key
-	 */
-	@Nonnull
-	public Iterator<K> greaterOrEqualKeyIterator(@Nonnull K key) {
-		return new ForwardTreeKeyIterator<>(createCursor(key), key);
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree keys from left to right starting from the specified key or
-	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return an iterator that traverses the B+ tree keys from left to right starting from the specified key
-	 */
-	@Nonnull
-	public Iterator<K> lesserOrEqualKeyIterator(@Nonnull K key) {
-		return new ReverseTreeKeyIterator<>(createCursor(key), key);
-	}
-
-	/**
 	 * Returns an iterator that traverses the B+ tree keys from right to left.
 	 *
 	 * @return an iterator that traverses the B+ tree keys from right to left
@@ -722,16 +618,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	}
 
 	/**
-	 * Returns an iterator that traverses the B+ tree values from right to left.
-	 *
-	 * @return an iterator that traverses the B+ tree values from right to left
-	 */
-	@Nonnull
-	public Iterator<V> valueReverseIterator() {
-		return new ReverseTreeValueIterator<>(createRightmostCursor());
-	}
-
-	/**
 	 * Returns an iterator that traverses the B+ tree entries (both keys and values) from left to right.
 	 *
 	 * @return an iterator that traverses the B+ tree entries (both keys and values) from left to right
@@ -739,30 +625,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	@Nonnull
 	public Iterator<Entry<K, V>> entryIterator() {
 		return new ForwardTreeEntryIterator<>(createLeftmostCursor());
-	}
-
-	/**
-	 * Returns an allocation-free forward cursor over the tree entries: each {@link EntryCursor#next()} returns the key
-	 * and {@link EntryCursor#value()} the paired value, without building an intermediate {@link Entry} object per step.
-	 * Intended for hot full-scan read paths (e.g. sort-supplier traversal) where the per-entry allocation of
-	 * {@link #entryIterator()} would dominate.
-	 *
-	 * @return an allocation-free forward entry cursor
-	 */
-	@Nonnull
-	public EntryCursor<K, V> entryCursor() {
-		return new ForwardTreeEntryCursor<>(createLeftmostCursor());
-	}
-
-	/**
-	 * Returns an allocation-free reverse cursor over the tree entries. The right-to-left counterpart of
-	 * {@link #entryCursor()}.
-	 *
-	 * @return an allocation-free reverse entry cursor
-	 */
-	@Nonnull
-	public EntryCursor<K, V> entryReverseCursor() {
-		return new ReverseTreeEntryCursor<>(createRightmostCursor());
 	}
 
 	/**
@@ -775,18 +637,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	@Nonnull
 	public Iterator<Entry<K, V>> greaterOrEqualEntryIterator(@Nonnull K key) {
 		return new ForwardTreeEntryIterator<>(createCursor(key), key);
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree entries (both keys and values) from left to right starting from the specified key or
-	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return an iterator that traverses the B+ tree entries (both keys and values) from left to right starting from the specified key
-	 */
-	@Nonnull
-	public Iterator<Entry<K, V>> lesserOrEqualEntryIterator(@Nonnull K key) {
-		return new ReverseTreeEntryIterator<>(createCursor(key), key);
 	}
 
 	@Override
@@ -1133,14 +983,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	interface ObjectKeyedNode<M extends Comparable<M>> {
 
 		/**
-		 * Retrieves an array of keys associated with the node.
-		 *
-		 * @return an array of keys present in the node. The array is guaranteed to be non-null.
-		 */
-		@Nonnull
-		M[] getKeys();
-
-		/**
 		 * Retrieves the left boundary (smallest) key contained within the node.
 		 *
 		 * @return the left boundary key of the node.
@@ -1308,8 +1150,12 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			this.transactionalLayer = transactionalLayer;
 		}
 
+		/**
+		 * Returns the keys visible on the current transaction or the committed node.
+		 *
+		 * @return the node keys
+		 */
 		@Nonnull
-		@Override
 		public M[] getKeys() {
 			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
@@ -1333,7 +1179,11 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			}
 		}
 
-		@Override
+		/**
+		 * Moves the final live slot and clears any entries beyond a shortened live run.
+		 *
+		 * @param peek the new final live slot
+		 */
 		public void setPeek(int peek) {
 			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
@@ -1408,7 +1258,11 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			}
 		}
 
-		@Override
+		/**
+		 * Checks whether the node has reached its capacity.
+		 *
+		 * @return whether the node is full
+		 */
 		public boolean isFull() {
 			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
@@ -1762,7 +1616,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 
 		/**
 		 * Searches for the child index that should contain the given key.
-		 * This method avoids allocating a NodeWithIndex record.
 		 *
 		 * @param key the key to search for within the B+ Tree.
 		 * @return the index of the child that should contain the specified key.
@@ -2145,8 +1998,12 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			this.transactionalLayerWrapper = transactionalLayerWrapper;
 		}
 
+		/**
+		 * Returns the keys visible on the current transaction or the committed node.
+		 *
+		 * @return the node keys
+		 */
 		@Nonnull
-		@Override
 		public M[] getKeys() {
 			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
@@ -2170,7 +2027,11 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			}
 		}
 
-		@Override
+		/**
+		 * Moves the final live slot and clears any entries beyond a shortened live run.
+		 *
+		 * @param peek the new final live slot
+		 */
 		public void setPeek(int peek) {
 			final BPlusLeafTreeNode<M, N> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
@@ -2245,7 +2106,11 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			}
 		}
 
-		@Override
+		/**
+		 * Checks whether the node has reached its capacity.
+		 *
+		 * @return whether the node is full
+		 */
 		public boolean isFull() {
 			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
@@ -2521,25 +2386,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 				}
 				return layer.values;
 			}
-		}
-
-		/**
-		 * Returns the index of the given key within the ordered key range, or a negative value following the
-		 * [java.util.Arrays#binarySearch] convention when the key is absent. The comparison routes through this
-		 * node's [#comparator] when present, otherwise through the keys' natural [Comparable] order.
-		 *
-		 * @param key  the key to search for
-		 * @param keys the ordered key array to search within
-		 * @param from the start index (inclusive)
-		 * @param to   the end index (exclusive)
-		 * @return the index of the key if present; otherwise `(-(insertion point) - 1)`
-		 */
-		private int findKeyIndex(@Nonnull M key, @Nonnull M[] keys, int from, int to) {
-			// the JDK Arrays.binarySearch with comparator treats a null comparator as natural ordering; we keep
-			// the explicit branch so the natural-order path stays on the Comparable overload for clarity
-			return this.comparator == null
-				? Arrays.binarySearch(keys, from, to, key)
-				: Arrays.binarySearch(keys, from, to, key, this.comparator);
 		}
 
 		/**
@@ -2910,42 +2756,39 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	 */
 	private static abstract class AbstractForwardTreeIterator<M extends Comparable<M>, N, S> implements Iterator<S> {
 		/**
-		 * Array of arrays representing siblings on each level of the path. Visible to subclasses so the hot
-		 * {@link EntryCursor} can resolve the following leaf for software prefetching.
+		 * Sibling arrays for each level on the traversal path.
 		 */
-		@Nonnull protected final BPlusTreeNode<?>[][] path;
+		@Nonnull private final BPlusTreeNode<?>[][] path;
 		/**
-		 * The index of the current key on particular path. Visible to subclasses for prefetch lookahead.
+		 * The index of the current key on particular path.
 		 */
-		@Nonnull protected final int[] pathIndex;
+		@Nonnull private final int[] pathIndex;
 		/**
-		 * The peek index of each sibling array on the path. Visible to subclasses for prefetch lookahead.
+		 * The peek index of each sibling array on the path.
 		 */
-		@Nonnull protected final int[] pathPeeks;
+		@Nonnull private final int[] pathPeeks;
 		/**
 		 * Function allowing to extract the iterator output from the current index and the cached leaf key/value arrays.
 		 */
 		@Nonnull private final IntObjTriFunction<M[], N[], S> outputExtractor;
 		/**
-		 * The index of the current key within the current leaf node. Visible to subclasses so the hot
-		 * {@link EntryCursor} can read it without an accessor call.
+		 * The index of the current key within the current leaf node.
 		 */
-		protected int currentIndex;
+		private int currentIndex;
 		/**
 		 * Flag indicating whether there are more elements to traverse.
 		 */
-		protected boolean hasNext;
+		private boolean hasNext;
 		/**
 		 * The current leaf's key array, value array and last occupied index, resolved through the transactional layer
 		 * exactly once per leaf when the iterator enters it (see {@link #loadCurrentLeaf()}). Caching them here turns
 		 * the hot per-element path into plain array indexing and removes the per-element `ThreadLocal` lookup that
 		 * {@link BPlusLeafTreeNode#getKeys()} / {@link BPlusLeafTreeNode#getValues()} / {@link BPlusLeafTreeNode#getPeek()}
-		 * would otherwise repeat on every step. Visible to subclasses so the hot {@link EntryCursor} can index them
-		 * directly.
+		 * would otherwise repeat on every step.
 		 */
-		protected M[] leafKeys;
-		protected N[] leafValues;
-		protected int leafPeek;
+		private M[] leafKeys;
+		private N[] leafValues;
+		private int leafPeek;
 
 		/**
 		 * Initializes the forward iterator starting from the leftmost position of the cursor.
@@ -3062,7 +2905,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 *
 		 * @return true if a following leaf was found, false if the current leaf is the rightmost one
 		 */
-		protected final boolean moveToNextLeaf() {
+		private final boolean moveToNextLeaf() {
 			int level = this.pathIndex.length - 1;
 			BPlusTreeNode<?>[] parentLevel = this.path[level];
 			while (parentLevel != null) {
@@ -3094,37 +2937,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			return false;
 		}
 
-		/**
-		 * Resolves the leaf immediately to the right of the current one **without mutating** the cursor's path -
-		 * a read-only twin of {@link #moveToNextLeaf()} used purely to obtain the next leaf reference for software
-		 * prefetching. Returns `null` when the current leaf is the rightmost one.
-		 *
-		 * The cursor state is left untouched, so this is safe to call mid-iteration; only the returned node (and the
-		 * internal nodes walked to reach it) are read.
-		 *
-		 * @return the next leaf to the right, or `null` if none
-		 */
-		@Nullable
-		protected final BPlusLeafTreeNode<M, N> peekNextLeaf() {
-			int level = this.pathIndex.length - 1;
-			while (level > 0) {
-				if (this.pathIndex[level] < this.pathPeeks[level]) {
-					// the next sibling at this level exists - descend to its leftmost leaf without touching the path
-					BPlusTreeNode<?> node = this.path[level][this.pathIndex[level] + 1];
-					for (int i = level + 1; i <= this.path.length - 1; i++) {
-						if (!(node instanceof BPlusInternalTreeNode)) {
-							return null;
-						}
-						//noinspection unchecked
-						node = ((BPlusInternalTreeNode<M>) node).getChildren()[0];
-					}
-					//noinspection unchecked
-					return (BPlusLeafTreeNode<M, N>) node;
-				}
-				level--;
-			}
-			return null;
-		}
 	}
 
 	/**
@@ -3132,38 +2944,35 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	 */
 	private static class AbstractReverseTreeIterator<M extends Comparable<M>, N, S> implements Iterator<S> {
 		/**
-		 * Array of arrays representing siblings on each level of the path. Visible to subclasses so the hot
-		 * {@link EntryCursor} can resolve the preceding leaf for software prefetching.
+		 * Sibling arrays for each level on the traversal path.
 		 */
-		@Nonnull protected final BPlusTreeNode<?>[][] path;
+		@Nonnull private final BPlusTreeNode<?>[][] path;
 		/**
-		 * The index of the current key on particular path. Visible to subclasses for prefetch lookahead.
+		 * The index of the current key on particular path.
 		 */
-		@Nonnull protected final int[] pathIndex;
+		@Nonnull private final int[] pathIndex;
 		/**
 		 * Function allowing to extract the iterator output from the current index and the cached leaf key/value arrays.
 		 */
 		@Nonnull private final IntObjTriFunction<M[], N[], S> outputExtractor;
 		/**
-		 * The index of the current key within the current leaf node. Visible to subclasses so the hot
-		 * {@link EntryCursor} can read it without an accessor call.
+		 * The index of the current key within the current leaf node.
 		 */
-		protected int currentIndex;
+		private int currentIndex;
 		/**
 		 * Flag indicating whether there are more elements to traverse.
 		 */
-		protected boolean hasNext;
+		private boolean hasNext;
 		/**
 		 * The current leaf's key array, value array and last occupied index, resolved through the transactional layer
 		 * exactly once per leaf when the iterator enters it (see {@link #loadCurrentLeaf()}). Caching them here turns
 		 * the hot per-element path into plain array indexing and removes the per-element `ThreadLocal` lookup that
 		 * {@link BPlusLeafTreeNode#getKeys()} / {@link BPlusLeafTreeNode#getValues()} / {@link BPlusLeafTreeNode#getPeek()}
-		 * would otherwise repeat on every step. Visible to subclasses so the hot {@link EntryCursor} can index them
-		 * directly.
+		 * would otherwise repeat on every step.
 		 */
-		protected M[] leafKeys;
-		protected N[] leafValues;
-		protected int leafPeek;
+		private M[] leafKeys;
+		private N[] leafValues;
+		private int leafPeek;
 
 		/**
 		 * Initializes the reverse iterator starting from the rightmost position of the cursor.
@@ -3279,7 +3088,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 * This method sets the `hasNext` field to true if a next valid value is found, and false otherwise.
 		 * Additionally, it updates the current index (`currentIndex`) to reflect the new position of the iterator.
 		 */
-		protected final void calculateNextValue() {
+		private final void calculateNextValue() {
 			boolean found = false;
 			int level = this.pathIndex.length - 1;
 			BPlusTreeNode<?>[] parentLevel = this.path[level];
@@ -3312,38 +3121,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			this.hasNext = found;
 		}
 
-		/**
-		 * Resolves the leaf immediately to the left of the current one **without mutating** the cursor's path -
-		 * a read-only twin of {@link #calculateNextValue()} used purely to obtain the previous leaf reference for
-		 * software prefetching. Returns `null` when the current leaf is the leftmost one.
-		 *
-		 * The cursor state is left untouched, so this is safe to call mid-iteration; only the returned node (and the
-		 * internal nodes walked to reach it) are read.
-		 *
-		 * @return the previous leaf to the left, or `null` if none
-		 */
-		@Nullable
-		protected final BPlusLeafTreeNode<M, N> peekPrevLeaf() {
-			int level = this.pathIndex.length - 1;
-			while (level > 0) {
-				if (this.pathIndex[level] > 0) {
-					// the previous sibling at this level exists - descend to its rightmost leaf without touching the path
-					BPlusTreeNode<?> node = this.path[level][this.pathIndex[level] - 1];
-					for (int i = level + 1; i <= this.path.length - 1; i++) {
-						if (!(node instanceof BPlusInternalTreeNode)) {
-							return null;
-						}
-						//noinspection unchecked
-						final BPlusInternalTreeNode<M> internal = (BPlusInternalTreeNode<M>) node;
-						node = internal.getChildren()[internal.getPeek()];
-					}
-					//noinspection unchecked
-					return (BPlusLeafTreeNode<M, N>) node;
-				}
-				level--;
-			}
-			return null;
-		}
 	}
 
 	/**
@@ -3359,12 +3136,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			super(cursor, (index, keys, values) -> keys[index]);
 		}
 
-		/**
-		 * Creates a forward key iterator starting from the specified key or the first key greater than it.
-		 */
-		public ForwardTreeKeyIterator(@Nonnull Cursor cursor, @Nonnull M key) {
-			super(cursor, key, (index, keys, values) -> keys[index]);
-		}
 	}
 
 	/**
@@ -3378,13 +3149,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		 */
 		public ReverseTreeKeyIterator(@Nonnull Cursor cursor) {
 			super(cursor, (index, keys, values) -> keys[index]);
-		}
-
-		/**
-		 * Creates a reverse key iterator starting from the specified key or the first key lesser than or equal to it.
-		 */
-		public ReverseTreeKeyIterator(@Nonnull Cursor cursor, @Nonnull M key) {
-			super(cursor, key, (index, keys, values) -> keys[index]);
 		}
 
 	}
@@ -3413,13 +3177,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	 * Iterator that traverses the B+ Tree from right to left.
 	 */
 	static class ReverseTreeValueIterator<M extends Comparable<M>, N> extends AbstractReverseTreeIterator<M, N, N> {
-
-		/**
-		 * Creates a reverse value iterator starting from the rightmost value.
-		 */
-		public ReverseTreeValueIterator(@Nonnull Cursor cursor) {
-			super(cursor, (index, keys, values) -> values[index]);
-		}
 
 		/**
 		 * Creates a reverse value iterator starting from the specified key or the first key lesser than or equal to it.
@@ -3453,22 +3210,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	}
 
 	/**
-	 * Iterator that traverses the B+ Tree from right to left and provides access to entries (both keys and values).
-	 */
-	static class ReverseTreeEntryIterator<M extends Comparable<M>, N>
-		extends AbstractReverseTreeIterator<M, N, Entry<M, N>> {
-
-		/**
-		 * Creates a reverse entry iterator starting from the specified key or the first key lesser than or equal to it.
-		 */
-		public ReverseTreeEntryIterator(@Nonnull Cursor cursor, @Nonnull M key) {
-			super(
-				cursor, key, (index, keys, values) -> new Entry<>(keys[index], values[index]));
-		}
-
-	}
-
-	/**
 	 * Entry is an immutable data structure that stores a key-value pair.
 	 * The key must be of a type that implements the Comparable interface,
 	 * while the value can be of any type.
@@ -3480,203 +3221,6 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		@Nonnull M key,
 		@Nonnull N value
 	) {
-	}
-
-	/**
-	 * Allocation-free cursor over key-value pairs. Unlike {@link #entryIterator()} (which materialises an
-	 * {@link Entry} object per step), the cursor returns the key from {@link #next()} and exposes the paired value
-	 * through {@link #value()}, reading both directly from the backing leaf. Use it on hot full-scan paths where the
-	 * per-entry allocation would otherwise dominate.
-	 *
-	 * @param <K> the key type
-	 * @param <V> the value type
-	 */
-	public interface EntryCursor<K, V> extends Iterator<K> {
-
-		/**
-		 * Returns the value paired with the key most recently returned by {@link #next()}. Must be called only after
-		 * at least one {@link #next()} call.
-		 *
-		 * @return the value paired with the last returned key
-		 */
-		@Nonnull
-		V value();
-
-	}
-
-	/**
-	 * Forward {@link EntryCursor} implementation: reuses the forward key traversal (so {@link #next()} returns the key
-	 * with no allocation) and reads the paired value from the consumed leaf position.
-	 */
-	private static final class ForwardTreeEntryCursor<M extends Comparable<M>, N>
-		extends AbstractForwardTreeIterator<M, N, M> implements EntryCursor<M, N> {
-
-		/**
-		 * The value array and index of the entry the most recent {@link #next()} returned, captured before the cursor
-		 * advances so {@link #value()} stays correct even after {@link #next()} crossed into the following leaf.
-		 */
-		private N[] consumedValues;
-		private int consumedIndex;
-		/**
-		 * Absorbs the software-prefetch touch reads of the upcoming leaf (see {@link #prefetchNextLeaf()}). A live
-		 * non-final field the touches feed into stops the JIT from eliminating them as dead loads.
-		 */
-		private long prefetchSink;
-
-		public ForwardTreeEntryCursor(@Nonnull Cursor cursor) {
-			super(cursor, (index, keys, values) -> keys[index]);
-			// warm the second leaf while the caller is about to scan the first
-			if (this.hasNext) {
-				prefetchNextLeaf();
-			}
-		}
-
-		/**
-		 * Direct, allocation- and indirection-free forward step over the cached leaf arrays. Overriding
-		 * {@link AbstractForwardTreeIterator#next()} reads the key straight from {@link #leafKeys} and bypasses the
-		 * shared output-extractor indirection, keeping the per-element work to plain array indexing on the hot sort
-		 * path. (The remaining cost of an ordered sweep is dominated by cross-leaf cache misses, not this dispatch -
-		 * see {@link #prefetchNextLeaf()}.)
-		 */
-		@Nonnull
-		@Override
-		public M next() {
-			if (!this.hasNext) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			final int index = this.currentIndex;
-			final M key = this.leafKeys[index];
-			// remember the value array + index of the entry just returned so value() stays correct across leaf hops
-			this.consumedValues = this.leafValues;
-			this.consumedIndex = index;
-			if (index < this.leafPeek) {
-				this.currentIndex = index + 1;
-			} else {
-				this.hasNext = moveToNextLeaf();
-				if (this.hasNext) {
-					// we just stepped into a new leaf; warm the following one so its cold first-touch miss overlaps
-					// the upcoming scan of the leaf we just entered (the misses are otherwise serialized at every hop)
-					prefetchNextLeaf();
-				}
-			}
-			return key;
-		}
-
-		/**
-		 * Issues a software prefetch of the leaf following the current one: it resolves the next leaf without moving
-		 * the cursor and touches one reference per cache line of its key and value arrays, pulling those lines toward
-		 * the CPU while the current leaf is still being scanned. This converts the otherwise serialized cross-leaf
-		 * cache miss into overlap (memory-level parallelism), which is the dominant cost of an ordered tree scan.
-		 */
-		private void prefetchNextLeaf() {
-			final BPlusLeafTreeNode<M, N> next = peekNextLeaf();
-			if (next != null) {
-				final M[] nextKeys = next.getKeys();
-				final N[] nextValues = next.getValues();
-				long sink = this.prefetchSink;
-				// one touch per ~64-byte cache line (8 compressed-oop references per line)
-				for (int i = 0; i < nextKeys.length; i += 8) {
-					if (nextKeys[i] != null) {
-						sink++;
-					}
-					if (nextValues[i] != null) {
-						sink++;
-					}
-				}
-				this.prefetchSink = sink;
-			}
-		}
-
-		@Nonnull
-		@Override
-		public N value() {
-			return this.consumedValues[this.consumedIndex];
-		}
-	}
-
-	/**
-	 * Reverse {@link EntryCursor} implementation: the right-to-left counterpart of {@link ForwardTreeEntryCursor}.
-	 */
-	private static final class ReverseTreeEntryCursor<M extends Comparable<M>, N>
-		extends AbstractReverseTreeIterator<M, N, M> implements EntryCursor<M, N> {
-
-		/**
-		 * The value array and index of the entry the most recent {@link #next()} returned, captured before the cursor
-		 * advances so {@link #value()} stays correct even after {@link #next()} crossed into the preceding leaf.
-		 */
-		private N[] consumedValues;
-		private int consumedIndex;
-		/**
-		 * Absorbs the software-prefetch touch reads of the preceding leaf (see {@link #prefetchPrevLeaf()}). A live
-		 * non-final field the touches feed into stops the JIT from eliminating them as dead loads.
-		 */
-		private long prefetchSink;
-
-		public ReverseTreeEntryCursor(@Nonnull Cursor cursor) {
-			super(cursor, (index, keys, values) -> keys[index]);
-			// warm the second-to-last leaf while the caller is about to scan the last
-			if (this.hasNext) {
-				prefetchPrevLeaf();
-			}
-		}
-
-		/**
-		 * Direct, allocation- and indirection-free reverse step over the cached leaf arrays - the right-to-left
-		 * counterpart of {@link ForwardTreeEntryCursor#next()}; see that method for why the override matters for
-		 * sort-loop inlining.
-		 */
-		@Nonnull
-		@Override
-		public M next() {
-			if (!this.hasNext) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			final int index = this.currentIndex;
-			final M key = this.leafKeys[index];
-			// remember the value array + index of the entry just returned so value() stays correct across leaf hops
-			this.consumedValues = this.leafValues;
-			this.consumedIndex = index;
-			if (index > 0) {
-				this.currentIndex = index - 1;
-			} else {
-				calculateNextValue();
-				if (this.hasNext) {
-					// we just stepped into the preceding leaf; warm the one before it so its cold first-touch miss
-					// overlaps the upcoming reverse scan of the leaf we just entered
-					prefetchPrevLeaf();
-				}
-			}
-			return key;
-		}
-
-		/**
-		 * Issues a software prefetch of the leaf preceding the current one: the right-to-left counterpart of
-		 * {@link ForwardTreeEntryCursor#prefetchNextLeaf()}; see that method for the rationale.
-		 */
-		private void prefetchPrevLeaf() {
-			final BPlusLeafTreeNode<M, N> prev = peekPrevLeaf();
-			if (prev != null) {
-				final M[] prevKeys = prev.getKeys();
-				final N[] prevValues = prev.getValues();
-				long sink = this.prefetchSink;
-				// one touch per ~64-byte cache line (8 compressed-oop references per line)
-				for (int i = 0; i < prevKeys.length; i += 8) {
-					if (prevKeys[i] != null) {
-						sink++;
-					}
-					if (prevValues[i] != null) {
-						sink++;
-					}
-				}
-				this.prefetchSink = sink;
-			}
-		}
-
-		@Nonnull
-		@Override
-		public N value() {
-			return this.consumedValues[this.consumedIndex];
-		}
 	}
 
 }

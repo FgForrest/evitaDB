@@ -76,8 +76,7 @@ import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArr
  *   Everything at or beyond {@code size()} reads as empty — {@code null} for a reference column, {@code 0} for a
  *   primitive one — exactly as the fixed, zero-filled arrays this family used to allocate did. Slots in
  *   {@code [size(), physical length)} are kept cleared, so no stale key survives past the live tail.
- * - **{@link #clearAt} and {@link #fillEmpty} are size-authoritative**: they truncate the live run rather than
- *   poking a single slot, and are strict no-ops for anything already past it.
+ * - **{@link #fillEmpty} is size-authoritative.** It truncates the live run and leaves ranges past it alone.
  * - **{@link #copyRangeTo} grows its destination**, and {@link #insertKeyAt} grows before it shifts. Neither
  *   requires the destination to have been pre-sized.
  *
@@ -87,9 +86,8 @@ import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArr
  *
  * - {@code insertNewSingleBucket} and {@code insertNewBucket} grow the columns before incrementing {@code peek}, so
  *   between the first column write and the increment the columns report {@code peek + 2}.
- * - {@code deleteBucketAt} shrinks them before decrementing it, so its {@code clearAt(peek)} fires while the live
- *   run is already {@code peek} — which is precisely why {@link #clearAt} has to answer by {@link #size()} rather
- *   than by the leaf's {@code peek}.
+ * - {@code deleteBucketAt} shrinks the columns before decrementing {@code peek}. The columns report
+ *   {@code peek} until the decrement completes.
  *
  * **Nothing may observe a leaf from inside one of those two windows**, and no third window survives them: a
  * **committed** column whose run disagrees with {@code peek} is an immediate error, enforced at every structural
@@ -326,8 +324,7 @@ sealed interface ValueColumn<M extends Comparable<M>>
 
 	/**
 	 * Removes the key at {@code index}, shifting the live tail one slot to the left and lowering {@link #size()} by one
-	 * (the leaf clears the freed last slot via {@link #clearAt} and shrinks {@code peek} afterwards). The vacated slot
-	 * is cleared, so nothing stale survives past the live run.
+	 * and clearing the vacated slot. The leaf updates its `peek` afterwards.
 	 *
 	 * Removing a slot at or beyond {@link #size()} is a no-op rather than an error: that region is already empty, and
 	 * dropping one empty slot out of it leaves it empty.
@@ -335,18 +332,6 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 * @param index the slot to remove
 	 */
 	void removeKeyAt(int index);
-
-	/**
-	 * Truncates the live run to {@code index}, clearing everything from there on — used to release the freed last slot
-	 * after a delete, and reached with a still-live slot when a downward {@code setPeek} shortens a leaf.
-	 *
-	 * **Size-authoritative, so it is a strict no-op for {@code index >= size()}.** That is what makes it safe on the
-	 * committed column a transactional layer still aliases, and it is why the leaf may call it with its pre-decrement
-	 * {@code peek} right after {@link #removeKeyAt} has already dropped the entry.
-	 *
-	 * @param index the first slot to release
-	 */
-	void clearAt(int index);
 
 	/**
 	 * Bulk lockstep move: copies {@code length} keys from {@code this[srcPos]} into {@code dst[dstPos]} (supports
@@ -422,32 +407,6 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	M[] asBoxedArray();
 
 	/**
-	 * Returns the heap this column occupies in bytes, **excluding whatever its slots point at**.
-	 *
-	 * The figure covers the column object and every backing array it owns, each at its *allocated* length — which now
-	 * tracks the live content rather than the leaf block size, because the backing arrays are grown on demand and
-	 * trimmed at the commit merge. **The figure therefore moves as keys are inserted and removed**, and an empty
-	 * column costs its object alone: it parks on the JVM-wide shared empty arrays and owns no storage at all.
-	 *
-	 * The family is uniform in this. {@link FrontCodedStringColumn} used to be the one column whose figure followed
-	 * its content; it is now simply the one that stores its content as a variable-length blob instead of as slots.
-	 * Growth overshoots the live count by up to a factor of two between reallocations (see {@code ColumnSizing}), so
-	 * the figure tracks content in steps rather than exactly.
-	 *
-	 * For the primitive-backed columns this is the whole story - their keys are values living inside the array. Only
-	 * {@link BoxedObjectColumn} stores references, and here it charges the reference slots alone; use
-	 * {@link #getHeapSizeInBytes(ToLongFunction)} to add the referenced objects where this column owns them.
-	 *
-	 * Backing state aliased with a **superseded** version of this column is charged in full - see
-	 * {@link FrontCodedStringColumn#duplicate()}, the one structural share in this family. The predecessor is
-	 * garbage-in-waiting and the survivor becomes its sole owner, so discounting it would under-report every
-	 * committed column.
-	 *
-	 * @return the owned heap footprint in bytes, including alignment padding
-	 */
-	long getHeapSizeInBytes();
-
-	/**
 	 * Returns the heap this column occupies in bytes, **including the objects its slots point at**, each priced by
 	 * `elementSizer`.
 	 *
@@ -456,8 +415,20 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 * and its real footprint for one this column owns. Nothing here hard-codes which elements are shared, because
 	 * that answer belongs to the structure doing the asking rather than to the column.
 	 *
-	 * Only {@link BoxedObjectColumn} can differ from {@link #getHeapSizeInBytes()}. Every other implementation stores
+	 * Only {@link BoxedObjectColumn} can own referenced keys. Every other implementation stores
 	 * keys as primitive values or as encoded bytes, has no referenced elements at all, and ignores the sizer.
+	 *
+	 * The figure covers the column object and every backing array it owns, each at its *allocated* length — which
+	 * tracks the live content rather than the leaf block size, because the backing arrays are grown on demand and
+	 * trimmed at the commit merge. **The figure therefore moves as keys are inserted and removed**, and an empty
+	 * column costs its object alone: it parks on the JVM-wide shared empty arrays and owns no storage at all. Growth
+	 * overshoots the live count by up to a factor of two between reallocations (see {@code ColumnSizing}), so the
+	 * figure tracks content in steps rather than exactly.
+	 *
+	 * Backing state aliased with a **superseded** version of this column is charged in full - see
+	 * {@link FrontCodedStringColumn#duplicate()}, the one structural share in this family. The predecessor is
+	 * garbage-in-waiting and the survivor becomes its sole owner, so discounting it would under-report every
+	 * committed column.
 	 *
 	 * @param elementSizer prices a single element; must return `0` for elements this column does not own
 	 * @return the heap footprint in bytes, including alignment padding
@@ -628,14 +599,6 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 	}
 
 	@Override
-	public void clearAt(int index) {
-		if (index < this.size) {
-			Arrays.fill(this.keys, index, this.size, null);
-			this.size = index;
-		}
-	}
-
-	@Override
 	public void copyRangeTo(int srcPos, @Nonnull ValueColumn<M> dst, int dstPos, int length) {
 		assertSourceRangeIsLive(srcPos, length);
 		final BoxedObjectColumn<M> target = asSameKind(dst);
@@ -708,7 +671,11 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 		return this.keys;
 	}
 
-	@Override
+	/**
+	 * Computes the heap occupied by the column and its backing storage.
+	 *
+	 * @return the occupied heap in bytes
+	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
 		// the column itself: the `keyType` and `keys` references plus the two ints. `keyType` addresses a Class

@@ -44,13 +44,10 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.OptionalLong;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.PrimitiveIterator.OfLong;
-import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 
 import static io.evitadb.core.transaction.memory.WarmUpSavepoint.perOperationWriteLayer;
@@ -62,8 +59,7 @@ import static io.evitadb.utils.ArrayUtils.*;
  * The tree is balanced and allows for efficient insertion, deletion, and search operations.
  *
  * This is a faithful, zero-boxing primitive B+ tree for `int` keys with the generic
- * value type fixed to primitive `long`. The value blocks are stored as `long[]`, search returns {@link OptionalLong},
- * the value iterators are {@link OfLong} primitive iterators and the upsert updater is a {@link LongUnaryOperator}.
+ * value type fixed to primitive `long`. Value blocks use `long[]` and point lookups return {@link OptionalLong}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -280,8 +276,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		// the pre-mutation tree. `isNearlyFull` reads `peek` and the capacity from the same resolved state that
 		// `isFull` does, so it can never fail to fire for an insert that will split. It is not exact in the other
 		// direction: a same-key overwrite one slot from full leaves `peek` unchanged, so the cursor is captured and
-		// discarded. That waste is bounded and rare. (In `upsert` the guard sits inside the key-absent branch, so
-		// the overwrite case cannot reach it and the guard IS exact there.)
+		// discarded. That waste is bounded and rare.
 		final Cursor cursor = leaf.isNearlyFull() ? createCursor(key) : null;
 		if (leaf.insert(key, value)) {
 			this.size.set(size() + 1);
@@ -298,54 +293,6 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 				);
 			}
 			splitLeafNode(leaf, cursor);
-		}
-	}
-
-	/**
-	 * Updates an existing key-value pair or inserts a new one into the B+ tree.
-	 * If the key is already present, the value is updated based on the result of the updater function.
-	 * If the key is not present, a new key-value pair is inserted with the value returned by the updater function.
-	 * If the leaf node exceeds its block size after insertion, the node is split.
-	 *
-	 * @param key     the key to update or insert
-	 * @param updater a function to compute a new value, must not be null
-	 */
-	public void upsert(int key, @Nonnull LongUnaryOperator updater) {
-		// see `insert` - the cursor path is captured lazily and pre-mutation. The update branch below replaces a
-		// value in place and can never overflow the leaf, so it needs no path at all.
-		final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) findLeafNode(key);
-
-		final int existingIndex = leaf.getValueIndex(key);
-		if (existingIndex >= 0) {
-			// update the value on specified index
-			leaf.decoupleTransactionalArrays();
-			final long[] values = leaf.getValues();
-			final long previousValue = values[existingIndex];
-			// this write is journalled HERE and nowhere else. decoupleTransactionalArrays() used to take the leaf's
-			// whole-node memento on its way past; it resolves through perOperationWriteLayer now, which records
-			// nothing outside a transaction, so the slot inverse has to be pushed explicitly and before the write.
-			// The twin of TransactionalLongBPlusTree#upsert - keep the two in step.
-			leaf.journalValueReplacementIfOpen(key, previousValue);
-			values[existingIndex] = updater.applyAsLong(previousValue);
-		} else {
-			final Cursor cursor = leaf.isNearlyFull() ? createCursor(key) : null;
-			// insert the new value
-			if (leaf.insert(key, updater.applyAsLong(0L))) {
-				this.size.set(size() + 1);
-			}
-
-			// Split the leaf node if it exceeds the block size
-			if (leaf.isFull()) {
-				if (cursor == null) {
-					throw new GenericEvitaInternalError(
-						"Leaf is full but no cursor path was captured - `isNearlyFull` failed to predict `isFull` " +
-							"(peek: " + leaf.getPeek() + ", capacity: " + leaf.capacity() +
-							", tree block size: " + this.valueBlockSize + ")!",
-						"Leaf is full but no cursor path was captured!"
-					);
-				}
-				splitLeafNode(leaf, cursor);
-			}
 		}
 	}
 
@@ -414,30 +361,6 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	}
 
 	/**
-	 * Returns an iterator that traverses the B+ tree keys from left to right starting from the specified key or
-	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return an iterator that traverses the B+ tree keys from left to right starting from the specified key
-	 */
-	@Nonnull
-	public OfInt greaterOrEqualKeyIterator(int key) {
-		return new ForwardTreeKeyIterator(createCursor(key), key);
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree keys from right to left starting from the specified key or
-	 * a key that is immediately lesser than the specified key. The key may not be present in the tree.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return an iterator that traverses the B+ tree keys from right to left starting from the specified key
-	 */
-	@Nonnull
-	public OfInt lesserOrEqualKeyIterator(int key) {
-		return new ReverseTreeKeyIterator(createCursor(key), key);
-	}
-
-	/**
 	 * Returns an iterator that traverses the B+ tree keys from right to left.
 	 *
 	 * @return an iterator that traverses the B+ tree keys from right to left
@@ -446,84 +369,6 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	@Override
 	public OfInt keyReverseIterator() {
 		return new ReverseTreeKeyIterator(createRightmostCursor());
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree values from left to right.
-	 *
-	 * @return an iterator that traverses the B+ tree values from left to right
-	 */
-	@Nonnull
-	public OfLong valueIterator() {
-		return new ForwardTreeValueIterator(createLeftmostCursor());
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree values from left to right starting from the specified key or
-	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return an iterator that traverses the B+ tree values from left to right starting from the specified key
-	 */
-	@Nonnull
-	public OfLong greaterOrEqualValueIterator(int key) {
-		return new ForwardTreeValueIterator(createCursor(key), key);
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree values from right to left starting from the specified key or
-	 * a key that is immediately lesser than the specified key. The key may not be present in the tree.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return an iterator that traverses the B+ tree values from right to left starting from the specified key
-	 */
-	@Nonnull
-	public OfLong lesserOrEqualValueIterator(int key) {
-		return new ReverseTreeValueIterator(createCursor(key), key);
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree values from right to left.
-	 *
-	 * @return an iterator that traverses the B+ tree values from right to left
-	 */
-	@Nonnull
-	public OfLong valueReverseIterator() {
-		return new ReverseTreeValueIterator(createRightmostCursor());
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree entries (both keys and values) from left to right.
-	 *
-	 * @return an iterator that traverses the B+ tree entries (both keys and values) from left to right
-	 */
-	@Nonnull
-	public Iterator<Entry> entryIterator() {
-		return new ForwardTreeEntryIterator(createLeftmostCursor());
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree entries (both keys and values) from left to right starting from the specified key or
-	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return an iterator that traverses the B+ tree entries (both keys and values) from left to right starting from the specified key
-	 */
-	@Nonnull
-	public Iterator<Entry> greaterOrEqualEntryIterator(int key) {
-		return new ForwardTreeEntryIterator(createCursor(key), key);
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree entries (both keys and values) from right to left starting from the specified key or
-	 * a key that is immediately lesser than the specified key. The key may not be present in the tree.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return an iterator that traverses the B+ tree entries (both keys and values) from right to left starting from the specified key
-	 */
-	@Nonnull
-	public Iterator<Entry> lesserOrEqualEntryIterator(int key) {
-		return new ReverseTreeEntryIterator(createCursor(key), key);
 	}
 
 	/**
@@ -714,30 +559,12 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	}
 
 	/**
-	 * Per-tree typed marker that exposes the primitive `int` key accessors common to both node kinds, kept off the
-	 * key-agnostic {@link BPlusTreeNode} SPI so the shared base never sees (and never boxes) a key. Typed call sites
-	 * that hold only a {@link BPlusTreeNode} reference (e.g. a children-array element) cast to this to read the keys.
-	 */
-	interface IntKeyedNode extends IntBoundaryKeyedNode {
-
-		/**
-		 * Retrieves an array of integer keys associated with the node.
-		 *
-		 * @return an array of integer keys present in the node. The array is guaranteed to be non-null.
-		 */
-		@Nonnull
-		int[] getKeys();
-
-	}
-
-	/**
 	 * Internal (routing) node of this {@code int}-keyed tree. All structure-maintenance logic — descent, split,
 	 * borrow, merge and the copy-on-write transactional bookkeeping — lives in {@link AbstractIntKeyedInternalNode};
 	 * only the constructors and the {@link #createNode} factory are tree-local, because a generic base cannot
 	 * {@code new} its own concrete subclass.
 	 */
-	static class BPlusInternalTreeNode extends AbstractIntKeyedInternalNode<BPlusInternalTreeNode>
-		implements IntKeyedNode {
+	static class BPlusInternalTreeNode extends AbstractIntKeyedInternalNode<BPlusInternalTreeNode> {
 		@Serial private static final long serialVersionUID = -7649742437563558159L;
 
 		/**
@@ -810,7 +637,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	 */
 	static class BPlusLeafTreeNode implements
 		BPlusTreeNode<BPlusLeafTreeNode>,
-		IntKeyedNode,
+		IntBoundaryKeyedNode,
 		Snapshotable<BPlusLeafTreeNode.BPlusLeafNodeMemento> {
 		@Serial private static final long serialVersionUID = 5744347408875846162L;
 		/**
@@ -992,7 +819,11 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 			return currentState().peek;
 		}
 
-		@Override
+		/**
+		 * Moves the final live slot and clears any entries beyond a shortened live run.
+		 *
+		 * @param peek the new final live slot
+		 */
 		public void setPeek(int peek) {
 			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
@@ -1055,7 +886,11 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 			return currentState().peek + 1;
 		}
 
-		@Override
+		/**
+		 * Checks whether the node has reached its capacity.
+		 *
+		 * @return whether the node is full
+		 */
 		public boolean isFull() {
 			final BPlusLeafTreeNode current = currentState();
 			return current.peek == current.capacity - 1;
@@ -1345,21 +1180,6 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
 				key, current.keys, 0, current.peek + 1);
 			return insertionPosition.alreadyPresent() ? insertionPosition.position() : -1;
-		}
-
-		/**
-		 * Resolves the insertion position of the given key in this leaf's (transaction-aware) key array, reading the
-		 * keys and `peek` from one resolution of the transactional layer through {@link #currentState()}. Used by the
-		 * keyed-start iterators, which need only the primitive position and present flag before the
-		 * {@code super(...)} that loads the leaf.
-		 *
-		 * @param key the key to locate
-		 * @return the insertion position of the key within this leaf
-		 */
-		@Nonnull
-		public InsertionPosition findKeyPosition(int key) {
-			final BPlusLeafTreeNode current = currentState();
-			return computeInsertPositionOfIntInOrderedArray(key, current.keys, 0, current.peek + 1);
 		}
 
 		@Override
@@ -1717,16 +1537,6 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 			super(cursor);
 		}
 
-		/**
-		 * Creates a forward iterator starting from the specified key or the first key greater than it.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 * @param key    the key to start the iteration from
-		 */
-		protected AbstractForwardTreeIterator(@Nonnull Cursor cursor, int key) {
-			super(cursor, cursor.<BPlusLeafTreeNode>leafNode().findKeyPosition(key));
-		}
-
 		@Override
 		protected void loadCurrentLeaf() {
 			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) currentLeafNode();
@@ -1758,16 +1568,6 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 			super(cursor);
 		}
 
-		/**
-		 * Creates a reverse iterator starting from the specified key or the first key lesser than or equal to it.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 * @param key    the key to start the iteration from
-		 */
-		protected AbstractReverseTreeIterator(@Nonnull Cursor cursor, int key) {
-			super(cursor, cursor.<BPlusLeafTreeNode>leafNode().findKeyPosition(key));
-		}
-
 		@Override
 		protected void loadCurrentLeaf() {
 			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) currentLeafNode();
@@ -1790,16 +1590,6 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		 */
 		public ForwardTreeKeyIterator(@Nonnull Cursor cursor) {
 			super(cursor);
-		}
-
-		/**
-		 * Creates a forward key iterator starting from the specified key or the first key greater than it.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 * @param key    the key to start the iteration from
-		 */
-		public ForwardTreeKeyIterator(@Nonnull Cursor cursor, int key) {
-			super(cursor, key);
 		}
 
 		@Override
@@ -1829,16 +1619,6 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 			super(cursor);
 		}
 
-		/**
-		 * Creates a reverse key iterator starting from the specified key or the first key lesser than or equal to it.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 * @param key    the key to start the iteration from
-		 */
-		public ReverseTreeKeyIterator(@Nonnull Cursor cursor, int key) {
-			super(cursor, key);
-		}
-
 		@Override
 		public int nextInt() {
 			if (!this.hasNextElement) {
@@ -1849,155 +1629,6 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 			advance();
 			return key;
 		}
-	}
-
-	/**
-	 * Iterator that traverses the B+ Tree values from left to right. The primitive value is returned directly
-	 * from {@link #nextLong()} so that no boxing occurs on the iteration path.
-	 */
-	static class ForwardTreeValueIterator extends AbstractForwardTreeIterator implements OfLong {
-
-		/**
-		 * Creates a forward value iterator starting from the leftmost value.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 */
-		public ForwardTreeValueIterator(@Nonnull Cursor cursor) {
-			super(cursor);
-		}
-
-		/**
-		 * Creates a forward value iterator starting from the specified key or the first key greater than it.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 * @param key    the key to start the iteration from
-		 */
-		public ForwardTreeValueIterator(@Nonnull Cursor cursor, int key) {
-			super(cursor, key);
-		}
-
-		@Override
-		public long nextLong() {
-			if (!this.hasNextElement) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			// read straight from the cached leaf value array - no per-element ThreadLocal accessor call
-			final long value = this.leafValues[this.currentIndex];
-			advance();
-			return value;
-		}
-	}
-
-	/**
-	 * Iterator that traverses the B+ Tree values from right to left. The primitive value is returned directly
-	 * from {@link #nextLong()} so that no boxing occurs on the iteration path.
-	 */
-	static class ReverseTreeValueIterator extends AbstractReverseTreeIterator implements OfLong {
-
-		/**
-		 * Creates a reverse value iterator starting from the rightmost value.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 */
-		public ReverseTreeValueIterator(@Nonnull Cursor cursor) {
-			super(cursor);
-		}
-
-		/**
-		 * Creates a reverse value iterator starting from the specified key or the first key lesser than or equal to it.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 * @param key    the key to start the iteration from
-		 */
-		public ReverseTreeValueIterator(@Nonnull Cursor cursor, int key) {
-			super(cursor, key);
-		}
-
-		@Override
-		public long nextLong() {
-			if (!this.hasNextElement) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			// read straight from the cached leaf value array - no per-element ThreadLocal accessor call
-			final long value = this.leafValues[this.currentIndex];
-			advance();
-			return value;
-		}
-	}
-
-	/**
-	 * Iterator that traverses the B+ Tree from left to right and provides access to entries (both keys and values).
-	 */
-	static class ForwardTreeEntryIterator extends AbstractForwardTreeIterator implements Iterator<Entry> {
-
-		/**
-		 * Creates a forward entry iterator starting from the leftmost entry.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 */
-		public ForwardTreeEntryIterator(@Nonnull Cursor cursor) {
-			super(cursor);
-		}
-
-		/**
-		 * Creates a forward entry iterator starting from the specified key or the first key greater than it.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 * @param key    the key to start the iteration from
-		 */
-		public ForwardTreeEntryIterator(@Nonnull Cursor cursor, int key) {
-			super(cursor, key);
-		}
-
-		@Override
-		public Entry next() {
-			if (!this.hasNextElement) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			// read straight from the cached leaf key/value arrays - no per-element ThreadLocal accessor call
-			final Entry entry = new Entry(this.leafKeys[this.currentIndex], this.leafValues[this.currentIndex]);
-			advance();
-			return entry;
-		}
-	}
-
-	/**
-	 * Iterator that traverses the B+ Tree from right to left and provides access to entries (both keys and values).
-	 */
-	static class ReverseTreeEntryIterator extends AbstractReverseTreeIterator implements Iterator<Entry> {
-
-		/**
-		 * Creates a reverse entry iterator starting from the specified key or the first key lesser than or equal to it.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 * @param key    the key to start the iteration from
-		 */
-		public ReverseTreeEntryIterator(@Nonnull Cursor cursor, int key) {
-			super(cursor, key);
-		}
-
-		@Override
-		public Entry next() {
-			if (!this.hasNextElement) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			// read straight from the cached leaf key/value arrays - no per-element ThreadLocal accessor call
-			final Entry entry = new Entry(this.leafKeys[this.currentIndex], this.leafValues[this.currentIndex]);
-			advance();
-			return entry;
-		}
-	}
-
-	/**
-	 * Entry is an immutable data structure that stores a primitive `int` key together with its primitive `long` value.
-	 *
-	 * @param key   the primitive key of the entry
-	 * @param value the primitive value associated with the key
-	 */
-	public record Entry(
-		int key,
-		long value
-	) {
 	}
 
 }

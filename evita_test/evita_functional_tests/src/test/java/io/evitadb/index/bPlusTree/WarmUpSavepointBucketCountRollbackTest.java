@@ -62,7 +62,7 @@ class WarmUpSavepointBucketCountRollbackTest {
 	@Test
 	@DisplayName("Rollback un-counts buckets born inside the savepoint")
 	void shouldRestoreCountAfterBucketBirths() {
-		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class, null);
 		tree.addRecord(10, 1);
 		tree.addRecord(20, 2);
 		assertEquals(2, tree.size(), "self-check: the fixture must hold two buckets before the savepoint opens");
@@ -82,7 +82,7 @@ class WarmUpSavepointBucketCountRollbackTest {
 	@Test
 	@DisplayName("Rollback re-counts buckets that died inside the savepoint")
 	void shouldRestoreCountAfterBucketDeaths() {
-		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class, null);
 		tree.addRecord(10, 1);
 		tree.addRecord(20, 2);
 		tree.addRecord(30, 3);
@@ -101,7 +101,7 @@ class WarmUpSavepointBucketCountRollbackTest {
 	@Test
 	@DisplayName("Rollback unwinds a mixed run of births and deaths through the counts it passed")
 	void shouldRestoreCountAfterMixedRun() {
-		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class, null);
 		tree.addRecord(10, 1);
 		tree.addRecord(20, 2);
 
@@ -121,7 +121,7 @@ class WarmUpSavepointBucketCountRollbackTest {
 	@Test
 	@DisplayName("Commit keeps the counts the savepoint made")
 	void shouldKeepCountAfterCommit() {
-		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class, null);
 		tree.addRecord(10, 1);
 
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.open();

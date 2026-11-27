@@ -150,7 +150,7 @@ final class ValueColumnTestSupport {
 
 	/**
 	 * Drives one {@link ValueColumn} implementation through the whole grow / trim / `size()` contract: the logical
-	 * capacity never moves, `size()` follows every mutator, `fillEmpty` and `clearAt` truncate rather than poke,
+	 * capacity never moves, `size()` follows every mutator, `fillEmpty` and `fillEmpty` truncate rather than poke,
 	 * `copyRangeTo` grows its destination (including the leaf's in-place right shift), `duplicate` preserves the
 	 * physical shape and `trimmed` reclaims slack only once there is enough of it.
 	 *
@@ -171,7 +171,7 @@ final class ValueColumnTestSupport {
 		assertEquals(0, column.size(), "a fresh column holds nothing");
 		assertSame(column, column.trimmed(), "an empty column has no slack to reclaim");
 		assertObservesItsWholeLiveRun(column, "fresh");
-		final long emptyHeap = column.getHeapSizeInBytes();
+		final long emptyHeap = column.getHeapSizeInBytes(key -> 0L);
 
 		// inserts raise the live count and never the logical capacity
 		for (int i = 0; i < 5; i++) {
@@ -185,7 +185,7 @@ final class ValueColumnTestSupport {
 		}
 
 		// the footprint follows the content rather than the block size
-		final long fiveKeyHeap = column.getHeapSizeInBytes();
+		final long fiveKeyHeap = column.getHeapSizeInBytes(key -> 0L);
 		assertTrue(fiveKeyHeap > emptyHeap, "a populated column must cost more than an empty one");
 		final ValueColumn<M> full = emptyColumnFactory.apply(SIZING_CAPACITY);
 		for (int i = 0; i < SIZING_CAPACITY; i++) {
@@ -194,13 +194,15 @@ final class ValueColumnTestSupport {
 		assertEquals(SIZING_CAPACITY, full.size());
 		assertEquals(SIZING_CAPACITY, full.capacity());
 		assertObservesItsWholeLiveRun(full, "a full block");
-		assertTrue(full.getHeapSizeInBytes() > fiveKeyHeap, "a full block must cost more than a five-key one");
+		assertTrue(full.getHeapSizeInBytes(key -> 0L) > fiveKeyHeap, "a full block must cost more than a five-key one");
 
 		// duplicate keeps the physical shape verbatim - it is the MVCC decouple and the savepoint memento primitive
 		final ValueColumn<M> copy = column.duplicate();
 		assertEquals(column.size(), copy.size());
 		assertEquals(column.capacity(), copy.capacity());
-		assertEquals(column.getHeapSizeInBytes(), copy.getHeapSizeInBytes(), "duplicate must not trim");
+		assertEquals(
+			column.getHeapSizeInBytes(key -> 0L), copy.getHeapSizeInBytes(key -> 0L), "duplicate must not trim"
+		);
 
 		// ...and it is content-independent in BOTH directions, which is the property MVCC actually rests on. A
 		// shared backing array shows up here as a wrong KEY rather than a wrong size, so the sizes alone prove
@@ -226,10 +228,10 @@ final class ValueColumnTestSupport {
 			assertEquals(keyFactory.apply(i), copy.keyAt(i), "the duplicate must not alias the source at slot " + i);
 		}
 
-		// clearAt truncates a live slot and is a strict no-op past the live run
-		column.clearAt(5);
-		assertEquals(2, column.size(), "clearAt past the live run changes nothing");
-		column.clearAt(1);
+		// fillEmpty truncates a live slot and is a strict no-op past the live run
+		column.fillEmpty(5, column.capacity());
+		assertEquals(2, column.size(), "fillEmpty past the live run changes nothing");
+		column.fillEmpty(1, column.capacity());
 		assertEquals(1, column.size());
 
 		// removeKeyAt collapses the run and is a no-op past it
@@ -308,7 +310,7 @@ final class ValueColumnTestSupport {
 			assertObservesItsWholeLiveRun(trimmed, "after a trim");
 			assertEquals(keyFactory.apply(0), trimmed.keyAt(0));
 			assertTrue(
-				trimmed.getHeapSizeInBytes() < full.getHeapSizeInBytes(),
+				trimmed.getHeapSizeInBytes(key -> 0L) < full.getHeapSizeInBytes(key -> 0L),
 				"the trimmed column must actually be cheaper"
 			);
 			assertSame(trimmed, trimmed.trimmed(), "trimming is idempotent");
@@ -346,28 +348,30 @@ final class ValueColumnTestSupport {
 				reference.insertKeyAt(i, keyFactory.apply(i));
 			}
 			assertEquals(
-				reference.getHeapSizeInBytes(), headroom.getHeapSizeInBytes(),
+				reference.getHeapSizeInBytes(key -> 0L), headroom.getHeapSizeInBytes(key -> 0L),
 				"an exactly-full column must be duplicated straight to grownLength(8, 9, 64) == 16 slots"
 			);
 			assertTrue(
-				headroom.getHeapSizeInBytes() > exactlyFull.duplicate().getHeapSizeInBytes(),
+				headroom.getHeapSizeInBytes(key -> 0L) > exactlyFull.duplicate().getHeapSizeInBytes(key -> 0L),
 				"the headroom copy must be physically longer than the verbatim one"
 			);
 		} else {
 			// a front-coded blob is re-encoded to exactly its content by every write, so it has no per-slot length
 			// to over-allocate and the two duplication methods have to agree
 			assertEquals(
-				exactlyFull.duplicate().getHeapSizeInBytes(), headroom.getHeapSizeInBytes(),
+				exactlyFull.duplicate().getHeapSizeInBytes(key -> 0L), headroom.getHeapSizeInBytes(key -> 0L),
 				"a front-coded column has no slots to give headroom to"
 			);
 		}
 
 		// the point of the whole exercise: on a fixed-slot column the first insert reallocates nothing
-		final long beforeInsert = headroom.getHeapSizeInBytes();
+		final long beforeInsert = headroom.getHeapSizeInBytes(key -> 0L);
 		headroom.insertKeyAt(eight.length, keyFactory.apply(eight.length));
 		assertEquals(eight.length + 1, headroom.size());
 		if (fixedSlotStorage) {
-			assertEquals(beforeInsert, headroom.getHeapSizeInBytes(), "the layer's first insert must land in place");
+			assertEquals(
+			beforeInsert, headroom.getHeapSizeInBytes(key -> 0L), "the layer's first insert must land in place"
+		);
 		}
 
 		// ...and the copy is independent of its source in both directions, exactly as `duplicate()` is
@@ -382,7 +386,8 @@ final class ValueColumnTestSupport {
 			withSlack.insertKeyAt(i, keyFactory.apply(i));
 		}
 		assertEquals(
-			withSlack.duplicate().getHeapSizeInBytes(), withSlack.duplicateForInsert().getHeapSizeInBytes(),
+			withSlack.duplicate().getHeapSizeInBytes(key -> 0L),
+			withSlack.duplicateForInsert().getHeapSizeInBytes(key -> 0L),
 			"a column that is not exactly full must be duplicated verbatim"
 		);
 
@@ -392,7 +397,8 @@ final class ValueColumnTestSupport {
 		final ValueColumn<M> stillEmpty = emptyColumnFactory.apply(SIZING_CAPACITY);
 		assertEquals(0, stillEmpty.duplicateForInsert().size());
 		assertEquals(
-			stillEmpty.duplicate().getHeapSizeInBytes(), stillEmpty.duplicateForInsert().getHeapSizeInBytes(),
+			stillEmpty.duplicate().getHeapSizeInBytes(key -> 0L),
+			stillEmpty.duplicateForInsert().getHeapSizeInBytes(key -> 0L),
 			"an empty column must keep the shared empty array"
 		);
 	}
@@ -452,10 +458,10 @@ final class ValueColumnTestSupport {
 		column.removeAt(50);
 		assertEquals(10, column.size(), "removeAt past the live run changes nothing");
 
-		// clearAt truncates a live slot and is a strict no-op past the live run
-		column.clearAt(20);
-		assertEquals(10, column.size(), "clearAt past the live run changes nothing");
-		column.clearAt(3);
+		// fillEmpty truncates a live slot and is a strict no-op past the live run
+		column.fillEmpty(20, column.capacity());
+		assertEquals(10, column.size(), "fillEmpty past the live run changes nothing");
+		column.fillEmpty(3, column.capacity());
 		assertEquals(3, column.size());
 		assertEquals(0L, column.longAt(3), "a truncated slot reads as zero again");
 

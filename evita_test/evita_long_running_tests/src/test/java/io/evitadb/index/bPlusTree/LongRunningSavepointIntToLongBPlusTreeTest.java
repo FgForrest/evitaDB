@@ -25,12 +25,11 @@ package io.evitadb.index.bPlusTree;
 
 import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
-import io.evitadb.index.bPlusTree.TransactionalIntToLongBPlusTree.Entry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 
 import javax.annotation.Nonnull;
-import java.util.Iterator;
+import java.util.PrimitiveIterator;
 import java.util.Random;
 import java.util.TreeMap;
 
@@ -114,15 +113,18 @@ class LongRunningSavepointIntToLongBPlusTreeTest extends AbstractSavepointFuzzTe
 	}
 
 	/**
-	 * Reads the tree's logical contents (key → value) into an `.equals`-comparable map via the entry iterator.
+	 * Reads the tree's key-value pairs into a map via ordered key iteration and point lookups.
+	 *
+	 * @param tree the tree to read
+	 * @return its visible key-value pairs
 	 */
 	@Nonnull
 	private static TreeMap<Integer, Long> readContents(@Nonnull TransactionalIntToLongBPlusTree tree) {
 		final TreeMap<Integer, Long> contents = new TreeMap<>();
-		final Iterator<Entry> it = tree.entryIterator();
+		final PrimitiveIterator.OfInt it = tree.keyIterator();
 		while (it.hasNext()) {
-			final Entry entry = it.next();
-			contents.put(entry.key(), entry.value());
+			final int key = it.nextInt();
+			contents.put(key, tree.search(key).orElseThrow());
 		}
 		return contents;
 	}

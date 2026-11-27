@@ -978,23 +978,6 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	}
 
 	/**
-	 * Returns the heap this tree occupies in bytes, **excluding the elements its leaves point at**.
-	 *
-	 * This is the spine-only figure, and it is the one a
-	 * {@link io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex} must use: that index holds the very same
-	 * `PriceRecord` instances as the super index of its price-list / currency combination, so it owns this tree's
-	 * nodes and reference slots while the **bodies belong to the super index alone**. Counting them here too would
-	 * multiply the whole price payload by the number of reference-reduced indexes.
-	 *
-	 * Like every tree walk this is `O(nodes)`, not `O(1)` — see {@link BucketBPlusTree#getHeapSizeInBytes(ToLongFunction)}.
-	 *
-	 * @return the owned heap footprint in bytes, including alignment padding
-	 */
-	public long getHeapSizeInBytes() {
-		return getHeapSizeInBytes(element -> 0L);
-	}
-
-	/**
 	 * Returns the heap this tree occupies in bytes, **including the elements** its leaves point at, each priced by
 	 * `elementSizer`. This is the figure a {@link io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex} uses:
 	 * it is the owner of the price bodies, so it is the one that charges them.
@@ -1144,28 +1127,6 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	}
 
 	/**
-	 * Returns an iterator that traverses the B+ tree elements from right to left starting at the element whose derived
-	 * key is the specified key, or the first element with a lesser key. The key need not be present.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return a right-to-left element iterator starting at the given key
-	 */
-	@Nonnull
-	public Iterator<E> lesserOrEqualValueIterator(int key) {
-		return new ReverseElementIterator<>(createCursor(key), key, this.keyExtractor);
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree elements from right to left (descending derived key).
-	 *
-	 * @return a right-to-left element iterator
-	 */
-	@Nonnull
-	public Iterator<E> valueReverseIterator() {
-		return new ReverseElementIterator<>(createRightmostCursor(), this.keyExtractor);
-	}
-
-	/**
 	 * Returns an iterator that traverses the derived keys from left to right (ascending).
 	 *
 	 * @return a left-to-right key iterator
@@ -1174,30 +1135,6 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	@Override
 	public OfInt keyIterator() {
 		return new ForwardKeyIterator<>(createLeftmostCursor(), this.keyExtractor);
-	}
-
-	/**
-	 * Returns an iterator that traverses the derived keys from left to right starting from the specified key or the first
-	 * key greater than it. The key need not be present.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return a left-to-right key iterator starting at the given key
-	 */
-	@Nonnull
-	public OfInt greaterOrEqualKeyIterator(int key) {
-		return new ForwardKeyIterator<>(createCursor(key), key, this.keyExtractor);
-	}
-
-	/**
-	 * Returns an iterator that traverses the derived keys from right to left starting from the specified key or the first
-	 * key lesser than it. The key need not be present.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return a right-to-left key iterator starting at the given key
-	 */
-	@Nonnull
-	public OfInt lesserOrEqualKeyIterator(int key) {
-		return new ReverseKeyIterator<>(createCursor(key), key, this.keyExtractor);
 	}
 
 	/**
@@ -1684,7 +1621,11 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			return currentState().peek;
 		}
 
-		@Override
+		/**
+		 * Moves the final live slot and clears any entries beyond a shortened live run.
+		 *
+		 * @param peek the new final live slot
+		 */
 		public void setPeek(int peek) {
 			final BPlusLeafTreeNode<E> layer = writeLayer(this, this.transactionalLayer);
 			// changing the occupied range is a content mutation (truncation on split/removal, donor shrink on
@@ -1759,7 +1700,11 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			return currentState().peek + 1;
 		}
 
-		@Override
+		/**
+		 * Checks whether the node has reached its capacity.
+		 *
+		 * @return whether the node is full
+		 */
 		public boolean isFull() {
 			final BPlusLeafTreeNode<E> current = currentState();
 			return current.peek == current.capacity - 1;
@@ -2473,20 +2418,6 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			this.keyExtractor = keyExtractor;
 		}
 
-		/**
-		 * Creates a reverse iterator starting from the specified key or the first key lesser than or equal to it.
-		 *
-		 * @param cursor       the cursor providing the traversal path through the B+ tree
-		 * @param key          the key to start the iteration from
-		 * @param keyExtractor the element key extractor
-		 */
-		protected AbstractReverseElementIterator(
-			@Nonnull Cursor cursor, int key, @Nonnull ToIntFunction<E> keyExtractor
-		) {
-			super(cursor, cursor.<BPlusLeafTreeNode<E>>leafNode().findKeyPosition(key));
-			this.keyExtractor = keyExtractor;
-		}
-
 		@Override
 		protected void loadCurrentLeaf() {
 			//noinspection unchecked
@@ -2537,46 +2468,6 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	}
 
 	/**
-	 * Iterator that traverses the B+ tree elements from right to left (descending derived key).
-	 *
-	 * @param <E> the element (value) type
-	 */
-	private static class ReverseElementIterator<E> extends AbstractReverseElementIterator<E> implements Iterator<E> {
-
-		/**
-		 * Creates a reverse element iterator starting from the rightmost element.
-		 *
-		 * @param cursor       the cursor providing the traversal path through the B+ tree
-		 * @param keyExtractor the element key extractor
-		 */
-		public ReverseElementIterator(@Nonnull Cursor cursor, @Nonnull ToIntFunction<E> keyExtractor) {
-			super(cursor, keyExtractor);
-		}
-
-		/**
-		 * Creates a reverse element iterator starting from the specified key or the first key lesser than or equal to it.
-		 *
-		 * @param cursor       the cursor providing the traversal path through the B+ tree
-		 * @param key          the key to start the iteration from
-		 * @param keyExtractor the element key extractor
-		 */
-		public ReverseElementIterator(@Nonnull Cursor cursor, int key, @Nonnull ToIntFunction<E> keyExtractor) {
-			super(cursor, key, keyExtractor);
-		}
-
-		@Override
-		public E next() {
-			if (!this.hasNextElement) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			// read straight from the cached leaf value array - no per-element ThreadLocal accessor call
-			final E value = this.leafValues[this.currentIndex];
-			advance();
-			return value;
-		}
-	}
-
-	/**
 	 * Iterator that traverses the derived keys from left to right. The primitive key is returned directly from
 	 * {@link #nextInt()} so that no boxing occurs on the iteration path.
 	 *
@@ -2592,17 +2483,6 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 */
 		public ForwardKeyIterator(@Nonnull Cursor cursor, @Nonnull ToIntFunction<E> keyExtractor) {
 			super(cursor, keyExtractor);
-		}
-
-		/**
-		 * Creates a forward key iterator starting from the specified key or the first key greater than it.
-		 *
-		 * @param cursor       the cursor providing the traversal path through the B+ tree
-		 * @param key          the key to start the iteration from
-		 * @param keyExtractor the element key extractor
-		 */
-		public ForwardKeyIterator(@Nonnull Cursor cursor, int key, @Nonnull ToIntFunction<E> keyExtractor) {
-			super(cursor, key, keyExtractor);
 		}
 
 		@Override
@@ -2632,17 +2512,6 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 */
 		public ReverseKeyIterator(@Nonnull Cursor cursor, @Nonnull ToIntFunction<E> keyExtractor) {
 			super(cursor, keyExtractor);
-		}
-
-		/**
-		 * Creates a reverse key iterator starting from the specified key or the first key lesser than or equal to it.
-		 *
-		 * @param cursor       the cursor providing the traversal path through the B+ tree
-		 * @param key          the key to start the iteration from
-		 * @param keyExtractor the element key extractor
-		 */
-		public ReverseKeyIterator(@Nonnull Cursor cursor, int key, @Nonnull ToIntFunction<E> keyExtractor) {
-			super(cursor, key, keyExtractor);
 		}
 
 		@Override

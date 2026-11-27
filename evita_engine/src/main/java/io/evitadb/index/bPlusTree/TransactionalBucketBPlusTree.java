@@ -61,9 +61,7 @@ import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalLong;
@@ -197,7 +195,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	public static final int NO_DELETED_BUCKET = -1;
 	/**
-	 * Sentinel {@link #leafVersionOf(int)} returns when a value id names nothing live. `0` is safe as the "no answer"
+	 * Sentinel that identifies an unavailable leaf version. `0` is safe as the "no answer"
 	 * value because a leaf's version id comes from {@link TransactionalObjectVersion#SEQUENCE}, which never hands one
 	 * out.
 	 */
@@ -221,37 +219,33 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	private static final LongLongHashMap EMPTY_LEAF_VERSIONS = new LongLongHashMap(0);
 	private static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
-	private static final int DEFAULT_MIN_VALUE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
-	private static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
-	private static final int DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE =
-		(int) (Math.ceil((float) DEFAULT_INTERNAL_NODE_BLOCK_SIZE / 2.0) - 1);
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Maximum number of buckets per leaf node. The number of keys in internal nodes is one less.
 	 */
-	@Getter private final int valueBlockSize;
+	private final int valueBlockSize;
 	/**
 	 * Minimum number of buckets per leaf node. Controls branching factor for leaf nodes.
 	 */
-	@Getter private final int minValueBlockSize;
+	private final int minValueBlockSize;
 	/**
 	 * Maximum number of keys per internal node. The number of children in internal nodes is one more.
 	 */
-	@Getter private final int internalNodeBlockSize;
+	private final int internalNodeBlockSize;
 	/**
 	 * Minimum number of keys per internal node. Controls branching factor for internal nodes.
 	 */
-	@Getter private final int minInternalNodeBlockSize;
+	private final int minInternalNodeBlockSize;
 	/**
 	 * The type of the keys (bucket values) stored in the tree.
 	 */
-	@Getter private final Class<K> keyType;
+	private final Class<K> keyType;
 	/**
 	 * Optional comparator that defines the total order of the keys. When `null`, the keys are ordered by their
 	 * natural [Comparable] order. The comparator (when present) is threaded into every node and drives every
 	 * key-comparison site so the tree can be ordered by an arbitrary total order (e.g. a locale-aware collator).
 	 */
-	@Nullable @Getter private final Comparator<K> comparator;
+	@Nullable private final Comparator<K> comparator;
 	/**
 	 * Factory that creates a fresh empty {@link ValueColumn} of the kind chosen for this tree's key type. It picks a
 	 * primitive {@link LongValueColumn} for integral / temporal keys under natural order, and the universal
@@ -677,49 +671,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * Constructor to initialize the tree with default block sizes and natural key ordering.
-	 *
-	 * @param keyType the type of the keys (bucket values) stored in the tree
-	 */
-	public TransactionalBucketBPlusTree(@Nonnull Class<K> keyType) {
-		this(
-			DEFAULT_VALUE_BLOCK_SIZE,
-			DEFAULT_MIN_VALUE_BLOCK_SIZE,
-			DEFAULT_INTERNAL_NODE_BLOCK_SIZE,
-			DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE,
-			keyType,
-			null
-		);
-	}
-
-	/**
-	 * Constructor to initialize the tree with default block sizes and an optional comparator.
-	 *
-	 * @param keyType    the type of the keys (bucket values) stored in the tree
-	 * @param comparator optional comparator defining the key order; `null` ⇒ natural order
-	 */
-	public TransactionalBucketBPlusTree(@Nonnull Class<K> keyType, @Nullable Comparator<K> comparator) {
-		this(
-			DEFAULT_VALUE_BLOCK_SIZE,
-			DEFAULT_MIN_VALUE_BLOCK_SIZE,
-			DEFAULT_INTERNAL_NODE_BLOCK_SIZE,
-			DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE,
-			keyType,
-			comparator
-		);
-	}
-
-	/**
-	 * Constructor to initialize the tree from a single block size, deriving the remaining block sizes from it.
-	 *
-	 * @param valueBlockSize maximum number of buckets in a leaf node
-	 * @param keyType        the type of the keys (bucket values) stored in the tree
-	 */
-	public TransactionalBucketBPlusTree(int valueBlockSize, @Nonnull Class<K> keyType) {
-		this(valueBlockSize, keyType, null);
-	}
-
-	/**
 	 * Constructor to initialize the tree from a single block size and an optional comparator.
 	 *
 	 * The remaining block sizes are derived from `valueBlockSize` by
@@ -740,37 +691,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			deriveMinBlockSize(valueBlockSize),
 			deriveInternalNodeBlockSize(valueBlockSize),
 			deriveMinBlockSize(deriveInternalNodeBlockSize(valueBlockSize)),
-			keyType,
-			comparator
-		);
-	}
-
-	/**
-	 * Constructor to initialize the tree with explicit block sizes. This is the wrapper-aware counterpart of the
-	 * object tree constructor; the overflow wrapper for the {@link TransactionalBitmap} column is internal and never a
-	 * caller argument. Lets consumers tune the leaf block size for their workload.
-	 *
-	 * @param valueBlockSize           maximum number of buckets in a leaf node
-	 * @param minValueBlockSize        minimum number of buckets in a leaf node
-	 * @param internalNodeBlockSize    maximum number of keys in an internal node
-	 * @param minInternalNodeBlockSize minimum number of keys in an internal node
-	 * @param keyType                  the type of the keys (bucket values) stored in the tree
-	 * @param comparator               optional comparator defining the key order; `null` ⇒ natural order
-	 */
-	public TransactionalBucketBPlusTree(
-		int valueBlockSize,
-		int minValueBlockSize,
-		int internalNodeBlockSize,
-		int minInternalNodeBlockSize,
-		@Nonnull Class<K> keyType,
-		@Nullable Comparator<K> comparator
-	) {
-		// the boxed factory keeps this (test-facing) constructor 100% behavior-identical to the pre-phase-1 leaf
-		this(
-			valueBlockSize,
-			minValueBlockSize,
-			internalNodeBlockSize,
-			minInternalNodeBlockSize,
 			keyType,
 			comparator,
 			capacity -> new BoxedObjectColumn<>(keyType, capacity)
@@ -1280,13 +1200,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * @return `true` when this tree stamps every bucket with a stable value id
-	 */
-	public boolean carriesValueIds() {
-		return this.valueIdMinter != null;
-	}
-
-	/**
 	 * Returns the stable id of the distinct `value`, in a single tree descent.
 	 *
 	 * @param value the bucket value to resolve
@@ -1457,49 +1370,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * Resolves a stable value id to the version token of the leaf its bucket lives in — the per-page staleness token a
-	 * consumer folds into a formula cache key, exactly as {@link BucketCursor#currentLeafId()} hands it out on the scan
-	 * path.
-	 *
-	 * Answered from the same directory and with the same slot validation as {@link #valueOf(int)}, and carrying the
-	 * same caller obligation about an open transaction.
-	 *
-	 * @param valueId the id whose leaf is wanted
-	 * @return the leaf's version id, or {@link #NO_LEAF_VERSION} when the id resolves to nothing live
-	 */
-	public long leafVersionOf(int valueId) {
-		final ValueIdDirectory<K> directory = this.valueIdDirectory;
-		// the null check lives HERE rather than inside `locationOf` so that it is local to the dereference below:
-		// a check across a call boundary is one static analysis cannot follow, and this method dereferences the
-		// directory directly a few lines on
-		if (directory == null) {
-			return NO_LEAF_VERSION;
-		}
-		final long location = locationOf(directory, valueId);
-		if (location == NO_LOCATION) {
-			return NO_LEAF_VERSION;
-		}
-		final BPlusLeafTreeNode<K> leaf = directory.leafById().get(location >>> 32);
-		if (leaf == null) {
-			return NO_LEAF_VERSION;
-		}
-		final int slot = (int) (location & SLOT_MASK);
-		return slot < leaf.size() && leaf.valueIdAt(slot) == valueId ? leaf.getId() : NO_LEAF_VERSION;
-	}
-
-	/**
 	 * Resolves `valueId`, tests the value it names, and returns that bucket's record set on a match - from ONE
-	 * resolution of the location, where the chain this replaces resolved it three times.
+	 * resolution of the location. The leaf's columns are slot-parallel, so the single probe below answers the value,
+	 * the version token and the record set off the slot it has already validated - which is what
+	 * {@link SingleLeafBucketCursor} does at one index on the scan path.
 	 *
-	 * `valueOf(int)` and {@link #leafVersionOf(int)} are byte-for-byte the same probe up to their final expression,
-	 * and {@link #getRecordsEqualTo} then discards the slot both of them found in order to re-find it by a
-	 * root-to-leaf descent plus a leaf-local binary search over front-coded keys. The leaf's columns are
-	 * slot-parallel, so the single probe below answers all three questions off the slot it has already validated -
-	 * which is what {@link SingleLeafBucketCursor} does at one index on the scan path.
-	 *
-	 * The fusion also removes a disagreement rather than merely a cost: chained, the second probe could observe a
-	 * directory rebuild the first one missed and resolve the same id to a different leaf. Here there is one probe,
-	 * so the value, the version token and the record set necessarily describe the same bucket.
+	 * The single probe also removes a disagreement rather than merely a cost: two probes could observe a directory
+	 * rebuild between them and resolve the same id to different leaves. Here there is one probe, so the value, the
+	 * version token and the record set necessarily describe the same bucket.
 	 *
 	 * @param valueId             the candidate id to resolve
 	 * @param valuePredicate      the exact test applied to the value the id names, or `null` when the caller already
@@ -1834,6 +1712,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * single-record bucket, a read-only {@link SortedArrayBitmap} view for a small multi-record one, the live
 	 * {@link TransactionalBitmap} for a large one, and {@link EmptyBitmap#INSTANCE} for an absent value. The result
 	 * is read-only in every case - it is the tree's own storage, or a view of it.
+	 * A change made through the returned bitmap never flags its leaf dirty, so the leaf's page would not be rewritten.
 	 *
 	 * @param value the value to look up (may be null ⇒ empty bitmap)
 	 * @return the record set for the value, never null
@@ -2396,7 +2275,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 	/**
 	 * A live, write-path handle over a single leaf page: it exposes the leaf's logical persistence page
-	 * sequence (carried across commits by {@link BPlusTreeNode#getPageSequence()}), lets the emitter assign a freshly
+	 * sequence (carried across commits by the leaf), lets the emitter assign a freshly
 	 * allocated page to a not-yet-paged (split-born or fresh) leaf, and hands out a leaf-scoped {@link BucketCursor} the
 	 * emitter materializes the page contents from. The handles are returned in ascending key order — the very order the
 	 * persisted leaf-page list records — by {@link #leafPageHandles()}. The page-bookkeeping half (page sequence, dirty
@@ -3297,84 +3176,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.internalNodeBlockSize, keys, childArray, childCount - 1, this.comparator, true);
 	}
 
-	/**
-	 * Collects the nodes this (committed) tree rebuilt relative to `priorTree` — the page set a commit must (re)write
-	 * under the granular FilterIndex layout, driving emission from the merge's instance-identity rebuilt set. A node
-	 * carried across the commit unchanged is shared BY IDENTITY between the prior committed tree
-	 * and this one (the transactional merge returns the very same instance); a node the merge rebuilds — for ANY reason
-	 * it rebuilds: a child changed, the node itself held a transactional layer, one of a leaf's overflow record-set
-	 * bitmaps mutated, or it is a split/merge product — is a fresh instance. So `{node in this tree : not
-	 * identity-present in priorTree}` is exactly the merge's rebuilt set, with no hand-maintained dirty predicate that
-	 * could drift from the merge logic. In particular this catches a leaf whose record set changed only through an
-	 * overflow bitmap (e.g. mutated via the live bitmap from {@link #getRecordsEqualTo}) without the leaf node itself
-	 * acquiring a layer — the case a leaf-layer-only predicate would miss.
-	 *
-	 * Both trees must be in their committed (layer-free) state — call this AFTER the commit that produced this tree.
-	 * The walk prunes a whole subtree at the first carried-over node (a carried internal node necessarily has an
-	 * entirely carried subtree, since the merge returns it unchanged only when no descendant changed), so it visits
-	 * `O(changed nodes + their root-paths)`. The prior-tree identity index it builds is the only full-tree cost and is
-	 * optimized away later once nodes carry a persisted `pageSequence`.
-	 *
-	 * @param priorTree the previous committed tree this one was derived from by a transactional merge
-	 * @return the rebuilt nodes (leaves and internal spine) in pre-order; empty for a no-op commit
-	 */
-	@Nonnull
-	public List<BPlusTreeNode<K, ?>> collectRebuiltNodesSince(@Nonnull TransactionalBucketBPlusTree<K> priorTree) {
-		final Set<BPlusTreeNode<K, ?>> priorNodes = Collections.newSetFromMap(new IdentityHashMap<>());
-		indexNodesByIdentity(priorTree.getRoot(), priorNodes);
-		final List<BPlusTreeNode<K, ?>> rebuilt = new ArrayList<>();
-		collectRebuilt(getRoot(), priorNodes, rebuilt);
-		return rebuilt;
-	}
-
-	/**
-	 * Adds every node reachable from `node` (inclusive) to `out` under identity semantics.
-	 *
-	 * @param node the subtree root to index
-	 * @param out  the identity set accumulator
-	 */
-	private void indexNodesByIdentity(@Nonnull BPlusTreeNode<K, ?> node, @Nonnull Set<BPlusTreeNode<K, ?>> out) {
-		out.add(node);
-		if (node instanceof BPlusInternalTreeNode<?> internal) {
-			//noinspection unchecked
-			final BPlusInternalTreeNode<K> internalNode = (BPlusInternalTreeNode<K>) internal;
-			final BPlusTreeNode<K, ?>[] children = internalNode.getChildren();
-			final int peek = internalNode.getPeek();
-			for (int i = 0; i <= peek; i++) {
-				indexNodesByIdentity(children[i], out);
-			}
-		}
-	}
-
-	/**
-	 * Walks `node`'s subtree collecting every node not identity-present in `priorNodes` (rebuilt this commit), pruning
-	 * whole subtrees at the first carried-over node.
-	 *
-	 * @param node       the subtree root to scan
-	 * @param priorNodes the identity set of the prior committed tree's nodes
-	 * @param out        the rebuilt-node accumulator (pre-order)
-	 */
-	private void collectRebuilt(
-		@Nonnull BPlusTreeNode<K, ?> node,
-		@Nonnull Set<BPlusTreeNode<K, ?>> priorNodes,
-		@Nonnull List<BPlusTreeNode<K, ?>> out
-	) {
-		if (priorNodes.contains(node)) {
-			// carried over unchanged → the whole subtree below is clean too
-			return;
-		}
-		out.add(node);
-		if (node instanceof BPlusInternalTreeNode<?> internal) {
-			//noinspection unchecked
-			final BPlusInternalTreeNode<K> internalNode = (BPlusInternalTreeNode<K>) internal;
-			final BPlusTreeNode<K, ?>[] children = internalNode.getChildren();
-			final int peek = internalNode.getPeek();
-			for (int i = 0; i <= peek; i++) {
-				collectRebuilt(children[i], priorNodes, out);
-			}
-		}
-	}
-
 	@Nonnull
 	@Override
 	public ConsistencyReport getConsistencyReport() {
@@ -3936,36 +3737,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		Serializable {
 
 		/**
-		 * Retrieves the array of keys associated with the node.
-		 *
-		 * @return the non-null array of keys present in the node
-		 */
-		@Nonnull
-		M[] getKeys();
-
-		/**
-		 * Retrieves the (boxed) key at the given index. Boxing boundary — for the leaf this routes through the columnar
-		 * storage; for the internal node it indexes the boxed separator array.
-		 *
-		 * @param index the slot to read
-		 * @return the key at `index`
-		 */
-		@Nonnull
-		M keyAt(int index);
-
-		/**
 		 * Retrieves the peek index (last usable position) of the node's values / children.
 		 *
 		 * @return the peek value of the node
 		 */
 		int getPeek();
-
-		/**
-		 * Sets the peek index of the node, indicating the last usable position in the node's values / children array.
-		 *
-		 * @param peek the new peek index to set for the node
-		 */
-		void setPeek(int peek);
 
 		/**
 		 * Returns the optional comparator defining the total order of this node's keys, or `null` for natural order.
@@ -4008,13 +3784,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return the number of keys in this node
 		 */
 		int keyCount();
-
-		/**
-		 * Checks if the node is full (all available slots occupied).
-		 *
-		 * @return true if the node is full, false otherwise
-		 */
-		boolean isFull();
 
 		/**
 		 * Appends a verbose string representation of the node to the given builder.
@@ -4063,26 +3832,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nonnull
 		M getLeftBoundaryKey();
-
-		/**
-		 * Returns the logical page this node occupies in its persistence stream under the granular FilterIndex layout
-		 *, or {@link TransactionalBucketBPlusTree#UNASSIGNED_PAGE_SEQUENCE} when none has been assigned yet.
-		 * The page is the STABLE on-disk identity of the node: an in-place rewrite carries the same page forward (so the
-		 * same storage part is overwritten on commit), while a split-born sibling or a not-yet-loaded node reads as
-		 * unassigned until the write/load path assigns one.
-		 *
-		 * @return the assigned page sequence, or {@link TransactionalBucketBPlusTree#UNASSIGNED_PAGE_SEQUENCE}
-		 */
-		int getPageSequence();
-
-		/**
-		 * Assigns the logical page this node occupies in its persistence stream. Called by the write path when a
-		 * previously {@link TransactionalBucketBPlusTree#UNASSIGNED_PAGE_SEQUENCE unassigned} node is first allocated a page,
-		 * and by the load path to restore each node's persisted page.
-		 *
-		 * @param pageSequence the page sequence to assign
-		 */
-		void setPageSequence(int pageSequence);
 
 		/**
 		 * Every node of this tree journals its warm-up writes, so the declaration is made once here rather than
@@ -4162,7 +3911,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		/**
 		 * Returns the record set of the current bucket: a lean {@link SingleRecordBitmap} for a single bucket, a
 		 * read-only {@link SortedArrayBitmap} view for a small multi bucket, the live {@link TransactionalBitmap} for
-		 * a large one. The result is read-only in every case - it is the tree's own storage, or a view of it.
+		 * a large one. The result is read-only in every case - it is the tree's own storage, or a view of it. A change
+		 * made through the returned bitmap never flags its leaf dirty, so the leaf's page would not be rewritten.
 		 *
 		 * @return the record set, never null
 		 */
@@ -4243,13 +3993,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Index of the last occupied position in the children array.
 		 */
 		private int peek;
-		/**
-		 * The logical persistence page this node occupies (see {@link BPlusTreeNode#getPageSequence()}). NOT transactional —
-		 * it is structural bookkeeping carried across the commit-merge by {@link #createCopyWithMergedTransactionalMemory}
-		 * (an in-place rebuild reuses the source page) and is left at {@link #UNASSIGNED_PAGE_SEQUENCE} on split-born nodes
-		 * until the write path allocates a page.
-		 */
-		private int pageSequence = UNASSIGNED_PAGE_SEQUENCE;
 
 		/**
 		 * Creates a new internal node with a single key separating two child nodes, used when creating a new root after
@@ -4342,8 +4085,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.transactionalLayer = transactionalLayer;
 		}
 
+		/**
+		 * Returns the keys visible on the current transaction or the committed node.
+		 *
+		 * @return the node keys
+		 */
 		@Nonnull
-		@Override
 		public M[] getKeys() {
 			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
@@ -4353,12 +4100,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			} else {
 				return layer.keys;
 			}
-		}
-
-		@Nonnull
-		@Override
-		public M keyAt(int index) {
-			return getKeys()[index];
 		}
 
 		@Override
@@ -4373,7 +4114,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 		}
 
-		@Override
+		/**
+		 * Moves the final live slot and clears any entries beyond a shortened live run.
+		 *
+		 * @param peek the new final live slot
+		 */
 		public void setPeek(int peek) {
 			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
@@ -4407,18 +4152,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 		}
 
-		@Override
-		public int getPageSequence() {
-			// pageSequence is structural (not transactional): it lives on the committed instance and is reused across
-			// the commit-merge, so it is read/written directly without routing through any transactional layer
-			return this.pageSequence;
-		}
-
-		@Override
-		public void setPageSequence(int pageSequence) {
-			this.pageSequence = pageSequence;
-		}
-
 		/**
 		 * Returns the heap this node and the whole subtree beneath it occupy, in bytes.
 		 *
@@ -4446,9 +4179,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer, boolean separatorsOwned) {
 			final VMLayout layout = VMLayout.current();
-			// id + warmUpTouchStamp + transactionalLayer + comparator/keys/children slots + peek + pageSequence
+			// id + warmUpTouchStamp + transactionalLayer + comparator/keys/children slots + peek
 			// + blockSize
-			long size = layout.sizeOfObject(2L * Long.BYTES + 1L + 3L * layout.referenceSize() + 3L * Integer.BYTES);
+			long size = layout.sizeOfObject(2L * Long.BYTES + 1L + 3L * layout.referenceSize() + 2L * Integer.BYTES);
 			// both arrays are read ONCE into locals and everything below indexes those locals: this walk is reachable
 			// with no session and no catalog-state guard (see the tree's class javadoc), so the array a slot is
 			// charged from has to be the same array its bound came from
@@ -4503,7 +4236,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 		}
 
-		@Override
+		/**
+		 * Checks whether the node has reached its capacity.
+		 *
+		 * @return whether the node is full
+		 */
 		public boolean isFull() {
 			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
@@ -5042,9 +4779,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			} else {
 				return this;
 			}
-			// carry the logical persistence page across the rebuild: an in-place rebuild rewrites the SAME page (reuse
-			// this.pageSequence), while a split-born node keeps its UNASSIGNED_PAGE_SEQUENCE so the write path allocates it fresh
-			result.pageSequence = this.pageSequence;
 			return result;
 		}
 
@@ -5226,7 +4960,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * `null` unless the owning tree carries value ids at all (see the tree's `valueIdMinter`), which is the common
 		 * case — the column is paid for only by trees some subsystem has registered as a consumer of. A live slot
 		 * always holds a minted id; a vacated slot reads back as `0`, the "unassigned" sentinel, because the record
-		 * column's `clearAt` / `fillEmpty` zero-fill it.
+		 * column's `fillEmpty` zero-fills it.
 		 */
 		@Nullable private RecordColumn valueIds;
 		/**
@@ -5459,14 +5193,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			assertColumnsAlignedWithPeek();
 		}
 
+		/**
+		 * Returns the keys visible on the current transaction or the committed node.
+		 *
+		 * @return the node keys
+		 */
 		@Nonnull
-		@Override
 		public M[] getKeys() {
 			return getKeyColumn().asBoxedArray();
 		}
 
+		/**
+		 * Returns the key at the given slot in the visible leaf.
+		 *
+		 * @param index the slot to read
+		 * @return the key
+		 */
 		@Nonnull
-		@Override
 		public M keyAt(int index) {
 			return getKeyColumn().keyAt(index);
 		}
@@ -5500,7 +5243,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 		}
 
-		@Override
+		/**
+		 * Moves the final live slot and clears any entries beyond a shortened live run.
+		 *
+		 * @param peek the new final live slot
+		 */
 		public void setPeek(int peek) {
 			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
 			// changing the occupied range is a content mutation (truncation on split/removal, donor shrink on
@@ -5562,14 +5309,28 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 		}
 
-		@Override
+		/**
+		 * Returns the logical page this leaf occupies in its persistence stream, or
+		 * {@link TransactionalBucketBPlusTree#UNASSIGNED_PAGE_SEQUENCE} when none has been assigned yet. The page is
+		 * the STABLE on-disk identity of the leaf: an in-place rewrite carries the same page forward (so the same
+		 * storage part is overwritten on commit), while a split-born sibling or a not-yet-loaded leaf reads as
+		 * unassigned until the write/load path assigns one.
+		 *
+		 * @return the assigned page sequence, or {@link TransactionalBucketBPlusTree#UNASSIGNED_PAGE_SEQUENCE}
+		 */
 		public int getPageSequence() {
 			// pageSequence is structural (not transactional): it lives on the committed instance and is reused across
 			// the commit-merge, so it is read/written directly without routing through any transactional layer
 			return this.pageSequence;
 		}
 
-		@Override
+		/**
+		 * Assigns the logical page this leaf occupies in its persistence stream. Called by the write path when a
+		 * previously {@link TransactionalBucketBPlusTree#UNASSIGNED_PAGE_SEQUENCE unassigned} leaf is first allocated a
+		 * page, and by the load path to restore each leaf's persisted page.
+		 *
+		 * @param pageSequence the page sequence to assign
+		 */
 		public void setPageSequence(int pageSequence) {
 			this.pageSequence = pageSequence;
 		}
@@ -5678,7 +5439,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 		}
 
-		@Override
+		/**
+		 * Checks whether the node has reached its capacity.
+		 *
+		 * @return whether the node is full
+		 */
 		public boolean isFull() {
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
@@ -6250,34 +6015,6 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				return OverflowRecords.asBitmapView(bucketRecords, this.id);
 			}
 			return new SingleRecordBitmap(theRecords.intAt(index));
-		}
-
-		/**
-		 * Returns the record set at a slot the caller has ALREADY located and validated - the slot-addressed sibling
-		 * of {@link #getRecords(Comparable)}, whose binary search over the key column exists only to find that very
-		 * slot.
-		 *
-		 * Reads the same columns {@link #getRecords(Comparable)} resolves and returns the same shapes: a fresh
-		 * {@link SingleRecordBitmap} for a single bucket, a read-only {@link SortedArrayBitmap} view for a small
-		 * multi one, the live {@link TransactionalBitmap} above the array tier. It cannot return
-		 * {@link EmptyBitmap#INSTANCE}, because a validated slot always carries a bucket - where the key-addressed
-		 * sibling has to allow for a value that is not in this leaf at all.
-		 *
-		 * @param slot the validated slot
-		 * @return the record set at that slot, never null
-		 */
-		@Nonnull
-		public Bitmap getRecordsAt(int slot) {
-			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
-				? Transaction.getTransactionalMemoryLayerIfExists(this)
-				: null;
-			final RecordColumn theRecords = layer == null ? this.records : layer.records;
-			final OverflowColumn theOverflow = layer == null ? this.overflow : layer.overflow;
-			final Object bucketRecords = theOverflow == null ? null : theOverflow.recordsAt(slot);
-			if (bucketRecords != null) {
-				return OverflowRecords.asBitmapView(bucketRecords, this.id);
-			}
-			return new SingleRecordBitmap(theRecords.intAt(slot));
 		}
 
 		/**
@@ -7505,8 +7242,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 *
 		 * **Two windows inside a single mutation legitimately violate it.** Both `insertNewSingleBucket` and
 		 * `insertNewBucket` grow the columns before `peek++`, so between the first column write and the increment the
-		 * columns report `peek + 2`; `deleteBucketAt` shrinks the columns before `peek--`, so its `clearAt(peek)`
-		 * fires while the live run is already `peek`. Nothing may call this from inside one of those windows.
+		 * columns report `peek + 2`. During `deleteBucketAt`, the columns shrink before `peek--` and report `peek`.
+		 * Nothing may call this from inside one of those windows.
 		 *
 		 * ## Why the per-insert exits are deliberately unchecked
 		 *

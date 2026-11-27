@@ -26,6 +26,7 @@ package io.evitadb.index.invertedIndex;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -184,7 +185,14 @@ class WarmUpSavepointValueIdRollbackTest {
 		 */
 		@Nonnull
 		private static TransactionalBucketBPlusTree<Integer> treeCarryingValueIds(@Nonnull ValueIdAllocator allocator) {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(Integer.class);
+			@SuppressWarnings("unchecked")
+			final ValueColumnFactory<Integer> columnFactory =
+				(ValueColumnFactory<Integer>) ValueColumnFactory.forKey(Integer.class, null);
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(
+					64, 31, 31, 15, Integer.class, null,
+					columnFactory
+				);
 			tree.installValueIdMinter(allocator::allocate);
 			return tree;
 		}
