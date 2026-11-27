@@ -32,6 +32,7 @@ import okhttp3.RequestBody;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Client for creating HTTP REST requests and executing them.
@@ -39,6 +40,14 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public class RestClient extends ApiClient {
+	/**
+	 * Media type of every request body this client sends.
+	 */
+	private static final MediaType JSON = MediaType.parse("application/json");
+	/**
+	 * HTTP methods OkHttp sends only with a request body.
+	 */
+	private static final Set<String> METHODS_REQUIRING_BODY = Set.of("POST", "PUT", "PATCH");
 
 	public RestClient(@Nonnull String url, boolean validateSsl, boolean useConnectionPool, int numberOfRetries) {
 		super(url, validateSsl, useConnectionPool, numberOfRetries);
@@ -62,9 +71,30 @@ public class RestClient extends ApiClient {
 			.url(this.url + resource)
 			.addHeader("Accept", "application/json")
 			.addHeader("Content-Type", "application/json")
-			.method(method, body != null && !body.isBlank() ? RequestBody.create(body, MediaType.parse("application/json")) : null)
+			.method(method, createRequestBody(method, body))
 			.build();
 
+	}
+
+	/**
+	 * Creates the body of a request with the given HTTP method.
+	 *
+	 * @param method HTTP method of the request
+	 * @param body   JSON body of the request, blank or `null` when the request carries none
+	 * @return the JSON body, an empty JSON body for a method that requires one when `body` is blank, or `null`
+	 * when the method takes no body
+	 */
+	@Nullable
+	private static RequestBody createRequestBody(@Nonnull String method, @Nullable String body) {
+		if (body != null && !body.isBlank()) {
+			return RequestBody.create(body, JSON);
+		} else if (METHODS_REQUIRING_BODY.contains(method)) {
+			// OkHttp refuses these methods without a body, but an action endpoint such as a catalog duplication
+			// takes none
+			return RequestBody.create("", JSON);
+		} else {
+			return null;
+		}
 	}
 
 	private static void validateResponseBody(@Nonnull JsonNode responseBody) {

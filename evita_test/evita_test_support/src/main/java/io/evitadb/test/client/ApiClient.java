@@ -111,13 +111,22 @@ abstract class ApiClient {
 		return clientBuilder.build();
 	}
 
+	/**
+	 * Executes the request and returns the body of its response, retrying a failed call.
+	 *
+	 * @param request request to execute
+	 * @return the response body of any `2xx` status, `"no response body"` when such a response has none, or empty
+	 * for `404 Not Found`
+	 * @throws GenericEvitaInternalError when every attempt ends with another status or an IO error
+	 */
 	@Nonnull
 	protected Optional<String> getResponseBodyString(@Nonnull Request request) {
 		RuntimeException firstException = null;
 		for (int i = 0; i < this.numberOfRetries; i++) {
 			try (Response response = this.client.newCall(request).execute()) {
 				final int responseCode = response.code();
-				if (responseCode == 200) {
+				// an asynchronous operation answers `202 Accepted` with a handle in the body
+				if (responseCode >= 200 && responseCode < 300) {
 					return response.body() != null ?
 						ofNullable(response.body().string()) : of("no response body");
 				} else if (responseCode == 404) {
