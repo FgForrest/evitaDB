@@ -1,11 +1,11 @@
 ---
 title: Readiness waits until every start-up catalog is published or can no longer be, decided in the observability stack
-date: 2026-11-24
-updated: 2026-11-25 13:53
+date: 2026-11-27
+updated: 2026-11-27 14:30
 status: accepted
 kind: fix
 issues: [2082]
-prs: []
+prs: [2083]
 areas: [evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/system,
   evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http,
   evita_external_api/evita_external_api_observability/src/main/java/io/evitadb/externalApi/observability,
@@ -222,3 +222,6 @@ contract scoped to the API managers appears; Option E with clustering.
 ## Timeline
 
 - **2026-11-24** - reported, reproduced red on `dev`, designed with adversarial review, implemented.
+- **2026-11-25** - the setting renamed to `readinessCatalogActivationTimeoutInMillis` (public term: catalog
+  activation).
+- **2026-11-27** - PR #2083 merged.
