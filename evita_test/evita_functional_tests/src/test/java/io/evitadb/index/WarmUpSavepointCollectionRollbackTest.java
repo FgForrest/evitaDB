@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -49,7 +50,9 @@ import java.util.Set;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TRANSACTION;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies that the collection-backed index structures — {@link TransactionalMap}, {@link PersistentTransactionalMap}
@@ -488,6 +491,23 @@ class WarmUpSavepointCollectionRollbackTest {
 		}
 
 		@Test
+		@DisplayName("Rollback succeeds after the delegate rejected an iterator removal")
+		void shouldRollBackWhenDelegateRejectsIteratorRemoval() {
+			final TransactionalSet<String> set = new TransactionalSet<>(Set.of("a"));
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			final Iterator<String> it = set.iterator();
+			it.next();
+			assertThrows(UnsupportedOperationException.class, it::remove, "self-check: the delegate rejects removal");
+			assertDoesNotThrow(
+				savepoint::rollback,
+				"A removal the delegate rejected changed nothing, so the rollback has nothing to write back."
+			);
+
+			assertEquals(Set.of("a"), new HashSet<>(set), "The rejected removal must leave the set as it was.");
+		}
+
+		@Test
 		@DisplayName("Rollback restores a set that was cleared inside the savepoint")
 		void shouldRestoreClearedSet() {
 			final Set<String> delegate = new LinkedHashSet<>(List.of("first", "second", "third"));
@@ -538,6 +558,28 @@ class WarmUpSavepointCollectionRollbackTest {
 			assertEquals(
 				Set.of("a", "b", "c"), new LinkedHashSet<>(set),
 				"The removal reached the delegate through an iterator older than the savepoint and must be rewound."
+			);
+		}
+
+		@Test
+		@DisplayName("A stale set iterator's failed removal does not restore an element removed before the savepoint")
+		void shouldNotRestoreElementWhenStaleIteratorRemovalFails() {
+			final TransactionalSet<String> set = new TransactionalSet<>(new LinkedHashSet<>(List.of("a", "b")));
+
+			final Iterator<String> it = set.iterator();
+			assertEquals("a", it.next(), "self-check on the iteration order");
+			set.remove("a");
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			assertThrows(
+				ConcurrentModificationException.class, it::remove,
+				"self-check: the delegate iterator rejects a removal after the set changed under it"
+			);
+			savepoint.rollback();
+
+			assertEquals(
+				Set.of("b"), new LinkedHashSet<>(set),
+				"The element was already absent when the savepoint opened, so the rollback must not add it back."
 			);
 		}
 	}
