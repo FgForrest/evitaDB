@@ -29,7 +29,6 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -486,9 +485,11 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 		private final Iterator<K> layerIt;
 		private final Iterator<K> stateIt;
 
-		@Nullable private K currentValue;
-		private boolean fetched = true;
+		@Nullable private K nextDelegateValue;
+		@Nullable private K lastReturned;
+		private boolean needsFetch = true;
 		private boolean endOfData;
+		private boolean canRemove;
 
 		/**
 		 * Creates a new iterator merging the delegate and layer state.
@@ -509,35 +510,55 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 			this.stateIt = setDelegate.iterator();
 		}
 
+		/**
+		 * Checks for another created or retained delegate key without changing the removal target.
+		 *
+		 * @return whether another key is available
+		 */
 		@Override
 		public boolean hasNext() {
-			if (this.fetched) {
-				this.currentValue = computeNext();
-				this.fetched = false;
+			if (this.layerIt.hasNext()) {
+				return true;
+			}
+			if (this.needsFetch) {
+				this.nextDelegateValue = computeNext();
+				this.needsFetch = false;
 			}
 			return !this.endOfData;
 		}
 
+		/**
+		 * Returns the next key and makes it the target of {@link #remove()}.
+		 *
+		 * @return the next key in the transactional view
+		 * @throws NoSuchElementException if the iterator is exhausted
+		 */
 		@Nullable
 		@Override
 		public K next() {
-			if (this.endOfData) {
-				throw new NoSuchElementException();
+			if (this.layerIt.hasNext()) {
+				this.lastReturned = this.layerIt.next();
+			} else {
+				if (!hasNext()) {
+					throw new NoSuchElementException();
+				}
+				this.lastReturned = this.nextDelegateValue;
+				this.needsFetch = true;
 			}
-			if (this.fetched) {
-				this.currentValue = computeNext();
-			}
-			this.fetched = true;
-			return this.currentValue;
+			this.canRemove = true;
+			return this.lastReturned;
 		}
 
 		/**
-		 * Removes the current key from the transactional view, recording its prior membership for savepoint rollback.
+		 * Removes the key last returned by {@link #next()} and journals its membership for savepoint rollback.
+		 *
+		 * @throws IllegalStateException if there is no successful call to {@link #next()} since the last removal
+		 *                               or since the iterator was created
 		 */
 		@Override
 		public void remove() {
-			if (this.currentValue == null) {
-				throw new GenericEvitaInternalError("Value unexpectedly not found!");
+			if (!this.canRemove) {
+				throw new IllegalStateException();
 			}
 
 			// register the write-touch with the maintainer FIRST: when a savepoint is open and this layer has not
@@ -545,7 +566,7 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 			// journal) BEFORE the removal below mutates the diff layer - otherwise the removal would be unrevertable
 			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 
-			final K key = this.currentValue;
+			final K key = this.lastReturned;
 			if (this.layer.containsCreated(key)) {
 				// The created-keys iterator bypasses the layer's journaled mutators.
 				this.layer.journalKey(key);
@@ -553,42 +574,24 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 			} else {
 				this.layer.remove(key);
 			}
+			this.canRemove = false;
 		}
 
 		/**
-		 * Marks this iterator as exhausted and returns null.
-		 */
-		@Nullable
-		K endOfData() {
-			this.endOfData = true;
-			return null;
-		}
-
-		/**
-		 * Drains the created keys and then iterates the delegate, skipping removed keys.
+		 * Advances the delegate iterator to the next key that is visible in the transactional view.
 		 *
-		 * @return the next key, or null when the iterator is exhausted
+		 * @return the next retained delegate key, or null when the delegate iterator is exhausted
 		 */
 		@Nullable
 		K computeNext() {
-			if (this.endOfData) {
-				return null;
+			while (this.stateIt.hasNext()) {
+				final K key = this.stateIt.next();
+				if (!this.layer.containsRemoved(key)) {
+					return key;
+				}
 			}
-			if (this.layerIt.hasNext()) {
-				return this.layerIt.next();
-			} else if (this.stateIt.hasNext()) {
-				K adept;
-				do {
-					if (this.stateIt.hasNext()) {
-						adept = this.stateIt.next();
-					} else {
-						return endOfData();
-					}
-				} while (this.layer.containsRemoved(adept));
-				return adept;
-			} else {
-				return endOfData();
-			}
+			this.endOfData = true;
+			return null;
 		}
 
 	}

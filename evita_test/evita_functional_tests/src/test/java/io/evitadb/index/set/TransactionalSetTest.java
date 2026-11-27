@@ -29,6 +29,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -763,6 +765,45 @@ class TransactionalSetTest {
 	@Nested
 	@DisplayName("Iterator contract")
 	class IteratorContractTest {
+
+		/**
+		 * Verifies removal after lookahead for a created key and after exhaustion for a delegate key.
+		 *
+		 * @param moreElements whether the iterator should have another element after the one being removed
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {true, false})
+		@DisplayName("remove targets the last returned element after hasNext")
+		void shouldRemoveLastReturnedElementAfterHasNext(boolean moreElements) {
+			final Set<String> expected = new HashSet<>(Set.of("a", "c", "d"));
+			assertStateAfterCommit(
+				TransactionalSetTest.this.tested,
+				original -> {
+					original.add("c");
+					original.add("d");
+					original.remove("b");
+
+					final Iterator<String> iterator = original.iterator();
+					if (!moreElements) {
+						iterator.next();
+						iterator.next();
+					}
+					final String returned = iterator.next();
+					assertEquals(moreElements, iterator.hasNext());
+					iterator.remove();
+
+					assertTrue(expected.remove(returned));
+					assertSetContains(original, expected.toArray(String[]::new));
+					if (moreElements) {
+						assertTrue(expected.contains(iterator.next()));
+						assertEquals("a", iterator.next());
+					}
+					assertFalse(iterator.hasNext());
+					assertFalse(original.contains(returned));
+				},
+				(original, committedVersion) -> assertSetContains(committedVersion, expected.toArray(String[]::new))
+			);
+		}
 
 		@Test
 		@DisplayName("hasNext is idempotent")
