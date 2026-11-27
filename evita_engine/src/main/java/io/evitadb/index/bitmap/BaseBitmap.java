@@ -23,11 +23,8 @@
 
 package io.evitadb.index.bitmap;
 
-import com.carrotsearch.hppc.predicates.IntPredicate;
 import io.evitadb.roaringbitmap.PeekableIntIterator;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
-import io.evitadb.roaringbitmap.RoaringBatchIterator;
-import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.VMLayout;
 import net.openhft.hashing.LongHashFunction;
 
@@ -121,20 +118,18 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	}
 
 	@Override
-	public void addAll(int... recordId) {
-		this.roaringBitmap.add(recordId);
-		this.memoizedCardinality = -1;
-		this.memoizedContentHash = null;
-	}
-
-	@Override
 	public void addAll(@Nonnull Bitmap recordIds) {
 		this.roaringBitmap.add(recordIds.getArray());
 		this.memoizedCardinality = -1;
 		this.memoizedContentHash = null;
 	}
 
-	@Override
+	/**
+	 * Removes a record id if it is present.
+	 *
+	 * @param recordId the record id to remove
+	 * @return true if the record id was removed
+	 */
 	public boolean remove(int recordId) {
 		final boolean removed = this.roaringBitmap.checkedRemove(recordId);
 		if (removed) {
@@ -144,16 +139,11 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		return removed;
 	}
 
-	@Override
-	public void removeAll(int... recordId) {
-		for (int recId : recordId) {
-			this.roaringBitmap.remove(recId);
-		}
-		this.memoizedCardinality = -1;
-		this.memoizedContentHash = null;
-	}
-
-	@Override
+	/**
+	 * Removes all record ids present in the supplied bitmap.
+	 *
+	 * @param recordIds the bitmap containing the record ids to remove
+	 */
 	public void removeAll(@Nonnull Bitmap recordIds) {
 		if (recordIds instanceof RoaringBitmapBackedBitmap) {
 			this.roaringBitmap.andNot(((RoaringBitmapBackedBitmap) recordIds).getRoaringBitmap());
@@ -168,86 +158,6 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		this.memoizedContentHash = null;
 	}
 
-	/**
-	 * Removes all elements from the bitmap that satisfy the specified predicate.
-	 *
-	 * @param predicate a non-null predicate to test each element in the bitmap.
-	 *                  Elements for which {@code predicate.apply(int)} returns {@code true} will be removed.
-	 */
-	public void removeAll(@Nonnull IntPredicate predicate) {
-		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-		if (size() > 64) {
-			final int[] buffer = new int[64];
-			final RoaringBatchIterator batchIterator = this.roaringBitmap.getBatchIterator();
-			while (batchIterator.hasNext()) {
-				final int peek = batchIterator.nextBatch(buffer);
-				for (int i = 0; i < peek; i++) {
-					final int next = buffer[i];
-					if (predicate.apply(next)) {
-						writer.add(next);
-					}
-				}
-			}
-		} else {
-			final PeekableIntIterator it = this.roaringBitmap.getIntIterator();
-			while (it.hasNext()) {
-				final int next = it.next();
-				if (predicate.apply(next)) {
-					writer.add(next);
-				}
-			}
-		}
-		this.roaringBitmap.andNot(writer.get());
-		this.memoizedCardinality = -1;
-		this.memoizedContentHash = null;
-	}
-
-	/**
-	 * Retains only the elements in the bitmap that satisfy the specified predicate.
-	 *
-	 * @param predicate a non-null predicate that tests each element in the bitmap.
-	 *                  Elements for which {@code predicate.apply(int)} returns {@code false} are removed.
-	 *                  Elements for which it returns {@code true} are retained.
-	 */
-	public void retainAll(@Nonnull IntPredicate predicate) {
-		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-		if (size() > 64) {
-			final int[] buffer = new int[64];
-			final RoaringBatchIterator batchIterator = this.roaringBitmap.getBatchIterator();
-			while (batchIterator.hasNext()) {
-				final int peek = batchIterator.nextBatch(buffer);
-				for (int i = 0; i < peek; i++) {
-					final int next = buffer[i];
-					if (!predicate.apply(next)) {
-						writer.add(next);
-					}
-				}
-			}
-		} else {
-			final PeekableIntIterator it = this.roaringBitmap.getIntIterator();
-			while (it.hasNext()) {
-				final int next = it.next();
-				if (!predicate.apply(next)) {
-					writer.add(next);
-				}
-			}
-		}
-		this.roaringBitmap.andNot(writer.get());
-		this.memoizedCardinality = -1;
-		this.memoizedContentHash = null;
-	}
-
-	/**
-	 * Clears all data in the bitmap.
-	 * This method resets the internal bitmap structure, effectively removing all stored record IDs,
-	 * and also resets the memoized cardinality to zero and discards the memoized content hash.
-	 */
-	public void clear() {
-		this.roaringBitmap.clear();
-		this.memoizedCardinality = 0;
-		this.memoizedContentHash = null;
-	}
-
 	@Override
 	public boolean contains(int recordId) {
 		return this.roaringBitmap.contains(recordId);
@@ -256,15 +166,6 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	@Override
 	public int indexOf(int recordId) {
 		return RoaringBitmapBackedBitmap.indexOf(this.roaringBitmap, recordId);
-	}
-
-	@Override
-	public int get(int index) {
-		try {
-			return this.roaringBitmap.select(index);
-		} catch (IllegalArgumentException ex) {
-			throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + size());
-		}
 	}
 
 	@Override

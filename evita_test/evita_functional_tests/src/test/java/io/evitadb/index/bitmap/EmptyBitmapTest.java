@@ -95,12 +95,6 @@ class EmptyBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should throw on get")
-		void shouldThrowOnGet() {
-			assertThrows(IndexOutOfBoundsException.class, () -> EmptyBitmap.INSTANCE.get(0));
-		}
-
-		@Test
 		@DisplayName("should throw on getRange")
 		void shouldThrowOnGetRange() {
 			assertThrows(IndexOutOfBoundsException.class, () -> EmptyBitmap.INSTANCE.getRange(0, 1));
@@ -155,35 +149,10 @@ class EmptyBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should throw on addAll varargs")
-		void shouldThrowOnAddAllVarargs() {
-			assertThrows(UnsupportedOperationException.class, () -> EmptyBitmap.INSTANCE.addAll(1, 2, 3));
-		}
-
-		@Test
 		@DisplayName("should throw on addAll bitmap")
 		void shouldThrowOnAddAllBitmap() {
 			final Bitmap other = new BaseBitmap(1, 2, 3);
 			assertThrows(UnsupportedOperationException.class, () -> EmptyBitmap.INSTANCE.addAll(other));
-		}
-
-		@Test
-		@DisplayName("should throw on remove")
-		void shouldThrowOnRemove() {
-			assertThrows(UnsupportedOperationException.class, () -> EmptyBitmap.INSTANCE.remove(1));
-		}
-
-		@Test
-		@DisplayName("should throw on removeAll varargs")
-		void shouldThrowOnRemoveAllVarargs() {
-			assertThrows(UnsupportedOperationException.class, () -> EmptyBitmap.INSTANCE.removeAll(1, 2));
-		}
-
-		@Test
-		@DisplayName("should throw on removeAll bitmap")
-		void shouldThrowOnRemoveAllBitmap() {
-			final Bitmap other = new BaseBitmap(1, 2, 3);
-			assertThrows(UnsupportedOperationException.class, () -> EmptyBitmap.INSTANCE.removeAll(other));
 		}
 	}
 

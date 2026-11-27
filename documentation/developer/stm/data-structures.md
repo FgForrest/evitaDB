@@ -104,23 +104,24 @@ Transactional wrapper for a single object reference (backed by `AtomicReference<
 
 **Implements:** `TransactionalLayerProducer<BitmapChanges, Bitmap>`
 
-Transactional wrapper for `RoaringBitmap` -- a compressed bitset of unique integers.
+Transactional wrapper for `PersistentRoaringBitmap` -- a compressed bitset of unique integers.
 
 **Diff layer (`BitmapChanges`):**
-- `insertions: RoaringBitmap` -- bits added in the transaction.
-- `removals: RoaringBitmap` -- bits removed in the transaction.
-- `memoizedMergedBitmap` -- cached merge result, invalidated on each write.
+- `insertions: PersistentRoaringBitmap` -- bits added in the transaction.
+- `removals: PersistentRoaringBitmap` -- bits removed in the transaction.
+- `memoizedMergedBitmap` -- cached merge result, invalidated when the diff changes.
 
 **Merge formula:**
 ```
 merged = (original OR insertions) AND_NOT removals
 ```
 
-**Performance note:** Merging clones the original `RoaringBitmap` internally, which is suboptimal.
-The `RoaringBitmap` library does not provide an immutable variant, so the entire bitmap is cloned
-during merge. Results are cached until the next write operation.
+**Performance note:** An empty diff returns the original bitmap. For a non-empty diff, the vendored
+copy-on-write `PersistentRoaringBitmap` combines the original bitmap and the insertions with `or`,
+then applies the removals with `andNot`. These operations share unchanged containers and build
+new containers where their container keys overlap. The result is run-optimized before it is cached.
 
-**Commit:** Returns a new `BaseBitmap` wrapping the merged `RoaringBitmap`.
+**Commit:** Returns a new `BaseBitmap` wrapping the merged `PersistentRoaringBitmap` when a diff layer exists. A commit without a layer returns the original bitmap.
 
 ---
 

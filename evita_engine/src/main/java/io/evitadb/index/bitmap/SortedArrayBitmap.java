@@ -60,7 +60,6 @@ import java.util.PrimitiveIterator.OfInt;
  * | method | order |
  * |---|---|
  * | {@link #iterator()} | **unsigned** — roaring's own enumeration |
- * | {@link #get(int)} | **unsigned** — roaring's own enumeration |
  * | {@link #getFirst()} | **unsigned** — roaring's own enumeration |
  * | {@link #getLast()} | **unsigned** — roaring's own enumeration |
  * | {@link #indexOf(int)} | **unsigned** — roaring's own enumeration |
@@ -192,27 +191,7 @@ public class SortedArrayBitmap implements Bitmap {
 	}
 
 	@Override
-	public void addAll(int... recordId) {
-		throw new UnsupportedOperationException(ERROR_READ_ONLY);
-	}
-
-	@Override
 	public void addAll(@Nonnull Bitmap recordIds) {
-		throw new UnsupportedOperationException(ERROR_READ_ONLY);
-	}
-
-	@Override
-	public boolean remove(int recordId) {
-		throw new UnsupportedOperationException(ERROR_READ_ONLY);
-	}
-
-	@Override
-	public void removeAll(int... recordId) {
-		throw new UnsupportedOperationException(ERROR_READ_ONLY);
-	}
-
-	@Override
-	public void removeAll(@Nonnull Bitmap recordIds) {
 		throw new UnsupportedOperationException(ERROR_READ_ONLY);
 	}
 
@@ -224,11 +203,6 @@ public class SortedArrayBitmap implements Bitmap {
 	@Override
 	public int indexOf(int recordId) {
 		return unsignedBinarySearch(this.recordIds, recordId);
-	}
-
-	@Override
-	public int get(int index) {
-		return this.recordIds[index];
 	}
 
 	@Override

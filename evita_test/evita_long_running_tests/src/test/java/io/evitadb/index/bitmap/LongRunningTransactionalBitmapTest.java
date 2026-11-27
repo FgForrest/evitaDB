@@ -93,9 +93,14 @@ class LongRunningTransactionalBitmapTest implements TimeBoundedTestSupport {
 	private static final int MEMO_ROUND_TIMEOUT_SECONDS = 30;
 
 
+	/**
+	 * Applies randomized insertions and removals across successive committed generations.
+	 *
+	 * @param input the run duration and random seed
+	 */
 	@ParameterizedTest(name = "TransactionalBitmap should survive generational randomized test applying modifications on it")
 	@ArgumentsSource(TimeArgumentProvider.class)
-	void generationalProofTest(GenerationalTestInput input) {
+	void generationalProofTest(@Nonnull GenerationalTestInput input) {
 		final int initialCount = 100;
 		final int[] initialState =
 			generateRandomInitialBitmap(new Random(input.randomSeed()), initialCount);
@@ -128,10 +133,9 @@ class LongRunningTransactionalBitmapTest implements TimeBoundedTestSupport {
 								);
 							} else {
 								// remove existing item
+								final int removalIndex = random.nextInt(length);
 								final int removedRecId =
-									transactionalBitmap.get(
-										random.nextInt(length)
-									);
+									transactionalBitmap.getRange(removalIndex, removalIndex + 1)[0];
 								transactionalBitmap.remove(removedRecId);
 								nextBitmapToCompare.set(
 									ArrayUtils.removeIntFromOrderedArray(

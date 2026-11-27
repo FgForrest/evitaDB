@@ -31,8 +31,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -379,11 +377,13 @@ class BaseBitmapTest {
 	@DisplayName("Read operations")
 	class ReadOperationsTest {
 
+		/**
+		 * Checks array ordering and index lookup for records supplied out of order.
+		 */
 		@Test
 		@DisplayName("should read all data with indexOf")
 		void shouldReadAllData() {
-			final BaseBitmap tested = new BaseBitmap();
-			tested.addAll(5, 8, 10, 3);
+			final BaseBitmap tested = new BaseBitmap(5, 8, 10, 3);
 			assertEquals(4, tested.size());
 			assertArrayEquals(new int[]{3, 5, 8, 10}, tested.getArray());
 			assertEquals(1, tested.indexOf(5));
@@ -420,23 +420,6 @@ class BaseBitmapTest {
 			assertFalse(tested.contains(0));
 			assertFalse(tested.contains(4));
 			assertFalse(tested.contains(11));
-		}
-
-		@Test
-		@DisplayName("should return element by index")
-		void shouldReturnElementByIndex() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			assertEquals(3, tested.get(0));
-			assertEquals(5, tested.get(1));
-			assertEquals(8, tested.get(2));
-			assertEquals(10, tested.get(3));
-		}
-
-		@Test
-		@DisplayName("should throw on get with invalid index")
-		void shouldThrowOnGetWithInvalidIndex() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			assertThrows(IndexOutOfBoundsException.class, () -> tested.get(4));
 		}
 
 		@Test
@@ -511,21 +494,29 @@ class BaseBitmapTest {
 	@DisplayName("Add and remove operations")
 	class AddAndRemoveOperationsTest {
 
+		/**
+		 * Checks that single-record insertions are visible through the array and iterator.
+		 */
 		@Test
 		@DisplayName("should add and see data")
 		void shouldAddAndSeeData() {
 			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.addAll(1, 15);
+			tested.add(1);
+			tested.add(15);
 			assertEquals(6, tested.size());
 			assertArrayEquals(new int[]{1, 3, 5, 8, 10, 15}, tested.getArray());
 			assertArrayEquals(new int[]{1, 3, 5, 8, 10, 15}, toArray(tested.iterator(), tested.size()));
 		}
 
+		/**
+		 * Checks that single-record removals are visible through the array and iterator.
+		 */
 		@Test
 		@DisplayName("should remove and miss data")
 		void shouldRemoveAndMissData() {
 			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.removeAll(3, 8);
+			tested.remove(3);
+			tested.remove(8);
 			assertEquals(2, tested.size());
 			assertArrayEquals(new int[]{5, 10}, tested.getArray());
 			assertArrayEquals(new int[]{5, 10}, toArray(tested.iterator(), tested.size()));
@@ -586,614 +577,6 @@ class BaseBitmapTest {
 			tested.removeAll(toRemove);
 			assertArrayEquals(new int[]{1, 3, 5}, tested.getArray());
 		}
-
-		@Test
-		@DisplayName("should clear all data")
-		void shouldClearAllData() {
-			final BaseBitmap tested = new BaseBitmap(1, 2, 3);
-			tested.clear();
-			assertTrue(tested.isEmpty());
-			assertEquals(0, tested.size());
-			assertArrayEquals(new int[]{}, tested.getArray());
-		}
-	}
-
-	@Nested
-	@DisplayName("RemoveAll with predicate")
-	class RemoveAllWithPredicateTest {
-
-		@Test
-		@DisplayName("should remove even numbers on small bitmap")
-		void shouldRemoveAllWithPredicateOnSmallBitmap() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.removeAll(value -> value % 2 == 0);
-			assertEquals(2, tested.size());
-			assertArrayEquals(new int[]{3, 5}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should remove odd numbers on small bitmap")
-		void shouldRemoveAllWithPredicateOnSmallBitmapRemovingOdds() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.removeAll(value -> value % 2 != 0);
-			assertEquals(2, tested.size());
-			assertArrayEquals(new int[]{8, 10}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should remove all on small bitmap")
-		void shouldRemoveAllWithPredicateOnSmallBitmapRemovingAll() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.removeAll(value -> true);
-			assertEquals(0, tested.size());
-			assertArrayEquals(new int[]{}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should remove none on small bitmap")
-		void shouldRemoveAllWithPredicateOnSmallBitmapRemovingNone() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.removeAll(value -> false);
-			assertEquals(4, tested.size());
-			assertArrayEquals(new int[]{3, 5, 8, 10}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should remove single matching element")
-		void shouldRemoveAllWithPredicateOnSmallBitmapWithSingleElement() {
-			final BaseBitmap singleElement = new BaseBitmap(42);
-			singleElement.removeAll(value -> value == 42);
-			assertEquals(0, singleElement.size());
-			assertArrayEquals(new int[]{}, singleElement.getArray());
-		}
-
-		@Test
-		@DisplayName("should keep single non-matching element")
-		void shouldRemoveAllWithPredicateOnSmallBitmapWithSingleElementNotMatching() {
-			final BaseBitmap singleElement = new BaseBitmap(42);
-			singleElement.removeAll(value -> value != 42);
-			assertEquals(1, singleElement.size());
-			assertArrayEquals(new int[]{42}, singleElement.getArray());
-		}
-
-		@Test
-		@DisplayName("should handle empty bitmap")
-		void shouldRemoveAllWithPredicateOnEmptyBitmap() {
-			final BaseBitmap empty = new BaseBitmap();
-			empty.removeAll(value -> true);
-			assertEquals(0, empty.size());
-			assertArrayEquals(new int[]{}, empty.getArray());
-		}
-
-		@Test
-		@DisplayName("should remove first element")
-		void shouldRemoveAllWithPredicateOnSmallBitmapRemovingFirstElement() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.removeAll(value -> value == 3);
-			assertEquals(3, tested.size());
-			assertArrayEquals(new int[]{5, 8, 10}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should remove last element")
-		void shouldRemoveAllWithPredicateOnSmallBitmapRemovingLastElement() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.removeAll(value -> value == 10);
-			assertEquals(3, tested.size());
-			assertArrayEquals(new int[]{3, 5, 8}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should remove middle elements")
-		void shouldRemoveAllWithPredicateOnSmallBitmapRemovingMiddleElements() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.removeAll(value -> value > 3 && value < 10);
-			assertEquals(2, tested.size());
-			assertArrayEquals(new int[]{3, 10}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should remove even numbers on large bitmap")
-		void shouldRemoveAllWithPredicateOnLargeBitmap() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 1; i <= 100; i++) {
-				large.add(i);
-			}
-			assertEquals(100, large.size());
-			large.removeAll(value -> value % 2 == 0);
-			assertEquals(50, large.size());
-			final int[] result = large.getArray();
-			for (int i = 0; i < result.length; i++) {
-				assertEquals(i * 2 + 1, result[i]);
-			}
-		}
-
-		@Test
-		@DisplayName("should remove all on large bitmap")
-		void shouldRemoveAllWithPredicateOnLargeBitmapRemovingAll() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 1; i <= 200; i++) {
-				large.add(i);
-			}
-			assertEquals(200, large.size());
-			large.removeAll(value -> true);
-			assertEquals(0, large.size());
-			assertArrayEquals(new int[]{}, large.getArray());
-		}
-
-		@Test
-		@DisplayName("should remove none on large bitmap")
-		void shouldRemoveAllWithPredicateOnLargeBitmapRemovingNone() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 1; i <= 150; i++) {
-				large.add(i);
-			}
-			assertEquals(150, large.size());
-			large.removeAll(value -> false);
-			assertEquals(150, large.size());
-			final int[] result = large.getArray();
-			for (int i = 0; i < result.length; i++) {
-				assertEquals(i + 1, result[i]);
-			}
-		}
-
-		@Test
-		@DisplayName("should remove multiples of 3 or 5 on large bitmap")
-		void shouldRemoveAllWithPredicateOnLargeBitmapWithComplexCondition() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 1; i <= 300; i++) {
-				large.add(i);
-			}
-			large.removeAll(value -> value % 3 == 0 || value % 5 == 0);
-			final int[] result = large.getArray();
-			for (int value : result) {
-				assertFalse(
-					value % 3 == 0 || value % 5 == 0,
-					"Value " + value + " should not be in result"
-				);
-			}
-		}
-
-		@Test
-		@DisplayName("should remove first half on large bitmap")
-		void shouldRemoveAllWithPredicateOnLargeBitmapRemovingFirstHalf() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 1; i <= 200; i++) {
-				large.add(i);
-			}
-			large.removeAll(value -> value <= 100);
-			assertEquals(100, large.size());
-			final int[] result = large.getArray();
-			for (int i = 0; i < result.length; i++) {
-				assertEquals(i + 101, result[i]);
-			}
-		}
-
-		@Test
-		@DisplayName("should remove last half on large bitmap")
-		void shouldRemoveAllWithPredicateOnLargeBitmapRemovingLastHalf() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 1; i <= 200; i++) {
-				large.add(i);
-			}
-			large.removeAll(value -> value > 100);
-			assertEquals(100, large.size());
-			final int[] result = large.getArray();
-			for (int i = 0; i < result.length; i++) {
-				assertEquals(i + 1, result[i]);
-			}
-		}
-
-		@Test
-		@DisplayName("should remove even numbers on exactly 64 elements")
-		void shouldRemoveAllWithPredicateOnBitmapExactly64Elements() {
-			final BaseBitmap exact = new BaseBitmap();
-			for (int i = 1; i <= 64; i++) {
-				exact.add(i);
-			}
-			assertEquals(64, exact.size());
-			exact.removeAll(value -> value % 2 == 0);
-			assertEquals(32, exact.size());
-			final int[] result = exact.getArray();
-			for (int i = 0; i < result.length; i++) {
-				assertEquals(i * 2 + 1, result[i]);
-			}
-		}
-
-		@Test
-		@DisplayName("should remove values > 32 on exactly 65 elements")
-		void shouldRemoveAllWithPredicateOnBitmapExactly65Elements() {
-			final BaseBitmap justOver = new BaseBitmap();
-			for (int i = 1; i <= 65; i++) {
-				justOver.add(i);
-			}
-			assertEquals(65, justOver.size());
-			justOver.removeAll(value -> value > 32);
-			assertEquals(32, justOver.size());
-			final int[] result = justOver.getArray();
-			for (int i = 0; i < result.length; i++) {
-				assertEquals(i + 1, result[i]);
-			}
-		}
-
-		@Test
-		@DisplayName("should remove multiples of 7 on exactly 63 elements")
-		void shouldRemoveAllWithPredicateOnBitmapExactly63Elements() {
-			final BaseBitmap justUnder = new BaseBitmap();
-			for (int i = 1; i <= 63; i++) {
-				justUnder.add(i);
-			}
-			assertEquals(63, justUnder.size());
-			justUnder.removeAll(value -> value % 7 == 0);
-			assertEquals(54, justUnder.size());
-			final int[] result = justUnder.getArray();
-			for (int value : result) {
-				assertNotEquals(0, value % 7, "Value " + value + " should not be in result");
-			}
-		}
-
-		@Test
-		@DisplayName("should remove on sparse small bitmap")
-		void shouldRemoveAllWithPredicateOnSparseSmallBitmap() {
-			final BaseBitmap sparse = new BaseBitmap(1, 100, 200, 300, 400);
-			assertEquals(5, sparse.size());
-			sparse.removeAll(value -> value >= 200);
-			assertEquals(2, sparse.size());
-			assertArrayEquals(new int[]{1, 100}, sparse.getArray());
-		}
-
-		@Test
-		@DisplayName("should remove on sparse large bitmap")
-		void shouldRemoveAllWithPredicateOnSparseLargeBitmap() {
-			final BaseBitmap sparse = new BaseBitmap();
-			for (int i = 0; i < 100; i++) {
-				sparse.add(i * 100);
-			}
-			assertEquals(100, sparse.size());
-			sparse.removeAll(value -> value % 200 == 0);
-			assertEquals(50, sparse.size());
-			final int[] result = sparse.getArray();
-			for (int value : result) {
-				assertNotEquals(0, value % 200, "Value " + value + " should not be in result");
-			}
-		}
-
-		@Test
-		@DisplayName("should remove alternating pattern on large bitmap")
-		void shouldRemoveAllWithPredicateOnLargeBitmapWithAlternatingPattern() {
-			final BaseBitmap large = new BaseBitmap();
-			int matchingCount = 0;
-			for (int i = 0; i < 200; i++) {
-				large.add(i);
-				if (i % 3 == 0) {
-					matchingCount++;
-				}
-			}
-			large.removeAll(value -> value % 3 == 0);
-			assertEquals(200 - matchingCount, large.size());
-			final int[] result = large.getArray();
-			for (int value : result) {
-				assertNotEquals(0, value % 3, "Value " + value + " should not be in result");
-			}
-		}
-
-		@Test
-		@DisplayName("should preserve cardinality after removeAll")
-		void shouldRemoveAllPreserveCardinality() {
-			final BaseBitmap bitmap = new BaseBitmap();
-			for (int i = 1; i <= 100; i++) {
-				bitmap.add(i);
-			}
-			final int sizeBefore = bitmap.size();
-			bitmap.removeAll(value -> value % 2 == 0);
-			final int sizeAfter = bitmap.size();
-			assertEquals(sizeBefore / 2, sizeAfter);
-			assertEquals(sizeAfter, bitmap.getArray().length);
-		}
-	}
-
-	@Nested
-	@DisplayName("RetainAll with predicate")
-	class RetainAllWithPredicateTest {
-
-		@Test
-		@DisplayName("should retain even numbers on small bitmap")
-		void shouldRetainAllWithPredicateOnSmallBitmap() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.retainAll(value -> value % 2 == 0);
-			assertEquals(2, tested.size());
-			assertArrayEquals(new int[]{8, 10}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should retain odd numbers on small bitmap")
-		void shouldRetainAllWithPredicateOnSmallBitmapRetainingOdds() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.retainAll(value -> value % 2 != 0);
-			assertEquals(2, tested.size());
-			assertArrayEquals(new int[]{3, 5}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should retain all on small bitmap")
-		void shouldRetainAllWithPredicateOnSmallBitmapRetainingAll() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.retainAll(value -> true);
-			assertEquals(4, tested.size());
-			assertArrayEquals(new int[]{3, 5, 8, 10}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should retain none on small bitmap")
-		void shouldRetainAllWithPredicateOnSmallBitmapRetainingNone() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.retainAll(value -> false);
-			assertEquals(0, tested.size());
-			assertArrayEquals(new int[]{}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should retain single matching element")
-		void shouldRetainAllWithPredicateOnSmallBitmapWithSingleElement() {
-			final BaseBitmap singleElement = new BaseBitmap(42);
-			singleElement.retainAll(value -> value == 42);
-			assertEquals(1, singleElement.size());
-			assertArrayEquals(new int[]{42}, singleElement.getArray());
-		}
-
-		@Test
-		@DisplayName("should remove single non-matching element")
-		void shouldRetainAllWithPredicateOnSmallBitmapWithSingleElementNotMatching() {
-			final BaseBitmap singleElement = new BaseBitmap(42);
-			singleElement.retainAll(value -> value != 42);
-			assertEquals(0, singleElement.size());
-			assertArrayEquals(new int[]{}, singleElement.getArray());
-		}
-
-		@Test
-		@DisplayName("should handle empty bitmap")
-		void shouldRetainAllWithPredicateOnEmptyBitmap() {
-			final BaseBitmap empty = new BaseBitmap();
-			empty.retainAll(value -> true);
-			assertEquals(0, empty.size());
-			assertArrayEquals(new int[]{}, empty.getArray());
-		}
-
-		@Test
-		@DisplayName("should retain first element")
-		void shouldRetainAllWithPredicateOnSmallBitmapRetainingFirstElement() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.retainAll(value -> value == 3);
-			assertEquals(1, tested.size());
-			assertArrayEquals(new int[]{3}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should retain last element")
-		void shouldRetainAllWithPredicateOnSmallBitmapRetainingLastElement() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.retainAll(value -> value == 10);
-			assertEquals(1, tested.size());
-			assertArrayEquals(new int[]{10}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should retain middle elements")
-		void shouldRetainAllWithPredicateOnSmallBitmapRetainingMiddleElements() {
-			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.retainAll(value -> value > 3 && value < 10);
-			assertEquals(2, tested.size());
-			assertArrayEquals(new int[]{5, 8}, tested.getArray());
-		}
-
-		@Test
-		@DisplayName("should retain even numbers on large bitmap")
-		void shouldRetainAllWithPredicateOnLargeBitmap() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 1; i <= 100; i++) {
-				large.add(i);
-			}
-			assertEquals(100, large.size());
-			large.retainAll(value -> value % 2 == 0);
-			assertEquals(50, large.size());
-			final int[] result = large.getArray();
-			for (int i = 0; i < result.length; i++) {
-				assertEquals((i + 1) * 2, result[i]);
-			}
-		}
-
-		@Test
-		@DisplayName("should retain all on large bitmap")
-		void shouldRetainAllWithPredicateOnLargeBitmapRetainingAll() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 1; i <= 200; i++) {
-				large.add(i);
-			}
-			assertEquals(200, large.size());
-			large.retainAll(value -> true);
-			assertEquals(200, large.size());
-			final int[] result = large.getArray();
-			for (int i = 0; i < result.length; i++) {
-				assertEquals(i + 1, result[i]);
-			}
-		}
-
-		@Test
-		@DisplayName("should retain none on large bitmap")
-		void shouldRetainAllWithPredicateOnLargeBitmapRetainingNone() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 1; i <= 150; i++) {
-				large.add(i);
-			}
-			assertEquals(150, large.size());
-			large.retainAll(value -> false);
-			assertEquals(0, large.size());
-			assertArrayEquals(new int[]{}, large.getArray());
-		}
-
-		@Test
-		@DisplayName("should retain multiples of 3 or 5 on large bitmap")
-		void shouldRetainAllWithPredicateOnLargeBitmapWithComplexCondition() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 1; i <= 300; i++) {
-				large.add(i);
-			}
-			large.retainAll(value -> value % 3 == 0 || value % 5 == 0);
-			final int[] result = large.getArray();
-			for (int value : result) {
-				assertFalse(
-					value % 3 != 0 && value % 5 != 0,
-					"Value " + value + " should be in result"
-				);
-			}
-		}
-
-		@Test
-		@DisplayName("should retain first half on large bitmap")
-		void shouldRetainAllWithPredicateOnLargeBitmapRetainingFirstHalf() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 1; i <= 200; i++) {
-				large.add(i);
-			}
-			large.retainAll(value -> value <= 100);
-			assertEquals(100, large.size());
-			final int[] result = large.getArray();
-			for (int i = 0; i < result.length; i++) {
-				assertEquals(i + 1, result[i]);
-			}
-		}
-
-		@Test
-		@DisplayName("should retain last half on large bitmap")
-		void shouldRetainAllWithPredicateOnLargeBitmapRetainingLastHalf() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 1; i <= 200; i++) {
-				large.add(i);
-			}
-			large.retainAll(value -> value > 100);
-			assertEquals(100, large.size());
-			final int[] result = large.getArray();
-			for (int i = 0; i < result.length; i++) {
-				assertEquals(i + 101, result[i]);
-			}
-		}
-
-		@Test
-		@DisplayName("should retain even numbers on exactly 64 elements")
-		void shouldRetainAllWithPredicateOnBitmapExactly64Elements() {
-			final BaseBitmap exact = new BaseBitmap();
-			for (int i = 1; i <= 64; i++) {
-				exact.add(i);
-			}
-			assertEquals(64, exact.size());
-			exact.retainAll(value -> value % 2 == 0);
-			assertEquals(32, exact.size());
-			final int[] result = exact.getArray();
-			for (int i = 0; i < result.length; i++) {
-				assertEquals((i + 1) * 2, result[i]);
-			}
-		}
-
-		@Test
-		@DisplayName("should retain values <= 32 on exactly 65 elements")
-		void shouldRetainAllWithPredicateOnBitmapExactly65Elements() {
-			final BaseBitmap justOver = new BaseBitmap();
-			for (int i = 1; i <= 65; i++) {
-				justOver.add(i);
-			}
-			assertEquals(65, justOver.size());
-			justOver.retainAll(value -> value <= 32);
-			assertEquals(32, justOver.size());
-			final int[] result = justOver.getArray();
-			for (int i = 0; i < result.length; i++) {
-				assertEquals(i + 1, result[i]);
-			}
-		}
-
-		@Test
-		@DisplayName("should retain multiples of 7 on exactly 63 elements")
-		void shouldRetainAllWithPredicateOnBitmapExactly63Elements() {
-			final BaseBitmap justUnder = new BaseBitmap();
-			for (int i = 1; i <= 63; i++) {
-				justUnder.add(i);
-			}
-			assertEquals(63, justUnder.size());
-			justUnder.retainAll(value -> value % 7 == 0);
-			assertEquals(9, justUnder.size());
-			final int[] result = justUnder.getArray();
-			for (int value : result) {
-				assertEquals(0, value % 7, "Value " + value + " should be divisible by 7");
-			}
-		}
-
-		@Test
-		@DisplayName("should retain on sparse small bitmap")
-		void shouldRetainAllWithPredicateOnSparseSmallBitmap() {
-			final BaseBitmap sparse = new BaseBitmap(1, 100, 200, 300, 400);
-			assertEquals(5, sparse.size());
-			sparse.retainAll(value -> value >= 200);
-			assertEquals(3, sparse.size());
-			assertArrayEquals(new int[]{200, 300, 400}, sparse.getArray());
-		}
-
-		@Test
-		@DisplayName("should retain on sparse large bitmap")
-		void shouldRetainAllWithPredicateOnSparseLargeBitmap() {
-			final BaseBitmap sparse = new BaseBitmap();
-			for (int i = 0; i < 100; i++) {
-				sparse.add(i * 100);
-			}
-			assertEquals(100, sparse.size());
-			sparse.retainAll(value -> value % 200 == 0);
-			assertEquals(50, sparse.size());
-			final int[] result = sparse.getArray();
-			for (int value : result) {
-				assertEquals(0, value % 200, "Value " + value + " should be divisible by 200");
-			}
-		}
-
-		@Test
-		@DisplayName("should retain alternating pattern on large bitmap")
-		void shouldRetainAllWithPredicateOnLargeBitmapWithAlternatingPattern() {
-			final BaseBitmap large = new BaseBitmap();
-			for (int i = 0; i < 200; i++) {
-				large.add(i);
-			}
-			large.retainAll(value -> value % 3 == 0);
-			assertEquals(67, large.size());
-			final int[] result = large.getArray();
-			for (int value : result) {
-				assertEquals(0, value % 3, "Value " + value + " should be divisible by 3");
-			}
-		}
-
-		@Test
-		@DisplayName("should be inverse of removeAll")
-		void shouldRetainAllAndRemoveAllBeInverse() {
-			final BaseBitmap bitmap1 = new BaseBitmap();
-			final BaseBitmap bitmap2 = new BaseBitmap();
-			for (int i = 1; i <= 100; i++) {
-				bitmap1.add(i);
-				bitmap2.add(i);
-			}
-			bitmap1.retainAll(value -> value % 3 == 0);
-			bitmap2.removeAll(value -> value % 3 != 0);
-			assertArrayEquals(bitmap1.getArray(), bitmap2.getArray());
-		}
-
-		@Test
-		@DisplayName("should preserve cardinality after retainAll")
-		void shouldRetainAllPreserveCardinality() {
-			final BaseBitmap bitmap = new BaseBitmap();
-			for (int i = 1; i <= 100; i++) {
-				bitmap.add(i);
-			}
-			final int sizeBefore = bitmap.size();
-			bitmap.retainAll(value -> value % 2 == 0);
-			final int sizeAfter = bitmap.size();
-			assertEquals(sizeBefore / 2, sizeAfter);
-			assertEquals(sizeAfter, bitmap.getArray().length);
-		}
 	}
 
 	@Nested
@@ -1248,96 +631,6 @@ class BaseBitmapTest {
 		void shouldProduceEmptyToStringForEmptyBitmap() {
 			final BaseBitmap bitmap = new BaseBitmap();
 			assertEquals("[]", bitmap.toString());
-		}
-	}
-
-	@Nested
-	@DisplayName("Negative values")
-	class NegativeValuesTest {
-
-		@Test
-		@DisplayName("should removeAll with predicate work with negative values")
-		void shouldRemoveAllWorkWithNegativeValues() {
-			final BaseBitmap bitmap = new BaseBitmap(-10, -5, 0, 5, 10);
-			assertEquals(5, bitmap.size());
-			bitmap.removeAll(value -> value < 0);
-			assertEquals(3, bitmap.size());
-			assertArrayEquals(new int[]{0, 5, 10}, bitmap.getArray());
-		}
-
-		@Test
-		@DisplayName("should retainAll with predicate work with negative values")
-		void shouldRetainAllWorkWithNegativeValues() {
-			final BaseBitmap bitmap = new BaseBitmap(-10, -5, 0, 5, 10);
-			assertEquals(5, bitmap.size());
-			bitmap.retainAll(value -> value < 0);
-			assertEquals(2, bitmap.size());
-			assertArrayEquals(new int[]{-10, -5}, bitmap.getArray());
-		}
-	}
-
-	/**
-	 * Guards the `removeAll` / `retainAll` predicate paths against regressions tied to the
-	 * container-boundary transitions of the underlying `PersistentRoaringBitmap`. The chosen sizes
-	 * straddle the critical thresholds: 16 lives in the small/array container range, 64 sits
-	 * right at the array→bitmap container flip, and 1024 is solidly inside the bitmap
-	 * container. The fine-grained 63/64/65 cadence is already covered by dedicated tests
-	 * above — this class focuses on the broader size-class coverage.
-	 */
-	@Nested
-	@DisplayName("Parameterized boundary sizes — predicate mutations across container types")
-	class ParameterizedBoundarySizes {
-
-		@ParameterizedTest(name = "removeAll even values on bitmap of size {0}")
-		@ValueSource(ints = {16, 64, 1024})
-		@DisplayName("should remove every even value and leave only odd values regardless of container type")
-		void shouldRemoveAllEvenValuesWhenPredicateMatchesEvenNumbers(int size) {
-			final BaseBitmap bitmap = new BaseBitmap();
-			int expectedOdd = 0;
-			for (int i = 1; i <= size; i++) {
-				bitmap.add(i);
-				if (i % 2 != 0) {
-					expectedOdd++;
-				}
-			}
-			assertEquals(size, bitmap.size());
-
-			bitmap.removeAll(value -> value % 2 == 0);
-
-			assertEquals(
-				expectedOdd, bitmap.size(),
-				"All odd numbers in 1.." + size + " must remain"
-			);
-			for (final int value : bitmap.getArray()) {
-				assertNotEquals(0, value % 2, "Value " + value + " is even but should have been removed");
-			}
-		}
-
-		@ParameterizedTest(name = "retainAll divisible-by-3 values on bitmap of size {0}")
-		@ValueSource(ints = {16, 64, 1024})
-		@DisplayName("should retain only multiples of three regardless of container type")
-		void shouldRetainOnlyMultiplesOfThreeWhenPredicateMatchesMultiplesOfThree(int size) {
-			final BaseBitmap bitmap = new BaseBitmap();
-			int expectedMatches = 0;
-			for (int i = 1; i <= size; i++) {
-				bitmap.add(i);
-				if (i % 3 == 0) {
-					expectedMatches++;
-				}
-			}
-
-			bitmap.retainAll(value -> value % 3 == 0);
-
-			assertEquals(
-				expectedMatches, bitmap.size(),
-				"Only multiples of 3 in 1.." + size + " must remain"
-			);
-			for (final int value : bitmap.getArray()) {
-				assertEquals(
-					0, value % 3,
-					"Value " + value + " is not a multiple of 3 but was retained"
-				);
-			}
 		}
 	}
 
@@ -1418,36 +711,10 @@ class BaseBitmapTest {
 				bitmap.getArray()
 			);
 		}
-
-		@Test
-		@DisplayName("should remove Integer.MAX_VALUE when predicate targets it (no sign-bit leakage)")
-		void shouldRemoveIntegerMaxValueWhenPredicateTargetsIt() {
-			final BaseBitmap bitmap = new BaseBitmap(1, 2, Integer.MAX_VALUE);
-
-			bitmap.removeAll(value -> value == Integer.MAX_VALUE);
-
-			assertEquals(2, bitmap.size());
-			assertFalse(bitmap.contains(Integer.MAX_VALUE));
-			assertArrayEquals(new int[]{1, 2}, bitmap.getArray());
-		}
-
-		@Test
-		@DisplayName("should retain Integer.MIN_VALUE when predicate keeps only negatives")
-		void shouldRetainIntegerMinValueWhenPredicateMatchesOnlyNegatives() {
-			final BaseBitmap bitmap = new BaseBitmap(Integer.MIN_VALUE, -1, 0, 1);
-
-			bitmap.retainAll(value -> value < 0);
-
-			assertArrayEquals(new int[]{Integer.MIN_VALUE, -1}, bitmap.getArray());
-		}
 	}
 
 	/**
-	 * Covers the "explicit empty int[]" form distinct from the zero-argument constructor. The
-	 * `new BaseBitmap()` (truly no-arg) path is exercised by `ConstructionTest`; here we pin
-	 * the `new BaseBitmap(int[]{})` and `addAll/removeAll(int[]{})` paths, which route through
-	 * different internal logic — the array is passed positionally rather than being synthesized
-	 * from varargs, so an early-return guard on `array.length == 0` must be respected.
+	 * Covers construction from an explicit empty array.
 	 */
 	@Nested
 	@DisplayName("Empty int[] input — zero-length array paths")
@@ -1461,26 +728,6 @@ class BaseBitmapTest {
 			assertTrue(bitmap.isEmpty());
 			assertEquals(0, bitmap.size());
 			assertArrayEquals(new int[0], bitmap.getArray());
-		}
-
-		@Test
-		@DisplayName("should leave a non-empty bitmap unchanged when addAll receives a zero-length array")
-		void shouldLeaveBitmapUnchangedWhenAddAllReceivesZeroLengthArray() {
-			final BaseBitmap bitmap = new BaseBitmap(1, 2, 3);
-			bitmap.addAll(new int[0]);
-
-			assertEquals(3, bitmap.size());
-			assertArrayEquals(new int[]{1, 2, 3}, bitmap.getArray());
-		}
-
-		@Test
-		@DisplayName("should leave a non-empty bitmap unchanged when removeAll receives a zero-length array")
-		void shouldLeaveBitmapUnchangedWhenRemoveAllReceivesZeroLengthArray() {
-			final BaseBitmap bitmap = new BaseBitmap(1, 2, 3);
-			bitmap.removeAll(new int[0]);
-
-			assertEquals(3, bitmap.size());
-			assertArrayEquals(new int[]{1, 2, 3}, bitmap.getArray());
 		}
 	}
 
@@ -1556,15 +803,6 @@ class BaseBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should invalidate the hash when addAll receives an array")
-		void shouldInvalidateHashWhenAddAllReceivesArray() {
-			final CountingHashFunction hashFunction = new CountingHashFunction();
-			final BaseBitmap bitmap = seedAndHash(hashFunction);
-			bitmap.addAll(4, 5);
-			assertHashRecomputedAndCorrect(bitmap, hashFunction);
-		}
-
-		@Test
 		@DisplayName("should invalidate the hash when addAll receives a bitmap")
 		void shouldInvalidateHashWhenAddAllReceivesBitmap() {
 			final CountingHashFunction hashFunction = new CountingHashFunction();
@@ -1596,47 +834,11 @@ class BaseBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should invalidate the hash when removeAll receives an array")
-		void shouldInvalidateHashWhenRemoveAllReceivesArray() {
-			final CountingHashFunction hashFunction = new CountingHashFunction();
-			final BaseBitmap bitmap = seedAndHash(hashFunction);
-			bitmap.removeAll(1, 3);
-			assertHashRecomputedAndCorrect(bitmap, hashFunction);
-		}
-
-		@Test
 		@DisplayName("should invalidate the hash when removeAll receives a bitmap")
 		void shouldInvalidateHashWhenRemoveAllReceivesBitmap() {
 			final CountingHashFunction hashFunction = new CountingHashFunction();
 			final BaseBitmap bitmap = seedAndHash(hashFunction);
 			bitmap.removeAll(new BaseBitmap(1, 2));
-			assertHashRecomputedAndCorrect(bitmap, hashFunction);
-		}
-
-		@Test
-		@DisplayName("should invalidate the hash when removeAll applies a predicate")
-		void shouldInvalidateHashWhenRemoveAllAppliesPredicate() {
-			final CountingHashFunction hashFunction = new CountingHashFunction();
-			final BaseBitmap bitmap = seedAndHash(hashFunction);
-			bitmap.removeAll(value -> value % 2 == 0);
-			assertHashRecomputedAndCorrect(bitmap, hashFunction);
-		}
-
-		@Test
-		@DisplayName("should invalidate the hash when retainAll applies a predicate")
-		void shouldInvalidateHashWhenRetainAllAppliesPredicate() {
-			final CountingHashFunction hashFunction = new CountingHashFunction();
-			final BaseBitmap bitmap = seedAndHash(hashFunction);
-			bitmap.retainAll(value -> value > 1);
-			assertHashRecomputedAndCorrect(bitmap, hashFunction);
-		}
-
-		@Test
-		@DisplayName("should invalidate the hash when the bitmap is cleared")
-		void shouldInvalidateHashWhenBitmapIsCleared() {
-			final CountingHashFunction hashFunction = new CountingHashFunction();
-			final BaseBitmap bitmap = seedAndHash(hashFunction);
-			bitmap.clear();
 			assertHashRecomputedAndCorrect(bitmap, hashFunction);
 		}
 

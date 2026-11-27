@@ -226,7 +226,7 @@ Every generational test class lives in `evita_test/evita_long_running_tests` and
 | `TransactionalMap`  | `LongRunningTransactionalMapTest` | Put/remove, entry setValue, iterator remove → map contents |
 | Bitmap-valued map | `LongRunningTransactionalMapWithBitmapValuesTest` | Put/remove, bitmap add/remove → map and bits |
 | `TransactionalSet`                   | `LongRunningTransactionalSetTest`  | Add/remove, iterator remove → membership |
-| `TransactionalBitmap`      | `LongRunningTransactionalBitmapTest` | Add, indexed get, remove → ordered bits and size |
+| `TransactionalBitmap`      | `LongRunningTransactionalBitmapTest` | Add, select with a one-record `getRange`, remove → ordered bits and size |
 | `TransactionalBoolean`          | `LongRunningTransactionalBooleanTest` | Set true/false → live and committed values |
 | `TransactionalReference` | `LongRunningTransactionalReferenceTest` | Set true/false → live and committed values |
 | `TransactionalRangePoint` | `LongRunningTransactionalRangePointTest` | Add/remove starts/ends → bitmaps, threshold |

@@ -41,7 +41,7 @@ import java.util.stream.StreamSupport;
  * Bitmaps always contain a sorted sequence of unique integer values - duplicates are never stored.
  *
  * Some implementations are immutable and throw {@link UnsupportedOperationException} on mutation methods
- * ({@link #add(int)}, {@link #addAll(int...)}, {@link #remove(int)}, {@link #removeAll(int...)}).
+ * ({@link #add(int)} and {@link #addAll(Bitmap)}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -72,37 +72,7 @@ public interface Bitmap extends Iterable<Integer>, Serializable {
 	 *
 	 * @throws UnsupportedOperationException if the bitmap is immutable
 	 */
-	void addAll(int... recordId);
-
-	/**
-	 * Adds multiple record ids to the bitmap. Duplicate ids are skipped silently.
-	 * The sorted order of the bitmap is maintained automatically.
-	 *
-	 * @throws UnsupportedOperationException if the bitmap is immutable
-	 */
 	void addAll(@Nonnull Bitmap recordIds);
-
-	/**
-	 * Removes single record from the bitmap. If the record doesn't exist, nothing happens.
-	 *
-	 * @return true if the record was removed, false if it was not present
-	 * @throws UnsupportedOperationException if the bitmap does not support removals
-	 */
-	boolean remove(int recordId);
-
-	/**
-	 * Removes multiple record ids from the bitmap. Non-existing record ids are skipped silently.
-	 *
-	 * @throws UnsupportedOperationException if the bitmap does not support removals
-	 */
-	void removeAll(int... recordId);
-
-	/**
-	 * Removes multiple record ids from the bitmap. Non-existing record ids are skipped silently.
-	 *
-	 * @throws UnsupportedOperationException if the bitmap does not support removals
-	 */
-	void removeAll(@Nonnull Bitmap recordIds);
 
 	/**
 	 * Returns true if bitmap contains record of this id.
@@ -118,14 +88,6 @@ public interface Bitmap extends Iterable<Integer>, Serializable {
 	 * @return zero-based index of the record id, or a negative value if not present
 	 */
 	int indexOf(int recordId);
-
-	/**
-	 * Returns record id on specified index of the bitmap (i.e. Nth record id in the bitmap).
-	 *
-	 * @return record id
-	 * @throws IndexOutOfBoundsException when index exceeds {@link #size()} -1
-	 */
-	int get(int index);
 
 	/**
 	 * Returns slice of records starting from `start` index (inclusive) and ending with `end` index (exclusive).

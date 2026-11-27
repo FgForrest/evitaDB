@@ -100,15 +100,6 @@ class ArrayBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should add all varargs")
-		void shouldAddAllVarargs() {
-			final ArrayBitmap bitmap = new ArrayBitmap(new CompositeIntArray());
-			bitmap.addAll(5, 10, 15);
-			assertEquals(3, bitmap.size());
-			assertArrayEquals(new int[]{5, 10, 15}, bitmap.getArray());
-		}
-
-		@Test
 		@DisplayName("should add all from bitmap instance")
 		void shouldAddAllFromBitmapInstance() {
 			final ArrayBitmap bitmap = new ArrayBitmap(new CompositeIntArray());
@@ -116,33 +107,6 @@ class ArrayBitmapTest {
 			bitmap.addAll(source);
 			assertEquals(3, bitmap.size());
 			assertArrayEquals(new int[]{3, 7, 11}, bitmap.getArray());
-		}
-	}
-
-	@Nested
-	@DisplayName("Remove operations throw UnsupportedOperationException")
-	class RemoveOperationsTest {
-
-		@Test
-		@DisplayName("should throw on remove single element")
-		void shouldThrowOnRemoveSingleElement() {
-			final ArrayBitmap bitmap = new ArrayBitmap(1, 2, 3);
-			assertThrows(UnsupportedOperationException.class, () -> bitmap.remove(1));
-		}
-
-		@Test
-		@DisplayName("should throw on removeAll varargs")
-		void shouldThrowOnRemoveAllVarargs() {
-			final ArrayBitmap bitmap = new ArrayBitmap(1, 2, 3);
-			assertThrows(UnsupportedOperationException.class, () -> bitmap.removeAll(1, 2));
-		}
-
-		@Test
-		@DisplayName("should throw on removeAll bitmap instance")
-		void shouldThrowOnRemoveAllBitmapInstance() {
-			final ArrayBitmap bitmap = new ArrayBitmap(1, 2, 3);
-			final BaseBitmap other = new BaseBitmap(1, 2);
-			assertThrows(UnsupportedOperationException.class, () -> bitmap.removeAll(other));
 		}
 	}
 
@@ -183,15 +147,6 @@ class ArrayBitmapTest {
 		void shouldReturnNegativeIndexOfForMissingElement() {
 			final ArrayBitmap bitmap = new ArrayBitmap(15, 5, 10);
 			assertTrue(bitmap.indexOf(99) < 0);
-		}
-
-		@Test
-		@DisplayName("should return element by index")
-		void shouldReturnElementByIndex() {
-			final ArrayBitmap bitmap = new ArrayBitmap(5, 10, 15);
-			assertEquals(5, bitmap.get(0));
-			assertEquals(10, bitmap.get(1));
-			assertEquals(15, bitmap.get(2));
 		}
 
 		@Test
