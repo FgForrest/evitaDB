@@ -42,11 +42,14 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -698,6 +701,178 @@ class PersistentTransactionalProducerMapTest {
 				() -> map.createCopyWithMergedTransactionalMemory(null, null)
 			);
 		}
+	}
+
+	/**
+	 * Verifies removal through the explicit dirty-key merge used by persistent producer maps.
+	 */
+	@Nested
+	@DisplayName("ValueMerger contract")
+	class ValueMergerContractTest {
+
+		/**
+		 * Verifies that the merger receives the removed key and its exact producer and can release the layer.
+		 */
+		@Test
+		@DisplayName("releaseRemoved receives the removed entry and releasing its layer sweeps cleanly")
+		void shouldReleaseARemovedValuesOpenLayerThroughTheMergerAndSweepCleanly() {
+			final CountingProducer survivor = new CountingProducer(1);
+			final CountingProducer removedValue = new CountingProducer(2);
+			final PersistentTransactionalProducerMap<String, CountingProducer> map =
+				explicitMapOf(Map.of("survivor", survivor, "removed", removedValue));
+
+			final List<Map.Entry<String, CountingProducer>> released = new ArrayList<>(1);
+
+			final Map<String, CountingProducer> merged = runInTransaction(maintainer -> {
+				// open a nested ALIVE layer on the value before it gets removed from the map
+				removedValue.set(99);
+				map.remove("removed");
+
+				final ValueMerger<String, CountingProducer> merger = new ValueMerger<>() {
+					/**
+					 * @param key the surviving key
+					 * @param value the value mapped to the key
+					 * @return the same value to store under the surviving key
+					 */
+					@Nullable
+					@Override
+					public CountingProducer mergeSurviving(
+						@Nonnull String key, @Nullable CountingProducer value
+					) {
+						return value;
+					}
+
+					/**
+					 * Records the callback and releases the removed producer's layer.
+					 *
+					 * @param key the removed key
+					 * @param value the removed producer
+					 */
+					@Override
+					public void releaseRemoved(@Nonnull String key, @Nonnull CountingProducer value) {
+						released.add(Map.entry(key, value));
+						value.removeLayer(maintainer);
+					}
+				};
+
+				final MapChanges<String, CountingProducer> layer =
+					maintainer.getTransactionalMemoryLayerIfExists(map);
+				final Map<String, CountingProducer> result =
+					map.createCopyWithMergedTransactionalMemory(layer, maintainer, Set.of(), merger);
+				maintainer.removeTransactionalMemoryLayerIfExists(map);
+				maintainer.verifyLayerWasFullySwept();
+				return result;
+			});
+
+			assertEquals(1, released.size());
+			assertEquals("removed", released.getFirst().getKey());
+			assertSame(removedValue, released.getFirst().getValue());
+			assertEquals(1, merged.size());
+			assertSame(survivor, merged.get("survivor"));
+			assertFalse(merged.containsKey("removed"));
+		}
+
+		/**
+		 * Verifies that a removed producer's live layer is reported if the merger leaves it registered.
+		 */
+		@Test
+		@DisplayName("a merger that never releases a removed value's layer fails the sweep verification")
+		void shouldFailTheSweepVerificationWhenTheMergerNeverReleasesARemovedValuesLayer() {
+			final CountingProducer survivor = new CountingProducer(1);
+			final CountingProducer removedValue = new CountingProducer(2);
+			final PersistentTransactionalProducerMap<String, CountingProducer> map =
+				explicitMapOf(Map.of("survivor", survivor, "removed", removedValue));
+
+			final ValueMerger<String, CountingProducer> noOpMerger = new ValueMerger<>() {
+				/**
+				 * @param key the surviving key
+				 * @param value the value mapped to the key
+				 * @return the same value to store under the surviving key
+				 */
+				@Nullable
+				@Override
+				public CountingProducer mergeSurviving(
+					@Nonnull String key, @Nullable CountingProducer value
+				) {
+					return value;
+				}
+
+				/**
+				 * Leaves the removed producer's layer registered for the sweep to detect.
+				 *
+				 * @param key the removed key
+				 * @param value the removed producer
+				 */
+				@Override
+				public void releaseRemoved(@Nonnull String key, @Nonnull CountingProducer value) {
+				}
+			};
+
+			assertThrows(
+				StaleTransactionMemoryException.class,
+				() -> runInTransaction(maintainer -> {
+					removedValue.set(99);
+					map.remove("removed");
+
+					final MapChanges<String, CountingProducer> layer =
+						maintainer.getTransactionalMemoryLayerIfExists(map);
+					final Map<String, CountingProducer> result =
+						map.createCopyWithMergedTransactionalMemory(layer, maintainer, Set.of(), noOpMerger);
+					maintainer.removeTransactionalMemoryLayerIfExists(map);
+					maintainer.verifyLayerWasFullySwept();
+					return result;
+				}),
+				"A merger that never releases a removed value's layer must be caught by the sweep " +
+					"verification - proving the unconditional auto-release no longer runs once a " +
+					"merger is supplied!"
+			);
+		}
+
+		/**
+		 * Runs `body` inside a bare, WAL-less transaction bound to the current thread purely so it
+		 * can obtain the {@link TransactionalLayerMaintainer} for the explicit dirty-key merge and sweep verification.
+		 *
+		 * @param body the transactional operations to run; receives the maintainer driving the merge
+		 * @param <R>  the type of value `body` returns
+		 * @return whatever `body` returned
+		 */
+		@Nonnull
+		private static <R> R runInTransaction(@Nonnull Function<TransactionalLayerMaintainer, R> body) {
+			final TransactionHandler noOpHandler = new TransactionHandler() {
+				@Override
+				public void registerMutation(@Nonnull Mutation mutation) {
+					// mutations are not tracked by these tests - they exercise the STM merge directly
+				}
+
+				@Override
+				public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+					// each test drives the merge (and its sweep verification) via the maintainer
+				}
+
+				@Override
+				public void rollback(
+					@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause
+				) {
+					// not exercised - every test in this group commits
+				}
+			};
+			final Transaction transaction = new Transaction(UUID.randomUUID(), noOpHandler, false);
+			final AtomicReference<R> result = new AtomicReference<>();
+			Transaction.executeInTransactionIfProvided(
+				transaction,
+				() -> {
+					try {
+						final TransactionalLayerMaintainer maintainer =
+							Objects.requireNonNull(Transaction.getTransactionalLayerMaintainer());
+						result.set(body.apply(maintainer));
+					} finally {
+						transaction.close();
+					}
+				}
+			);
+			return result.get();
+		}
+
 	}
 
 	/**

@@ -27,7 +27,6 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
-import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -39,12 +38,9 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
@@ -60,7 +56,7 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
  *
  * If no transaction is opened, changes are applied directly to the
  * delegate set. In such case the class is not thread safe for multiple
- * writers!
+ * writers. Within a transaction, the diff records additions of new keys and removals of delegate keys.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
@@ -102,50 +98,19 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 		return true;
 	}
 
+	/**
+	 * Applies the transactional membership changes to the set, or reuses the delegate when there is no diff layer.
+	 *
+	 * @param layer the diff layer, or `null` when the set has no transactional changes
+	 * @param transactionalLayer the maintainer coordinating the commit
+	 * @return the committed set
+	 */
 	@Nonnull
 	@Override
 	public Set<K> createCopyWithMergedTransactionalMemory(
-		@Nullable SetChanges<K> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		// iterate over inserted or updated keys
-		if (layer != null) {
-			return layer.createMergedSet(transactionalLayer);
-		} else {
-			// iterate original set and copy all values from it
-			List<K> oldEntries = null;
-			List<K> newEntries = null;
-			for (K entry : this.setDelegate) {
-				// we need to always create copy - something in the
-				// referenced object might have changed; even the removed
-				// values need to be evaluated (in order to discard them
-				// from transactional memory set)
-				final K transformedEntry;
-				if (entry instanceof TransactionalStateProducer) {
-					//noinspection unchecked
-					transformedEntry = (K) transactionalLayer.getStateCopyWithCommittedChanges(
-						(TransactionalStateProducer<?>) entry
-					);
-				} else {
-					transformedEntry = entry;
-				}
-
-				if (entry != transformedEntry) {
-					if (oldEntries == null) {
-						oldEntries = new ArrayList<>();
-						newEntries = new ArrayList<>();
-					}
-					oldEntries.add(entry);
-					newEntries.add(transformedEntry);
-				}
-			}
-			if (oldEntries == null) {
-				return this.setDelegate;
-			} else {
-				final Set<K> copy = new HashSet<>(this.setDelegate);
-				oldEntries.forEach(copy::remove);
-				copy.addAll(newEntries);
-				return copy;
-			}
-		}
+		@Nullable SetChanges<K> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		return layer == null ? this.setDelegate : layer.createMergedSet();
 	}
 
 	@Override
@@ -508,8 +473,7 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	/**
 	 * Iterator that merges elements from the delegate set with changes
 	 * from the transactional layer. Created keys are iterated first,
-	 * followed by non-removed delegate keys that are not duplicated
-	 * in the created set.
+	 * followed by delegate keys still present in the transactional set.
 	 */
 	private static class TransactionalMemorySetIterator<K> implements Iterator<K> {
 
@@ -563,6 +527,9 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 			return this.currentValue;
 		}
 
+		/**
+		 * Removes the current key from the transactional view, recording its prior membership for savepoint rollback.
+		 */
 		@Override
 		public void remove() {
 			if (this.currentValue == null) {
@@ -575,19 +542,12 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 
 			final K key = this.currentValue;
-			final boolean existing = this.layer.getSetDelegate().contains(key);
-			final boolean removedFromTransactionalMemory = this.layer.getCreatedKeys().contains(key);
-			if (removedFromTransactionalMemory) {
-				// capture the pre-mutation membership: the raw created-keys iterator removal below bypasses the
-				// layer's journaled mutators, so a savepoint rollback could not reinstate the created key otherwise
+			if (this.layer.containsCreated(key)) {
+				// The created-keys iterator bypasses the layer's journaled mutators.
 				this.layer.journalKey(key);
 				this.layerIt.remove();
-				if (!existing) {
-					this.layer.removeCreatedKey(key);
-				}
-			}
-			if (existing) {
-				this.layer.registerRemovedKey(key);
+			} else {
+				this.layer.remove(key);
 			}
 		}
 
@@ -601,9 +561,9 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 		}
 
 		/**
-		 * Computes the next element by first draining created keys from
-		 * the layer, then iterating the delegate while skipping removed
-		 * and already-created keys.
+		 * Drains the created keys and then iterates the delegate, skipping removed keys.
+		 *
+		 * @return the next key, or null when the iterator is exhausted
 		 */
 		@Nullable
 		K computeNext() {
@@ -620,7 +580,7 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 					} else {
 						return endOfData();
 					}
-				} while (this.layer.containsRemoved(adept) || this.layer.containsCreated(adept));
+				} while (this.layer.containsRemoved(adept));
 				return adept;
 			} else {
 				return endOfData();

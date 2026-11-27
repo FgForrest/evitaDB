@@ -23,7 +23,6 @@
 
 package io.evitadb.index.set;
 
-import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,7 +32,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -88,15 +86,18 @@ class TransactionalSetTest {
 			);
 		}
 
+		/**
+		 * Verifies that a new diff layer exposes the delegate's original membership.
+		 */
 		@Test
 		@DisplayName("createLayer returns SetChanges backed by delegate")
 		void shouldCreateLayerBackedByDelegate() {
 			final SetChanges<String> layer = TransactionalSetTest.this.tested.createLayer();
 
 			assertNotNull(layer);
-			assertEquals(2, layer.getSetDelegate().size());
-			assertTrue(layer.getSetDelegate().contains("a"));
-			assertTrue(layer.getSetDelegate().contains("b"));
+			assertEquals(2, layer.size());
+			assertTrue(layer.contains("a"));
+			assertTrue(layer.contains("b"));
 		}
 
 		@Test
@@ -600,17 +601,6 @@ class TransactionalSetTest {
 	class TransactionalLayerProducerContractTest {
 
 		@Test
-		@DisplayName("createLayer returns SetChanges referencing the delegate")
-		void shouldCreateLayerReferencingDelegate() {
-			final SetChanges<String> layer = TransactionalSetTest.this.tested.createLayer();
-
-			assertNotNull(layer);
-			assertEquals(2, layer.getSetDelegate().size());
-			assertTrue(layer.getSetDelegate().contains("a"));
-			assertTrue(layer.getSetDelegate().contains("b"));
-		}
-
-		@Test
 		@DisplayName("createCopyWithMergedTransactionalMemory with null layer returns delegate")
 		void shouldReturnDelegateWhenLayerIsNull() {
 			final TransactionalLayerMaintainer maintainer = Mockito.mock(TransactionalLayerMaintainer.class);
@@ -624,6 +614,9 @@ class TransactionalSetTest {
 			assertTrue(result.contains("b"));
 		}
 
+		/**
+		 * Verifies that merging a populated diff applies both the added key and the removed delegate key.
+		 */
 		@Test
 		@DisplayName("createCopyWithMergedTransactionalMemory with layer returns merged set")
 		void shouldReturnMergedSetWhenLayerExists() {
@@ -631,7 +624,7 @@ class TransactionalSetTest {
 
 			final SetChanges<String> layer = TransactionalSetTest.this.tested.createLayer();
 			layer.put("c");
-			layer.registerRemovedKey("a");
+			layer.remove("a");
 
 			final Set<String> result = TransactionalSetTest.this.tested
 				.createCopyWithMergedTransactionalMemory(layer, maintainer);
@@ -1215,159 +1208,6 @@ class TransactionalSetTest {
 			final String entry = it.next();
 			assertTrue(expectedSet.contains(entry));
 		}
-	}
-
-	/**
-	 * Tests content substitution for identity-equal but content-different elements.
-	 */
-	@Nested
-	@DisplayName("Content substitution (identity-equal, content-different elements)")
-	class ContentSubstitutionTest {
-
-		@Test
-		void shouldReplaceSameIdentityElementWithDifferentContentOnAdd() {
-			final Box oldA = new Box(1, "OLD-A");
-			final Box newA = new Box(1, "NEW-A");
-			final Set<Box> underlying = new LinkedHashSet<>();
-			underlying.add(oldA);
-			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
-
-			assertStateAfterCommit(
-				set,
-				original -> original.add(newA),
-				(original, committed) -> {
-					assertEquals(1, committed.size());
-					assertEquals("NEW-A", committed.iterator().next().content(),
-						"Committed set must hold the NEW content, not the stale original instance");
-				}
-			);
-		}
-
-		@Test
-		void shouldReplaceSameIdentityElementOnRemoveThenAdd() {
-			final Box oldA = new Box(1, "OLD-A");
-			final Box newA = new Box(1, "NEW-A");
-			final Set<Box> underlying = new LinkedHashSet<>();
-			underlying.add(oldA);
-			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
-
-			assertStateAfterCommit(
-				set,
-				original -> {
-					original.remove(oldA);
-					original.add(newA);
-				},
-				(original, committed) -> {
-					assertEquals(1, committed.size());
-					assertEquals("NEW-A", committed.iterator().next().content(),
-						"Committed set must hold the NEW content after remove-then-add of same identity");
-				}
-			);
-		}
-
-		@Test
-		void shouldKeepLatestContentWhenSubstitutedElementIsAddedAgain() {
-			final Box oldA = new Box(1, "OLD-A");
-			final Box v1 = new Box(1, "V1");
-			final Box v2 = new Box(1, "V2");
-			final Set<Box> underlying = new LinkedHashSet<>();
-			underlying.add(oldA);
-			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
-
-			assertStateAfterCommit(
-				set,
-				original -> {
-					original.add(v1);
-					original.add(v2);
-				},
-				(original, committed) -> {
-					assertEquals(1, committed.size());
-					assertEquals("V2", committed.iterator().next().content(),
-						"Committed set must hold the latest substituted content");
-				}
-			);
-		}
-
-		@Test
-		void shouldRevertToOriginalContentWhenSubstitutionFollowedByOriginalAdd() {
-			// regression guard: after substituting with new content and adding the original-content
-			// instance again, the merged set must contain exactly one logical element and the change-layer
-			// bookkeeping (createdKeys / removedKeys) must not double-count or drop the entry
-			final Box oldA = new Box(1, "OLD-A");
-			final Box newA = new Box(1, "NEW-A");
-			final Box originalAgain = new Box(1, "OLD-A");
-			final Box otherB = new Box(2, "B");
-			final Set<Box> underlying = new LinkedHashSet<>();
-			underlying.add(oldA);
-			underlying.add(otherB);
-			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
-
-			assertStateAfterCommit(
-				set,
-				original -> {
-					original.add(newA);
-					original.add(originalAgain);
-					assertEquals(2, original.size(),
-						"Reverting a substitution must not change the logical size");
-					assertTrue(original.contains(oldA), "Identity must remain present after revert");
-					assertTrue(original.contains(otherB), "Unrelated elements must remain present");
-				},
-				(original, committed) -> {
-					assertEquals(2, committed.size(),
-						"Committed set must contain exactly one entry per identity");
-					assertTrue(committed.contains(oldA), "Identity must survive the substitute-then-revert");
-					assertTrue(committed.contains(otherB), "Unrelated elements must remain in the committed set");
-				}
-			);
-		}
-
-		@Test
-		void shouldRemoveSubstitutedElementWithinSameTransaction() {
-			final Box oldA = new Box(1, "OLD-A");
-			final Box newA = new Box(1, "NEW-A");
-			final Set<Box> underlying = new LinkedHashSet<>();
-			underlying.add(oldA);
-			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
-
-			assertStateAfterCommit(
-				set,
-				original -> {
-					original.add(newA);
-					assertTrue(original.contains(newA), "Substituted element must be visible via contains()");
-					original.remove(newA);
-					assertFalse(original.contains(newA), "Removed substituted element must not be present");
-				},
-				(original, committed) -> assertTrue(committed.isEmpty(),
-					"Committed set must be empty after substitute-then-remove")
-			);
-		}
-
-		/**
-		 * Test element whose identity is {@link #id()} and whose payload is {@link #content()}.
-		 * {@link ContentComparator} lets the change layer detect payload changes for the same identity.
-		 */
-		record Box(int id, @Nonnull String content) implements ContentComparator<Box> {
-
-			@Override
-			public boolean equals(Object o) {
-				if (this == o) return true;
-				if (!(o instanceof Box other)) return false;
-				return this.id == other.id;
-			}
-
-			@Override
-			public int hashCode() {
-				return Integer.hashCode(this.id);
-			}
-
-			@Override
-			public boolean differsFrom(@Nullable Box other) {
-				if (other == this) return false;
-				if (other == null) return true;
-				return this.id != other.id || !this.content.equals(other.content);
-			}
-		}
-
 	}
 
 }

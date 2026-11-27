@@ -19,7 +19,7 @@ diff strategy, and its commit behaviour.
 
 | Depth       | Meaning                                                                           | Examples                                                   |
 |-------------|-----------------------------------------------------------------------------------|------------------------------------------------------------|
-| **Shallow** | The diff captures changes to the structure itself (inserts, removals, reorderings). On commit, a new container is created with the merged data. Contained elements are plain values (primitives, strings, etc.) and are not recursively merged. | `TransactionalIntArray`, `TransactionalBitmap`, `TransactionalBoolean`, `TransactionalReference`, `TransactionalSet` (when elements are plain values) |
+| **Shallow** | The diff captures changes to the structure itself (inserts, removals, reorderings). On commit, a new container is created with the merged data. Contained elements are plain values (primitives, strings, etc.) and are not recursively merged. | `TransactionalIntArray`, `TransactionalBitmap`, `TransactionalBoolean`, `TransactionalReference`, `TransactionalSet` |
 | **Deep** | Commits nested producers recursively. | `TransactionalMap` with producer values |
 
 ---
@@ -168,10 +168,10 @@ When `valueType` is `null`, the map is "shallow" -- values are treated as plain 
 Transactional wrapper for `java.util.Set`.
 
 **Diff layer (`SetChanges<K>`):**
-- Added keys (newly inserted).
-- Removed keys (deleted from original).
+- Added keys are absent from the delegate.
+- Removed keys are members of the delegate. Adding one of these keys back cancels its pending removal.
 
-**Iterator:** Merges created keys with original keys minus removed keys.
+**Iterator:** Yields created keys first, followed by delegate keys still present in the transactional set.
 
 ---
 
