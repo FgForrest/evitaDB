@@ -512,7 +512,7 @@ class WarmUpSavepointCollectionRollbackTest {
 		@DisplayName("Rollback restores the set through every mutator kind")
 		void shouldRestoreSetAfterMixedMutations() {
 			final TransactionalSet<String> set = new TransactionalSet<>(
-				new HashSet<>(Set.of("a", "b", "c", "d"))
+				new HashSet<>(Set.of("a", "b", "c", "d")), String.class
 			);
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
@@ -534,7 +534,9 @@ class WarmUpSavepointCollectionRollbackTest {
 		@Test
 		@DisplayName("Rollback restores elements removed through the iterator and removeIf")
 		void shouldRestoreRemovalsThroughIterator() {
-			final TransactionalSet<String> set = new TransactionalSet<>(new HashSet<>(Set.of("a", "b", "c")));
+			final TransactionalSet<String> set = new TransactionalSet<>(
+				new HashSet<>(Set.of("a", "b", "c")), String.class
+			);
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			final Iterator<String> it = set.iterator();
@@ -556,7 +558,7 @@ class WarmUpSavepointCollectionRollbackTest {
 		@Test
 		@DisplayName("Rollback succeeds after the delegate rejected an iterator removal")
 		void shouldRollBackWhenDelegateRejectsIteratorRemoval() {
-			final TransactionalSet<String> set = new TransactionalSet<>(Set.of("a"));
+			final TransactionalSet<String> set = new TransactionalSet<>(Set.of("a"), String.class);
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			final Iterator<String> it = set.iterator();
@@ -573,7 +575,7 @@ class WarmUpSavepointCollectionRollbackTest {
 		@Test
 		@DisplayName("Rollback succeeds after the delegate rejected every membership change")
 		void shouldRollBackWhenDelegateRejectsMembershipChanges() {
-			final TransactionalSet<String> set = new TransactionalSet<>(Set.of("a"));
+			final TransactionalSet<String> set = new TransactionalSet<>(Set.of("a"), String.class);
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			assertThrows(UnsupportedOperationException.class, () -> set.add("b"));
@@ -592,7 +594,7 @@ class WarmUpSavepointCollectionRollbackTest {
 		@Test
 		@DisplayName("Rollback succeeds after the delegate rejected a clear")
 		void shouldRollBackWhenDelegateRejectsClear() {
-			final TransactionalSet<String> set = new TransactionalSet<>(Set.of("a", "b"));
+			final TransactionalSet<String> set = new TransactionalSet<>(Set.of("a", "b"), String.class);
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			assertThrows(UnsupportedOperationException.class, set::clear);
@@ -607,7 +609,7 @@ class WarmUpSavepointCollectionRollbackTest {
 		@DisplayName("Rollback restores a set that was cleared inside the savepoint")
 		void shouldRestoreClearedSet() {
 			final Set<String> delegate = new LinkedHashSet<>(List.of("first", "second", "third"));
-			final TransactionalSet<String> set = new TransactionalSet<>(delegate);
+			final TransactionalSet<String> set = new TransactionalSet<>(delegate, String.class);
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			set.clear();
@@ -623,7 +625,7 @@ class WarmUpSavepointCollectionRollbackTest {
 		@Test
 		@DisplayName("Commit keeps the writes made inside the savepoint")
 		void shouldKeepSetOnCommit() {
-			final TransactionalSet<String> set = new TransactionalSet<>(new HashSet<>(Set.of("a")));
+			final TransactionalSet<String> set = new TransactionalSet<>(new HashSet<>(Set.of("a")), String.class);
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			set.add("b");
@@ -641,7 +643,9 @@ class WarmUpSavepointCollectionRollbackTest {
 		@Test
 		@DisplayName("A set iterator created before the savepoint opened still journals its removals")
 		void shouldJournalRemovalsThroughASetIteratorOlderThanTheSavepoint() {
-			final TransactionalSet<String> set = new TransactionalSet<>(new LinkedHashSet<>(List.of("a", "b", "c")));
+			final TransactionalSet<String> set = new TransactionalSet<>(
+				new LinkedHashSet<>(List.of("a", "b", "c")), String.class
+			);
 
 			final Iterator<String> it = set.iterator();
 
@@ -660,7 +664,9 @@ class WarmUpSavepointCollectionRollbackTest {
 		@Test
 		@DisplayName("A stale set iterator's failed removal does not restore an element removed before the savepoint")
 		void shouldNotRestoreElementWhenStaleIteratorRemovalFails() {
-			final TransactionalSet<String> set = new TransactionalSet<>(new LinkedHashSet<>(List.of("a", "b")));
+			final TransactionalSet<String> set = new TransactionalSet<>(
+				new LinkedHashSet<>(List.of("a", "b")), String.class
+			);
 
 			final Iterator<String> it = set.iterator();
 			assertEquals("a", it.next(), "self-check on the iteration order");

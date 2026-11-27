@@ -25,6 +25,8 @@ package io.evitadb.index.set;
 
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -71,7 +73,7 @@ class TransactionalSetTest {
 		final Set<String> underlyingData = new LinkedHashSet<>();
 		underlyingData.add("a");
 		underlyingData.add("b");
-		this.tested = new TransactionalSet<>(underlyingData);
+		this.tested = new TransactionalSet<>(underlyingData, String.class);
 	}
 
 	/**
@@ -84,11 +86,29 @@ class TransactionalSetTest {
 		@Test
 		@DisplayName("each instance gets a unique ID")
 		void shouldAssignUniqueIdPerInstance() {
-			final TransactionalSet<String> other = new TransactionalSet<>(new HashSet<>());
+			final TransactionalSet<String> other = new TransactionalSet<>(new HashSet<>(), String.class);
 
 			assertNotEquals(
 				TransactionalSetTest.this.tested.getId(),
 				other.getId()
+			);
+		}
+
+		/**
+		 * Verifies that the constructor refuses an element type carrying its own transactional state, because the set
+		 * commits its elements by reference and would never merge that state.
+		 */
+		@Test
+		@DisplayName("refuses an element type that carries transactional state")
+		void shouldRefuseElementTypeWhenItIsTransactionalStateProducer() {
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new TransactionalSet<>(new HashSet<>(), TransactionalBitmap.class)
+			);
+
+			assertTrue(
+				error.getMessage().contains(TransactionalBitmap.class.getName()),
+				"The message must name the refused type."
 			);
 		}
 
@@ -176,7 +196,7 @@ class TransactionalSetTest {
 		void shouldReportEmptyCorrectly() {
 			assertFalse(TransactionalSetTest.this.tested.isEmpty());
 
-			final TransactionalSet<String> empty = new TransactionalSet<>(new HashSet<>());
+			final TransactionalSet<String> empty = new TransactionalSet<>(new HashSet<>(), String.class);
 			assertTrue(empty.isEmpty());
 		}
 
@@ -710,7 +730,7 @@ class TransactionalSetTest {
 				new TransactionalSet<>(
 					new LinkedHashSet<>(
 						Arrays.asList("a", "b")
-					)
+					), String.class
 				);
 
 			assertEquals(
@@ -734,7 +754,7 @@ class TransactionalSetTest {
 		void shouldHaveEqualHashCodeForSameElements() {
 			final TransactionalSet<String> other =
 				new TransactionalSet<>(
-					new LinkedHashSet<>(Arrays.asList("a", "b"))
+					new LinkedHashSet<>(Arrays.asList("a", "b")), String.class
 				);
 
 			assertEquals(
@@ -746,7 +766,7 @@ class TransactionalSetTest {
 		@Test
 		@DisplayName("empty set toString returns {}")
 		void shouldReturnCurlyBracesForEmptySet() {
-			final TransactionalSet<String> empty = new TransactionalSet<>(new HashSet<>());
+			final TransactionalSet<String> empty = new TransactionalSet<>(new HashSet<>(), String.class);
 
 			assertEquals("{}", empty.toString());
 		}
@@ -1070,7 +1090,7 @@ class TransactionalSetTest {
 		private void assertFirstRemovalIsolated(boolean useRemoveIf, boolean commit) {
 			final Set<String> initial = Set.of("a", "b");
 			final Set<String> delegate = new LinkedHashSet<>(List.of("a", "b"));
-			final TransactionalSet<String> set = new TransactionalSet<>(delegate);
+			final TransactionalSet<String> set = new TransactionalSet<>(delegate, String.class);
 			final Set<String> transactionalView = new HashSet<>();
 			final Set<String> committedWhileOpen = new HashSet<>();
 			final Consumer<TransactionalSet<String>> removeFirst = original -> {
@@ -1232,7 +1252,7 @@ class TransactionalSetTest {
 		@Test
 		@DisplayName("empty delegate works correctly in transaction")
 		void shouldWorkWithEmptyDelegate() {
-			final TransactionalSet<String> empty = new TransactionalSet<>(new HashSet<>());
+			final TransactionalSet<String> empty = new TransactionalSet<>(new HashSet<>(), String.class);
 
 			assertStateAfterCommit(
 				empty,
@@ -1254,7 +1274,7 @@ class TransactionalSetTest {
 		void shouldWorkWithSingleElementDelegate() {
 			final TransactionalSet<String> single =
 				new TransactionalSet<>(
-					new LinkedHashSet<>(List.of("x"))
+					new LinkedHashSet<>(List.of("x")), String.class
 				);
 
 			assertStateAfterCommit(

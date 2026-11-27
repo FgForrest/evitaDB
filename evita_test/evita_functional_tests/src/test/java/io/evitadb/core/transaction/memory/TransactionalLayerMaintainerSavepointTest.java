@@ -149,7 +149,7 @@ class TransactionalLayerMaintainerSavepointTest {
 	void shouldRollbackSavepointForSet() {
 		final Set<String> delegate = new HashSet<>();
 		delegate.add("a");
-		final TransactionalSet<String> set = new TransactionalSet<>(delegate);
+		final TransactionalSet<String> set = new TransactionalSet<>(delegate, String.class);
 		assertSavepointRollbackRestores(
 			set,
 			Set::copyOf,
@@ -263,7 +263,7 @@ class TransactionalLayerMaintainerSavepointTest {
 	void shouldSupportRepeatRestoreForSet() {
 		final Set<String> delegate = new HashSet<>();
 		delegate.add("a");
-		final TransactionalSet<String> set = new TransactionalSet<>(delegate);
+		final TransactionalSet<String> set = new TransactionalSet<>(delegate, String.class);
 		assertRepeatRestoreSafe(
 			set,
 			Set::copyOf,
@@ -325,7 +325,7 @@ class TransactionalLayerMaintainerSavepointTest {
 	void shouldRollbackSavepointForSetRemoveAllOfCreatedKey() {
 		final Set<String> delegate = new HashSet<>();
 		delegate.add("a");
-		final TransactionalSet<String> set = new TransactionalSet<>(delegate);
+		final TransactionalSet<String> set = new TransactionalSet<>(delegate, String.class);
 		assertSavepointRollbackRestores(
 			set,
 			Set::copyOf,
@@ -346,7 +346,7 @@ class TransactionalLayerMaintainerSavepointTest {
 	void shouldRollbackSavepointForSetIteratorRemoveAsFirstSavepointTouch() {
 		final Set<String> delegate = new HashSet<>();
 		delegate.add("a");
-		final TransactionalSet<String> set = new TransactionalSet<>(delegate);
+		final TransactionalSet<String> set = new TransactionalSet<>(delegate, String.class);
 		assertCommittedState(set, maintainer -> {
 			// the diff layer exists before the savepoint opens
 			set.add("b");

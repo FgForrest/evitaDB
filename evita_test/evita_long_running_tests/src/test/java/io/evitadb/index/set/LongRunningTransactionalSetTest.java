@@ -69,7 +69,9 @@ class LongRunningTransactionalSetTest implements TimeBoundedTestSupport {
 			50_000,
 			new TestState(new StringBuilder(256), initialSet),
 			(random, testState) -> {
-				final TransactionalSet<String> transactionalMap = new TransactionalSet<>(testState.initialSet());
+				final TransactionalSet<String> transactionalMap = new TransactionalSet<>(
+					testState.initialSet(), String.class
+				);
 				final Set<String> referenceMap = new HashSet<>(testState.initialSet());
 				final AtomicReference<Set<String>> committedResult = new AtomicReference<>();
 

@@ -314,7 +314,7 @@ class LongRunningSavepointLeafDeltaTest {
 		for (int i = 0; i < size; i++) {
 			seed.add(random.nextInt(KEY_SPACE));
 		}
-		return new TransactionalSet<>(seed);
+		return new TransactionalSet<>(seed, Integer.class);
 	}
 
 	private static void applyRandomSetOps(@Nonnull TransactionalSet<Integer> set, @Nonnull Random random, int count) {

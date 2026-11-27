@@ -28,6 +28,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -58,7 +59,10 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
  * writers. Within a transaction, the diff records additions of new keys and removals of delegate keys.
  *
  * Keys are committed by reference: the merge carries over set membership only and never asks the transaction for a
- * key's own state. A key must therefore not own a transactional layer, because this set never merges that layer.
+ * key's own state. A key must therefore not be a {@link TransactionalStateProducer}, because this set never merges
+ * its state. The constructor refuses such an element type; it sees only the declared type, so a set declared over a
+ * supertype such as `Object` still accepts a producer instance, and the commit's
+ * {@link TransactionalLayerMaintainer#verifyLayerWasFullySwept()} check remains the backstop for that case.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
@@ -74,8 +78,16 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	 * Creates a new transactional wrapper around the given delegate set.
 	 *
 	 * @param setDelegate the underlying set to wrap
+	 * @param elementType the declared type of the set's elements, which must not be a
+	 *                    {@link TransactionalStateProducer} because the merge never commits an element's own state
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when `elementType` is a {@link TransactionalStateProducer}
 	 */
-	public TransactionalSet(@Nonnull Set<K> setDelegate) {
+	public TransactionalSet(@Nonnull Set<K> setDelegate, @Nonnull Class<K> elementType) {
+		Assert.isPremiseValid(
+			!TransactionalStateProducer.class.isAssignableFrom(elementType),
+			() -> "Transactional set elements must not carry transactional state, but `" + elementType.getName() +
+				"` does - the set commits its elements by reference and would never merge their state!"
+		);
 		this.setDelegate = setDelegate;
 	}
 
