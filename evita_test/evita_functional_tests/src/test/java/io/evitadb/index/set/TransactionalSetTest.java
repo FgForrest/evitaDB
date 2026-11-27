@@ -23,6 +23,7 @@
 
 package io.evitadb.index.set;
 
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -769,7 +770,8 @@ class TransactionalSetTest {
 	class IteratorContractTest {
 
 		/**
-		 * Verifies removal after lookahead for a created key and after exhaustion for a delegate key.
+		 * Verifies removal after lookahead for a created key and after exhaustion for a delegate key, and that neither
+		 * the removal nor a following `hasNext()` makes the iterator removable again.
 		 *
 		 * @param moreElements whether the iterator should have another element after the one being removed
 		 */
@@ -793,6 +795,9 @@ class TransactionalSetTest {
 					final String returned = iterator.next();
 					assertEquals(moreElements, iterator.hasNext());
 					iterator.remove();
+					assertThrows(IllegalStateException.class, iterator::remove);
+					assertEquals(moreElements, iterator.hasNext());
+					assertThrows(IllegalStateException.class, iterator::remove);
 
 					assertTrue(expected.remove(returned));
 					assertSetContains(original, expected.toArray(String[]::new));
@@ -804,6 +809,63 @@ class TransactionalSetTest {
 					assertFalse(original.contains(returned));
 				},
 				(original, committedVersion) -> assertSetContains(committedVersion, expected.toArray(String[]::new))
+			);
+		}
+
+		/**
+		 * Verifies that `hasNext()` fetching the next delegate key leaves the delegate key `next()` returned as the
+		 * removal target.
+		 */
+		@Test
+		@DisplayName("remove targets the returned delegate key after hasNext fetched the next one")
+		void shouldRemoveReturnedDelegateKeyWhenHasNextFetchedNextDelegateKey() {
+			assertStateAfterCommit(
+				TransactionalSetTest.this.tested,
+				original -> {
+					// a cancelled addition leaves a diff layer without created keys, so only delegate keys are merged
+					assertTrue(original.add("c"));
+					assertTrue(original.remove("c"));
+					assertNotNull(Transaction.getTransactionalMemoryLayerIfExists(original));
+
+					final Iterator<String> iterator = original.iterator();
+					assertEquals("a", iterator.next());
+					assertTrue(iterator.hasNext());
+					iterator.remove();
+
+					assertEquals("b", iterator.next());
+					assertFalse(iterator.hasNext());
+					assertSetContains(original, "b");
+				},
+				(original, committedVersion) -> {
+					assertSetContains(original, "a", "b");
+					assertSetContains(committedVersion, "b");
+				}
+			);
+		}
+
+		/**
+		 * Verifies that `hasNext()` falling through to the delegate after the last created key leaves that created key
+		 * as the removal target.
+		 */
+		@Test
+		@DisplayName("remove targets the last created key after hasNext fetched a delegate key")
+		void shouldRemoveLastCreatedKeyWhenHasNextFetchedDelegateKey() {
+			assertStateAfterCommit(
+				TransactionalSetTest.this.tested,
+				original -> {
+					assertTrue(original.add("c"));
+
+					final Iterator<String> iterator = original.iterator();
+					assertEquals("c", iterator.next());
+					assertTrue(iterator.hasNext());
+					iterator.remove();
+
+					assertEquals("a", iterator.next());
+					assertEquals("b", iterator.next());
+					assertFalse(iterator.hasNext());
+					assertSetContains(original, "a", "b");
+				},
+				(original, committedVersion) -> assertSetContains(committedVersion, "a", "b")
 			);
 		}
 
@@ -972,6 +1034,30 @@ class TransactionalSetTest {
 		@DisplayName("first removal stays isolated until commit")
 		void shouldIsolateFirstRemovalWhenTransactionCommits(boolean useRemoveIf) {
 			assertFirstRemovalIsolated(useRemoveIf, true);
+		}
+
+		/**
+		 * Verifies that an iterator obtained before the transaction opened removes into that transaction's diff layer
+		 * rather than from the shared delegate.
+		 */
+		@Test
+		@DisplayName("iterator obtained before the transaction removes inside it")
+		void shouldRemoveInsideTransactionWhenIteratorPredatesIt() {
+			final Iterator<String> iterator = TransactionalSetTest.this.tested.iterator();
+			assertStateAfterCommit(
+				TransactionalSetTest.this.tested,
+				original -> {
+					assertEquals("a", iterator.next());
+					assertNull(Transaction.getTransactionalMemoryLayerIfExists(original));
+					iterator.remove();
+
+					assertSetContains(original, "b");
+				},
+				(original, committedVersion) -> {
+					assertSetContains(original, "a", "b");
+					assertSetContains(committedVersion, "b");
+				}
+			);
 		}
 
 		/**

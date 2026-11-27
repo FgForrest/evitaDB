@@ -59,7 +59,8 @@ class TransactionalNodeShrinkTest {
 	private static final int INTERNAL_NODE_ENTRY_COUNT = 7;
 
 	/**
-	 * Covers routing nodes, including donors emptied by a merge.
+	 * Covers routing nodes shrunk directly through `setPeek`, down to the empty peek of `-1` that a merge sets on the
+	 * donor it drains.
 	 */
 	@Nested
 	@DisplayName("Internal nodes")

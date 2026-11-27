@@ -153,9 +153,11 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	}
 
 	/**
-	 * Iterates over the set as seen by the current thread. A removal in a transaction writes to the transactional
-	 * layer, creating it on demand. Outside a transaction, a removal uses the delegate iterator and journals the
-	 * change when a warm-up savepoint is open.
+	 * Iterates over the set as seen by the current thread. The iterator's `remove()` follows the
+	 * {@link Iterator#remove()} contract and routes the removal as {@link #remove(Object)} does. In a transaction it
+	 * writes to the transactional layer, creating it on demand even when the iterator was obtained before the layer
+	 * existed; while the transaction suppresses this set's layer, it removes the key from the delegate instead. Outside
+	 * a transaction it removes the key from the delegate and journals the change when a warm-up savepoint is open.
 	 *
 	 * @return an iterator over the visible keys
 	 */
@@ -430,12 +432,26 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	}
 
 	/**
-	 * Iterates delegate keys when there is no diff layer at construction. Each {@link #remove()} resolves the
-	 * transaction or warm-up savepoint active at the time of the write.
+	 * Iterates delegate keys when there is no diff layer at construction. Removing through an iterator, including the
+	 * one the inherited {@link Collection#removeIf} drives, bypasses this set's mutators, so {@link #remove()} routes
+	 * each removal as {@link TransactionalSet#remove(Object)} does. It resolves the transaction and the warm-up
+	 * savepoint when the removal happens rather than at construction: an iterator obtained before a transaction opened
+	 * still removes into its diff layer, one obtained before a savepoint opened still journals into it, and one that
+	 * outlives a savepoint records nothing in it.
 	 */
 	private final class DelegateSetIterator implements Iterator<K> {
+		/**
+		 * Iterator over the shared delegate; its own `remove()` runs only when no transactional layer takes the
+		 * removal.
+		 */
 		private final Iterator<K> delegate = TransactionalSet.this.setDelegate.iterator();
+		/**
+		 * Key the last {@link #next()} returned, the only key {@link #remove()} removes.
+		 */
 		@Nullable private K current;
+		/**
+		 * Whether {@link #remove()} is allowed: set by {@link #next()} and cleared by {@link #remove()}.
+		 */
 		private boolean canRemove;
 
 		@Override
@@ -490,6 +506,9 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	 * Iterator that merges elements from the delegate set with changes
 	 * from the transactional layer. Created keys are iterated first,
 	 * followed by delegate keys still present in the transactional set.
+	 *
+	 * `hasNext()` may fetch the next delegate key ahead, so that look-ahead is held apart from the key `next()`
+	 * returned, and {@link #remove()} always removes the latter.
 	 */
 	private static class TransactionalMemorySetIterator<K> implements Iterator<K> {
 
@@ -498,10 +517,26 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 		private final Iterator<K> layerIt;
 		private final Iterator<K> stateIt;
 
+		/**
+		 * Delegate key fetched ahead by {@link #hasNext()} and handed out by the following {@link #next()}.
+		 */
 		@Nullable private K nextDelegateValue;
+		/**
+		 * Key the last {@link #next()} returned, the only key {@link #remove()} removes.
+		 */
 		@Nullable private K lastReturned;
+		/**
+		 * Whether `nextDelegateValue` must be fetched again, because it was never fetched or `next()` returned it.
+		 */
 		private boolean needsFetch = true;
+		/**
+		 * Set once the delegate iterator holds no further key visible in the transactional view; `nextDelegateValue`
+		 * is `null` from then on.
+		 */
 		private boolean endOfData;
+		/**
+		 * Whether {@link #remove()} is allowed: set by {@link #next()} and cleared by {@link #remove()}.
+		 */
 		private boolean canRemove;
 
 		/**
