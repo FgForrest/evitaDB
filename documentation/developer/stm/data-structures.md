@@ -38,12 +38,12 @@ Ordered (sorted, ascending) array of unique `int` values.
 - Maintains a memoized merged `int[]` that is recomputed lazily on the first read after a write.
 
 **Optimised read-through methods** (operate on the diff without materialising the merged array):
-- `indexOf(int)`, `contains(int)`, `length()`
+- `contains(int)`, `getLength()` and `isEmpty()`
 
 **Commit:** Returns `layer.getMergedArray()` -- a new `int[]` combining original and diff.
 
-**Non-transactional fallback:** When no transaction is active, mutations (e.g. `addRecordId`) modify
-the delegate `int[]` directly.
+**Non-transactional fallback:** When no transaction is active, `add(int)` and `remove(int)` apply changes
+to the delegate by replacing its `int[]`.
 
 ---
 
@@ -51,17 +51,17 @@ the delegate `int[]` directly.
 
 **Implements:** `TransactionalLayerProducer<Void, TransactionalUnorderedIntArray>`
 
-Unordered `int` array that allows duplicate values and position-based insertion.
+Unordered `int` array of distinct values that supports position-based insertion.
 
 **Key operations:**
 - `add(previousRecordId, recordId)` -- insert after a specific element.
 - `addOnIndex(index, recordId)` -- positional insertion.
-- `removeRange(startIndex, endIndex)`.
-- Optimised read-through: `indexOf`, `contains`, `length`.
+- `remove(recordId)` -- remove a single record by id.
+- Optimised read-through: `indexOf`, `contains`, `getLength`.
 
 **No own diff layer (composite façade).** The array is a thin façade over two transactional B+ trees,
 each of which carries its own transactional layer (so the façade itself produces a `Void` diff and
-delegates). This keeps every operation -- positional insert, removal range, and `indexOf` -- at
+delegates). This keeps every operation -- positional insert, single-record removal, and `indexOf` -- at
 `O(log N)` without a hand-maintained positional diff:
 
 - a **position tree** (`UnorderedLookupTree`, an order-statistic tree) holding the elements in

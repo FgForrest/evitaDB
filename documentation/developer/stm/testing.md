@@ -220,7 +220,7 @@ Every generational test class lives in `evita_test/evita_long_running_tests` and
 
 | Data structure                       | Generational test class (long-running module)      | Operations tested                                      |
 |--------------------------------------|----------------------------------------------------|--------------------------------------------------------|
-| `TransactionalIntArray`        | `LongRunningTransactionalIntArrayTest` | Add, indexed get, remove → committed array |
+| `TransactionalIntArray`        | `LongRunningTransactionalIntArrayTest` | Add, read the array, remove → committed array |
 | `TransactionalUnorderedIntArray` | `LongRunningTransactionalUnorderedIntArrayTest` | Append/insert/rm → order/index |
 | `UnorderedLookupTree` | `LongRunningUnorderedLookupTreeTest` | Positional insert, remove → order, lookups, integrity |
 | `TransactionalMap`  | `LongRunningTransactionalMapTest` | Put/remove, entry setValue, iterator remove → map contents |

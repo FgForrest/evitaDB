@@ -91,15 +91,16 @@ class WarmUpSavepointUnorderedLookupRollbackTest {
 
 	/**
 	 * Builds an unordered array holding `count` record ids in ascending append order.
+	 *
+	 * @param count number of record ids to insert
+	 * @return the populated array
 	 */
 	@Nonnull
 	private static TransactionalUnorderedIntArray newArray(int count) {
 		final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray();
-		final int[] recordIds = new int[count];
 		for (int i = 0; i < count; i++) {
-			recordIds[i] = i + 1;
+			array.addOnIndex(i, i + 1);
 		}
-		array.appendAll(recordIds);
 		return array;
 	}
 
@@ -230,6 +231,9 @@ class WarmUpSavepointUnorderedLookupRollbackTest {
 	@DisplayName("TransactionalUnorderedIntArray")
 	class UnorderedArray {
 
+		/**
+		 * Rollback undoes an append burst that split the position tree.
+		 */
 		@Test
 		@DisplayName("Rollback undoes an append burst that split the position tree")
 		void shouldRestoreArrayAfterSplittingAppendBurst() {
@@ -239,7 +243,7 @@ class WarmUpSavepointUnorderedLookupRollbackTest {
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			for (int i = 0; i < 3000; i++) {
-				array.add(array.getLastRecordId(), 1000 + i);
+				array.add(array.get(array.getLength() - 1), 1000 + i);
 			}
 			assertTrue(array.isRootInternal(), "self-check: the in-savepoint burst must have split the position tree");
 			// read INSIDE the savepoint: this repopulates the memoized flattening from the half-mutated tree
@@ -281,6 +285,9 @@ class WarmUpSavepointUnorderedLookupRollbackTest {
 			assertEquals(500, array.indexOf(501), "Rollback must restore the position index of every record.");
 		}
 
+		/**
+		 * Commit keeps an append burst that split the position tree.
+		 */
 		@Test
 		@DisplayName("Commit keeps an append burst that split the position tree")
 		void shouldKeepAppendBurstOnCommit() {
@@ -288,7 +295,7 @@ class WarmUpSavepointUnorderedLookupRollbackTest {
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			for (int i = 0; i < 3000; i++) {
-				array.add(array.getLastRecordId(), 1000 + i);
+				array.add(array.get(array.getLength() - 1), 1000 + i);
 			}
 			final int[] expected = array.getArray();
 			savepoint.commit();
@@ -299,6 +306,9 @@ class WarmUpSavepointUnorderedLookupRollbackTest {
 			assertTrue(array.isRootInternal(), "Commit must keep the split shape.");
 		}
 
+		/**
+		 * Rollback leaves an array that was never touched alone.
+		 */
 		@Test
 		@DisplayName("Rollback leaves an array that was never touched alone")
 		void shouldNotTouchUnrelatedArray() {
@@ -308,7 +318,7 @@ class WarmUpSavepointUnorderedLookupRollbackTest {
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			for (int i = 0; i < 3000; i++) {
-				touched.add(touched.getLastRecordId(), 1000 + i);
+				touched.add(touched.get(touched.getLength() - 1), 1000 + i);
 			}
 			savepoint.rollback();
 

@@ -97,7 +97,7 @@ class LongRunningSavepointUnorderedLookupTreeTest extends AbstractSavepointFuzzT
 	 * coherent while ops are being driven; the framework reads the tree (not the index) after rollback / commit.
 	 */
 	private static final class Driver implements OrderKeyConsumer, FuzzGeneration<List<Integer>> {
-		private final UnorderedLookupTree tree = new UnorderedLookupTree(BLOCK_SIZE, ORDER_KEY_GAP);
+		private final UnorderedLookupTree tree = new UnorderedLookupTree(BLOCK_SIZE, ORDER_KEY_GAP, false);
 		private final Map<Integer, Long> valueIndex = new HashMap<>();
 		private int recordIdSequence = 1;
 

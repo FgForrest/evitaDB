@@ -54,7 +54,7 @@ When a transactional data structure is written to for the first time in a transa
 call chain executes:
 
 ```
-TransactionalIntArray.addRecordId(value)
+TransactionalIntArray.add(value)
   └─ Transaction.getOrCreateTransactionalMemoryLayer(this)
        └─ Transaction.CURRENT_TRANSACTION.get()
             └─ transaction.transactionalMemory

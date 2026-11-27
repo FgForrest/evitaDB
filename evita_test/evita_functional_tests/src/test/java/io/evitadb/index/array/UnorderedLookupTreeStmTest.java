@@ -30,6 +30,7 @@ import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
+import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -464,6 +466,9 @@ class UnorderedLookupTreeStmTest {
 	@DisplayName("Flush-time page reset")
 	class FlushTimePageResetTest {
 
+		/**
+		 * Checks the stream reset in the commit handler after layer creation has been disabled.
+		 */
 		@Test
 		@DisplayName("forgetPageStream over untouched leaves must not create a layer at flush time (after commit)")
 		void shouldForgetPageStreamWithoutCreatingLayerAfterCommit() {
@@ -485,7 +490,10 @@ class UnorderedLookupTreeStmTest {
 				handle.setPageSequence(seq++);
 				handle.clearDirty();
 			}
-			assertEquals(seq, tree.livePageSequences().length, "every committed leaf must carry a live page");
+			assertArrayEquals(
+				IntStream.range(0, seq).toArray(), assignedPageSequences(tree),
+				"every committed leaf must carry its assigned page sequence in logical order"
+			);
 
 			// drive a real transaction whose commit runs forgetPageStream at flush time - i.e. AFTER commit() has
 			// flipped allowTransactionalLayerCreation to false, exactly like Catalog.flush -> EntityCollection.flush ->
@@ -503,13 +511,27 @@ class UnorderedLookupTreeStmTest {
 			final UnorderedLookupTree committed = handler.getCommitted();
 			assertNotNull(committed, "commit must complete without discarding the transaction");
 			assertEquals(
-				0, committed.livePageSequences().length,
+				0, assignedPageSequences(committed).length,
 				"forgetPageStream must un-assign every leaf page in the committed copy"
 			);
-			assertEquals(
-				0, committed.collectChangedPages().size(),
+			assertTrue(
+				committed.leafPageHandles().stream().noneMatch(PagedLeafHandle::isDirty),
 				"forgetPageStream must clear every dirty flag in the committed copy"
 			);
+		}
+
+		/**
+		 * Reads the assigned page sequences in logical leaf order.
+		 *
+		 * @param tree the paged tree to inspect
+		 * @return the assigned page sequences in leaf order
+		 */
+		@Nonnull
+		private static int[] assignedPageSequences(@Nonnull UnorderedLookupTree tree) {
+			return tree.leafPageHandles().stream()
+				.mapToInt(PagedLeafHandle::getPageSequence)
+				.filter(sequence -> sequence != PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE)
+				.toArray();
 		}
 
 		/**
@@ -619,6 +641,9 @@ class UnorderedLookupTreeStmTest {
 			return (UnorderedLookupTree.LeafNode) root;
 		}
 
+		/**
+		 * Shrinks a container whose content has fallen far behind its array.
+		 */
 		@Test
 		@DisplayName("shrinks a container whose content has fallen far behind its array")
 		void shouldTrimTheContainerArrayOnCommitWhenTheContentFallsFarEnoughBehind() {
@@ -647,16 +672,17 @@ class UnorderedLookupTreeStmTest {
 						"a container down to a quarter of its array must be trimmed to the live content"
 					);
 					assertEquals(
-						UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1, singleContainer(committed).capacity(),
-						"trimming the physical array must never move the LOGICAL capacity"
-					);
-					assertEquals(
 						fullLength, singleContainer(original).getRecordIds().length,
 						"the pre-transaction view must keep the array it was committed with"
 					);
 					assertArrayEquals(expectedArrayOfSize(16), committed.getArray());
 					assertConsistent(original);
 					assertConsistent(committed);
+					final int capacity = UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1;
+					assertEquals(
+						capacity, singleContainer(committed).getRecordIdsForUpdate(capacity).length,
+						"the trimmed leaf must still be able to grow back to full capacity"
+					);
 				}
 			);
 		}

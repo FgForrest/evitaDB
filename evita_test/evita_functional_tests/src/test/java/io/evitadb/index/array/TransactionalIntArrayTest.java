@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * This test verifies behaviour of {@link TransactionalIntArray} covering construction,
  * non-transactional operations, transactional commit and rollback semantics,
  * the {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer} contract,
- * `addReturningIndex`, streaming, and edge cases.
+ * streaming, and edge cases.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
@@ -86,7 +86,6 @@ class TransactionalIntArrayTest {
 			final int nextInt = it.next();
 			assertTrue(expectedResult.length > index + 1);
 			assertEquals(expectedResult[++index], nextInt);
-			assertEquals(index, array.indexOf(nextInt), "Examined int: " + nextInt);
 		}
 		assertEquals(
 			expectedResult.length, index + 1,
@@ -156,48 +155,6 @@ class TransactionalIntArrayTest {
 			array.remove(5);
 
 			assertTransactionalArrayIs(new int[]{1, 10}, array);
-		}
-
-		@Test
-		@DisplayName("addAll() inserts multiple items without transaction")
-		void shouldAddAllWithoutTransaction() {
-			final TransactionalIntArray array = new TransactionalIntArray(new int[]{1, 10});
-
-			array.addAll(new int[]{5, 3, 15});
-
-			assertTransactionalArrayIs(new int[]{1, 3, 5, 10, 15}, array);
-		}
-
-		@Test
-		@DisplayName("removeAll() removes multiple items without transaction")
-		void shouldRemoveAllWithoutTransaction() {
-			final TransactionalIntArray array = new TransactionalIntArray(new int[]{1, 3, 5, 10, 15});
-
-			array.removeAll(new int[]{3, 10, 15});
-
-			assertTransactionalArrayIs(new int[]{1, 5}, array);
-		}
-
-		@Test
-		@DisplayName("indexOf() returns correct position without transaction")
-		void shouldReturnIndexOfWithoutTransaction() {
-			final TransactionalIntArray array = new TransactionalIntArray(new int[]{1, 5, 10});
-
-			assertEquals(0, array.indexOf(1));
-			assertEquals(1, array.indexOf(5));
-			assertEquals(2, array.indexOf(10));
-			// non-existent element returns negative value
-			assertTrue(array.indexOf(7) < 0);
-		}
-
-		@Test
-		@DisplayName("get() returns correct element at index without transaction")
-		void shouldGetElementAtIndex() {
-			final TransactionalIntArray array = new TransactionalIntArray(new int[]{1, 5, 10});
-
-			assertEquals(1, array.get(0));
-			assertEquals(5, array.get(1));
-			assertEquals(10, array.get(2));
 		}
 
 		@Test
@@ -282,60 +239,6 @@ class TransactionalIntArrayTest {
 	}
 
 	/**
-	 * Tests verifying the {@link TransactionalIntArray#addReturningIndex(int)} method
-	 * which adds an item and returns the position where it was placed.
-	 */
-	@Nested
-	@DisplayName("addReturningIndex()")
-	class AddReturningIndexTest {
-
-		@Test
-		@DisplayName("returns correct index for newly inserted item without transaction")
-		void shouldReturnCorrectIndexForNewItem() {
-			final TransactionalIntArray array = new TransactionalIntArray(new int[]{1, 5, 10});
-
-			final int index = array.addReturningIndex(3);
-
-			assertEquals(1, index);
-			assertTransactionalArrayIs(new int[]{1, 3, 5, 10}, array);
-		}
-
-		@Test
-		@DisplayName("returns existing index for duplicate item without transaction")
-		void shouldReturnExistingIndexForDuplicate() {
-			final TransactionalIntArray array = new TransactionalIntArray(new int[]{1, 5, 10});
-
-			final int index = array.addReturningIndex(5);
-
-			// item already exists at index 1
-			assertEquals(1, index);
-			// array is unchanged
-			assertTransactionalArrayIs(new int[]{1, 5, 10}, array);
-		}
-
-		@Test
-		@DisplayName("returns correct index within transaction")
-		void shouldReturnCorrectIndexWithinTransaction() {
-			final TransactionalIntArray array = new TransactionalIntArray(new int[]{1, 5, 10});
-
-			assertStateAfterCommit(
-				array,
-				original -> {
-					final int index = original.addReturningIndex(3);
-					assertEquals(1, index);
-
-					assertTransactionalArrayIs(new int[]{1, 3, 5, 10}, original);
-				},
-				(original, committed) -> {
-					assertArrayEquals(new int[]{1, 3, 5, 10}, committed);
-					assertTransactionalArrayIs(new int[]{1, 5, 10}, original);
-				}
-			);
-		}
-
-	}
-
-	/**
 	 * Tests verifying the {@link TransactionalIntArray#stream()} method
 	 * returns elements correctly.
 	 */
@@ -390,7 +293,6 @@ class TransactionalIntArrayTest {
 			assertTrue(array.isEmpty());
 			assertEquals(0, array.getLength());
 			assertFalse(array.contains(1));
-			assertTrue(array.indexOf(1) < 0);
 			assertArrayEquals(new int[0], array.stream().toArray());
 
 			// add to empty
@@ -421,6 +323,9 @@ class TransactionalIntArrayTest {
 	@DisplayName("Transactional commit")
 	class TransactionalCommitTest {
 
+		/**
+		 * Adds items on first, last, and middle positions.
+		 */
 		@Test
 		@DisplayName("adds items on first, last, and middle positions")
 		void shouldCorrectlyAddItemsOnFirstLastAndMiddlePositionsAndCommit() {
@@ -430,7 +335,9 @@ class TransactionalIntArrayTest {
 				array,
 				original -> {
 					original.add(11);
-					original.addAll(new int[]{11, 0, 6});
+					for (final int recordId : new int[]{11, 0, 6}) {
+						original.add(recordId);
+					}
 
 					assertTransactionalArrayIs(new int[]{0, 1, 5, 6, 10, 11}, array);
 					assertFalse(array.contains(2));
@@ -442,6 +349,9 @@ class TransactionalIntArrayTest {
 			);
 		}
 
+		/**
+		 * Removes items from first, last, and middle positions.
+		 */
 		@Test
 		@DisplayName("removes items from first, last, and middle positions")
 		void shouldCorrectlyRemoveItemsFromFirstLastAndMiddlePositionsAndCommit() {
@@ -451,7 +361,9 @@ class TransactionalIntArrayTest {
 			assertStateAfterCommit(
 				array,
 				original -> {
-					original.removeAll(new int[]{11, 1, 5});
+					for (final int recordId : new int[]{11, 1, 5}) {
+						original.remove(recordId);
+					}
 					assertTransactionalArrayIs(new int[]{2, 6, 10}, array);
 					assertFalse(array.contains(11));
 					assertFalse(array.contains(1));
@@ -464,6 +376,9 @@ class TransactionalIntArrayTest {
 			);
 		}
 
+		/**
+		 * Removes multiple consecutive items in a row.
+		 */
 		@Test
 		@DisplayName("removes multiple consecutive items in a row")
 		void shouldCorrectlyRemoveMultipleItemsInARowAndCommit() {
@@ -473,7 +388,9 @@ class TransactionalIntArrayTest {
 			assertStateAfterCommit(
 				array,
 				original -> {
-					original.removeAll(new int[]{6, 5, 2});
+					for (final int recordId : new int[]{6, 5, 2}) {
+						original.remove(recordId);
+					}
 
 					assertTransactionalArrayIs(new int[]{1, 10, 11}, original);
 				},
@@ -484,6 +401,9 @@ class TransactionalIntArrayTest {
 			);
 		}
 
+		/**
+		 * Removes multiple consecutive items till the end.
+		 */
 		@Test
 		@DisplayName("removes multiple consecutive items till the end")
 		void shouldCorrectlyRemoveMultipleItemsInARowTillTheEndAndCommit() {
@@ -494,7 +414,9 @@ class TransactionalIntArrayTest {
 				array,
 				original -> {
 					original.remove(6);
-					original.removeAll(new int[]{6, 5, 10, 11});
+					for (final int recordId : new int[]{6, 5, 10, 11}) {
+						original.remove(recordId);
+					}
 
 					assertTransactionalArrayIs(new int[]{1, 2}, original);
 				},
@@ -505,6 +427,9 @@ class TransactionalIntArrayTest {
 			);
 		}
 
+		/**
+		 * Removes multiple consecutive items from the beginning.
+		 */
 		@Test
 		@DisplayName("removes multiple consecutive items from the beginning")
 		void shouldCorrectlyRemoveMultipleItemsInARowFromTheBeginningAndCommit() {
@@ -514,7 +439,9 @@ class TransactionalIntArrayTest {
 			assertStateAfterCommit(
 				array,
 				original -> {
-					original.removeAll(new int[]{2, 6, 5, 1, 10});
+					for (final int recordId : new int[]{2, 6, 5, 1, 10}) {
+						original.remove(recordId);
+					}
 
 					assertTransactionalArrayIs(new int[]{11}, original);
 				},
@@ -562,6 +489,9 @@ class TransactionalIntArrayTest {
 			);
 		}
 
+		/**
+		 * Adds multiple items on same positions correctly.
+		 */
 		@Test
 		@DisplayName("adds multiple items on same positions correctly")
 		void shouldCorrectlyAddMultipleItemsOnSamePositionsAndCommit() {
@@ -570,7 +500,9 @@ class TransactionalIntArrayTest {
 			assertStateAfterCommit(
 				array,
 				original -> {
-					original.addAll(new int[]{11, 6, 0, 3, 7, 12, 2, 8});
+					for (final int recordId : new int[]{11, 6, 0, 3, 7, 12, 2, 8}) {
+						original.add(recordId);
+					}
 					original.add(3);
 
 					assertTransactionalArrayIs(
@@ -731,6 +663,9 @@ class TransactionalIntArrayTest {
 			);
 		}
 
+		/**
+		 * Wipes all elements through mixed add/remove operations.
+		 */
 		@Test
 		@DisplayName("wipes all elements through mixed add/remove operations")
 		void shouldCorrectlyWipeAll() {
@@ -741,14 +676,24 @@ class TransactionalIntArrayTest {
 				original -> {
 					original.add(31);
 					original.remove(31);
-					original.addAll(new int[]{140, 115});
-					original.removeAll(new int[]{179, 36, 140});
+					for (final int recordId : new int[]{140, 115}) {
+						original.add(recordId);
+					}
+					for (final int recordId : new int[]{179, 36, 140}) {
+						original.remove(recordId);
+					}
 					original.add(58);
-					original.removeAll(new int[]{58, 115, 59});
-					original.addAll(new int[]{156, 141});
+					for (final int recordId : new int[]{58, 115, 59}) {
+						original.remove(recordId);
+					}
+					for (final int recordId : new int[]{156, 141}) {
+						original.add(recordId);
+					}
 					original.remove(141);
 					original.add(52);
-					original.removeAll(new int[]{52, 156});
+					for (final int recordId : new int[]{52, 156}) {
+						original.remove(recordId);
+					}
 
 					assertTransactionalArrayIs(new int[0], array);
 				},
@@ -766,6 +711,9 @@ class TransactionalIntArrayTest {
 	@DisplayName("Transactional rollback")
 	class TransactionalRollbackTest {
 
+		/**
+		 * Rolls back added items on first, last, and middle positions.
+		 */
 		@Test
 		@DisplayName("rolls back added items on first, last, and middle positions")
 		void shouldCorrectlyAddItemsOnFirstLastAndMiddlePositionsAndRollback() {
@@ -774,7 +722,9 @@ class TransactionalIntArrayTest {
 			assertStateAfterRollback(
 				array,
 				original -> {
-					original.addAll(new int[]{11, 0, 6});
+					for (final int recordId : new int[]{11, 0, 6}) {
+						original.add(recordId);
+					}
 					assertTransactionalArrayIs(new int[]{0, 1, 5, 6, 10, 11}, array);
 				},
 				(original, committed) -> {

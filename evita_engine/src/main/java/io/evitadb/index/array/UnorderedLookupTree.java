@@ -197,9 +197,9 @@ public class UnorderedLookupTree implements
 	private final int maskWords;
 	/**
 	 * When TRUE this tree participates in granular page-based persistence: each leaf carries a logical page sequence and
-	 * a dirty flag, and the tree exposes the {@link #leafPageHandles()} / {@link #collectChangedPages()} /
-	 * {@link #livePageSequences()} / {@link #forgetPageStream()} enumeration SPI. Also selects the page-sized leaf split
-	 * threshold ({@link #leafSplitThreshold}). FALSE (the default, e.g. the SortIndex family) means no page work at all —
+	 * a dirty flag. {@link #leafPageHandles()} exposes both values, and {@link #forgetPageStream()} resets them.
+	 * This flag also selects the page-sized leaf split threshold ({@link #leafSplitThreshold}).
+	 * FALSE (the default, e.g. the SortIndex family) means no page work at all —
 	 * the SPI methods throw and the per-leaf page bookkeeping, while present, is never consulted.
 	 */
 	private final boolean paged;
@@ -215,25 +215,6 @@ public class UnorderedLookupTree implements
 	 */
 	public UnorderedLookupTree() {
 		this(DEFAULT_BLOCK_SIZE, DEFAULT_ORDER_KEY_GAP, false);
-	}
-
-	/**
-	 * Creates a new empty tree with the production fan-out and a custom order-key gap (used by tests to force the
-	 * re-spacing path cheaply).
-	 */
-	UnorderedLookupTree(long orderKeyGap) {
-		this(DEFAULT_BLOCK_SIZE, orderKeyGap, false);
-	}
-
-	/**
-	 * Creates a new empty tree with a custom logical {@link #blockSize} (≤ {@link #DEFAULT_BLOCK_SIZE}) and order-key
-	 * gap. Used by tests to force splits/steals/merges at a small fan-out.
-	 *
-	 * @param blockSize   logical split threshold; must be in `[3, DEFAULT_BLOCK_SIZE]`
-	 * @param orderKeyGap the order-key spacing
-	 */
-	UnorderedLookupTree(int blockSize, long orderKeyGap) {
-		this(blockSize, orderKeyGap, false);
 	}
 
 	/**
@@ -672,24 +653,6 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
-	 * Returns the last record id in the logical array.
-	 *
-	 * @throws ArrayIndexOutOfBoundsException when the tree is empty
-	 */
-	public int getLastRecordId() throws ArrayIndexOutOfBoundsException {
-		final Node<?> theRoot = getRoot();
-		if (size() == 0 || theRoot == null) {
-			throw new ArrayIndexOutOfBoundsException("Array is empty!");
-		}
-		Node<?> node = theRoot;
-		while (node instanceof final InternalNode internal) {
-			node = internal.getChildren()[internal.getChildCount() - 1];
-		}
-		final LeafNode container = (LeafNode) node;
-		return container.getRecordIds()[container.getCount() - 1];
-	}
-
-	/**
 	 * Returns the logical position of `recordId`, known to live in the container routed by `orderKey`.
 	 *
 	 * @return the prefix count of the container plus the record's in-container offset
@@ -1078,55 +1041,9 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
-	 * Returns the page handles of the leaves changed since the last flush (dirty leaves) in ascending logical order —
-	 * the pages the current commit must (re)write. Requires a paged tree.
-	 *
-	 * @return the changed (dirty) leaf-page handles in ascending order
-	 */
-	@Nonnull
-	public List<LeafPageHandle> collectChangedPages() {
-		requirePaged();
-		final List<LeafNode> leaves = collectLeaves();
-		final List<LeafPageHandle> changed = new ArrayList<>();
-		for (final LeafNode leaf : leaves) {
-			if (leaf.isDirty()) {
-				changed.add(new LeafPageHandleImpl(leaf));
-			}
-		}
-		return changed;
-	}
-
-	/**
-	 * Returns, in ascending logical order, the page sequences currently assigned to the tree's leaves (skipping
-	 * not-yet-paged leaves). Used to enumerate the live leaf pages before a PAGED->SINGLE collapse. Requires a paged tree.
-	 *
-	 * @return the assigned page sequences, or an empty array when no leaf has a page yet
-	 */
-	@Nonnull
-	public int[] livePageSequences() {
-		requirePaged();
-		final List<LeafNode> leaves = collectLeaves();
-		int assigned = 0;
-		for (final LeafNode leaf : leaves) {
-			if (leaf.getPageSequence() != PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE) {
-				assigned++;
-			}
-		}
-		final int[] result = new int[assigned];
-		int i = 0;
-		for (final LeafNode leaf : leaves) {
-			final int seq = leaf.getPageSequence();
-			if (seq != PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE) {
-				result[i++] = seq;
-			}
-		}
-		return result;
-	}
-
-	/**
 	 * Resets the page bookkeeping of every leaf — un-assigns the page sequence and clears the dirty flag — so the tree
-	 * starts from a clean baseline (e.g. after a PAGED->SINGLE collapse, the caller having already emitted removals for
-	 * the prior live pages via {@link #livePageSequences()}). Requires a paged tree.
+	 * starts from a clean baseline. On a PAGED->SINGLE collapse, the caller first emits removals for the prior
+	 * persisted pages using the page stream registry. Requires a paged tree.
 	 */
 	public void forgetPageStream() {
 		requirePaged();
@@ -2915,16 +2832,6 @@ public class UnorderedLookupTree implements
 			this.pageSequence = pageSequence;
 			this.dirty = dirty;
 			this.transactionalLayer = transactionalLayer;
-		}
-
-		/**
-		 * Returns the **logical** capacity — `leafCapacity + 1` record slots, which no mutation ever changes. See
-		 * {@link #capacity}.
-		 *
-		 * @return the logical capacity in record slots
-		 */
-		int capacity() {
-			return this.capacity;
 		}
 
 		/**

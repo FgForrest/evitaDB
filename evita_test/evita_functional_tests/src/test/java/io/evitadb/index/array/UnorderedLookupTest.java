@@ -46,73 +46,25 @@ import static io.evitadb.test.TestTags.DATA_TYPE;
 @Tag(INDEXING)
 @Tag(DATA_TYPE)
 class UnorderedLookupTest {
-	private UnorderedLookup tested;
 
+	/**
+	 * Checks how the constructor maps ascending record ids back to the original positions.
+	 */
 	@Test
 	void shouldCreateLookupAndFindPositionsProperly() {
-		this.tested = new UnorderedLookup(new int[] {4, 2, 3, 1});
-		assertEquals(0, this.tested.findPosition(4));
-		assertEquals(1, this.tested.findPosition(2));
-		assertEquals(2, this.tested.findPosition(3));
-		assertEquals(3, this.tested.findPosition(1));
-
-		assertEquals(4, this.tested.getRecordAt(0));
-		assertEquals(2, this.tested.getRecordAt(1));
-		assertEquals(3, this.tested.getRecordAt(2));
-		assertEquals(1, this.tested.getRecordAt(3));
+		final UnorderedLookup lookup = new UnorderedLookup(new int[]{4, 2, 3, 1});
+		assertArrayEquals(new int[]{1, 2, 3, 4}, lookup.getRecordIds());
+		assertArrayEquals(new int[]{3, 1, 2, 0}, lookup.getPositions());
 	}
 
+	/**
+	 * Checks that the snapshot preserves the supplied record order.
+	 */
 	@Test
 	void shouldCreateLookupAndReturnArrayUntouched() {
 		final int[] inputArray = {4, 2, 3, 1};
-		this.tested = new UnorderedLookup(inputArray);
-		assertArrayEquals(inputArray, this.tested.getArray());
-	}
-
-	@Test
-	void shouldRemoveRecordAndStillMaintainCorrectPositions() {
-		this.tested = new UnorderedLookup(new int[] {4, 2, 3, 1, 6, 5});
-		this.tested.removeRecord(1);
-		assertArrayEquals(new int[] {4, 2, 3, 6, 5}, this.tested.getArray());
-		this.tested.removeRecord(4);
-		assertArrayEquals(new int[] {2, 3, 6, 5}, this.tested.getArray());
-		this.tested.removeRecord(5);
-		assertArrayEquals(new int[] {2, 3, 6}, this.tested.getArray());
-		this.tested.removeRecord(3);
-		assertArrayEquals(new int[] {2, 6}, this.tested.getArray());
-		this.tested.removeRecord(2);
-		assertArrayEquals(new int[] {6}, this.tested.getArray());
-		this.tested.removeRecord(6);
-		assertArrayEquals(new int[0], this.tested.getArray());
-	}
-
-	@Test
-	void shouldAddRecordAndStillMaintainCorrectPositions() {
-		this.tested = new UnorderedLookup(new int[0]);
-		this.tested.addRecord(Integer.MIN_VALUE, 3);
-		assertArrayEquals(new int[] {3}, this.tested.getArray());
-		this.tested.addRecord(Integer.MIN_VALUE, 5);
-		assertArrayEquals(new int[] {5, 3}, this.tested.getArray());
-		this.tested.addRecord(5, 1);
-		assertArrayEquals(new int[] {5, 1, 3}, this.tested.getArray());
-		this.tested.addRecord(3, 2);
-		assertArrayEquals(new int[] {5, 1, 3, 2}, this.tested.getArray());
-		this.tested.addRecord(Integer.MIN_VALUE, 0);
-		assertArrayEquals(new int[] {0, 5, 1, 3, 2}, this.tested.getArray());
-		this.tested.addRecord(2, 10);
-		assertArrayEquals(new int[] {0, 5, 1, 3, 2, 10}, this.tested.getArray());
-	}
-
-	@Test
-	void shouldAppendRecordsAtTheEnd() {
-		this.tested = new UnorderedLookup(new int[] {9, 1, 5});
-		this.tested.appendRecords(new int[] {4, 3, 8});
-
-		assertArrayEquals(new int[] {9, 1, 5, 4, 3, 8}, this.tested.getArray());
-
-		this.tested.appendRecords(new int[] {2, 10});
-
-		assertArrayEquals(new int[] {9, 1, 5, 4, 3, 8, 2, 10}, this.tested.getArray());
+		final UnorderedLookup tested = new UnorderedLookup(inputArray);
+		assertArrayEquals(inputArray, tested.getArray());
 	}
 
 	@Test
@@ -133,6 +85,8 @@ class UnorderedLookupTest {
 	/**
 	 * Verifies every public read of a freshly-built {@link UnorderedLookup} against an independent brute-force oracle
 	 * derived directly from the (distinct-valued) input array.
+	 *
+	 * @param input the distinct record ids in logical order
 	 */
 	private static void assertLookupMatchesOracle(@Nonnull int[] input) {
 		final UnorderedLookup lookup = new UnorderedLookup(input);
@@ -142,14 +96,15 @@ class UnorderedLookupTest {
 		final int[] expectedAscending = input.clone();
 		Arrays.sort(expectedAscending);
 		assertArrayEquals(expectedAscending, lookup.getRecordIds());
-		// findPosition(id) == index of id in the input; getRecordAt(pos) == input[pos]
-		for (int position = 0; position < input.length; position++) {
-			final int recordId = input[position];
-			assertEquals(position, lookup.findPosition(recordId));
-			assertEquals(recordId, lookup.getRecordAt(position));
-		}
-		if (input.length > 0) {
-			assertEquals(input[input.length - 1], lookup.getLastRecordId());
+		final int[] positions = lookup.getPositions();
+		assertEquals(input.length, positions.length);
+		for (int i = 0; i < expectedAscending.length; i++) {
+			final int recordId = expectedAscending[i];
+			int expectedPosition = 0;
+			while (input[expectedPosition] != recordId) {
+				expectedPosition++;
+			}
+			assertEquals(expectedPosition, positions[i], "Position of record " + recordId);
 		}
 	}
 

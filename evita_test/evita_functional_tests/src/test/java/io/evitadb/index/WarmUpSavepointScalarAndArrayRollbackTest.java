@@ -193,6 +193,9 @@ class WarmUpSavepointScalarAndArrayRollbackTest {
 	@DisplayName("TransactionalIntArray")
 	class IntArrays {
 
+		/**
+		 * Checks that rollback restores the original contents after several additions and removals.
+		 */
 		@Test
 		@DisplayName("Rollback restores the array through every mutator kind")
 		void shouldRestoreArrayAfterMixedMutations() {
@@ -200,10 +203,12 @@ class WarmUpSavepointScalarAndArrayRollbackTest {
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			array.add(2);
-			array.addReturningIndex(4);
-			array.addAll(new int[]{6, 7});
+			array.add(4);
+			array.add(6);
+			array.add(7);
 			array.remove(3);
-			array.removeAll(new int[]{1, 5});
+			array.remove(1);
+			array.remove(5);
 			assertArrayEquals(new int[]{2, 4, 6, 7}, array.getArray(), "self-check on the in-savepoint state");
 			savepoint.rollback();
 

@@ -81,6 +81,9 @@ class TransactionalUnorderedIntArrayBulkBuildTest {
 
 	/**
 	 * Checks complete positional and record-id reads at all requested sizes, preserving persisted page identities.
+	 *
+	 * @param path the bulk-load path to exercise
+	 * @param count the number of records to load
 	 */
 	@ParameterizedTest
 	@MethodSource("loadPathsAndCounts")
@@ -96,9 +99,9 @@ class TransactionalUnorderedIntArrayBulkBuildTest {
 			assertEquals(ids[0], array.findHeadCovering(count - 1).recordId());
 		}
 		if (path == 2) {
-			assertTrue(array.collectChangedPages().isEmpty());
 			final List<LeafPageInput> pages = pages(ids);
 			final List<UnorderedLookupTree.LeafPageHandle> leaves = array.leafPageHandles();
+			assertTrue(leaves.stream().noneMatch(UnorderedLookupTree.LeafPageHandle::isDirty));
 			assertEquals(pages.size(), leaves.size());
 			for (int i = 0; i < pages.size(); i++) {
 				assertArrayEquals(pages.get(i).recordIds(), leaves.get(i).recordIds());
