@@ -34,6 +34,7 @@ filename date that disagrees with `date:`.
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
 | 2026-11-24 | [Self-reference work runs on the entity executor](2026-11-24-self-reference-work-runs-on-the-entity-executor.md) | fix | accepted | #2002, PR #2066 |
+| 2026-11-24 | [Readiness waits until every start-up catalog is published or can no longer be, decided in the observability stack](2026-11-24-readiness-waits-for-catalog-publication.md) | fix | accepted | #2082 |
 | 2026-11-23 | [Cross-entity dispatch reads array histogram sources from storage](2026-11-23-cross-entity-dispatch-reads-array-histogram-sources-from-storage.md) | fix | accepted | #1778, PR #2056 |
 | 2026-11-21 | [A referenced-entity predecessor orders only its owner's references from the owner's rows and is never indexed](2026-11-21-referenced-entity-predecessor-owner-local-order.md) | fix | accepted | #1691, PR #2052 |
 | 2026-11-20 | [Inside referenceContent an inScope ordering applies to the owners of that scope, and the ordering is one chain of links walked by both fetch sites](2026-11-20-reference-owner-scope.md) | fix | accepted | #2045, PR #2048 |

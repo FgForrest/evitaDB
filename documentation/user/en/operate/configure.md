@@ -195,6 +195,7 @@ api:                                              # [see API configuration](#api
         protocol: grpc
       allowedEvents: null
       exportedQueryLabels: null
+      readinessCatalogActivationTimeoutInMillis: 300K
       errorOriginLogging: INTERNAL
       mTLS:
         enabled: null
@@ -1726,6 +1727,18 @@ for scraping Prometheus metrics, OTEL trace exporter and Java Flight Recorder ev
         *nothing* is exported, not everything - see the [label cardinality safety notes](../query/header/label.md#label-cardinality-and-prometheus-export)
         for why this default is inverted. Inherently high-cardinality labels (`trace-id`, `client-id`, `ip-address`,
         `uri`) are reserved and rejected at startup.</p>
+    </dd>
+    <dt>readinessCatalogActivationTimeoutInMillis</dt>
+    <dd>
+        <p>**Default:** `300K` (five minutes)</p>
+        <p>How long, in milliseconds, the [readiness probe](observe.md#readiness-probe) waits for GraphQL and REST to
+        finish activating a catalog once it has been loaded from disk - that is, to build the catalog's APIs. An API
+        that fails to activate the catalog, or does not finish within this time, is logged as an error and no longer
+        holds the probe back, so the server always becomes ready. The time is measured for each catalog separately,
+        from the moment it finishes loading, so with several catalogs the limits do not add up: the catalogs hold the
+        probe back at most this long after the last of them finishes loading. Loading itself is not limited - a catalog
+        keeps the probe waiting for as long as it loads. The value must be greater than zero. The setting applies even
+        when the observability endpoint itself is disabled.</p>
     </dd>
     <dt>errorOriginLogging</dt>
     <dd>

@@ -27,6 +27,8 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -58,20 +60,51 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(OBSERVABILITY)
 class ObservabilityOptionsTest {
 
+	/**
+	 * Constructs endpoint options with query labels exposed as metric dimensions.
+	 *
+	 * @param exportedQueryLabels query labels exported as metric dimensions
+	 * @return endpoint options with the given labels
+	 */
 	@Nonnull
 	private static ObservabilityOptions withExportedQueryLabels(@Nullable List<String> exportedQueryLabels) {
 		return new ObservabilityOptions(
 			null, "localhost:5555", null, null, null, null, null,
-			null, exportedQueryLabels, null, null
+			null, exportedQueryLabels, null, null, null
 		);
 	}
 
+	/**
+	 * Constructs endpoint options with the specified error origin logging.
+	 *
+	 * @param errorOriginLogging level of error origin logging
+	 * @return endpoint options with the given logging level
+	 */
 	@Nonnull
 	private static ObservabilityOptions withErrorOriginLogging(@Nullable ErrorOriginLogging errorOriginLogging) {
 		return new ObservabilityOptions(
 			null, "localhost:5555", null, null, null, null, null,
-			null, null, errorOriginLogging, null
+			null, null, errorOriginLogging, null, null
 		);
+	}
+
+	/**
+	 * Verifies that the readiness catalog activation timeout must be strictly positive.
+	 *
+	 * @param timeoutInMillis invalid catalog activation timeout
+	 */
+	@ParameterizedTest
+	@ValueSource(longs = {0L, -1L})
+	@DisplayName("Should reject non-positive readiness catalog activation timeouts")
+	void shouldRejectNonPositiveCatalogActivationTimeout(long timeoutInMillis) {
+		final EvitaInvalidUsageException exception = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> new ObservabilityOptions(
+				null, "localhost:5555", null, null, null, null, null,
+				null, null, null, null, timeoutInMillis
+			)
+		);
+		assertTrue(exception.getMessage().contains("readinessCatalogActivationTimeoutInMillis"), exception::getMessage);
 	}
 
 	@Test

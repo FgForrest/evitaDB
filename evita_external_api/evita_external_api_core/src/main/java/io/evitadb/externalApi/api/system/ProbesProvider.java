@@ -26,6 +26,7 @@ package io.evitadb.externalApi.api.system;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.observability.HealthProblem;
 import io.evitadb.api.observability.ReadinessState;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 
@@ -71,6 +72,52 @@ public interface ProbesProvider {
 		@Nonnull ExternalApiServer externalApiServer,
 		@Nonnull String... apiCodes
 	);
+
+	/**
+	 * Called after the API server has opened its ports.
+	 *
+	 * @param evita engine served by the APIs
+	 * @param externalApiServer running API server
+	 */
+	default void onServerStarted(@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer) {
+		// Providers without startup work have nothing to schedule.
+	}
+
+	/**
+	 * Evaluates whether the initial API routing of every catalog has settled, independently of API-level readiness.
+	 * Each call evaluates the current catalog states and the providers' routing obligations, so the pending count is
+	 * current; once an evaluation finds nothing pending, the settlement is permanent.
+	 *
+	 * @param evita engine served by the APIs
+	 * @param externalApiServer API server whose providers publish catalogs
+	 * @return whether startup catalog routing has settled and the number of catalogs still pending
+	 */
+	@Nonnull
+	CatalogRoutingSettlement getCatalogRoutingSettlement(
+		@Nonnull Evita evita, @Nonnull ExternalApiServer externalApiServer
+	);
+
+	/**
+	 * The outcome of evaluating catalog routing at startup.
+	 *
+	 * @param settled true once all startup catalog routing has settled, and permanently true thereafter
+	 * @param catalogsPending number of catalogs still pending at evaluation, zero once settled
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	record CatalogRoutingSettlement(boolean settled, int catalogsPending) {
+
+		/**
+		 * Applies the startup publication gate to the API probe state.
+		 *
+		 * @param state readiness reported by the API probes
+		 * @param settled whether startup catalog routing has settled
+		 * @return the readiness state to report on the HTTP or gRPC surface
+		 */
+		@Nonnull
+		public static ReadinessState resolveReadinessState(@Nonnull ReadinessState state, boolean settled) {
+			return !settled && state == ReadinessState.READY ? ReadinessState.STARTING : state;
+		}
+	}
 
 	/**
 	 * Method returns data for determining whether server has already completely started and is ready to serve requests.

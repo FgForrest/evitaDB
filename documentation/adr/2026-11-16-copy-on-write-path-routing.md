@@ -1,7 +1,7 @@
 ---
 title: Route external API requests with own copy-on-write routers instead of the Undertow-derived tree or Armeria reconfigure
 date: 2026-11-16
-updated: 2026-11-16 11:30
+updated: 2026-11-24 15:20
 status: accepted
 kind: refactor
 issues: [1956, 1959, 1967, 1968]
@@ -9,7 +9,7 @@ prs: [1957, 1974]
 areas: [evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/routing, evita_external_api/evita_external_api_rest, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_system, evita_external_api/evita_external_api_lab, evita_external_api/evita_external_api_observability, evita_test/evita_performance_tests]
 supersedes: []
 superseded-by: []
-relates: [2026-08-02-editorconfig-formatting-parity]
+relates: [2026-08-02-editorconfig-formatting-parity, 2026-11-24-readiness-waits-for-catalog-publication]
 ---
 
 # Route external API requests with own copy-on-write routers
@@ -285,6 +285,8 @@ wrong-method request allocates 130–190 B more.
 - [2026-08-02-editorconfig-formatting-parity](2026-08-02-editorconfig-formatting-parity.md) — carved the
   Undertow routing tree out of formatting as vendored code; that carve-out is removed with the tree here.
 - [HTTP request routing](../developer/external-api/routing.md) — developer guide to how both routers work.
+- [2026-11-24-readiness-waits-for-catalog-publication](2026-11-24-readiness-waits-for-catalog-publication.md) —
+  readiness waits until `registerCatalog` has published each start-up catalog's routes into these routers.
 
 ## Timeline
 

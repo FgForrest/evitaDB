@@ -107,6 +107,17 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLOptions> {
 		this.graphQLManager.emitObservabilityEvents();
 	}
 
+	/**
+	 * Reports whether this provider's catalog routing obligation has settled.
+	 *
+	 * @param catalogName name whose routing is being checked
+	 * @return true if there is no pending publication for the catalog
+	 */
+	@Override
+	public boolean isCatalogRoutingSettled(@Nonnull String catalogName) {
+		return this.graphQLManager.isCatalogRoutingSettled(catalogName);
+	}
+
 	@Override
 	public boolean isReady() {
 		if (this.reachableUrl == null) {

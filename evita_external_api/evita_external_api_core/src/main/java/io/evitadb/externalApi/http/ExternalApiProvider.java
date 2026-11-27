@@ -100,6 +100,16 @@ public interface ExternalApiProvider<T extends AbstractApiOptions> {
 	boolean isReady();
 
 	/**
+	 * Reports whether this provider has settled its routing obligation for a catalog.
+	 *
+	 * @param catalogName name whose routing is being checked
+	 * @return true if there is no pending publication, including for APIs without per-catalog routes
+	 */
+	default boolean isCatalogRoutingSettled(@Nonnull String catalogName) {
+		return true;
+	}
+
+	/**
 	 * Represents HTTP service that is responsible for processing all requests addressed to this API on given sub-path.
 	 *
 	 * @param path sub-path of the API

@@ -1142,10 +1142,13 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Checks whether the current object has been fully initialized.
+	 * Reports whether all initial engine catalog load futures have completed.
 	 *
-	 * @return true if the initialization process is complete, false otherwise
+	 * @return true if all initial engine catalog load futures are done
+	 * @deprecated Reports only the initial engine load futures. Use {@link #waitUntilFullyInitialized()} to await them
+	 *             and the server readiness probe to check whether the instance is ready to serve requests.
 	 */
+	@Deprecated(since = "2026.3")
 	public boolean isFullyInitialized() {
 		return this.fullyInitialized.isDone();
 	}

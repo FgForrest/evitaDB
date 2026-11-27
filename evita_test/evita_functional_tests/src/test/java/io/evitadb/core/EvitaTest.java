@@ -1682,13 +1682,15 @@ class EvitaTest implements EvitaTestSupport {
 			assertEquals(2, oldSession.getEntityCollectionSize(Entities.CATEGORY));
 		}
 
-		// give async process some time to finish
+		// the file is purged only once a checkpoint publishes the record that no longer names it; with the default
+		// checkpoint interval that takes up to two intervals after the last reader left (0.8 s idle, 2 s seen in CI),
+		// so the bound is generous and the loop ends as soon as the file is gone
 		final long start = System.currentTimeMillis();
 		do {
 			Thread.onSpinWait();
-		} while (theCollectionFile.exists() && System.currentTimeMillis() - start < 2000);
+		} while (theCollectionFile.exists() && System.currentTimeMillis() - start < 30_000);
 
-		// the original file is removed when old session is terminated - there is no other reader
+		// the original file is removed once the old session is terminated - there is no other reader
 		assertFalse(theCollectionFile.exists());
 	}
 
