@@ -324,8 +324,12 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 				// Insertion-ordered so a delegate whose iteration order is part of its contract comes back in order
 				final Set<K> preImage = new LinkedHashSet<>(this.setDelegate);
 				savepoint.push(() -> {
-					this.setDelegate.clear();
-					this.setDelegate.addAll(preImage);
+					// reverse replay has emptied the set again by the time this runs, unless the delegate rejected the
+					// clear; such a delegate would reject the restore too, so a set still equal to the capture is kept
+					if (!preImage.equals(this.setDelegate)) {
+						this.setDelegate.clear();
+						this.setDelegate.addAll(preImage);
+					}
 				});
 			}
 			this.setDelegate.clear();
@@ -357,16 +361,24 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	 * removed several times inside one savepoint still ends up with its pre-savepoint membership, the earliest-pushed
 	 * inverse being the one reverse replay runs last.
 	 *
+	 * The inverse writes only when the membership no longer matches the capture, because the delegate may reject the
+	 * change after the inverse is pushed and the inverse must then hold for a change that never happened. An
+	 * unmodifiable delegate throws `UnsupportedOperationException` and would throw again on any write the inverse made;
+	 * a stale delegate iterator throws `ConcurrentModificationException`, and its key may already be absent, which is
+	 * why the membership is captured rather than assumed.
+	 *
 	 * @param savepoint the open savepoint to record into
 	 * @param key       the element whose membership is about to change
 	 */
 	private void journalMembership(@Nonnull WarmUpSavepoint savepoint, K key) {
 		final boolean wasPresent = this.setDelegate.contains(key);
 		savepoint.push(() -> {
-			if (wasPresent) {
-				this.setDelegate.add(key);
-			} else {
-				this.setDelegate.remove(key);
+			if (this.setDelegate.contains(key) != wasPresent) {
+				if (wasPresent) {
+					this.setDelegate.add(key);
+				} else {
+					this.setDelegate.remove(key);
+				}
 			}
 		});
 	}
@@ -490,43 +502,13 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 			if (layer == null) {
 				final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 				if (savepoint != null && this.current != null) {
-					journalRemoval(savepoint, this.current);
+					journalMembership(savepoint, this.current);
 				}
 				this.delegate.remove();
 			} else {
 				layer.remove(this.current);
 			}
 			this.canRemove = false;
-		}
-
-		/**
-		 * Records the inverse of a pending delegate-iterator removal of `key`: captures the key's membership before the
-		 * removal and pushes an operation that forces exactly that membership back, writing only when the membership
-		 * no longer matches.
-		 *
-		 * The delegate iterator may reject the removal after the inverse is pushed, so the inverse must hold for a
-		 * removal that never happened:
-		 *
-		 * - A stale iterator, whose set changed under it, throws `ConcurrentModificationException`; its key may already
-		 *   be absent, so the membership is captured rather than assumed.
-		 * - An unmodifiable delegate throws `UnsupportedOperationException`, and it would throw again on any write the
-		 *   inverse made. An inverse that finds the membership unchanged therefore writes nothing.
-		 *
-		 * @param savepoint the open savepoint to record into
-		 * @param key       the key the delegate iterator is about to remove
-		 */
-		private void journalRemoval(@Nonnull WarmUpSavepoint savepoint, @Nonnull K key) {
-			final Set<K> setDelegate = TransactionalSet.this.setDelegate;
-			final boolean wasPresent = setDelegate.contains(key);
-			savepoint.push(() -> {
-				if (setDelegate.contains(key) != wasPresent) {
-					if (wasPresent) {
-						setDelegate.add(key);
-					} else {
-						setDelegate.remove(key);
-					}
-				}
-			});
 		}
 	}
 

@@ -76,6 +76,11 @@ final class WarmUpMapJournal {
 	 * Records the inverse of a pending change to a single key of `delegate`: captures whether the key is currently
 	 * present and with which value, and pushes an operation restoring exactly that. Must be called BEFORE the write.
 	 *
+	 * The inverse writes only when the slot no longer holds the capture, because the delegate may reject the write
+	 * after the inverse is pushed - an unmodifiable delegate throws `UnsupportedOperationException` and would throw
+	 * again on any write the inverse made. The value is compared by identity, not by `equals`: the restore must put
+	 * back the very instance the write replaced, which an equal but distinct value is not.
+	 *
 	 * @param savepoint the open savepoint to record into
 	 * @param delegate  the map about to be written (mutated in place, never reassigned)
 	 * @param key       the key whose slot is about to change
@@ -92,9 +97,13 @@ final class WarmUpMapJournal {
 		final V previous = delegate.get(key);
 		final boolean present = previous != null || delegate.containsKey(key);
 		savepoint.push(() -> {
+			final V current = delegate.get(key);
+			final boolean currentlyPresent = current != null || delegate.containsKey(key);
 			if (present) {
-				delegate.put(key, previous);
-			} else {
+				if (!currentlyPresent || current != previous) {
+					delegate.put(key, previous);
+				}
+			} else if (currentlyPresent) {
 				delegate.remove(key);
 			}
 		});
@@ -107,6 +116,10 @@ final class WarmUpMapJournal {
 	 * The capture is an insertion-ordered copy and is refilled in that order, so a delegate whose iteration order is
 	 * part of its contract (a `LinkedHashMap`) comes back in the order it had, not merely with the right entries.
 	 *
+	 * The inverse rewrites nothing when the map still equals the capture. Reverse replay has emptied the map again by
+	 * the time it runs, unless the delegate rejected the rewrite - and a delegate that rejected it, such as an
+	 * unmodifiable one, would throw again on the restore.
+	 *
 	 * @param savepoint the open savepoint to record into
 	 * @param delegate  the map about to be rewritten (mutated in place, never reassigned)
 	 * @param <K>       key type
@@ -115,8 +128,10 @@ final class WarmUpMapJournal {
 	static <K, V> void journalWholeMap(@Nonnull WarmUpSavepoint savepoint, @Nonnull Map<K, V> delegate) {
 		final Map<K, V> preImage = new LinkedHashMap<>(delegate);
 		savepoint.push(() -> {
-			delegate.clear();
-			delegate.putAll(preImage);
+			if (!preImage.equals(delegate)) {
+				delegate.clear();
+				delegate.putAll(preImage);
+			}
 		});
 	}
 

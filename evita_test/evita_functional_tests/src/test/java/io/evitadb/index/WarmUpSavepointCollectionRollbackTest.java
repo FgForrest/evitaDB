@@ -52,6 +52,7 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -105,6 +106,14 @@ class WarmUpSavepointCollectionRollbackTest {
 		return copy;
 	}
 
+	/**
+	 * Map value with value-based equality, so two instances can be equal yet distinct.
+	 *
+	 * @param value the payload that equality compares
+	 */
+	private record Payload(int value) {
+	}
+
 	@Nested
 	@DisplayName("TransactionalMap - own mutators")
 	class Maps {
@@ -141,6 +150,60 @@ class WarmUpSavepointCollectionRollbackTest {
 			savepoint.rollback();
 
 			assertEquals(Map.of("a", 1, "b", 2), contentOf(map), "Rollback must restore a cleared map wholesale.");
+		}
+
+		@Test
+		@DisplayName("Rollback succeeds after the delegate rejected every single-key write")
+		void shouldRollBackWhenDelegateRejectsSlotWrites() {
+			final TransactionalMap<String, Integer> map = new TransactionalMap<>(Map.of("a", 1));
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			assertThrows(UnsupportedOperationException.class, () -> map.put("a", 2));
+			assertThrows(UnsupportedOperationException.class, () -> map.put("b", 2));
+			assertThrows(UnsupportedOperationException.class, () -> map.remove("a"));
+			assertThrows(UnsupportedOperationException.class, () -> map.putAll(Map.of("b", 2)));
+			final Iterator<String> it = map.keySet().iterator();
+			it.next();
+			assertThrows(UnsupportedOperationException.class, it::remove);
+			assertThrows(
+				UnsupportedOperationException.class, () -> map.entrySet().iterator().next().setValue(3)
+			);
+			assertDoesNotThrow(
+				savepoint::rollback,
+				"Writes the delegate rejected changed nothing, so the rollback has nothing to write back."
+			);
+
+			assertEquals(Map.of("a", 1), contentOf(map), "The rejected writes must leave the map as it was.");
+		}
+
+		@Test
+		@DisplayName("Rollback succeeds after the delegate rejected a clear")
+		void shouldRollBackWhenDelegateRejectsClear() {
+			final TransactionalMap<String, Integer> map = new TransactionalMap<>(Map.of("a", 1, "b", 2));
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			assertThrows(UnsupportedOperationException.class, map::clear);
+			assertDoesNotThrow(
+				savepoint::rollback, "A clear the delegate rejected changed nothing, so the rollback must not rewrite."
+			);
+
+			assertEquals(Map.of("a", 1, "b", 2), contentOf(map), "The rejected clear must leave the map as it was.");
+		}
+
+		@Test
+		@DisplayName("Rollback puts back the very value instance an equal value overwrote")
+		void shouldRestoreOriginalInstanceAfterEqualOverwrite() {
+			final Payload original = new Payload(1);
+			final TransactionalMap<String, Payload> map = new TransactionalMap<>(new HashMap<>(Map.of("a", original)));
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			map.put("a", new Payload(1));
+			savepoint.rollback();
+
+			assertSame(
+				original, map.get("a"),
+				"An equal value is still a different instance, so the rollback must restore the original one."
+			);
 		}
 
 		@Test
@@ -505,6 +568,39 @@ class WarmUpSavepointCollectionRollbackTest {
 			);
 
 			assertEquals(Set.of("a"), new HashSet<>(set), "The rejected removal must leave the set as it was.");
+		}
+
+		@Test
+		@DisplayName("Rollback succeeds after the delegate rejected every membership change")
+		void shouldRollBackWhenDelegateRejectsMembershipChanges() {
+			final TransactionalSet<String> set = new TransactionalSet<>(Set.of("a"));
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			assertThrows(UnsupportedOperationException.class, () -> set.add("b"));
+			assertThrows(UnsupportedOperationException.class, () -> set.remove("a"));
+			assertThrows(UnsupportedOperationException.class, () -> set.addAll(Set.of("b")));
+			assertThrows(UnsupportedOperationException.class, () -> set.retainAll(Set.of()));
+			assertThrows(UnsupportedOperationException.class, () -> set.removeAll(Set.of("a")));
+			assertDoesNotThrow(
+				savepoint::rollback,
+				"Changes the delegate rejected changed nothing, so the rollback has nothing to write back."
+			);
+
+			assertEquals(Set.of("a"), new HashSet<>(set), "The rejected changes must leave the set as it was.");
+		}
+
+		@Test
+		@DisplayName("Rollback succeeds after the delegate rejected a clear")
+		void shouldRollBackWhenDelegateRejectsClear() {
+			final TransactionalSet<String> set = new TransactionalSet<>(Set.of("a", "b"));
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			assertThrows(UnsupportedOperationException.class, set::clear);
+			assertDoesNotThrow(
+				savepoint::rollback, "A clear the delegate rejected changed nothing, so the rollback must not rewrite."
+			);
+
+			assertEquals(Set.of("a", "b"), new HashSet<>(set), "The rejected clear must leave the set as it was.");
 		}
 
 		@Test
