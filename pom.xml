@@ -152,7 +152,7 @@
 		<swagger.version>2.2.55</swagger.version>
 		<armeria.version>1.43.0</armeria.version>
 		<prometheus.version>1.10.0</prometheus.version>
-		<micrometer.version>1.17.2</micrometer.version>
+		<micrometer.version>1.18.0</micrometer.version>
 		<byteBuddy.version>1.18.17</byteBuddy.version>
 		<graphql.version>26.2</graphql.version>
 		<caffeine.version>3.3.1</caffeine.version>
