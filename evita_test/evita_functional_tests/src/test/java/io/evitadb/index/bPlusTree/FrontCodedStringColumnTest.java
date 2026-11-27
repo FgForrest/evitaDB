@@ -1908,9 +1908,9 @@ class FrontCodedStringColumnTest {
 		@DisplayName("range moves and truncation leave surviving surrogate keys decodable")
 		void shouldKeepSurrogateKeysDecodableThroughRangeMovesAndTruncation() {
 			// `copyRangeTo` rebuilds the DESTINATION's blob from the moved slice, so the destination has to derive
-			// the decode gate for itself rather than inherit it; `fillEmpty` and `fillEmpty` re-encode what is left,
-			// so a gate that was not recomputed would strand the survivors. These are the leaf split / merge / steal
-			// paths, reached here directly instead of through a tree.
+			// the decode gate for itself rather than inherit it; `fillEmpty` re-encodes what is left, on the copied
+			// column and on the source alike, so a gate that was not recomputed would strand the survivors. These are
+			// the leaf split / merge / steal paths, reached here directly instead of through a tree.
 			final String[] keys = {"a\ud7ff", "a\ud800", "a\udfff", "b"};
 			final ValueColumn<String> source = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			source.bulkLoad(keys, keys.length);

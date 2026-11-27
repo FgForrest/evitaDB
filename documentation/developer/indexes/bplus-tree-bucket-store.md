@@ -109,8 +109,7 @@ sealed interface ValueColumn<M extends Comparable<M>>
     permits BoxedObjectColumn, LongValueColumn, IntValueColumn, RangeValueColumn, FrontCodedStringColumn
 ```
 
-A `ValueColumn` behaves like a fixed-slot array (insert / remove / `copyRangeTo` / `fillEmpty` /
-`fillEmpty`) and can store the slots in a packed primitive representation. Implementations:
+A `ValueColumn` behaves like a fixed-slot array (insert / remove / `copyRangeTo` / `fillEmpty`) and can store the slots in a packed primitive representation. Implementations:
 
 | Implementation | Physical storage | Routes which values |
 |----------------|------------------|---------------------|

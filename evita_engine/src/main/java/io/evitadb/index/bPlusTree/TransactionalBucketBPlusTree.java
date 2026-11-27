@@ -1711,8 +1711,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * Returns the record set associated with the given value: a lean {@link SingleRecordBitmap} view for a
 	 * single-record bucket, a read-only {@link SortedArrayBitmap} view for a small multi-record one, the live
 	 * {@link TransactionalBitmap} for a large one, and {@link EmptyBitmap#INSTANCE} for an absent value. The result
-	 * is read-only in every case - it is the tree's own storage, or a view of it.
-	 * A change made through the returned bitmap never flags its leaf dirty, so the leaf's page would not be rewritten.
+	 * is the tree's own storage, or a view of it, and callers must treat it as read-only. The live
+	 * {@link TransactionalBitmap} does not enforce that: a change made through it never flags its leaf dirty, so the
+	 * leaf's page would not be rewritten. Records change only through the tree's own add and remove methods.
 	 *
 	 * @param value the value to look up (may be null ⇒ empty bitmap)
 	 * @return the record set for the value, never null
@@ -3911,8 +3912,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		/**
 		 * Returns the record set of the current bucket: a lean {@link SingleRecordBitmap} for a single bucket, a
 		 * read-only {@link SortedArrayBitmap} view for a small multi bucket, the live {@link TransactionalBitmap} for
-		 * a large one. The result is read-only in every case - it is the tree's own storage, or a view of it. A change
-		 * made through the returned bitmap never flags its leaf dirty, so the leaf's page would not be rewritten.
+		 * a large one. The result is the tree's own storage, or a view of it, and callers must treat it as read-only.
+		 * The live {@link TransactionalBitmap} does not enforce that: a change made through it never flags its leaf
+		 * dirty, so the leaf's page would not be rewritten.
 		 *
 		 * @return the record set, never null
 		 */

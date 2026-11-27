@@ -110,8 +110,9 @@ public interface IntRecordBucketTree<K extends Comparable<K>> extends BucketBPlu
 
 	/**
 	 * Returns the record set associated with the given value (a lean single-record view, a transactional bitmap, or the
-	 * empty bitmap when absent). The returned bitmap is read-only.
-	 * A change made through the returned bitmap never flags its leaf dirty, so the leaf's page would not be rewritten.
+	 * empty bitmap when absent). Callers must treat the returned bitmap as read-only. For a large bucket it is the
+	 * tree's live transactional bitmap, which does not enforce that: a change made through it never flags its leaf
+	 * dirty, so the leaf's page would not be rewritten. Records change only through the tree's add and remove methods.
 	 *
 	 * @param value the value to look up (may be null ⇒ empty bitmap)
 	 * @return the record set for the value, never null
