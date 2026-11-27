@@ -35,6 +35,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
@@ -254,11 +255,38 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 		int walFileCountKept,
 		@Nonnull LongConsumer historyHorizonAdvancer
 	) {
+		return createTestWal(
+			this.walDirectory, catalogVersion, logFileRecordReference, walFileSizeBytes, walFileCountKept,
+			historyHorizonAdvancer
+		);
+	}
+
+	/**
+	 * Creates a test WAL in a separate storage folder so it can rotate independently of the default fixture.
+	 *
+	 * @param storageFolder          the folder the log writes its WAL files to
+	 * @param catalogVersion         the catalog version the log resumes from
+	 * @param logFileRecordReference the reference the log is opened against
+	 * @param walFileSizeBytes       the maximum size of each WAL file in bytes
+	 * @param walFileCountKept       how many WAL files rotation leaves unqueued for removal
+	 * @param historyHorizonAdvancer invoked with the first version rotation leaves reachable; pass
+	 *                               {@link #NO_HISTORY_HORIZON_ADVANCE} rather than `null`
+	 * @return a configured CatalogWriteAheadLog instance, which the caller closes
+	 */
+	@Nonnull
+	private CatalogWriteAheadLog createTestWal(
+		@Nonnull Path storageFolder,
+		long catalogVersion,
+		@Nonnull LogFileRecordReference logFileRecordReference,
+		long walFileSizeBytes,
+		int walFileCountKept,
+		@Nonnull LongConsumer historyHorizonAdvancer
+	) {
 		return new CatalogWriteAheadLog(
 			catalogVersion,
 			TEST_CATALOG,
 			logFileRecordReference,
-			this.walDirectory,
+			storageFolder,
 			this.catalogKryoPool,
 			new StorageSettings(
 				StorageOptions.builder()
@@ -589,6 +617,49 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 				exception.getMessage().contains(orphanWalPath.toFile().getName()),
 				"Exception message should identify the offending file: " + exception.getMessage()
 			);
+		}
+
+		/**
+		 * Verifies that the open file supplies the tail position when the path length is overstated by
+		 * eight bytes on the first lookup and zero on later lookups.
+		 */
+		@Test
+		@DisplayName("should take the tail position from the open WAL file when the path length changes")
+		void shouldTakeTailPositionFromOpenFileWhenPathLengthChanges() throws IOException {
+			final Path walDirectory = Files.createDirectory(
+				CatalogWriteAheadLogTest.this.walDirectory.resolve("tail-position")
+			);
+
+			try (final CatalogWriteAheadLog wal = createTestWal(
+				walDirectory, 0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
+				4_096L, 10, NO_HISTORY_HORIZON_ADVANCE
+			)) {
+				appendUntilWalFileAppears(wal, walDirectory.resolve(getWalFileName(TEST_CATALOG, 1)), 3L);
+
+				final File firstWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 0)).toFile();
+				final AbstractMutationLog.FirstAndLastVersionsInWalFile expected =
+					AbstractMutationLog.getFirstAndLastVersionsFromWalFile(firstWalFile, WalKind.CATALOG);
+				final File disappearingPath = new File(firstWalFile.getPath()) {
+					private boolean lengthRead;
+
+					/**
+					 * Reports the real length plus eight bytes on the first lookup and zero on later lookups.
+					 */
+					@Override
+					public long length() {
+						if (this.lengthRead) {
+							return 0L;
+						}
+						this.lengthRead = true;
+						return super.length() + 8L;
+					}
+				};
+
+				assertEquals(
+					expected,
+					AbstractMutationLog.getFirstAndLastVersionsFromWalFile(disappearingPath, WalKind.CATALOG)
+				);
+			}
 		}
 	}
 
@@ -1491,6 +1562,44 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
 			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
 			CatalogWriteAheadLogTest.this.tested = createTestWal();
+		}
+
+		/**
+		 * Verifies that later rotations leave a queued file to the version-gated remover.
+		 */
+		@Test
+		@DisplayName("should keep a queued WAL file until its transactions are processed even after another rotation")
+		void shouldKeepQueuedWalFileWhenLogRotatesAgain() throws IOException {
+			final Path walDirectory = Files.createDirectory(
+				CatalogWriteAheadLogTest.this.walDirectory.resolve("queued-removal")
+			);
+			final Path firstWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 0));
+			final Path thirdWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 2));
+			final Path fourthWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 3));
+
+			try (final CatalogWriteAheadLog wal = createTestWal(
+				walDirectory, 0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
+				4_096L, 2, NO_HISTORY_HORIZON_ADVANCE
+			)) {
+				final RotatedWal rotated = appendUntilWalFileAppears(wal, thirdWalFile, 3L);
+				final long firstVersionInSecondFile = wal.getFirstVersionOf(1);
+				// File 0 is queued. Make a repeated tail read see a stub and take the orphan deletion path.
+				Files.write(firstWalFile, new byte[8]);
+
+				for (long version = rotated.lastVersion() + 1; version <= rotated.lastVersion() + 500; version++) {
+					final TransactionWithData txData = createTestTransaction((int) (version - 1), 200);
+					wal.append(txData.mutation(), txData.data());
+					if (Files.exists(fourthWalFile)) {
+						break;
+					}
+				}
+				assertTrue(Files.exists(fourthWalFile), "The log must rotate again after file 0 is queued");
+				assertTrue(Files.exists(firstWalFile), "File 0 must stay on disk until its transactions are processed");
+
+				wal.walProcessedUntil(firstVersionInSecondFile);
+			}
+
+			assertFalse(Files.exists(firstWalFile), "The queued removal must purge file 0 once it is fully processed");
 		}
 
 		@Test
