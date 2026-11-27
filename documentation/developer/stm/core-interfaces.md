@@ -98,11 +98,11 @@ a committed snapshot from its own diff and any nested changes.
 
 During commit, the `TransactionalLayerMaintainerFinalizer` invokes
 `TransactionalLayerMaintainer.getStateCopyWithCommittedChanges(producer)` for the root producer (e.g.
-`Catalog`). This method:
+`Catalog`). For a producer with its own diff layer, this delegates to `copyWithOwnLayer`, which:
 
-1. Retrieves the diff layer wrapper for the producer.
+1. Looks up the diff layer entry for the producer.
 2. Calls `producer.createCopyWithMergedTransactionalMemory(layer, this)`.
-3. Unless `avoidDiscardingState` is set, calls `wrapper.discard()` to mark the layer DISCARDED.
+3. Marks the entry DISCARDED if one exists.
 
 The recursive deep-wise contract means the root call cascades through the entire object graph.
 

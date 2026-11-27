@@ -43,7 +43,6 @@ assertion error.
 | Field                           | Purpose                                                 |
 |---------------------------------|---------------------------------------------------------|
 | `allowTransactionalLayerCreation` | Set to `false` during commit/rollback. Any attempt to create a new layer after this point throws. |
-| `avoidDiscardingState`          | Temporary flag set by `getStateCopyWithCommittedChangesWithoutDiscardingState` to keep layer ALIVE after merge. Used when the merged state is needed mid-transaction (e.g. for reading back a committed snapshot without ending the transaction). |
 | `parent`                        | Optional reference to a parent maintainer (for future nested transaction support). Layer lookup traverses to the parent if a layer is not found locally. |
 
 ---
@@ -84,26 +83,15 @@ are never registered in the maintainer.
 When the transaction commits, the finalizer invokes
 `TransactionalLayerMaintainer.getStateCopyWithCommittedChanges(rootProducer)`:
 
-```java
-public <S, T> S getStateCopyWithCommittedChanges(TransactionalLayerProducer<T, S> producer) {
-    TransactionalLayerWrapper<T> wrapper = getTransactionalMemoryLayerItemWrapperIfExists(producer);
-    S copy = producer.createCopyWithMergedTransactionalMemory(
-        wrapper != null ? wrapper.getItem() : null,
-        this
-    );
-    if (!avoidDiscardingState.get() && wrapper != null) {
-        wrapper.discard();   // ALIVE → DISCARDED
-    }
-    return copy;
-}
-```
+For a producer that owns a diff layer, the call delegates to `copyWithOwnLayer`. It looks up the
+producer's `TransactionalLayerEntry`, merges the diff, and discards the entry if one exists.
 
 Key points:
 
 1. The producer receives its own diff layer (or null if it was never written to).
 2. Inside `createCopyWithMergedTransactionalMemory`, the producer recursively calls
    `transactionalLayer.getStateCopyWithCommittedChanges(childProducer)` for each nested producer.
-3. After the producer returns, the wrapper is discarded.
+3. After the producer returns, the maintainer marks any existing entry DISCARDED.
 4. The recursion means the commit cascades through the entire object graph starting from the root.
 
 ### Order of processing
@@ -112,17 +100,10 @@ The order in which producers are committed is determined entirely by the recursi
 object graph. The root producer (typically `Catalog`) drives the commit; it asks each of its children
 to commit, and they ask their children, etc. There is no independent ordering of layers.
 
-### Mid-transaction merged state
+### Reading transactional state
 
-Sometimes the merged state is needed inside the transaction (e.g. during a two-phase operation).
-The method `getStateCopyWithCommittedChangesWithoutDiscardingState` can be used:
-
-```java
-transactionalLayer.getStateCopyWithCommittedChangesWithoutDiscardingState(producer);
-```
-
-This temporarily sets the `avoidDiscardingState` flag so that the layer remains ALIVE after merge.
-This must not be called in a nested fashion.
+A structure's read methods reflect the active transaction's changes. For example, `TransactionalIntArray.getArray()`
+returns the values visible to the current transaction.
 
 ---
 

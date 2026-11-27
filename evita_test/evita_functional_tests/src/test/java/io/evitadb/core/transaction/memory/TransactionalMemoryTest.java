@@ -24,7 +24,6 @@
 package io.evitadb.core.transaction.memory;
 
 import io.evitadb.core.exception.StaleTransactionMemoryException;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.map.TransactionalMap;
 import org.junit.jupiter.api.BeforeEach;
@@ -306,40 +305,6 @@ class TransactionalMemoryTest {
 	}
 
 	@Test
-	@DisplayName("Nested state-copy without discarding the previous one is forbidden")
-	void shouldForbidNestedCallToGetStateCopyWithoutDiscarding() {
-		final TransactionalMemory transactionalMemory = new TransactionalMemory(new NoOpFinalizer());
-		final TransactionalLayerMaintainer maintainer = transactionalMemory.getTransactionalLayerMaintainer();
-		final NestedReentrantProducer producer = new NestedReentrantProducer(maintainer);
-
-		final EvitaInvalidUsageException ex = assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(producer)
-		);
-		assertTrue(ex.getMessage().contains("nested way is not allowed"));
-		// the inner re-entrant attempt is the one that failed
-		assertTrue(producer.wasInnerCallAttempted());
-	}
-
-	@Test
-	@DisplayName("Layer stays alive when its state is copied without discarding")
-	void shouldKeepLayerAliveWhenStateCopiedWithoutDiscarding() {
-		final TransactionalMemory transactionalMemory = new TransactionalMemory(new NoOpFinalizer());
-		final TransactionalLayerMaintainer maintainer = transactionalMemory.getTransactionalLayerMaintainer();
-		// register a transactional change so a diff layer exists for tested1
-		assertNotNull(maintainer.getOrCreateTransactionalMemoryLayer(this.tested1));
-
-		// copy without discarding must leave the layer ALIVE
-		maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(this.tested1);
-
-		// because the layer is still ALIVE, the sweep verification detects it as stale
-		assertThrows(
-			StaleTransactionMemoryException.class,
-			maintainer::verifyLayerWasFullySwept
-		);
-	}
-
-	@Test
 	@DisplayName("A stale layer is detected by verifying the layer was fully swept")
 	void shouldDetectStaleLayerViaVerifyLayerWasFullySwept() {
 		final TransactionalMemory transactionalMemory = new TransactionalMemory(new NoOpFinalizer());
@@ -391,53 +356,6 @@ class TransactionalMemoryTest {
 		@Override
 		public Collection<TransactionalLayerCreator<?>> getMaintainedTransactionalCreators() {
 			return this.maintained;
-		}
-	}
-
-	/**
-	 * Producer whose {@link #createCopyWithMergedTransactionalMemory(Void, TransactionalLayerMaintainer)} re-enters
-	 * {@link TransactionalLayerMaintainer#getStateCopyWithCommittedChangesWithoutDiscardingState} on the same
-	 * maintainer to trigger the nested-call guard.
-	 */
-	private static class NestedReentrantProducer implements TransactionalLayerProducer<Void, NestedReentrantProducer> {
-		private static final long ID = TransactionalObjectVersion.SEQUENCE.nextId();
-		private final TransactionalLayerMaintainer maintainer;
-		private boolean innerCallAttempted;
-
-		NestedReentrantProducer(@Nonnull TransactionalLayerMaintainer maintainer) {
-			this.maintainer = maintainer;
-		}
-
-		boolean wasInnerCallAttempted() {
-			return this.innerCallAttempted;
-		}
-
-		@Override
-		public long getId() {
-			return ID;
-		}
-
-		@Nullable
-		@Override
-		public Void createLayer() {
-			return null;
-		}
-
-		@Override
-		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			// no diff layer is created for this producer, so there is nothing to remove
-		}
-
-		@Nonnull
-		@Override
-		public NestedReentrantProducer createCopyWithMergedTransactionalMemory(
-			@Nullable Void layer,
-			@Nonnull TransactionalLayerMaintainer transactionalLayer
-		) {
-			this.innerCallAttempted = true;
-			// re-entrant nested call must be rejected by the CAS guard
-			this.maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(this);
-			return this;
 		}
 	}
 
