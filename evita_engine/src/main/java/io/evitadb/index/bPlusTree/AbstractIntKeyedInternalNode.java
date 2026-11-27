@@ -236,8 +236,8 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 
 	/**
 	 * Sets the index of the last occupied child slot. Lowering it clears the keys and children past the new peek.
-	 * Inside a transaction a committed node makes the change in its diff layer instead of itself; an array that layer
-	 * still shares with the committed node is copied, old tail included, rather than cleared.
+	 * Inside a transaction a committed node makes the change in its diff layer.
+	 * The layer copies only the live prefix of any shared array, leaving the new tail empty.
 	 *
 	 * @param peek the index of the new last occupied child slot
 	 */
@@ -260,14 +260,14 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {
 					layer.keys = new int[this.keys.length];
-					System.arraycopy(this.keys, 0, layer.keys, 0, originPeek);
+					System.arraycopy(this.keys, 0, layer.keys, 0, Math.max(0, peek));
 				} else {
 					Arrays.fill(layer.keys, Math.max(0, peek), originPeek, 0);
 				}
 				//noinspection ArrayEquality
 				if (layer.children == this.children) {
 					layer.children = new BPlusTreeNode[this.children.length];
-					System.arraycopy(this.children, 0, layer.children, 0, originPeek + 1);
+					System.arraycopy(this.children, 0, layer.children, 0, peek + 1);
 				} else {
 					Arrays.fill(layer.children, peek + 1, originPeek + 1, null);
 				}

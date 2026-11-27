@@ -821,8 +821,8 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 
 		/**
 		 * Sets the index of the last occupied slot. Lowering it clears the keys and values past the new peek. Inside a
-		 * transaction a committed leaf makes the change in its diff layer instead of itself; an array that layer still
-		 * shares with the committed leaf is copied, old tail included, rather than cleared.
+		 * transaction a committed leaf makes the change in its diff layer.
+		 * The layer copies only the live prefix of any shared array, leaving the new tail empty.
 		 *
 		 * @param peek the index of the new last occupied slot
 		 */
@@ -846,14 +846,14 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 					if (layer.keys == this.keys && this.keys.length > 0) {
 						// length 0 is the shared empty array - see `decoupleTransactionalArrays`
 						layer.keys = new int[this.keys.length];
-						System.arraycopy(this.keys, 0, layer.keys, 0, originPeek + 1);
+						System.arraycopy(this.keys, 0, layer.keys, 0, peek + 1);
 					} else {
 						Arrays.fill(layer.keys, peek + 1, originPeek + 1, 0);
 					}
 					//noinspection ArrayEquality
 					if (layer.values == this.values && this.values.length > 0) {
 						layer.values = new long[this.values.length];
-						System.arraycopy(this.values, 0, layer.values, 0, originPeek + 1);
+						System.arraycopy(this.values, 0, layer.values, 0, peek + 1);
 					} else {
 						Arrays.fill(layer.values, peek + 1, originPeek + 1, 0L);
 					}

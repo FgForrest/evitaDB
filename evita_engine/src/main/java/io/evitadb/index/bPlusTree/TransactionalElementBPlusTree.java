@@ -1623,8 +1623,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 
 		/**
 		 * Sets the index of the last occupied slot and marks the leaf dirty. Lowering it clears the elements past the
-		 * new peek. Inside a transaction a committed leaf does both in its diff layer instead of itself; a value array
-		 * that layer still shares with the committed leaf is copied, old tail included, rather than cleared.
+		 * new peek. Inside a transaction a committed leaf does both in its diff layer.
+		 * The layer copies only the live prefix of any shared array, leaving the new tail empty.
 		 *
 		 * @param peek the index of the new last occupied slot
 		 */
@@ -1658,7 +1658,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 					//noinspection ArrayEquality
 					if (layer.values == this.values) {
 						layer.values = newValueArrayLike(this.values, this.values.length);
-						System.arraycopy(this.values, 0, layer.values, 0, originPeek + 1);
+						System.arraycopy(this.values, 0, layer.values, 0, peek + 1);
 					} else {
 						Arrays.fill(layer.values, peek + 1, originPeek + 1, null);
 					}

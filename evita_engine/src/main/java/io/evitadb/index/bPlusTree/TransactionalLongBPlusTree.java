@@ -1785,8 +1785,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 
 		/**
 		 * Sets the index of the last occupied child slot. Lowering it clears the keys and children past the new peek.
-		 * Inside a transaction a committed node makes the change in its diff layer instead of itself; an array that
-		 * layer still shares with the committed node is copied, old tail included, rather than cleared.
+		 * Inside a transaction a committed node makes the change in its diff layer.
+		 * The layer copies only the live prefix of any shared array, leaving the new tail empty.
 		 *
 		 * @param peek the index of the new last occupied child slot
 		 */
@@ -1809,14 +1809,14 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 					//noinspection ArrayEquality
 					if (layer.keys == this.keys) {
 						layer.keys = new long[this.keys.length];
-						System.arraycopy(this.keys, 0, layer.keys, 0, originPeek);
+						System.arraycopy(this.keys, 0, layer.keys, 0, Math.max(0, peek));
 					} else {
 						Arrays.fill(layer.keys, Math.max(0, peek), originPeek, 0L);
 					}
 					//noinspection ArrayEquality
 					if (layer.children == this.children) {
 						layer.children = new BPlusTreeNode[this.children.length];
-						System.arraycopy(this.children, 0, layer.children, 0, originPeek + 1);
+						System.arraycopy(this.children, 0, layer.children, 0, peek + 1);
 					} else {
 						Arrays.fill(layer.children, peek + 1, originPeek + 1, null);
 					}
@@ -2700,8 +2700,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 
 		/**
 		 * Sets the index of the last occupied slot and marks the leaf dirty. Lowering it clears the keys and values
-		 * past the new peek. Inside a transaction a committed leaf does both in its diff layer instead of itself; an
-		 * array that layer still shares with the committed leaf is copied, old tail included, rather than cleared.
+		 * past the new peek. Inside a transaction a committed leaf does both in its diff layer.
+		 * The layer copies only the live prefix of any shared array, leaving the new tail empty.
 		 *
 		 * @param peek the index of the new last occupied slot
 		 */
@@ -2731,7 +2731,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 					//noinspection ArrayEquality
 					if (layer.keys == this.keys) {
 						layer.keys = new long[this.keys.length];
-						System.arraycopy(this.keys, 0, layer.keys, 0, originPeek + 1);
+						System.arraycopy(this.keys, 0, layer.keys, 0, peek + 1);
 					} else {
 						Arrays.fill(layer.keys, peek + 1, originPeek + 1, 0L);
 					}
@@ -2740,7 +2740,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 						//noinspection unchecked
 						layer.values = (V[]) Array.newInstance(
 							this.values.getClass().getComponentType(), this.values.length);
-						System.arraycopy(this.values, 0, layer.values, 0, originPeek + 1);
+						System.arraycopy(this.values, 0, layer.values, 0, peek + 1);
 					} else {
 						Arrays.fill(layer.values, peek + 1, originPeek + 1, null);
 					}
