@@ -42,6 +42,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -918,6 +920,66 @@ class TransactionalSetTest {
 					assertSetContains(committedVersion, "b", "c");
 				}
 			);
+		}
+
+		/**
+		 * Verifies that either removal operation can be rolled back when it is the first write.
+		 *
+		 * @param useRemoveIf whether to remove via `removeIf` instead of the iterator
+		 */
+		@ParameterizedTest(name = "removeIf={0}")
+		@ValueSource(booleans = {false, true})
+		@DisplayName("first removal stays isolated through rollback")
+		void shouldIsolateFirstRemovalOnRollback(boolean useRemoveIf) {
+			assertFirstRemovalIsolated(useRemoveIf, false);
+		}
+
+		/**
+		 * Verifies that either removal operation can be committed when it is the first write.
+		 *
+		 * @param useRemoveIf whether to remove via `removeIf` instead of the iterator
+		 */
+		@ParameterizedTest(name = "removeIf={0}")
+		@ValueSource(booleans = {false, true})
+		@DisplayName("first removal stays isolated until commit")
+		void shouldIsolateFirstRemovalUntilCommit(boolean useRemoveIf) {
+			assertFirstRemovalIsolated(useRemoveIf, true);
+		}
+
+		/**
+		 * Checks the transactional view, the shared delegate during the transaction, and the outcome on close.
+		 *
+		 * @param useRemoveIf whether to remove via `removeIf` instead of the iterator
+		 * @param commit whether to commit the removal
+		 */
+		private void assertFirstRemovalIsolated(boolean useRemoveIf, boolean commit) {
+			final Set<String> initial = Set.of("a", "b");
+			final Set<String> delegate = new LinkedHashSet<>(List.of("a", "b"));
+			final TransactionalSet<String> set = new TransactionalSet<>(delegate);
+			final Set<String> transactionalView = new HashSet<>();
+			final Set<String> committedWhileOpen = new HashSet<>();
+			final Consumer<TransactionalSet<String>> removeFirst = original -> {
+				if (useRemoveIf) {
+					original.removeIf("a"::equals);
+				} else {
+					final Iterator<String> iterator = original.iterator();
+					iterator.next();
+					iterator.remove();
+				}
+				transactionalView.addAll(original);
+				committedWhileOpen.addAll(delegate);
+			};
+			final BiConsumer<TransactionalSet<String>, Set<String>> verify = (original, committedVersion) -> assertAll(
+				() -> assertEquals(Set.of("b"), transactionalView, "Transactional view after removal"),
+				() -> assertEquals(initial, committedWhileOpen, "Committed set while the transaction is open"),
+				() -> assertEquals(initial, original, "Original set after the transaction closes"),
+				() -> assertEquals(commit ? Set.of("b") : null, committedVersion, "Commit result")
+			);
+			if (commit) {
+				assertStateAfterCommit(set, removeFirst, verify);
+			} else {
+				assertStateAfterRollback(set, removeFirst, verify);
+			}
 		}
 
 		@Test

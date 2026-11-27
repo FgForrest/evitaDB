@@ -152,16 +152,19 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 		}
 	}
 
+	/**
+	 * Iterates over the set as seen by the current thread. A removal in a transaction writes to the transactional
+	 * layer, creating it on demand. Outside a transaction, a removal uses the delegate iterator and journals the
+	 * change when a warm-up savepoint is open.
+	 *
+	 * @return an iterator over the visible keys
+	 */
 	@Nonnull
 	@Override
 	public Iterator<K> iterator() {
 		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			// the wrapper is handed out unconditionally rather than only while a savepoint is open, because the
-			// alternative decides at CONSTRUCTION time: an iterator taken before a savepoint opened and removed
-			// through after it opened would reach the delegate unjournalled. remove() re-resolves the savepoint per
-			// call, so outside one the wrapper is transparent apart from its own allocation
-			return new WarmUpJournalingIterator<>(this.setDelegate);
+			return new DelegateSetIterator();
 		} else {
 			return new TransactionalMemorySetIterator<>(this.setDelegate, layer, this);
 		}
@@ -427,49 +430,59 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	}
 
 	/**
-	 * Iterator over the raw delegate that journals every {@link #remove()} into the open warm-up savepoint. It is
-	 * handed out instead of the delegate's own iterator on the whole non-transactional branch, because removing
-	 * through an iterator reaches the delegate without passing through any of this set's mutators - and `removeAll` /
-	 * `retainAll` / `removeIf` on the {@link java.util.Collection} defaults all funnel through it. It is the warm-up
-	 * counterpart of {@link TransactionalMemorySetIterator}, which closes the same hole on the transactional branch.
-	 *
-	 * The savepoint is re-resolved at {@link #remove()} time rather than captured at construction, and this is what
-	 * lets the wrapper be handed out unconditionally: an iterator that outlives the savepoint records nothing, and an
-	 * iterator created BEFORE a savepoint opened still journals into it. Choosing the wrapper at construction time
-	 * would close only the first of those two directions.
-	 *
-	 * @param <K> element type
+	 * Iterates delegate keys when there is no diff layer at construction. Each {@link #remove()} resolves the
+	 * transaction or warm-up savepoint active at the time of the write.
 	 */
-	private static final class WarmUpJournalingIterator<K> implements Iterator<K> {
-		private final Set<K> setDelegate;
-		private final Iterator<K> delegate;
+	private final class DelegateSetIterator implements Iterator<K> {
+		private final Iterator<K> delegate = TransactionalSet.this.setDelegate.iterator();
 		@Nullable private K current;
-
-		WarmUpJournalingIterator(@Nonnull Set<K> setDelegate) {
-			this.setDelegate = setDelegate;
-			this.delegate = setDelegate.iterator();
-		}
+		private boolean canRemove;
 
 		@Override
 		public boolean hasNext() {
 			return this.delegate.hasNext();
 		}
 
+		/**
+		 * Returns the next delegate key and makes it the target of {@link #remove()}.
+		 *
+		 * @return the next delegate key
+		 * @throws NoSuchElementException if the iterator is exhausted
+		 */
+		@Nullable
 		@Override
 		public K next() {
 			this.current = this.delegate.next();
+			this.canRemove = true;
 			return this.current;
 		}
 
+		/**
+		 * Removes the key last returned by {@link #next()} through the transactional layer or the delegate iterator.
+		 * A delegate removal is journaled for any open warm-up savepoint.
+		 *
+		 * @throws IllegalStateException if there is no successful call to {@link #next()} since the last removal
+		 *                               or since the iterator was created
+		 */
 		@Override
 		public void remove() {
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
-			if (savepoint != null && this.current != null) {
-				// the element is still present at this point, so the inverse is unconditionally an add-back
-				final K removed = this.current;
-				savepoint.push(() -> this.setDelegate.add(removed));
+			if (!this.canRemove) {
+				throw new IllegalStateException();
 			}
-			this.delegate.remove();
+
+			final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(TransactionalSet.this);
+			if (layer == null) {
+				final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+				if (savepoint != null && this.current != null) {
+					// the element is still present at this point, so the inverse is unconditionally an add-back
+					final K removed = this.current;
+					savepoint.push(() -> TransactionalSet.this.setDelegate.add(removed));
+				}
+				this.delegate.remove();
+			} else {
+				layer.remove(this.current);
+			}
+			this.canRemove = false;
 		}
 	}
 
