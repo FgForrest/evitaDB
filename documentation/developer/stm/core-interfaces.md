@@ -66,7 +66,8 @@ point on, the layer is ALIVE and **must** be consumed during commit.
 
 **Package:** `io.evitadb.core.transaction.memory`
 
-Extends `TransactionalLayerCreator<DIFF_PIECE>` with the ability to produce a committed snapshot.
+Extends both `TransactionalLayerCreator<DIFF_PIECE>` and `TransactionalStateProducer<COPY>` to produce
+a committed snapshot from its own diff and any nested changes.
 
 ### Methods
 
@@ -111,27 +112,16 @@ The recursive deep-wise contract means the root call cascades through the entire
 
 **Package:** `io.evitadb.core.transaction.memory`
 
-A convenience interface for objects that do not have their own diff layer but still need to produce a
-committed copy because they contain nested transactional children. The diff type is `Void` and
-`createLayer()` throws `UnsupportedOperationException` (it must never be called).
-
-### Default method implementations
-
-| Method          | Default implementation                             |
-|-----------------|----------------------------------------------------|
-| `getId()`       | Returns `1L` (the object is never registered as a diff-owning creator). |
-| `createLayer()` | Throws `UnsupportedOperationException`.            |
+Extends `TransactionalStateProducer<S>` for containers with no diff layer of their own. The container
+implements `createCopyWithMergedTransactionalMemory` to collect committed child state and
+`removeLayer(TransactionalLayerMaintainer)` to remove nested layers.
 
 ### Usage example
 
-A `VoidTransactionMemoryProducer` is typically a container (e.g. an index) that holds
-`TransactionalMap`, `TransactionalBitmap`, etc. as fields. It does not track changes itself -- its
-children do. But it must implement `createCopyWithMergedTransactionalMemory` to create a new container
-instance whose children are the committed versions:
+A container can collect the committed state of its transactional fields through the maintainer.
 
 ```java
 public MyIndex createCopyWithMergedTransactionalMemory(
-    Void layer,
     TransactionalLayerMaintainer transactionalLayer
 ) {
     return new MyIndex(
@@ -141,9 +131,7 @@ public MyIndex createCopyWithMergedTransactionalMemory(
 }
 ```
 
-Because `getId()` returns `1L` and `createLayer()` is never called, the
-`TransactionalLayerMaintainer` will never contain a diff entry for this object. The object participates
-in commit only when its parent calls `getStateCopyWithCommittedChanges` on it.
+The maintainer dispatches directly to the container's copy method without looking up a diff for the container.
 
 ---
 
@@ -171,22 +159,6 @@ and a `TransactionalBoolean` for dirty flag).
 
 ---
 
-## TransactionalObject\<T, DIFF_LAYER\>
-
-**Package:** `io.evitadb.index.array`
-
-A marker interface required for objects placed inside `TransactionalComplexObjArray`. It extends
-`TransactionalLayerCreator<DIFF_LAYER>` and adds a single method:
-
-```java
-T makeClone();
-```
-
-This method creates a deep clone of the object, including all transactionally active inner objects.
-It is used during commit of `TransactionalComplexObjArray` to produce copies of nested elements.
-
----
-
 ## Snapshotable\<M\> (opt-in)
 
 **Package:** `io.evitadb.core.transaction.memory`
@@ -207,9 +179,11 @@ invariants, and the two implementation strategies (deep-copy vs. `UndoJournal`) 
 
 ```
 TransactionalLayerCreator<T>
+└── TransactionalLayerProducer<DIFF_PIECE, COPY>  (T = DIFF_PIECE)
+
+TransactionalStateProducer<COPY>
 ├── TransactionalLayerProducer<DIFF_PIECE, COPY>
-│   └── VoidTransactionMemoryProducer<S>  (DIFF_PIECE = Void)
-└── TransactionalObject<T, DIFF_LAYER>    (for ComplexObjArray items)
+└── VoidTransactionMemoryProducer<S>             (COPY = S)
 
 TransactionalCreatorMaintainer            (orthogonal; any object may implement it)
 Snapshotable<M>                           (orthogonal, opt-in; a diff layer implements it for savepoints)

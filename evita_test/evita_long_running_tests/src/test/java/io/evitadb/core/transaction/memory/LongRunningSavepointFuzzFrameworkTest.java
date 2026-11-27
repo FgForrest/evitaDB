@@ -24,12 +24,12 @@
 package io.evitadb.core.transaction.memory;
 
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.set.TransactionalSet;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -46,6 +46,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -73,11 +74,9 @@ import static io.evitadb.utils.AssertionUtils.assertWarmUpSavepointRollbackResto
  * The same oracle also drives the **WARM_UP** counterpart, where there is no transaction and no diff layer at all:
  * writes go straight to the delegate and a {@code WarmUpSavepoint} has to rewind them from the inverses the
  * structures record themselves. {@link io.evitadb.utils.AssertionUtils#assertWarmUpSavepointRollbackRestores} is that
- * mode's entry point, and {@link TransactionalMap}, {@link TransactionalSet}, {@link TransactionalList} and
- * {@link TransactionalBitmap} are covered in it. What the randomization is really testing for all four is
- * composition: they record one inverse PER OPERATION, so a batch mixing puts, bulk operations, view-iterator removals
- * and (for the list) position-shifting inserts is the only thing that can disprove the claim that replaying them
- * newest-first lands back on the pre-savepoint state. The bitmap is the sharpest case of it - a single bit can be
+ * mode's entry point. The map, set, bitmap and unordered integer array exercise how journals compose across a
+ * batch of writes. The unordered array mixes inserts and removals that shift positions. Replay must proceed
+ * newest-first to restore the pre-savepoint state. The bitmap is the sharpest case of it - a single bit can be
  * added, removed and re-added inside one batch, across single-record and bulk mutators whose deltas overlap, and only
  * the strict reverse replay of absolute per-id restores makes the earliest capture win.
  *
@@ -256,38 +255,50 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 		});
 	}
 
-	@ParameterizedTest(name = "TransactionalList: warm-up savepoint rollback restores the exact pre-savepoint order")
+	/**
+	 * Verifies that warm-up rollback restores the full sequence of record IDs.
+	 *
+	 * @param input generational test input carrying the time budget and the random seed of this run
+	 */
+	@ParameterizedTest(
+		name = "TransactionalUnorderedIntArray: warm-up rollback restores exact record order"
+	)
 	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalList: warm-up savepoint rollback restores the exact pre-savepoint order")
-	void shouldRollBackTransactionalListToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+	@DisplayName("TransactionalUnorderedIntArray: warm-up rollback restores exact record order")
+	void shouldRollBackTransactionalUnorderedIntArrayToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
-			final TransactionalList<Integer> list = newSeededList(random);
+			final TransactionalUnorderedIntArray array = newSeededUnorderedArray(random);
 			assertWarmUpSavepointRollbackRestores(
-				list,
-				tested -> applyRandomListOps(tested, random, 1 + random.nextInt(8)),
-				ArrayList::new,
+				array,
+				tested -> applyRandomUnorderedArrayOps(tested, random, 1 + random.nextInt(8)),
+				LongRunningSavepointFuzzFrameworkTest::unorderedArrayContents,
 				tested -> {
-					applyRandomListOps(tested, random, 1 + random.nextInt(8));
+					applyRandomUnorderedArrayOps(tested, random, 1 + random.nextInt(8));
 					// applied LAST: a marker applied first is an entry like any other, and the random
 					// batch that follows it could take it straight back out
-					tested.add(KEY_SPACE + 1);
+					tested.appendAll(KEY_SPACE + 1);
 				}
 			);
 			return iteration + 1;
 		});
 	}
 
-	@ParameterizedTest(name = "TransactionalList: warm-up savepoint commit keeps the in-savepoint order")
+	/**
+	 * Verifies that warm-up commit keeps the full sequence of record IDs.
+	 *
+	 * @param input generational test input carrying the time budget and the random seed of this run
+	 */
+	@ParameterizedTest(name = "TransactionalUnorderedIntArray: warm-up commit keeps record order")
 	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("TransactionalList: warm-up savepoint commit keeps the in-savepoint order")
-	void shouldCommitTransactionalListWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+	@DisplayName("TransactionalUnorderedIntArray: warm-up commit keeps record order")
+	void shouldCommitTransactionalUnorderedIntArrayWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
 		runWarmUpFuzz(input, (random, iteration) -> {
-			final TransactionalList<Integer> list = newSeededList(random);
+			final TransactionalUnorderedIntArray array = newSeededUnorderedArray(random);
 			assertWarmUpSavepointCommitKeeps(
-				list,
-				tested -> applyRandomListOps(tested, random, 1 + random.nextInt(8)),
-				ArrayList::new,
-				tested -> applyRandomListOps(tested, random, 1 + random.nextInt(8))
+				array,
+				tested -> applyRandomUnorderedArrayOps(tested, random, 1 + random.nextInt(8)),
+				LongRunningSavepointFuzzFrameworkTest::unorderedArrayContents,
+				tested -> applyRandomUnorderedArrayOps(tested, random, 1 + random.nextInt(8))
 			);
 			return iteration + 1;
 		});
@@ -759,59 +770,57 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Builds a fresh non-transactional list seeded with a random sequence drawn from the key space.
+	 * Seeds the array with unique record IDs in random encounter order.
+	 *
+	 * @param random source of the number of draws and of each drawn ID
+	 * @return a fresh array of at most `KEY_SPACE - 1` distinct IDs from 1 to `KEY_SPACE`, possibly empty, in the
+	 *         order they were first drawn
 	 */
 	@Nonnull
-	private static TransactionalList<Integer> newSeededList(@Nonnull Random random) {
-		final List<Integer> seed = new ArrayList<>();
-		final int size = random.nextInt(KEY_SPACE);
-		for (int i = 0; i < size; i++) {
-			seed.add(random.nextInt(KEY_SPACE));
+	private static TransactionalUnorderedIntArray newSeededUnorderedArray(@Nonnull Random random) {
+		final Set<Integer> seed = new LinkedHashSet<>();
+		final int draws = random.nextInt(KEY_SPACE);
+		for (int i = 0; i < draws; i++) {
+			seed.add(1 + random.nextInt(KEY_SPACE));
 		}
-		return new TransactionalList<>(seed);
+		return new TransactionalUnorderedIntArray(seed.stream().mapToInt(Integer::intValue).toArray());
 	}
 
 	/**
-	 * Applies `count` random operations to the list. The positional mutators are the point of this one: an insertion
-	 * or a removal shifts every element after it, so their inverses are only correct if the journal's reverse replay
-	 * un-shifts them in the right order — which a randomized interleaving is far better at disproving than any
-	 * hand-written sequence.
+	 * Interleaves append, positional insert, and range removal to exercise inverse operations across shifted positions.
+	 *
+	 * @param array  the array to mutate; an ID is added only when the array does not hold it yet, so its IDs stay
+	 *               distinct
+	 * @param random source of every choice: the operation, the candidate ID, the insert position and the removed range
+	 * @param count  number of operations, each of them one append, one positional insert or one removal of a
+	 *               non-empty range
 	 */
-	private static void applyRandomListOps(
-		@Nonnull TransactionalList<Integer> list, @Nonnull Random random, int count
+	private static void applyRandomUnorderedArrayOps(
+		@Nonnull TransactionalUnorderedIntArray array, @Nonnull Random random, int count
 	) {
 		for (int i = 0; i < count; i++) {
-			final int size = list.size();
-			// every choice but the plain append needs a position to address, so an empty list only appends
-			switch (size == 0 ? 0 : random.nextInt(6)) {
-				case 0 -> list.add(random.nextInt(KEY_SPACE));
-				case 1 -> list.add(random.nextInt(size + 1), random.nextInt(KEY_SPACE));
-				case 2 -> list.set(random.nextInt(size), random.nextInt(KEY_SPACE));
-				case 3 -> list.remove(random.nextInt(size));
-				case 4 -> list.remove(Integer.valueOf(random.nextInt(KEY_SPACE)));
-				case 5 -> removeOneViaIterator(list, random);
-				default -> throw new IllegalStateException("unreachable list op choice");
+			final int size = array.getLength();
+			final int candidate = 1 + random.nextInt(KEY_SPACE);
+			if (array.contains(candidate) || (size > 0 && random.nextBoolean())) {
+				final int start = random.nextInt(size);
+				array.removeRange(start, start + 1 + random.nextInt(size - start));
+			} else if (random.nextBoolean()) {
+				array.appendAll(candidate);
+			} else {
+				array.addOnIndex(random.nextInt(size + 1), candidate);
 			}
 		}
 	}
 
 	/**
-	 * Removes a single (randomly positioned) element through the list's iterator.
+	 * Copies the logical sequence for equality checks independently of subsequent array writes.
+	 *
+	 * @param array the array to read
+	 * @return an unmodifiable list of the array's IDs in array order
 	 */
-	private static void removeOneViaIterator(@Nonnull TransactionalList<Integer> list, @Nonnull Random random) {
-		final int size = list.size();
-		if (size == 0) {
-			return;
-		}
-		int target = random.nextInt(size);
-		final Iterator<Integer> it = list.iterator();
-		while (it.hasNext()) {
-			it.next();
-			if (target-- == 0) {
-				it.remove();
-				return;
-			}
-		}
+	@Nonnull
+	private static List<Integer> unorderedArrayContents(@Nonnull TransactionalUnorderedIntArray array) {
+		return Arrays.stream(array.getArray()).boxed().toList();
 	}
 
 	/**

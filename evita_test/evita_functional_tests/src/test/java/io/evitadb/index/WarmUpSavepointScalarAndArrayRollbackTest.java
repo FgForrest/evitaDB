@@ -23,13 +23,8 @@
 
 package io.evitadb.index;
 
-import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
-import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.array.TransactionalIntArray;
-import io.evitadb.index.array.TransactionalObjArray;
-import io.evitadb.index.array.TransactionalObject;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.reference.TransactionalReference;
 import org.junit.jupiter.api.AfterEach;
@@ -37,11 +32,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-
-import javax.annotation.Nonnull;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.TreeSet;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -54,11 +44,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that the index structures whose ENTIRE mutable state has an `O(1)` pre-image — the two scalar holders and
- * the three array-reference wrappers — rewind their non-transactional (WARM_UP) writes when the
+ * the `TransactionalIntArray` delegate reference — rewind their non-transactional (WARM_UP) writes when the
  * {@link WarmUpSavepoint} bracketing them is rolled back, and keep them when it is committed.
  *
- * These five share one journaling strategy: the pre-image is captured on the FIRST write-touch inside the savepoint
- * and restores the structure absolutely, so the tests deliberately hammer each structure with SEVERAL writes per
+ * The three structures capture the pre-image on the FIRST write-touch inside the savepoint
+ * and restore that state on rollback, so the tests deliberately hammer each structure with SEVERAL writes per
  * savepoint — a strategy that re-captured on every write would pass a single-write test and still lose the
  * pre-savepoint value here.
  *
@@ -262,213 +252,4 @@ class WarmUpSavepointScalarAndArrayRollbackTest {
 			assertArrayEquals(new int[]{9}, untouched.getArray(), "An array nobody wrote must be left as it was.");
 		}
 	}
-
-	@Nested
-	@DisplayName("TransactionalObjArray")
-	class ObjArrays {
-
-		@Test
-		@DisplayName("Rollback restores the array through every mutator kind")
-		void shouldRestoreArrayAfterMixedMutations() {
-			final TransactionalObjArray<String> array = new TransactionalObjArray<>(
-				new String[]{"b", "d"}, Comparator.naturalOrder()
-			);
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			array.add("a");
-			array.addAll(new String[]{"c", "e"});
-			array.remove("d");
-			array.removeAll(new String[]{"b"});
-			assertArrayEquals(new String[]{"a", "c", "e"}, array.getArray(), "self-check on the in-savepoint state");
-			savepoint.rollback();
-
-			assertArrayEquals(
-				new String[]{"b", "d"}, array.getArray(), "Rollback must restore the pre-savepoint array."
-			);
-		}
-
-		@Test
-		@DisplayName("Commit keeps the writes made inside the savepoint")
-		void shouldKeepArrayOnCommit() {
-			final TransactionalObjArray<String> array = new TransactionalObjArray<>(
-				new String[]{"b"}, Comparator.naturalOrder()
-			);
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			array.add("a");
-			savepoint.commit();
-
-			assertArrayEquals(new String[]{"a", "b"}, array.getArray(), "Commit must keep the savepoint's writes.");
-		}
-	}
-
-	@Nested
-	@DisplayName("TransactionalComplexObjArray")
-	class ComplexObjArrays {
-
-		@Test
-		@DisplayName("Rollback restores the membership after inserts and removals")
-		void shouldRestoreMembershipAfterMixedMutations() {
-			final TransactionalComplexObjArray<ValueHolder> array = plainArray("b", "d");
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			array.add(new ValueHolder("a"));
-			array.addAll(new ValueHolder[]{new ValueHolder("c"), new ValueHolder("e")});
-			array.remove(new ValueHolder("d"));
-			assertEquals("[a, b, c, e]", array.toString(), "self-check on the in-savepoint state");
-			savepoint.rollback();
-
-			assertEquals("[b, d]", array.toString(), "Rollback must restore the pre-savepoint membership.");
-		}
-
-		@Test
-		@DisplayName("Rollback restores membership when the combining producer keeps the array reference")
-		void shouldRestoreMembershipAroundInPlaceElementCombination() {
-			final TransactionalComplexObjArray<ValueHolder> array = combiningArray(new ValueHolder("a", 1));
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			// combines into the held element - the array reference does NOT change here
-			array.add(new ValueHolder("a", 2));
-			// ... and only then is the array itself restructured, which must still capture the pre-savepoint reference
-			array.add(new ValueHolder("b", 3));
-			assertEquals("[a=[1, 2], b=[3]]", array.toString(), "self-check on the in-savepoint state");
-			savepoint.rollback();
-
-			assertEquals(
-				"[a=[1, 2]]", array.toString(),
-				"Membership is this class's own state and must be rewound; the element's internal values are the " +
-					"element's own responsibility and are deliberately left as they are."
-			);
-		}
-
-		@Test
-		@DisplayName("Commit keeps the writes made inside the savepoint")
-		void shouldKeepMembershipOnCommit() {
-			final TransactionalComplexObjArray<ValueHolder> array = plainArray("b");
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			array.add(new ValueHolder("a"));
-			savepoint.commit();
-
-			assertEquals("[a, b]", array.toString(), "Commit must keep the savepoint's writes.");
-		}
-
-		/**
-		 * Builds an array with no producer / reducer, so every write replaces the delegate reference.
-		 *
-		 * @param keys the initial element keys, in order
-		 * @return the array under test
-		 */
-		@Nonnull
-		private static TransactionalComplexObjArray<ValueHolder> plainArray(@Nonnull String... keys) {
-			final ValueHolder[] delegate = new ValueHolder[keys.length];
-			for (int i = 0; i < keys.length; i++) {
-				delegate[i] = new ValueHolder(keys[i]);
-			}
-			return new TransactionalComplexObjArray<>(delegate);
-		}
-
-		/**
-		 * Builds an array whose producer combines an added element into the already-held one, which is the shape that
-		 * mutates an ELEMENT in place and leaves the delegate reference untouched.
-		 *
-		 * @param elements the initial elements, in order
-		 * @return the array under test
-		 */
-		@Nonnull
-		private static TransactionalComplexObjArray<ValueHolder> combiningArray(@Nonnull ValueHolder... elements) {
-			return new TransactionalComplexObjArray<>(
-				elements,
-				ValueHolder::combineWith,
-				ValueHolder::subtract,
-				ValueHolder::isEmpty,
-				ValueHolder::hasSameValues
-			);
-		}
-	}
-
-	/**
-	 * Minimal {@link TransactionalObject} element for {@link TransactionalComplexObjArray}: a key that defines the
-	 * ordering and a set of values the producer / reducer merge in and out. It carries no transactional memory of its
-	 * own — this test is about the ARRAY's journaling, and the elements only have to be legal inhabitants of it.
-	 */
-	private static class ValueHolder
-		implements TransactionalObject<ValueHolder>, VoidTransactionMemoryProducer<ValueHolder>,
-		Comparable<ValueHolder> {
-
-		private final String key;
-		private final TreeSet<Integer> values = new TreeSet<>();
-
-		ValueHolder(@Nonnull String key, @Nonnull Integer... values) {
-			this.key = key;
-			Collections.addAll(this.values, values);
-		}
-
-		@Nonnull
-		@Override
-		public ValueHolder createCopyWithMergedTransactionalMemory(
-			@Nonnull TransactionalLayerMaintainer transactionalLayer
-		) {
-			return this;
-		}
-
-		@Override
-		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			// no transactional memory to release
-		}
-
-		@Nonnull
-		@Override
-		public ValueHolder makeClone() {
-			return new ValueHolder(this.key, this.values.toArray(new Integer[0]));
-		}
-
-		@Override
-		public int compareTo(@Nonnull ValueHolder o) {
-			return this.key.compareTo(o.key);
-		}
-
-		@Override
-		public String toString() {
-			return this.values.isEmpty() ? this.key : this.key + "=" + this.values;
-		}
-
-		/**
-		 * Merges the other holder's values into this one — the producer callback.
-		 *
-		 * @param other the holder whose values are folded in
-		 */
-		void combineWith(@Nonnull ValueHolder other) {
-			this.values.addAll(other.values);
-		}
-
-		/**
-		 * Removes the other holder's values from this one — the reducer callback.
-		 *
-		 * @param other the holder whose values are taken out
-		 */
-		void subtract(@Nonnull ValueHolder other) {
-			this.values.removeAll(other.values);
-		}
-
-		/**
-		 * Reports whether this holder carries no values any more — the obsolescence callback.
-		 *
-		 * @return `true` when the holder should be dropped from the array
-		 */
-		boolean isEmpty() {
-			return this.values.isEmpty();
-		}
-
-		/**
-		 * Compares two holders by content — the deep-comparison callback.
-		 *
-		 * @param other the holder to compare with
-		 * @return `true` when both hold the same values
-		 */
-		boolean hasSameValues(@Nonnull ValueHolder other) {
-			return this.values.equals(other.values);
-		}
-	}
-
 }

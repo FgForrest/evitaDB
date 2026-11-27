@@ -25,12 +25,8 @@ package io.evitadb.core.transaction.memory;
 
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest.FuzzGeneration;
-import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.array.TransactionalIntArray;
-import io.evitadb.index.array.TransactionalObjArray;
-import io.evitadb.index.array.TransactionalObject;
 import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.index.set.TransactionalSet;
 import org.junit.jupiter.api.DisplayName;
@@ -39,13 +35,9 @@ import org.junit.jupiter.api.Tag;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Random;
 import java.util.Set;
 
@@ -55,9 +47,8 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 /**
  * Generational randomized backfill proof that the simple leaf data deltas snapshot and restore correctly under
  * a per-entity savepoint: {@code BooleanChanges} ({@link TransactionalBoolean}), {@code ReferenceChanges}
- * ({@link TransactionalReference}), {@code SetChanges} ({@link TransactionalSet}), {@code ListChanges}
- * ({@link TransactionalList}), {@code IntArrayChanges} ({@link TransactionalIntArray}) and {@code ObjArrayChanges}
- * ({@link TransactionalObjArray}). It complements {@code LongRunningSavepointFuzzFrameworkTest}, which already covers
+ * ({@link TransactionalReference}), {@code SetChanges} ({@link TransactionalSet}) and {@code IntArrayChanges}
+ * ({@link TransactionalIntArray}). It complements {@code LongRunningSavepointFuzzFrameworkTest}, which covers
  * {@code MapChanges} and {@code BitmapChanges}.
  *
  * Each case rebuilds a fresh structure from a random reference, then within one real transaction applies a random
@@ -245,58 +236,6 @@ class LongRunningSavepointLeafDeltaTest {
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
-	// ListChanges (TransactionalList)
-	// ---------------------------------------------------------------------------------------------------------------
-
-	@Nested
-	@DisplayName("TransactionalList")
-	class ListCase extends AbstractSavepointFuzzTest<List<Integer>> {
-
-		@Nonnull
-		@Override
-		protected FuzzGeneration<List<Integer>> newGeneration(@Nonnull Random random) {
-			return new ListState(random);
-		}
-
-	}
-
-	/**
-	 * One generation's fixture for {@link TransactionalList} — an array-list-backed wrapper read back through its own
-	 * public surface, so the harness's mid-savepoint read goes through the same view a caller would use.
-	 */
-	private static final class ListState implements FuzzGeneration<List<Integer>> {
-		private final TransactionalList<Integer> list;
-
-		ListState(@Nonnull Random random) {
-			this.list = newSeededList(random);
-		}
-
-		@Nonnull
-		@Override
-		public TransactionalStateProducer<?> subject() {
-			return this.list;
-		}
-
-		@Nonnull
-		@Override
-		public List<Integer> contents() {
-			return new ArrayList<>(this.list);
-		}
-
-		@Override
-		public void applyBaselineOperations(@Nonnull Random random) {
-			applyRandomListOps(this.list, random, 1 + random.nextInt(MAX_OPS));
-		}
-
-		@Override
-		public void applySavepointOperations(@Nonnull Random random) {
-			applyRandomListOps(this.list, random, 1 + random.nextInt(MAX_OPS));
-			// applied LAST: a marker appended first can be removed again by a later positional removal
-			this.list.add(MARKER);
-		}
-	}
-
-	// ---------------------------------------------------------------------------------------------------------------
 	// IntArrayChanges (TransactionalIntArray)
 	// ---------------------------------------------------------------------------------------------------------------
 
@@ -345,111 +284,6 @@ class LongRunningSavepointLeafDeltaTest {
 			applyRandomIntArrayOps(this.array, random, 1 + random.nextInt(MAX_OPS));
 			// applied LAST: a marker added first can be removed again by a later random removal
 			this.array.add(MARKER);
-		}
-	}
-
-	// ---------------------------------------------------------------------------------------------------------------
-	// ObjArrayChanges (TransactionalObjArray)
-	// ---------------------------------------------------------------------------------------------------------------
-
-	@Nested
-	@DisplayName("TransactionalObjArray")
-	class ObjArrayCase extends AbstractSavepointFuzzTest<List<Integer>> {
-
-		@Nonnull
-		@Override
-		protected FuzzGeneration<List<Integer>> newGeneration(@Nonnull Random random) {
-			return new ObjArrayState(random);
-		}
-
-	}
-
-	/**
-	 * One generation's fixture for {@link TransactionalObjArray} — an object-array wrapper read back through its own
-	 * public surface, so the harness's mid-savepoint read goes through the same view a caller would use.
-	 */
-	private static final class ObjArrayState implements FuzzGeneration<List<Integer>> {
-		private final TransactionalObjArray<Integer> array;
-
-		ObjArrayState(@Nonnull Random random) {
-			this.array = newSeededObjArray(random);
-		}
-
-		@Nonnull
-		@Override
-		public TransactionalStateProducer<?> subject() {
-			return this.array;
-		}
-
-		@Nonnull
-		@Override
-		public List<Integer> contents() {
-			return objArrayContents(this.array);
-		}
-
-		@Override
-		public void applyBaselineOperations(@Nonnull Random random) {
-			applyRandomObjArrayOps(this.array, random, 1 + random.nextInt(MAX_OPS));
-		}
-
-		@Override
-		public void applySavepointOperations(@Nonnull Random random) {
-			applyRandomObjArrayOps(this.array, random, 1 + random.nextInt(MAX_OPS));
-			// applied LAST: a marker added first can be removed again by a later random removal
-			this.array.add(MARKER);
-		}
-	}
-
-	// ---------------------------------------------------------------------------------------------------------------
-	// ComplexObjArrayChanges (TransactionalComplexObjArray)
-	// ---------------------------------------------------------------------------------------------------------------
-
-	@Nested
-	@DisplayName("TransactionalComplexObjArray")
-	class ComplexObjArrayCase extends AbstractSavepointFuzzTest<List<Integer>> {
-
-		@Nonnull
-		@Override
-		protected FuzzGeneration<List<Integer>> newGeneration(@Nonnull Random random) {
-			return new ComplexObjArrayState(random);
-		}
-
-	}
-
-	/**
-	 * One generation's fixture for {@link TransactionalComplexObjArray} — an array of transactional elements, read
-	 * back through its own public surface so the harness's mid-savepoint read goes through the same view a caller
-	 * would use.
-	 */
-	private static final class ComplexObjArrayState implements FuzzGeneration<List<Integer>> {
-		private final TransactionalComplexObjArray<TxInteger> array;
-
-		ComplexObjArrayState(@Nonnull Random random) {
-			this.array = newSeededComplexArray(random);
-		}
-
-		@Nonnull
-		@Override
-		public TransactionalStateProducer<?> subject() {
-			return this.array;
-		}
-
-		@Nonnull
-		@Override
-		public List<Integer> contents() {
-			return complexArrayContents(this.array);
-		}
-
-		@Override
-		public void applyBaselineOperations(@Nonnull Random random) {
-			applyRandomComplexOps(this.array, random, 1 + random.nextInt(MAX_OPS));
-		}
-
-		@Override
-		public void applySavepointOperations(@Nonnull Random random) {
-			applyRandomComplexOps(this.array, random, 1 + random.nextInt(MAX_OPS));
-			// applied LAST: a marker added first can be removed again by a later random removal
-			this.array.add(new TxInteger(MARKER));
 		}
 	}
 
@@ -534,91 +368,6 @@ class LongRunningSavepointLeafDeltaTest {
 	}
 
 	@Nonnull
-	private static TransactionalList<Integer> newSeededList(@Nonnull Random random) {
-		final List<Integer> seed = new LinkedList<>();
-		final int size = random.nextInt(KEY_SPACE);
-		for (int i = 0; i < size; i++) {
-			seed.add(random.nextInt(KEY_SPACE));
-		}
-		return new TransactionalList<>(seed);
-	}
-
-	private static void applyRandomListOps(@Nonnull TransactionalList<Integer> list, @Nonnull Random random, int count) {
-		for (int i = 0; i < count; i++) {
-			// view-iterator / bulk-view ops (choices >= 2) mutate the diff layer through the list iterator, so they
-			// require the layer to already exist; when it does not yet, fall back to the direct add/remove that creates it
-			final boolean hasLayer = Transaction.getTransactionalMemoryLayerIfExists(list) != null;
-			switch (random.nextInt(hasLayer ? 6 : 2)) {
-				case 0 -> {
-					if (!list.isEmpty()) {
-						list.remove(random.nextInt(list.size()));
-					} else {
-						list.add(random.nextInt(KEY_SPACE));
-					}
-				}
-				case 1 -> list.add(random.nextInt(KEY_SPACE));
-				case 2 -> removeOneViaIterator(list, random);            // Iterator#remove on the merged view
-				case 3 -> setOneViaListIterator(list, random);           // ListIterator#set (in-place overwrite)
-				case 4 -> addViaListIterator(list, random);              // ListIterator#add (positional insert)
-				case 5 -> {
-					// AbstractCollection#removeAll / #retainAll both drive the list iterator's remove()
-					if (random.nextBoolean()) {
-						list.removeAll(randomKeySubset(random));
-					} else {
-						list.retainAll(randomKeySubset(random));
-					}
-				}
-				default -> throw new IllegalStateException("unreachable list op choice");
-			}
-		}
-	}
-
-	/**
-	 * Removes a single (randomly positioned) element from the list through its merged iterator, exercising the
-	 * collection-view removal path that bypasses the direct index mutators.
-	 */
-	private static void removeOneViaIterator(@Nonnull TransactionalList<Integer> list, @Nonnull Random random) {
-		final int size = list.size();
-		if (size == 0) {
-			return;
-		}
-		int target = random.nextInt(size);
-		final Iterator<Integer> it = list.iterator();
-		while (it.hasNext()) {
-			it.next();
-			if (target-- == 0) {
-				it.remove();
-				return;
-			}
-		}
-	}
-
-	/**
-	 * Overwrites a single (randomly positioned) element in place through the list iterator's {@code set}.
-	 */
-	private static void setOneViaListIterator(@Nonnull TransactionalList<Integer> list, @Nonnull Random random) {
-		final int size = list.size();
-		if (size == 0) {
-			return;
-		}
-		final int target = random.nextInt(size);
-		final ListIterator<Integer> it = list.listIterator();
-		for (int j = 0; j <= target; j++) {
-			it.next();
-		}
-		it.set(random.nextInt(KEY_SPACE));
-	}
-
-	/**
-	 * Inserts a value at a random position through the list iterator's {@code add}.
-	 */
-	private static void addViaListIterator(@Nonnull TransactionalList<Integer> list, @Nonnull Random random) {
-		final int pos = list.isEmpty() ? 0 : random.nextInt(list.size() + 1);
-		final ListIterator<Integer> it = list.listIterator(pos);
-		it.add(random.nextInt(KEY_SPACE));
-	}
-
-	@Nonnull
 	private static TransactionalIntArray newSeededIntArray(@Nonnull Random random) {
 		final Set<Integer> seed = new HashSet<>();
 		final int size = random.nextInt(KEY_SPACE);
@@ -649,102 +398,4 @@ class LongRunningSavepointLeafDeltaTest {
 		}
 		return contents;
 	}
-
-	@Nonnull
-	private static TransactionalObjArray<Integer> newSeededObjArray(@Nonnull Random random) {
-		final Set<Integer> seed = new HashSet<>();
-		final int size = random.nextInt(KEY_SPACE);
-		for (int i = 0; i < size; i++) {
-			seed.add(1 + random.nextInt(KEY_SPACE));
-		}
-		final Integer[] values = seed.stream().sorted().toArray(Integer[]::new);
-		return new TransactionalObjArray<>(values, Comparator.naturalOrder());
-	}
-
-	private static void applyRandomObjArrayOps(@Nonnull TransactionalObjArray<Integer> array, @Nonnull Random random, int count) {
-		for (int i = 0; i < count; i++) {
-			final int recordId = 1 + random.nextInt(KEY_SPACE);
-			if (random.nextInt(3) == 0) {
-				array.remove(recordId);
-			} else {
-				array.add(recordId);
-			}
-		}
-	}
-
-	@Nonnull
-	private static List<Integer> objArrayContents(@Nonnull TransactionalObjArray<Integer> array) {
-		final Integer[] values = array.getArray();
-		final List<Integer> contents = new ArrayList<>(values.length);
-		Collections.addAll(contents, values);
-		return contents;
-	}
-
-	@Nonnull
-	private static TransactionalComplexObjArray<TxInteger> newSeededComplexArray(@Nonnull Random random) {
-		final Set<Integer> seed = new HashSet<>();
-		final int size = random.nextInt(KEY_SPACE);
-		for (int i = 0; i < size; i++) {
-			seed.add(1 + random.nextInt(KEY_SPACE));
-		}
-		final TxInteger[] values = seed.stream().sorted().map(TxInteger::new).toArray(TxInteger[]::new);
-		return new TransactionalComplexObjArray<>(values);
-	}
-
-	private static void applyRandomComplexOps(@Nonnull TransactionalComplexObjArray<TxInteger> array, @Nonnull Random random, int count) {
-		for (int i = 0; i < count; i++) {
-			final TxInteger element = new TxInteger(1 + random.nextInt(KEY_SPACE));
-			if (random.nextInt(3) == 0) {
-				array.remove(element);
-			} else {
-				array.add(element);
-			}
-		}
-	}
-
-	@Nonnull
-	private static List<Integer> complexArrayContents(@Nonnull TransactionalComplexObjArray<TxInteger> array) {
-		final TxInteger[] values = array.getArray();
-		final List<Integer> contents = new ArrayList<>(values.length);
-		for (final TxInteger value : values) {
-			contents.add(value.object());
-		}
-		return contents;
-	}
-
-	/**
-	 * Minimal distinct-by-value element for {@link TransactionalComplexObjArray}: a layer-less
-	 * {@link TransactionalObject} ordered by its integer value (mirrors the element stub used by the structure's own
-	 * unit tests). It carries no own diff layer, so only the array's membership diff is under test.
-	 *
-	 * @param object the integer value
-	 */
-	private record TxInteger(@Nonnull Integer object)
-		implements TransactionalObject<TxInteger>,
-		VoidTransactionMemoryProducer<TxInteger>,
-		Comparable<TxInteger> {
-
-		@Nonnull
-		@Override
-		public TxInteger createCopyWithMergedTransactionalMemory(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			return this;
-		}
-
-		@Override
-		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			// no-op: this wrapper holds no transactional layer of its own
-		}
-
-		@Override
-		public int compareTo(@Nonnull TxInteger o) {
-			return Integer.compare(this.object, o.object);
-		}
-
-		@Nonnull
-		@Override
-		public TxInteger makeClone() {
-			return new TxInteger(this.object);
-		}
-	}
-
 }

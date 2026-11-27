@@ -7,9 +7,9 @@ persistence write-amplification (one changed leaf page per commit instead of one
 **risk** is the in-heap read hot path (a cache-friendly contiguous array → a pointer-chasing tree). This benchmark
 measures that risk; the write-amp win is analysed separately below.
 
-Source: `evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/PriceRecordBackingBenchmark.java`.
+Source: Removed together with the array backing it measured. Last present at commit `d78c09dd5c`.
 
-Run:
+Historical commands (run from commit `d78c09dd5c`)
 ```
 mvn -pl evita_test/evita_performance_tests -P full package -DskipTests
 java -cp evita_test/evita_performance_tests/target/benchmarks.jar org.openjdk.jmh.Main \

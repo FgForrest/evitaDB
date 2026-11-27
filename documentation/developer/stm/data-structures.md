@@ -20,7 +20,7 @@ diff strategy, and its commit behaviour.
 | Depth       | Meaning                                                                           | Examples                                                   |
 |-------------|-----------------------------------------------------------------------------------|------------------------------------------------------------|
 | **Shallow** | The diff captures changes to the structure itself (inserts, removals, reorderings). On commit, a new container is created with the merged data. Contained elements are plain values (primitives, strings, etc.) and are not recursively merged. | `TransactionalIntArray`, `TransactionalBitmap`, `TransactionalBoolean`, `TransactionalReference`, `TransactionalSet` (when elements are plain values) |
-| **Deep**    | The structure may contain nested `TransactionalLayerProducer` values. On commit, the container iterates its entries and calls `getStateCopyWithCommittedChanges` on each nested producer. The committed copy contains the recursively merged children. | `TransactionalMap` (when configured with a producer value type), `TransactionalComplexObjArray`, `TransactionalList` (when elements are producers) |
+| **Deep** | Commits nested producers recursively. | `TransactionalMap` with producer values |
 
 ---
 
@@ -44,17 +44,6 @@ Ordered (sorted, ascending) array of unique `int` values.
 
 **Non-transactional fallback:** When no transaction is active, mutations (e.g. `addRecordId`) modify
 the delegate `int[]` directly.
-
----
-
-### TransactionalObjArray\<T extends Comparable\<T\>\>
-
-**Implements:** `TransactionalLayerProducer<ObjArrayChanges<T>, T[]>`
-
-Generic version of `TransactionalIntArray` for `Comparable` objects. Uses a `Comparator<T>` to maintain
-sorted order.
-
-**Diff layer (`ObjArrayChanges<T>`):** Same positional insert/remove strategy as `IntArrayChanges`.
 
 ---
 
@@ -186,57 +175,6 @@ Transactional wrapper for `java.util.Set`.
 
 ---
 
-### TransactionalList\<V\>
-
-**Implements:** `TransactionalLayerCreator<ListChanges<V>>` AND `TransactionalLayerProducer<ListChanges<V>, List<V>>`
-
-Transactional wrapper for `java.util.List`.
-
-**Diff layer (`ListChanges<V>`):**
-- `removedItems: TreeSet<Integer>` -- removed indices.
-- `addedItems: TreeMap<Integer, V>` -- inserted items by adjusted index.
-
-**Index adjustment:** When an item is inserted or removed, all subsequent indices in the diff are
-incremented or decremented. Add/remove-first is O(N) due to this adjustment.
-
-**Deep transactionality:** During commit, if a value is a `TransactionalLayerProducer`, it is
-recursively merged.
-
----
-
-## Complex array
-
-### TransactionalComplexObjArray\<T\>
-
-**Implements:** `TransactionalLayerProducer<ComplexObjArrayChanges<T>, T[]>`
-
-Where `T extends TransactionalObject<T, ?> & Comparable<T>`.
-
-This array stores objects that are themselves transactional and supports partial updates via
-producer/reducer callbacks.
-
-**Construction parameters:**
-- `BiConsumer<T, T> producer` -- merges two containers into one (e.g. combines record-id sets).
-- `BiConsumer<T, T> reducer` -- subtracts one container from another.
-- `Predicate<T> obsoleteChecker` -- returns true if a container is empty after reduction (should be
-  removed).
-
-**Example:** Inserting two items with the same key `"a"` merges their payloads:
-
-```
-insert("a", [1, 2])
-insert("a", [3, 4])
-→ result: "a" → [1, 2, 3, 4]
-```
-
-**Nested commit:** If contained objects are `TransactionalLayerProducer` instances, the commit
-recursively calls `createCopyWithMergedTransactionalMemory` on each.
-
-**Performance caveat:** Unlike simpler arrays, `indexOf` and `length` require materialising the merged
-array because the producer/reducer logic makes positional reasoning impossible on the diff alone.
-
----
-
 ## B+ Trees
 
 evitaDB maintains a family of transactional B+ trees. They are **not** mergeable into one generic
@@ -282,7 +220,6 @@ fine-grained transactional structure within the tree.
 | Class                          | Diff layer type          | Deep? | Commit produces            |
 |--------------------------------|--------------------------|-------|----------------------------|
 | `TransactionalIntArray`        | `IntArrayChanges`        | No    | `int[]`                    |
-| `TransactionalObjArray<T>`     | `ObjArrayChanges<T>`     | No    | `T[]`                      |
 | `TransactionalUnorderedIntArray` | `Void` (composite façade) | Yes (via trees) | `TransactionalUnorderedIntArray` |
 | `TransactionalBoolean`         | `BooleanChanges`         | No    | `Boolean`                  |
 | `TransactionalReference<T>`    | `ReferenceChanges<T>`    | No    | `Optional<T>`              |
@@ -290,8 +227,6 @@ fine-grained transactional structure within the tree.
 | `TransactionalMap<K,V>`        | `MapChanges<K,V>`        | Conditional | `Map<K,V>`            |
 | `PersistentTransactionalMap<K,V>` | `MapChanges<K,V>`     | Conditional | `Map<K,V>` (ChampMap-backed) |
 | `TransactionalSet<K>`          | `SetChanges<K>`          | No    | `Set<K>`                   |
-| `TransactionalList<V>`         | `ListChanges<V>`         | Conditional | `List<V>`             |
-| `TransactionalComplexObjArray<T>` | `ComplexObjArrayChanges<T>` | Yes | `T[]`                  |
 | `TransactionalBucketBPlusTree<K>` | `Void`                | Yes (via Ref) | `TransactionalBucketBPlusTree<K>` |
 | `TransactionalLongBPlusTree<V>` | `Void`                  | Yes (via Ref) | `TransactionalLongBPlusTree<V>` |
 | `TransactionalObjectBPlusTree<K,V>` | `Void`              | Yes (via Ref) | `TransactionalObjectBPlusTree<K,V>` |

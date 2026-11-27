@@ -648,7 +648,11 @@ class RangeIndexSharedBorderTest {
 			for (final RangeIndex.RangePage page : emission.changedPages()) {
 				final TransactionalRangePoint[] copies = new TransactionalRangePoint[page.points().length];
 				for (int i = 0; i < copies.length; i++) {
-					copies[i] = page.points()[i].makeClone();
+					final TransactionalRangePoint point = page.points()[i];
+					copies[i] = new TransactionalRangePoint(
+						point.getThreshold(), point.getStarts(), point.getEnds(),
+						point.getRepeatedStarts(), point.getRepeatedEnds()
+					);
 				}
 				disk.put(page.pageSequence(), copies);
 			}

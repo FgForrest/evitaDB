@@ -30,8 +30,8 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree.BPlusLeafTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree.Entry;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
@@ -2215,20 +2215,20 @@ class TransactionalLongBPlusTreeTest {
 			);
 		}
 
+		/** Verifies that committing the tree merges its nested bitmap changes. */
 		@Test
 		@DisplayName("propagates changes through transactional layer producers")
 		void shouldHandleTransactionalLayerProducers() {
-			//noinspection unchecked
-			final TransactionalLongBPlusTree<TransactionalList<String>> theTree =
+			final TransactionalLongBPlusTree<TransactionalBitmap> theTree =
 				new TransactionalLongBPlusTree<>(
-					TransactionalList.genericClass(),
-					list -> new TransactionalList<>((List<String>) list)
+					TransactionalBitmap.class,
+					bitmap -> new TransactionalBitmap((Bitmap) bitmap)
 				);
-			theTree.insert(1, new TransactionalList<>(List.of("Value1", "Value2")));
+			theTree.insert(1, new TransactionalBitmap(1, 2));
 
 			assertStateAfterCommit(
 				theTree,
-				tested -> tested.search(1).orElseThrow().add("Value3"),
+				tested -> tested.search(1).orElseThrow().add(3),
 				(original, committed) -> {
 					assertEquals(2, original.search(1).orElseThrow().size());
 					assertEquals(3, committed.search(1).orElseThrow().size());
@@ -2851,23 +2851,24 @@ class TransactionalLongBPlusTreeTest {
 			);
 		}
 
+		/** Verifies that a producer value type requires a wrapper. */
 		@Test
 		@DisplayName("rejects value type implementing TransactionalLayerProducer without wrapper")
 		void shouldRejectTransactionalValueTypeWithoutWrapper() {
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new TransactionalLongBPlusTree<>(3, 1, 3, 1, TransactionalList.genericClass())
+				() -> new TransactionalLongBPlusTree<>(3, 1, 3, 1, TransactionalBitmap.class)
 			);
 		}
 
+		/** Checks the default block sizes for a producer-valued tree. */
 		@Test
 		@DisplayName("default block sizes are applied by the wrapper constructor")
 		void shouldSetDefaultBlockSizesWithWrapperConstructor() {
-			//noinspection unchecked
-			final TransactionalLongBPlusTree<TransactionalList<String>> tree =
+			final TransactionalLongBPlusTree<TransactionalBitmap> tree =
 				new TransactionalLongBPlusTree<>(
-					TransactionalList.genericClass(),
-					list -> new TransactionalList<>((List<String>) list)
+					TransactionalBitmap.class,
+					bitmap -> new TransactionalBitmap((Bitmap) bitmap)
 				);
 			assertEquals(64, tree.getValueBlockSize());
 			assertEquals(31, tree.getMinValueBlockSize());
@@ -2876,7 +2877,7 @@ class TransactionalLongBPlusTreeTest {
 			assertEquals(0, tree.size());
 
 			// should work -- wrapper is provided
-			tree.insert(1, new TransactionalList<>(List.of("A")));
+			tree.insert(1, new TransactionalBitmap(1));
 			assertEquals(1, tree.size());
 		}
 
@@ -3041,21 +3042,21 @@ class TransactionalLongBPlusTreeTest {
 	@DisplayName("Deep atomicity")
 	class DeepAtomicityTest {
 
+		/** Verifies that rollback discards nested bitmap changes. */
 		@Test
 		@DisplayName("rollback of nested TransactionalLayerProducer value undoes changes")
 		void shouldRollbackNestedTransactionalLayerProducerValues() {
-			//noinspection unchecked
-			final TransactionalLongBPlusTree<TransactionalList<String>> tree =
+			final TransactionalLongBPlusTree<TransactionalBitmap> tree =
 				new TransactionalLongBPlusTree<>(
-					TransactionalList.genericClass(),
-					list -> new TransactionalList<>((List<String>) list)
+					TransactionalBitmap.class,
+					bitmap -> new TransactionalBitmap((Bitmap) bitmap)
 				);
-			tree.insert(1, new TransactionalList<>(List.of("A", "B")));
+			tree.insert(1, new TransactionalBitmap(1, 2));
 
 			assertStateAfterRollback(
 				tree,
 				tested -> {
-					tested.search(1).orElseThrow().add("C");
+					tested.search(1).orElseThrow().add(3);
 					// within transaction, should see 3 elements
 					assertEquals(3, tested.search(1).orElseThrow().size());
 				},
@@ -3067,33 +3068,33 @@ class TransactionalLongBPlusTreeTest {
 			);
 		}
 
+		/** Verifies that commit merges both changed bitmaps. */
 		@Test
 		@DisplayName("commit with multiple TransactionalLayerProducer values")
 		void shouldCommitMultipleTransactionalLayerProducerValues() {
-			//noinspection unchecked
-			final TransactionalLongBPlusTree<TransactionalList<String>> tree =
+			final TransactionalLongBPlusTree<TransactionalBitmap> tree =
 				new TransactionalLongBPlusTree<>(
-					TransactionalList.genericClass(),
-					list -> new TransactionalList<>((List<String>) list)
+					TransactionalBitmap.class,
+					bitmap -> new TransactionalBitmap((Bitmap) bitmap)
 				);
-			tree.insert(1, new TransactionalList<>(List.of("A")));
-			tree.insert(2, new TransactionalList<>(List.of("X")));
+			tree.insert(1, new TransactionalBitmap(1));
+			tree.insert(2, new TransactionalBitmap(10));
 
 			assertStateAfterCommit(
 				tree,
 				tested -> {
-					tested.search(1).orElseThrow().add("B");
-					tested.search(2).orElseThrow().add("Y");
+					tested.search(1).orElseThrow().add(2);
+					tested.search(2).orElseThrow().add(20);
 				},
 				(original, committed) -> {
 					// original unchanged
 					assertEquals(1, original.search(1).orElseThrow().size());
 					assertEquals(1, original.search(2).orElseThrow().size());
 					// committed has the changes
-					final TransactionalList<String> list1 = committed.search(1).orElseThrow();
-					assertEquals(2, list1.size());
-					final TransactionalList<String> list2 = committed.search(2).orElseThrow();
-					assertEquals(2, list2.size());
+					final TransactionalBitmap bitmap1 = committed.search(1).orElseThrow();
+					assertArrayEquals(new int[]{1, 2}, bitmap1.getArray());
+					final TransactionalBitmap bitmap2 = committed.search(2).orElseThrow();
+					assertArrayEquals(new int[]{10, 20}, bitmap2.getArray());
 				}
 			);
 		}
