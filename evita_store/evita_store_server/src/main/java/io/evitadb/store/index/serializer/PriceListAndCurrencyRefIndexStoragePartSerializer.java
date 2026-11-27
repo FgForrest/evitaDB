@@ -29,19 +29,19 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
 import io.evitadb.store.index.serializer.PriceIndexHeaderSerializer.PriceIndexHeader;
 import io.evitadb.store.index.serializer.util.SortedIntArrayCodec;
 import lombok.RequiredArgsConstructor;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link PriceListAndCurrencySuperIndexStoragePart} from/to binary format.
+ * Reads and writes {@link PriceListAndCurrencyRefIndexStoragePart} in binary format.
  *
- * The price ids array is strictly ascending (it is built from a `TransactionalObjArray` of price records sorted by
- * internal price id and then deduped), so it is delta-varint encoded via {@link SortedIntArrayCodec} instead of as raw
- * fixed 4-byte ints. The codec asserts the non-decreasing invariant on write, so any future breakage of that fragile
- * ordering fails loud rather than silently corrupting the stream. The pre-slimming format is read by
- * {@link PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1}.
+ * The indexed price ID bitmap supplies IDs in ascending order. {@link SortedIntArrayCodec} encodes their deltas
+ * as varints and checks the non-decreasing order on write.
+ *
+ * {@link PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1} reads fixed-width price IDs with
+ * epoch-second validity thresholds. {@link PriceListAndCurrencyRefIndexStoragePartSerializer_2026_2}
+ * reads delta-varint price IDs with epoch-second validity thresholds.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

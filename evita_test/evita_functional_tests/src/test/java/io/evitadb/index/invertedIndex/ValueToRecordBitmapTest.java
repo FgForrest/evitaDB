@@ -41,8 +41,7 @@ import static io.evitadb.test.TestTags.CACHE;
 
 /**
  * Tests for {@link ValueToRecordBitmap} covering construction,
- * non-transactional operations, STM commit/rollback, equality,
- * makeClone, and edge cases.
+ * non-transactional operations, STM commit/rollback, equality and edge cases.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -334,33 +333,6 @@ class ValueToRecordBitmapTest implements TimeBoundedTestSupport {
 				1,
 				bucket.getMaintainedTransactionalCreators().size()
 			);
-		}
-	}
-
-	@Nested
-	@DisplayName("makeClone")
-	class MakeCloneTest {
-
-		@Test
-		@DisplayName("clone is different instance with equal data")
-		void shouldCloneWithSameData() {
-			final ValueToRecordBitmap original =
-				new ValueToRecordBitmap("val", 1, 2, 3);
-			final ValueToRecordBitmap clone = original.makeClone();
-			assertNotSame(original, clone);
-			assertTrue(original.deepEquals(clone));
-			assertEquals(original.getValue(), clone.getValue());
-		}
-
-		@Test
-		@DisplayName("mutating clone does not affect original")
-		void shouldNotAffectOriginalOnCloneMutation() {
-			final ValueToRecordBitmap original =
-				new ValueToRecordBitmap("val", 1, 2);
-			final ValueToRecordBitmap clone = original.makeClone();
-			clone.addRecord(99);
-			assertFalse(original.getRecordIds().contains(99));
-			assertEquals(2, original.getRecordIds().size());
 		}
 	}
 

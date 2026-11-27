@@ -26,7 +26,6 @@ package io.evitadb.index.invertedIndex;
 import io.evitadb.core.transaction.memory.TransactionalCreatorMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.index.array.TransactionalObject;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -52,7 +51,6 @@ import java.util.PrimitiveIterator.OfInt;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 public class ValueToRecordBitmap implements ValueToRecord,
-	TransactionalObject<ValueToRecordBitmap>,
 	TransactionalCreatorMaintainer {
 	@Serial private static final long serialVersionUID = 8584161806399686698L;
 	/**
@@ -223,10 +221,6 @@ public class ValueToRecordBitmap implements ValueToRecord,
 			'}';
 	}
 
-	/*
-		TransactionalObject implementation
-	 */
-
 	@Nonnull
 	@Override
 	public ValueToRecordBitmap createCopyWithMergedTransactionalMemory(
@@ -241,12 +235,6 @@ public class ValueToRecordBitmap implements ValueToRecord,
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		this.recordIds.removeLayer(transactionalLayer);
-	}
-
-	@Nonnull
-	@Override
-	public ValueToRecordBitmap makeClone() {
-		return new ValueToRecordBitmap(this.value, new TransactionalBitmap(this.recordIds));
 	}
 
 	@Nonnull

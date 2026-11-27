@@ -27,28 +27,22 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
+import io.evitadb.index.array.TransactionalIntArray;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.index.set.TransactionalSet;
-import io.evitadb.index.array.TransactionalIntArray;
-import io.evitadb.index.array.TransactionalObjArray;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -153,23 +147,6 @@ class TransactionalLayerMaintainerSavepointTest {
 	}
 
 	@Test
-	@DisplayName("TransactionalList: rollbackSavepoint reverts adds/removes made in the savepoint")
-	void shouldRollbackSavepointForList() {
-		final List<String> delegate = new ArrayList<>();
-		delegate.add("a");
-		final TransactionalList<String> list = new TransactionalList<>(delegate);
-		assertSavepointRollbackRestores(
-			list,
-			it -> it.add("b"),
-			it -> {
-				it.add("c");
-				it.remove("a");
-			},
-			Objects::equals
-		);
-	}
-
-	@Test
 	@DisplayName("TransactionalBitmap: rollbackSavepoint reverts adds/removes made in the savepoint")
 	void shouldRollbackSavepointForBitmap() {
 		final TransactionalBitmap bitmap = new TransactionalBitmap(1, 2, 3);
@@ -223,35 +200,18 @@ class TransactionalLayerMaintainerSavepointTest {
 		);
 	}
 
+	/**
+	 * Verifies that rollback discards a positional array diff created after the savepoint opens.
+	 */
 	@Test
-	@DisplayName("TransactionalObjArray: rollbackSavepoint reverts adds/removes made in the savepoint")
-	void shouldRollbackSavepointForObjArray() {
-		final TransactionalObjArray<String> array = new TransactionalObjArray<>(
-			new String[]{"a", "c", "e"}, Comparator.naturalOrder()
-		);
-		assertSavepointRollbackRestores(
-			array,
-			it -> it.add("g"),
-			it -> {
-				it.add("b");
-				it.add("d");
-				it.remove("c");
-			},
-			Arrays::equals
-		);
-	}
-
-	@Test
-	@DisplayName("TransactionalObjArray: a layer created inside the savepoint is removed on rollback")
-	void shouldRemoveCreatedObjArrayLayerOnRollback() {
-		final TransactionalObjArray<String> array = new TransactionalObjArray<>(
-			new String[]{"a", "c", "e"}, Comparator.naturalOrder()
-		);
+	@DisplayName("TransactionalIntArray: a layer created inside the savepoint is removed on rollback")
+	void shouldRemoveCreatedIntArrayLayerOnRollback() {
+		final TransactionalIntArray array = new TransactionalIntArray(new int[]{1, 3, 5});
 		assertSavepointRemovesCreatedLayer(
 			array,
 			it -> {
-				it.add("b");
-				it.remove("c");
+				it.add(2);
+				it.remove(3);
 			},
 			Arrays::equals
 		);
@@ -288,23 +248,6 @@ class TransactionalLayerMaintainerSavepointTest {
 				it.put("c", 3);
 				it.remove("a");
 				it.put("b", 20);
-			},
-			Objects::equals
-		);
-	}
-
-	@Test
-	@DisplayName("TransactionalList: an undo-journal memento can be restored repeatedly and stays faithful")
-	void shouldSupportRepeatRestoreForList() {
-		final List<String> delegate = new ArrayList<>();
-		delegate.add("a");
-		final TransactionalList<String> list = new TransactionalList<>(delegate);
-		assertRepeatRestoreSafe(
-			list,
-			it -> it.add(1, "b"),
-			it -> {
-				it.add(2, "c");
-				it.remove("a");
 			},
 			Objects::equals
 		);
@@ -417,103 +360,6 @@ class TransactionalLayerMaintainerSavepointTest {
 			assertEquals(
 				before, after,
 				"a removal made through a pre-savepoint entry iterator must be reverted by rollbackSavepoint"
-			);
-		});
-	}
-
-	@Test
-	@DisplayName("TransactionalList: iterator removal as the first savepoint touch is reverted on rollback")
-	void shouldRollbackSavepointForListIteratorRemoveAsFirstSavepointTouch() {
-		final List<String> delegate = new ArrayList<>();
-		delegate.add("a");
-		final TransactionalList<String> list = new TransactionalList<>(delegate);
-		runInTransaction(() -> {
-			final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
-			// the diff layer exists before the savepoint opens
-			list.add("b");
-			final List<String> before = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
-
-			final Savepoint savepoint = maintainer.openSavepoint();
-			// the FIRST (and only) layer touch inside the savepoint is a removal through the merged list iterator
-			final Iterator<String> it = list.iterator();
-			while (it.hasNext()) {
-				if ("a".equals(it.next())) {
-					it.remove();
-					break;
-				}
-			}
-			final List<String> during = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
-			assertNotEquals(
-				before, during,
-				"Savepoint mutation should have changed the visible state - the test would be vacuous otherwise."
-			);
-
-			maintainer.rollbackSavepoint(savepoint);
-			final List<String> after = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
-			assertEquals(
-				before, after,
-				"a removal made solely through the list iterator must be reverted by rollbackSavepoint"
-			);
-		});
-	}
-
-	@Test
-	@DisplayName("TransactionalList: listIterator set as the first savepoint touch is reverted on rollback")
-	void shouldRollbackSavepointForListIteratorSetAsFirstSavepointTouch() {
-		final List<String> delegate = new ArrayList<>();
-		delegate.add("a");
-		final TransactionalList<String> list = new TransactionalList<>(delegate);
-		runInTransaction(() -> {
-			final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
-			list.add("b");
-			final List<String> before = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
-
-			final Savepoint savepoint = maintainer.openSavepoint();
-			// the FIRST layer touch inside the savepoint is an in-place set through the list iterator
-			final ListIterator<String> it = list.listIterator();
-			it.next();
-			it.set("z");
-			final List<String> during = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
-			assertNotEquals(
-				before, during,
-				"Savepoint mutation should have changed the visible state - the test would be vacuous otherwise."
-			);
-
-			maintainer.rollbackSavepoint(savepoint);
-			final List<String> after = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
-			assertEquals(
-				before, after,
-				"an in-place set made solely through the list iterator must be reverted by rollbackSavepoint"
-			);
-		});
-	}
-
-	@Test
-	@DisplayName("TransactionalList: listIterator add as the first savepoint touch is reverted on rollback")
-	void shouldRollbackSavepointForListIteratorAddAsFirstSavepointTouch() {
-		final List<String> delegate = new ArrayList<>();
-		delegate.add("a");
-		final TransactionalList<String> list = new TransactionalList<>(delegate);
-		runInTransaction(() -> {
-			final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
-			list.add("b");
-			final List<String> before = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
-
-			final Savepoint savepoint = maintainer.openSavepoint();
-			// the FIRST layer touch inside the savepoint is an insertion through the list iterator
-			final ListIterator<String> it = list.listIterator();
-			it.add("z");
-			final List<String> during = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
-			assertNotEquals(
-				before, during,
-				"Savepoint mutation should have changed the visible state - the test would be vacuous otherwise."
-			);
-
-			maintainer.rollbackSavepoint(savepoint);
-			final List<String> after = maintainer.getStateCopyWithCommittedChangesWithoutDiscardingState(list);
-			assertEquals(
-				before, after,
-				"an insertion made solely through the list iterator must be reverted by rollbackSavepoint"
 			);
 		});
 	}

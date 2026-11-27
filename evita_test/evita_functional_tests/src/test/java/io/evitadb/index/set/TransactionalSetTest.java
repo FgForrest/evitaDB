@@ -1343,10 +1343,8 @@ class TransactionalSetTest {
 		}
 
 		/**
-		 * Identity-based record that mimics PriceRecordContract: equals/hashCode key only on
-		 * {@link #id()} while {@link #content()} is logical payload that may change without changing
-		 * identity. Implements {@link ContentComparator} so the change layer can detect content
-		 * divergence and substitute the stale instance.
+		 * Test element whose identity is {@link #id()} and whose payload is {@link #content()}.
+		 * {@link ContentComparator} lets the change layer detect payload changes for the same identity.
 		 */
 		record Box(int id, @Nonnull String content) implements ContentComparator<Box> {
 

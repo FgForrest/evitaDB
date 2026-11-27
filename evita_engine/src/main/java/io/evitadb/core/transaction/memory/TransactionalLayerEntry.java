@@ -55,8 +55,7 @@ class TransactionalLayerEntry<T> {
 	 */
 	@Nonnull @Getter private final TransactionalLayerCreator<T> creator;
 	/**
-	 * Contains the object that {@link io.evitadb.index.array.TransactionalObject} uses to track the changes made upon
-	 * the immutable state.
+	 * Contains the layer in which the creator tracks changes to its committed state.
 	 */
 	@Nonnull @Getter private final T item;
 	/**

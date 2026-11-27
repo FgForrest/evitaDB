@@ -308,8 +308,10 @@ answer is a miss rather than a wrong bucket -- until the next write happens to r
 | Family | Strategy | Pre-image |
 |--------|----------|-----------|
 | `TransactionalReference`, `TransactionalBoolean` | first touch, self-captured | the single held value |
-| `TransactionalIntArray`, `TransactionalObjArray`, `TransactionalComplexObjArray` | first touch, self-captured | the whole delegate array **reference** (writes always allocate a fresh array, so the outgoing reference is already an immutable snapshot) |
-| `TransactionalMap`, `PersistentTransactionalMap`, `TransactionalSet`, `TransactionalList` | per operation | the one slot / membership each operation overwrites (`WarmUpMapJournal` for the map pair). `clear()` is the exception -- it copies the whole delegate, being a whole-structure operation anyway. Iterators and views are swapped for journalling wrappers while a savepoint is open. |
+| `TransactionalIntArray` | first touch, self-captured | the outgoing delegate array reference |
+| `TransactionalMap` | per operation | overwritten slot or ordered copy of entries for `clear()` |
+| `TransactionalSet` | per operation | changed membership or ordered copy of elements for `clear()` |
+| `PersistentTransactionalMap` | per operation | overwritten slot or outgoing state reference |
 | `TransactionalBitmap` | per operation | the membership each operation actually changes -- one inverse per single-record write, one inverse per bulk write covering exactly the ids whose membership that call flipped |
 | B+ tree nodes and `UnorderedLookupTree` nodes | first touch, via `writeLayer` | each node's own `Snapshotable` memento, bounded by block size |
 | Composite index layers -- `CatalogIndex`, `AttributeIndex`, `ChainIndex`, the facet and price index layers | *(nothing to record)* | their diff layer is pure in-transaction bookkeeping that only a commit-merge consumes; outside a transaction there is no state of their own to rewind, and the real state sits in contained structures that journal their own writes |
@@ -317,6 +319,19 @@ answer is a miss rather than a wrong bucket -- until the next write happens to r
 | Index population counters (`IndexPopulation`) | first touch, self-captured | a clone of the fixed-size per-`(EntityIndexType, Scope)` count array |
 | `ValueIdAllocator` | first touch, self-captured | the `int` high-water mark, restored absolutely rather than decremented -- the ids minted inside the savepoint go back to the pool |
 | `DataStoreChanges` | first touch, `Snapshotable` **plus** per-write record inverses **plus** per-read content inverses | a **journal position** for its in-memory state, a **stored record's pre-image** for each direct write, a **content copy** of each trapped part it hands out -- see below |
+
+`TransactionalIntArray` allocates a new array on each write, so the outgoing reference is already a snapshot.
+`TransactionalMap.clear()` and `TransactionalSet.clear()` capture ordered copies before clearing their delegates
+in place. `PersistentTransactionalMap.clear()` swaps in an empty buffer and journals the outgoing state reference.
+The first write that thaws a sealed persistent map also journals the outgoing sealed reference.
+
+`TransactionalMap` wraps `keySet()`, `values()` and `entrySet()` only when the view is obtained during an open
+warm-up savepoint. `PersistentTransactionalMap` does the same for thawed state. Sealed views are immutable.
+Map views obtained before the savepoint stay unwrapped, including iterators obtained from those views during the
+savepoint. Wrapped views journal removals (including iterator removals), clears and `Entry.setValue()` while a
+savepoint is open. Clearing a wrapped view in either map copies the view's backing map before clearing it in place.
+`TransactionalSet` always wraps delegate iterators and checks for an open savepoint on `remove()`, including for
+iterators obtained before it opened. It journals removal when the current element is non-null.
 
 `DataStoreChanges` is worth singling out because it is what makes the entity *body* atomic with its
 indexes, and because it is the one participant that needs **both** granularities at once.

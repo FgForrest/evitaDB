@@ -27,7 +27,6 @@ import io.evitadb.core.transaction.memory.TransactionalCreatorMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
-import io.evitadb.index.array.TransactionalObject;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
@@ -84,7 +83,7 @@ import java.util.Objects;
  * other side's levels over with their spare capacity, so the start and end arrays double independently. Growing by
  * doubling keeps the replacements logarithmic in the number of occurrences added to one point between two copies of
  * it, even where one record starts and ends here thousands of times. Readers stop at the first empty level; the spare
- * levels are dropped whenever the point is copied — on the commit of a point changed in place, on clone, and by the
+ * levels are dropped whenever the point is copied — on the commit of a point changed in place and by the
  * persisted form, which writes the non-empty levels only. (A point minted by a growth and not changed afterwards is
  * not dirty, so the commit takes it over as it is, spare levels included.) A commit that copies a point visits every
  * level of it, so the doubling amortizes the additions within one transaction, not across transactions: once a commit
@@ -97,8 +96,7 @@ import java.util.Objects;
 @ThreadSafe
 @EqualsAndHashCode(of = "threshold")
 public class TransactionalRangePoint
-	implements TransactionalObject<TransactionalRangePoint>,
-	VoidTransactionMemoryProducer<TransactionalRangePoint>,
+	implements VoidTransactionMemoryProducer<TransactionalRangePoint>,
 	RangePoint<TransactionalRangePoint>,
 	TransactionalCreatorMaintainer,
 	Serializable {
@@ -599,18 +597,6 @@ public class TransactionalRangePoint
 		for (final TransactionalBitmap level : getRepeatedEnds()) {
 			level.removeLayer(transactionalLayer);
 		}
-	}
-
-	@Nonnull
-	@Override
-	public TransactionalRangePoint makeClone() {
-		return new TransactionalRangePoint(
-			this.threshold,
-			getStarts(),
-			getEnds(),
-			this.repeatedStarts,
-			this.repeatedEnds
-		);
 	}
 
 	/**

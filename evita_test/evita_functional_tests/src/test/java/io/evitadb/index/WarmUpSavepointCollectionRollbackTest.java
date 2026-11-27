@@ -25,7 +25,6 @@ package io.evitadb.index;
 
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
 import io.evitadb.index.map.TransactionalMap;
@@ -38,14 +37,12 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -53,12 +50,10 @@ import java.util.Set;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies that the collection-backed index structures — {@link TransactionalMap}, {@link PersistentTransactionalMap}
- * and its producer-valued subclass, {@link TransactionalSet} and {@link TransactionalList} — rewind their
+ * and its producer-valued subclass, and {@link TransactionalSet} — rewind their
  * non-transactional (WARM_UP) writes when the {@link WarmUpSavepoint} bracketing them is rolled back, and keep them
  * when it is committed.
  *
@@ -77,7 +72,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 @Tag(ENGINE)
 @Tag(TRANSACTION)
-@DisplayName("Warm-up savepoint rollback of map, set and list structures")
+@DisplayName("Warm-up savepoint rollback of map and set structures")
 class WarmUpSavepointCollectionRollbackTest {
 
 	/**
@@ -524,162 +519,8 @@ class WarmUpSavepointCollectionRollbackTest {
 	}
 
 	@Nested
-	@DisplayName("TransactionalList")
-	class Lists {
-
-		@Test
-		@DisplayName("Rollback restores the list through every positional mutator")
-		void shouldRestoreListAfterMixedMutations() {
-			final TransactionalList<String> list = new TransactionalList<>(
-				new ArrayList<>(List.of("a", "b", "c"))
-			);
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			list.add("d");
-			list.add(0, "z");
-			list.set(2, "B");
-			list.remove("c");
-			list.removeFirst();
-			list.addAll(List.of("e", "f"));
-			assertEquals(List.of("a", "B", "d", "e", "f"), new ArrayList<>(list), "self-check on in-savepoint state");
-			savepoint.rollback();
-
-			assertEquals(
-				List.of("a", "b", "c"), new ArrayList<>(list),
-				"Reverse replay must un-shift the positional inverses back to the pre-savepoint list."
-			);
-		}
-
-		@Test
-		@DisplayName("Rollback restores the list after bulk removals driven by the iterator")
-		void shouldRestoreBulkRemovals() {
-			final TransactionalList<String> list = new TransactionalList<>(
-				new ArrayList<>(List.of("a", "b", "c", "d", "e"))
-			);
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			list.removeAll(List.of("a", "c"));
-			list.retainAll(List.of("b", "d"));
-			assertEquals(List.of("b", "d"), new ArrayList<>(list), "self-check on the in-savepoint state");
-			savepoint.rollback();
-
-			assertEquals(
-				List.of("a", "b", "c", "d", "e"), new ArrayList<>(list),
-				"removeAll and retainAll run through the iterator, which must journal every removal."
-			);
-		}
-
-		@Test
-		@DisplayName("Rollback restores writes made through the list iterator")
-		void shouldRestoreListIteratorWrites() {
-			final TransactionalList<String> list = new TransactionalList<>(
-				new ArrayList<>(List.of("a", "b", "c"))
-			);
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			final ListIterator<String> it = list.listIterator();
-			it.next();
-			it.set("A");
-			it.add("inserted");
-			it.next();
-			it.remove();
-			assertEquals(List.of("A", "inserted", "c"), new ArrayList<>(list), "self-check on in-savepoint state");
-			savepoint.rollback();
-
-			assertEquals(
-				List.of("a", "b", "c"), new ArrayList<>(list),
-				"set, add and remove on a list iterator all reach the delegate and must be journaled."
-			);
-		}
-
-		@Test
-		@DisplayName("Rollback restores a list rewritten through replaceAll and sort")
-		void shouldRestoreReplaceAllAndSort() {
-			final TransactionalList<String> list = new TransactionalList<>(
-				new ArrayList<>(List.of("c", "a", "b"))
-			);
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			list.replaceAll(String::toUpperCase);
-			list.sort(Comparator.naturalOrder());
-			assertEquals(List.of("A", "B", "C"), new ArrayList<>(list), "self-check on the in-savepoint state");
-			savepoint.rollback();
-
-			assertEquals(
-				List.of("c", "a", "b"), new ArrayList<>(list),
-				"Both defaults write through the list iterator, which is exactly why it is wrapped."
-			);
-		}
-
-		@Test
-		@DisplayName("Rollback restores a list that was cleared inside the savepoint")
-		void shouldRestoreClearedList() {
-			final TransactionalList<String> list = new TransactionalList<>(new ArrayList<>(List.of("a", "b")));
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			list.clear();
-			list.add("c");
-			savepoint.rollback();
-
-			assertEquals(List.of("a", "b"), new ArrayList<>(list), "Rollback must restore a cleared list wholesale.");
-		}
-
-		@Test
-		@DisplayName("Removing an element the list does not hold changes nothing to rewind")
-		void shouldReportMissingElementRemovalFaithfully() {
-			final TransactionalList<String> list = new TransactionalList<>(new ArrayList<>(List.of("a")));
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			assertFalse(list.remove("missing"), "A removal of an absent element must still report false.");
-			savepoint.rollback();
-
-			assertEquals(List.of("a"), new ArrayList<>(list), "Nothing changed, so nothing may be rewound either.");
-		}
-
-		@Test
-		@DisplayName("Commit keeps the writes made inside the savepoint")
-		void shouldKeepListOnCommit() {
-			final TransactionalList<String> list = new TransactionalList<>(new ArrayList<>(List.of("a")));
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			list.add("b");
-			list.remove("a");
-			savepoint.commit();
-
-			assertEquals(List.of("b"), new ArrayList<>(list), "Commit must keep the savepoint's writes.");
-		}
-	}
-
-
-	@Nested
 	@DisplayName("Views taken outside the savepoint that brackets the write")
 	class ViewsCrossingTheBracket {
-
-		@Test
-		@DisplayName("A list iterator created before the savepoint opened still journals its writes")
-		void shouldJournalWritesThroughAnIteratorOlderThanTheSavepoint() {
-			final TransactionalList<String> list = new TransactionalList<>(
-				new ArrayList<>(List.of("a", "b", "c"))
-			);
-
-			// the iterator is taken with no savepoint on the thread - the point of the test is that the decision
-			// whether to journal cannot be made here, because it is not yet knowable
-			final ListIterator<String> it = list.listIterator();
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			it.next();
-			it.set("A");
-			it.next();
-			it.remove();
-			assertEquals(List.of("A", "c"), new ArrayList<>(list), "self-check on the in-savepoint state");
-			savepoint.rollback();
-
-			assertEquals(
-				List.of("a", "b", "c"), new ArrayList<>(list),
-				"An iterator that predates the savepoint writes into the same delegate as one taken inside it, so it " +
-					"has to journal into the same savepoint."
-			);
-		}
 
 		@Test
 		@DisplayName("A set iterator created before the savepoint opened still journals its removals")
@@ -697,42 +538,6 @@ class WarmUpSavepointCollectionRollbackTest {
 			assertEquals(
 				Set.of("a", "b", "c"), new LinkedHashSet<>(set),
 				"The removal reached the delegate through an iterator older than the savepoint and must be rewound."
-			);
-		}
-
-		@Test
-		@DisplayName("A sub-list handed out inside a savepoint refuses writes rather than losing them")
-		void shouldRefuseWritesThroughASubListTakenInsideTheSavepoint() {
-			final TransactionalList<String> list = new TransactionalList<>(
-				new ArrayList<>(List.of("a", "b", "c"))
-			);
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			final List<String> view = list.subList(0, 2);
-			assertEquals(List.of("a", "b"), view, "The view must still read through to the list.");
-			// a sub-list writes straight into the delegate, past every mutator this class journals through, so the
-			// only two honest options are to journal it or to refuse it - and silently losing it is neither
-			assertThrows(UnsupportedOperationException.class, () -> view.set(0, "z"));
-			assertThrows(UnsupportedOperationException.class, () -> view.add("z"));
-			assertThrows(UnsupportedOperationException.class, () -> view.removeFirst());
-			savepoint.rollback();
-
-			assertEquals(List.of("a", "b", "c"), new ArrayList<>(list), "Nothing was written, so nothing is rewound.");
-		}
-
-		@Test
-		@DisplayName("Outside a savepoint a sub-list stays the delegate's own live view")
-		void shouldHandOutALiveSubListOutsideASavepoint() {
-			final TransactionalList<String> list = new TransactionalList<>(
-				new ArrayList<>(List.of("a", "b", "c"))
-			);
-
-			final List<String> view = list.subList(0, 2);
-			view.set(0, "z");
-
-			assertEquals(
-				List.of("z", "b", "c"), new ArrayList<>(list),
-				"With no savepoint to rewind there is nothing to protect, and the live view is the documented result."
 			);
 		}
 	}

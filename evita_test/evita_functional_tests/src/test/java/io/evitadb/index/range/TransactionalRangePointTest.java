@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Tests for {@link TransactionalRangePoint} covering construction,
  * non-transactional operations, dirty tracking, STM commit/rollback,
- * deepEquals, makeClone, and edge cases.
+ * deepEquals, and edge cases.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -512,38 +512,6 @@ class TransactionalRangePointTest {
 	}
 
 	@Nested
-	@DisplayName("makeClone")
-	class MakeCloneTest {
-
-		@Test
-		@DisplayName("clone is new instance with same data")
-		void shouldCloneWithSameData() {
-			final TransactionalRangePoint original =
-				new TransactionalRangePoint(
-					5L, new int[]{1, 2}, new int[]{3, 4}
-				);
-			final TransactionalRangePoint clone = original.makeClone();
-			assertNotSame(original, clone);
-			assertEquals(5L, clone.getThreshold());
-			assertTrue(clone.deepEquals(original));
-		}
-
-		@Test
-		@DisplayName("mutating clone does not affect original")
-		void shouldNotAffectOriginalOnCloneMutation() {
-			final TransactionalRangePoint original =
-				new TransactionalRangePoint(
-					5L, new int[]{1}, new int[]{2}
-				);
-			final TransactionalRangePoint clone = original.makeClone();
-			clone.addStart(99);
-			clone.addEnd(88);
-			assertFalse(original.getStarts().contains(99));
-			assertFalse(original.getEnds().contains(88));
-		}
-	}
-
-	@Nested
 	@DisplayName("Edge cases")
 	class EdgeCasesTest {
 
@@ -760,19 +728,6 @@ class TransactionalRangePointTest {
 			assertEquals(1, twice.getRepeatedStarts().length, "precondition: an empty spare level is left behind");
 			assertTrue(twice.deepEquals(once));
 			assertEquals(twice.deepHashCode(), once.deepHashCode());
-		}
-
-		@Test
-		@DisplayName("makeClone copies the non-empty levels into bitmaps of its own and leaves the spares out")
-		void shouldCloneRepeatedLevels() {
-			final TransactionalRangePoint original = withStartLevels(new int[]{1, 2}, new int[]{1}, new int[]{1});
-			original.removeStart(1);
-			final TransactionalRangePoint clone = original.makeClone();
-
-			assertTrue(clone.deepEquals(original));
-			assertEquals(1, clone.getRepeatedStarts().length);
-			assertSame(clone, clone.addStart(2));
-			assertArrayEquals(new int[]{1}, original.getRepeatedStarts()[0].getArray());
 		}
 
 		@Test

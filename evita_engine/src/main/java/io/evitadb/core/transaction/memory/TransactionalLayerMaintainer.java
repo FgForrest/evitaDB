@@ -61,8 +61,7 @@ public class TransactionalLayerMaintainer {
 	 */
 	@Nonnull private final TransactionalLayerMaintainerFinalizer finalizer;
 	/**
-	 * Index of all transactional layer memories of all {@link io.evitadb.index.array.TransactionalObject} that work
-	 * with isolated transactional memory, keyed by {@link TransactionalLayerCreator#getId()}.
+	 * Index of the layers that track isolated transaction state, keyed by {@link TransactionalLayerCreator#getId()}.
 	 *
 	 * The map is primitive-keyed on purpose. Ids come from a JVM-wide sequence and therefore always sit outside the
 	 * {@link Long#valueOf(long)} cache, so a `Map<Long, …>` would allocate a boxed key on **every** visit - and the

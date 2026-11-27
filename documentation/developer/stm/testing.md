@@ -220,20 +220,24 @@ Every generational test class lives in `evita_test/evita_long_running_tests` and
 
 | Data structure                       | Generational test class (long-running module)      | Operations tested                                      |
 |--------------------------------------|----------------------------------------------------|--------------------------------------------------------|
-| `TransactionalIntArray`              | `LongRunningTransactionalIntArrayTest`             | Insert, remove, contains, indexOf                      |
-| `TransactionalObjArray`              | `LongRunningTransactionalObjArrayTest`             | Insert, remove of comparable objects                   |
-| `TransactionalMap`                   | `LongRunningTransactionalMapTest`                  | Put, remove, iterator-update, iterator-remove          |
-| `TransactionalSet`                   | `LongRunningTransactionalSetTest`                  | Add, remove, retainAll, removeAll                      |
-| `TransactionalList`                  | `LongRunningTransactionalListTest`                 | Add, remove, index-based access                        |
-| `TransactionalBitmap`                | `LongRunningTransactionalBitmapTest`              | Add, remove bits, cardinality                          |
-| `TransactionalBoolean`               | `LongRunningTransactionalBooleanTest`             | Set/clear, toggle                                      |
-| `TransactionalComplexObjArray`       | `LongRunningTransactionalComplexObjArrayTest`     | Insert, merge, subtract, obsolete check                |
-| `TransactionalBucketBPlusTree`       | `LongRunningTransactionalBucketBPlusTreeTest`     | Insert, remove, lookup; columnar bucket store          |
-| `TransactionalLongBPlusTree`         | `LongRunningTransactionalLongBPlusTreeTest`       | Insert, remove, lookup, range queries (primitive long key) |
-| `TransactionalObjectBPlusTree`       | `LongRunningTransactionalObjectBPlusTreeTest`     | Insert, remove, lookup with comparable keys            |
-| `CumulativeWeightBPlusTree`          | `LongRunningCumulativeWeightBPlusTreeTest`        | Insert, remove, cumulative-weight / rank queries       |
-| `PersistentTransactionalMap`         | `LongRunningPersistentTransactionalMapTest`       | Put, remove, iterator-update, iterator-remove vs. a `HashMap` oracle (committed snapshot must be a `ChampMap`) |
-| `PersistentTransactionalProducerMap` | `LongRunningPersistentTransactionalProducerMapTest` | Insert, remove, **in-place marked mutation** vs. a `key → committedValue` oracle |
+| `TransactionalIntArray`        | `LongRunningTransactionalIntArrayTest` | Add, indexed get, remove → committed array |
+| `TransactionalUnorderedIntArray` | `LongRunningTransactionalUnorderedIntArrayTest` | Append/insert/rm → order/index |
+| `UnorderedLookupTree` | `LongRunningUnorderedLookupTreeTest` | Positional insert, remove → order, lookups, integrity |
+| `TransactionalMap`  | `LongRunningTransactionalMapTest` | Put/remove, entry setValue, iterator remove → map contents |
+| Bitmap-valued map | `LongRunningTransactionalMapWithBitmapValuesTest` | Put/remove, bitmap add/remove → map and bits |
+| `TransactionalSet`                   | `LongRunningTransactionalSetTest`  | Add/remove, iterator remove → membership |
+| `TransactionalBitmap`      | `LongRunningTransactionalBitmapTest` | Add, indexed get, remove → ordered bits and size |
+| `TransactionalBoolean`          | `LongRunningTransactionalBooleanTest` | Set true/false → live and committed values |
+| `TransactionalReference` | `LongRunningTransactionalReferenceTest` | Set true/false → live and committed values |
+| `TransactionalRangePoint` | `LongRunningTransactionalRangePointTest` | Add/remove starts/ends → bitmaps, threshold |
+| `TransactionalBucketBPlusTree` | `LongRunningTransactionalBucketBPlusTreeTest` | Record add/rm → bucket order/count |
+| `TransactionalLongBPlusTree`   | `LongRunningTransactionalLongBPlusTreeTest` | Ins/upsert/rm, search/bit add → order |
+| `TransactionalObjectBPlusTree`  | `LongRunningTransactionalObjectBPlusTreeTest` | Insert/upsert/delete → value order |
+| `TransactionalElementBPlusTree` | `LongRunningTransactionalElementBPlusTreeTest` | Insert/delete → both ID orders |
+| `TransactionalIntToLongBPlusTree` | `LongRunningTransactionalIntToLongBPlusTreeTest` | Insert/upsert/rm → value scan |
+| `CumulativeWeightBPlusTree`  | `LongRunningCumulativeWeightBPlusTreeTest` | Insert/remove/reweight → order and ranks |
+| `PersistentTransactionalMap`      | `LongRunningPersistentTransactionalMapTest` | Put/rm, edit/rm entries → ChampMap |
+| `PersistentTransactionalProducerMap` | `LongRunningPersistentTransactionalProducerMapTest` | Put/rm, edit+mark → map |
 
 The bare functional `…Test` classes (e.g. `PersistentTransactionalMapTest`) keep only fast example-based unit
 tests; each one points at its `LongRunning…Test` sibling in a class-javadoc note so the generational proof is
