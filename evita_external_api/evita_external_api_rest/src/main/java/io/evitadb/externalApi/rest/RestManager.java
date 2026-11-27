@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
@@ -55,6 +56,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -64,7 +67,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
-import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Creates REST endpoints for particular Evita catalogs according generated OpenAPI schema.
@@ -98,10 +100,26 @@ public class RestManager {
 	/**
 	 * All registered catalogs
 	 */
-	@Nonnull private final Set<String> registeredCatalogs = createHashSet(20);
+	@Nonnull private final Set<String> registeredCatalogs = Collections.newSetFromMap(createConcurrentHashMap(20));
 
 	/**
-	 * Completable future that is completed when all initial catalogs are registered.
+	 * Catalogs whose latest attempted publication failed. A successful registration or refresh removes the catalog.
+	 */
+	@Nonnull private final Set<String> failedCatalogs = Collections.newSetFromMap(createConcurrentHashMap(20));
+
+	/**
+	 * Catalogs this manager owes no publication for, because they were already active when it subscribed to catalog
+	 * events and their announcement may have preceded the subscription.
+	 */
+	@Nonnull private final Set<String> catalogsNotOwed = Collections.newSetFromMap(createConcurrentHashMap(20));
+
+	/**
+	 * Whether the system change capture subscription has terminated.
+	 */
+	private volatile boolean catalogRoutingSubscriptionAbandoned;
+
+	/**
+	 * Tracks completion of the initial engine catalog loads for logging.
 	 */
 	private final CompletableFuture<Void> fullyInitialized;
 
@@ -115,6 +133,13 @@ public class RestManager {
 	 */
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createConcurrentHashMap(20);
 
+	/**
+	 * Creates this manager, subscribes to catalog changes and publishes the system API.
+	 *
+	 * @param evita engine serving the API
+	 * @param headerOptions HTTP header configuration
+	 * @param restOptions endpoint configuration
+	 */
 	public RestManager(@Nonnull Evita evita, @Nonnull HeaderOptions headerOptions, @Nonnull RestOptions restOptions) {
 		this.evita = evita;
 		this.headerOptions = headerOptions;
@@ -141,6 +166,13 @@ public class RestManager {
 		)
 			.subscribe(new SystemRestRefreshingObserver(this));
 
+		// Already active catalogs can have published their live-tail event before this subscription was installed.
+		for (final CatalogContract catalog : this.evita.getCatalogs()) {
+			if (catalog.getCatalogState().isActive()) {
+				this.catalogsNotOwed.add(catalog.getName());
+			}
+		}
+
 		// register initial endpoints
 		registerSystemApi();
 
@@ -164,6 +196,37 @@ public class RestManager {
 				}
 			}
 		);
+	}
+
+	/**
+	 * Reports whether this manager has settled the catalog's routing obligation.
+	 *
+	 * @param catalogName name whose routing is being checked
+	 * @return true if the route is registered, publication failed, this manager owes no publication, or the catalog
+	 *         event subscription has terminated
+	 */
+	public boolean isCatalogRoutingSettled(@Nonnull String catalogName) {
+		return this.catalogRoutingSubscriptionAbandoned || this.catalogsNotOwed.contains(catalogName) ||
+			this.failedCatalogs.contains(catalogName) || this.registeredCatalogs.contains(catalogName);
+	}
+
+	/**
+	 * Records termination of the catalog routing subscription.
+	 *
+	 * @param failure error that terminated the subscription, or null for normal completion
+	 */
+	public void catalogRoutingSubscriptionTerminated(@Nullable Throwable failure) {
+		this.catalogRoutingSubscriptionAbandoned = true;
+		if (failure != null) {
+			final List<String> unpublishedCatalogs = this.evita.getCatalogs().stream()
+				.filter(catalog -> catalog.getCatalogState().isActive())
+				.map(CatalogContract::getName)
+				.filter(name -> !this.registeredCatalogs.contains(name))
+				.sorted()
+				.toList();
+			log.error("REST catalog routing subscription failed. Active catalogs REST has not activated: {}",
+				unpublishedCatalogs, failure);
+		}
 	}
 
 	/**
@@ -220,14 +283,16 @@ public class RestManager {
 	}
 
 	/**
-	 * Register REST endpoints for new catalog. The catalog is recorded as registered only after the router publishes
-	 * its endpoints. An internal error while building or publishing them is logged and leaves no route, registration or
-	 * build statistics of the catalog behind; any other exception propagates.
+	 * Builds and publishes the REST endpoints for a catalog. An unusable catalog is skipped and stays owed. A failed
+	 * build marks the catalog's publication failed, which settles its routing until a later registration or refresh
+	 * succeeds: an internal error is logged and the partial registration cleaned up, any other failure propagates.
+	 * A {@link CatalogGoingLiveException} propagates without the mark and leaves the catalog owed; the host event that
+	 * announces the live catalog triggers its publication.
 	 *
 	 * @param catalogName name of the catalog to publish
-	 * @return true when the catalog's endpoints are published, false when the catalog is unusable and was skipped or
-	 *         its endpoints failed with an internal error
+	 * @return true when published, false when skipped or publication failed with an internal error
 	 * @throws RestInternalError when the catalog is already registered
+	 * @throws CatalogGoingLiveException when access is interrupted by the catalog going live
 	 */
 	public boolean registerCatalog(@Nonnull String catalogName) {
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
@@ -264,8 +329,12 @@ public class RestManager {
 				api.openApi().getPaths().size()
 			);
 			this.catalogBuildStatistics.put(catalogName, buildStatistics);
+			this.failedCatalogs.remove(catalogName);
 			return true;
+		} catch (CatalogGoingLiveException ex) {
+			throw ex;
 		} catch (EvitaInternalError ex) {
+			this.failedCatalogs.add(catalogName);
 			// log and skip the catalog entirely
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by REST API.", ex);
 
@@ -274,6 +343,9 @@ public class RestManager {
 			this.restRouter.unregisterCatalogApi(catalogName);
 			this.catalogBuildStatistics.remove(catalogName);
 			return false;
+		} catch (Throwable ex) {
+			this.failedCatalogs.add(catalogName);
+			throw ex;
 		}
 	}
 
@@ -290,8 +362,10 @@ public class RestManager {
 
 	/**
 	 * Update REST endpoints and OpenAPI schema of catalog. The new endpoints replace the old ones in one step once they
-	 * are built, so a build failure propagates and leaves the previous endpoints serving. A catalog that is not
-	 * registered yet is registered by {@link #registerCatalog(String)} instead.
+	 * are built, so a build failure propagates and leaves the previous endpoints serving. Any failure other than a
+	 * {@link CatalogGoingLiveException} also marks the catalog's publication failed, which settles its routing even if
+	 * the caller then withdraws the endpoints; a successful rebuild clears the mark. A catalog that is not registered
+	 * yet is registered by {@link #registerCatalog(String)} instead.
 	 *
 	 * @param catalogName name of the catalog to refresh or register
 	 * @return true when the catalog's endpoints are published afterwards, false only when the fallback registration
@@ -305,6 +379,25 @@ public class RestManager {
 			return registerCatalog(catalogName);
 		}
 
+		try {
+			this.rebuildCatalogApi(catalogName);
+			this.failedCatalogs.remove(catalogName);
+			return true;
+		} catch (CatalogGoingLiveException ex) {
+			throw ex;
+		} catch (Throwable ex) {
+			this.failedCatalogs.add(catalogName);
+			throw ex;
+		}
+	}
+
+	/**
+	 * Rebuilds the REST API of a registered catalog, swaps it in behind its existing endpoints and refreshes its
+	 * build statistics.
+	 *
+	 * @param catalogName name of the registered catalog
+	 */
+	private void rebuildCatalogApi(@Nonnull String catalogName) {
 		final long instanceBuildStartTime = System.currentTimeMillis();
 
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
@@ -328,8 +421,6 @@ public class RestManager {
 			countOpenApiSchemaLines(newApi.openApi()),
 			newApi.openApi().getPaths().size()
 		);
-
-		return true;
 	}
 
 	/**

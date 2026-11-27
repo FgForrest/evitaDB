@@ -36,7 +36,9 @@ import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.api.system.ProbesProvider.ApiState;
+import io.evitadb.externalApi.api.system.ProbesProvider.CatalogRoutingSettlement;
 import io.evitadb.externalApi.api.system.ProbesProvider.Readiness;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateOptions;
@@ -54,6 +56,7 @@ import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.File;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -78,17 +81,23 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	public static final String ENDPOINT_SYSTEM_READINESS = "readiness";
 
 	/**
-	 * Prints the status of the APIs as a JSON string.
+	 * Prints API readiness and, during catalog startup, the number of pending catalogs.
 	 *
 	 * @param builder   http response builder
 	 * @param readiness the readiness of the APIs
+	 * @param status overall readiness including startup catalog routing
+	 * @param catalogsPending count to include during catalog startup, or null when catalog routing has settled
+	 * @return JSON readiness response
 	 */
 	private static HttpResponse printApiStatus(
 		@Nonnull HttpResponseBuilder builder,
-		@Nonnull Readiness readiness
+		@Nonnull Readiness readiness,
+		@Nonnull ReadinessState status,
+		@Nullable Integer catalogsPending
 	) {
 		return builder.content(MediaType.JSON, "{\n" +
-			"\t\"status\": \"" + readiness.state().name() + "\",\n" +
+			"\t\"status\": \"" + status.name() + "\",\n" +
+			(catalogsPending == null ? "" : "\t\"catalogsPending\": " + catalogsPending + ",\n") +
 			"\t\"apis\": {\n" +
 			Arrays.stream(readiness.apiStates())
 				.sorted(Comparator.comparing(ApiState::apiCode))
@@ -184,11 +193,14 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	}
 
 	/**
-	 * Renders the readiness response.
+	 * Renders the readiness response. It answers HTTP 200 only when the probe reports `READY` and startup catalog
+	 * routing has settled. Until routing settles, `READY` is reported as `STARTING` and the response carries the number
+	 * of pending catalogs as `catalogsPending`. Every other state answers HTTP 503.
 	 *
 	 * @param evita             the evitaDB server
 	 * @param externalApiServer the external API server
 	 * @param enabledEndPoints  the enabled API endpoints
+	 * @return asynchronous HTTP readiness response
 	 */
 	private static CompletableFuture<HttpResponse> renderReadinessResponse(
 		@Nonnull Evita evita,
@@ -197,26 +209,24 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 	) {
 		return evita.executeAsyncInRequestThreadPool(
 			() -> {
-				final HttpResponseBuilder builder = HttpResponse.builder();
-				if (evita.isActive()) {
-					final Optional<Readiness> readiness = externalApiServer.getProbeProviders()
-						.stream()
-						.map(it -> it.getReadiness(evita, externalApiServer, enabledEndPoints))
-						.findFirst();
-
-					if (evita.isFullyInitialized() && readiness.map(it -> it.state() == ReadinessState.READY).orElse(false)) {
-						builder.status(HttpStatus.OK);
-						return printApiStatus(builder, readiness.get());
-					} else if (readiness.isPresent()) {
-						builder.status(HttpStatus.SERVICE_UNAVAILABLE);
-						return printApiStatus(builder, readiness.get());
-					} else {
-						builder.status(HttpStatus.SERVICE_UNAVAILABLE);
-						return builder.content(MediaType.JSON, "{\"status\": \"" + ReadinessState.UNKNOWN.name() + "\"}").build();
-					}
-				} else {
+				if (!evita.isActive()) {
 					return renderUnavailable();
 				}
+				final HttpResponseBuilder builder = HttpResponse.builder();
+				final Optional<ProbesProvider> probe = externalApiServer.getProbeProviders().stream().findFirst();
+				if (probe.isEmpty()) {
+					return builder.status(HttpStatus.SERVICE_UNAVAILABLE)
+						.content(MediaType.JSON, "{\"status\": \"" + ReadinessState.UNKNOWN.name() + "\"}").build();
+				}
+
+				final ProbesProvider provider = probe.get();
+				final Readiness readiness = provider.getReadiness(evita, externalApiServer, enabledEndPoints);
+				final CatalogRoutingSettlement outcome = provider.getCatalogRoutingSettlement(evita, externalApiServer);
+				final boolean settled = outcome.settled();
+				final ReadinessState status =
+					CatalogRoutingSettlement.resolveReadinessState(readiness.state(), settled);
+				builder.status(status == ReadinessState.READY ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE);
+				return printApiStatus(builder, readiness, status, settled ? null : outcome.catalogsPending());
 			}).toCompletableFuture();
 	}
 

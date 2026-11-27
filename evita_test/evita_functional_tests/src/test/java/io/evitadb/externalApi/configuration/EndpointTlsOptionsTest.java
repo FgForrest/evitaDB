@@ -139,7 +139,14 @@ class EndpointTlsOptionsTest {
 		}
 	}
 
-	/** Creates real endpoint options through the constructor Jackson uses. */
+	/**
+	 * Creates real endpoint options through the constructor Jackson uses.
+	 *
+	 * @param endpoint endpoint whose options are being created
+	 * @param mode TLS mode passed to the options
+	 * @return options for the requested endpoint
+	 * @throws IllegalArgumentException if the endpoint is unknown
+	 */
 	@Nonnull
 	private static AbstractApiOptions createOptions(@Nonnull String endpoint, @Nullable String mode) {
 		return switch (endpoint) {
@@ -149,7 +156,8 @@ class EndpointTlsOptionsTest {
 			case "lab" -> new LabOptions(null, ":5555", null, mode, null, null, null, null);
 			case "system" -> new SystemOptions(null, ":5555", null, mode, null, null, null);
 			case "observability" -> new ObservabilityOptions(
-				null, ":5555", null, mode, null, null, null, null, null, null, null);
+				null, ":5555", null, mode, null, null, null, null, null, null, null, null
+			);
 			default -> throw new IllegalArgumentException(endpoint);
 		};
 	}

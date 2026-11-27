@@ -26,6 +26,7 @@ package io.evitadb.externalApi.observability.configuration;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
@@ -51,6 +52,10 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 	 * Port on which will server be run and on which will channel be opened.
 	 */
 	public static final int DEFAULT_OBSERVABILITY_PORT = 5555;
+	/**
+	 * Default of {@link #readinessCatalogActivationTimeoutInMillis}: five minutes.
+	 */
+	public static final long DEFAULT_READINESS_CATALOG_ACTIVATION_TIMEOUT_IN_MILLIS = 300_000L;
 	private static final String BASE_OBSERVABILITY_PATH = "observability";
 
 	/**
@@ -107,8 +112,15 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 	@Getter @Nonnull private final ErrorOriginLogging errorOriginLogging;
 
 	/**
-	 * Creates enabled options listening on all network interfaces at {@link #DEFAULT_OBSERVABILITY_PORT}, with
-	 * `tlsMode` {@link TlsMode#FORCE_NO_TLS}.
+	 * How long, in milliseconds and always greater than zero, startup readiness waits for the APIs to finish activating
+	 * a catalog that has loaded. Each catalog has its own clock, started by the first scan that finds it active but not
+	 * yet served by every API. Once it elapses, the catalog no longer holds readiness back and each API that missed it
+	 * is logged as an error. Catalogs still in a transitional state, such as loading, are not bounded by it.
+	 */
+	private final long readinessCatalogActivationTimeoutInMillis;
+
+	/**
+	 * Creates enabled options listening on all interfaces at {@link #DEFAULT_OBSERVABILITY_PORT} without TLS.
 	 */
 	public ObservabilityOptions() {
 		super(true, ":" + DEFAULT_OBSERVABILITY_PORT, TlsMode.FORCE_NO_TLS);
@@ -117,11 +129,13 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 		this.allowedEvents = null;
 		this.exportedQueryLabels = null;
 		this.errorOriginLogging = ErrorOriginLogging.INTERNAL;
+		this.readinessCatalogActivationTimeoutInMillis = DEFAULT_READINESS_CATALOG_ACTIVATION_TIMEOUT_IN_MILLIS;
 	}
 
 	/**
-	 * Creates enabled options listening on `host` (comma-separated `hostname:port` definitions), with `tlsMode`
-	 * {@link TlsMode#FORCE_NO_TLS}.
+	 * Creates enabled options without TLS.
+	 *
+	 * @param host comma-separated `hostname:port` definitions
 	 */
 	public ObservabilityOptions(@Nonnull String host) {
 		super(true, host, TlsMode.FORCE_NO_TLS);
@@ -130,24 +144,44 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 		this.allowedEvents = null;
 		this.exportedQueryLabels = null;
 		this.errorOriginLogging = ErrorOriginLogging.INTERNAL;
+		this.readinessCatalogActivationTimeoutInMillis = DEFAULT_READINESS_CATALOG_ACTIVATION_TIMEOUT_IN_MILLIS;
 	}
 
 	/**
-	 * Creates options from configuration; a missing `tlsMode` resolves to {@link TlsMode#FORCE_NO_TLS} and an unknown
-	 * name fails.
+	 * Creates the observability endpoint options from configuration.
+	 *
+	 * @param enabled whether the endpoint is enabled
+	 * @param host comma-separated listening addresses
+	 * @param exposeOn externally advertised address
+	 * @param tlsMode TLS mode name, defaulting to {@link TlsMode#FORCE_NO_TLS}
+	 * @param keepAlive whether HTTP keepalive is enabled
+	 * @param prefix HTTP path prefix
+	 * @param tracing tracing configuration
+	 * @param allowedEvents events exposed by the endpoint
+	 * @param exportedQueryLabels query labels exported as metric dimensions
+	 * @param errorOriginLogging error hierarchies whose origins are logged
+	 * @param mtlsConfiguration mutual TLS settings
+	 * @param readinessCatalogActivationTimeoutInMillis per-catalog time startup readiness waits for the APIs to finish
+	 *                                                  activating a loaded catalog, greater than zero; null resolves to
+	 *                                                  {@link #DEFAULT_READINESS_CATALOG_ACTIVATION_TIMEOUT_IN_MILLIS}
+	 * @throws EvitaInvalidUsageException if the TLS mode, exported query labels or catalog activation timeout are
+	 *                                    invalid
 	 */
 	@JsonCreator
-	public ObservabilityOptions(@Nullable @JsonProperty("enabled") Boolean enabled,
-	                            @Nonnull @JsonProperty("host") String host,
-	                            @Nullable @JsonProperty("exposeOn") String exposeOn,
-	                            @Nullable @JsonProperty("tlsMode") String tlsMode,
-	                            @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
-	                            @Nullable @JsonProperty("prefix") String prefix,
-	                            @Nullable @JsonProperty("tracing") TracingConfig tracing,
-	                            @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents,
-	                            @Nullable @JsonProperty("exportedQueryLabels") List<String> exportedQueryLabels,
-	                            @Nullable @JsonProperty("errorOriginLogging") ErrorOriginLogging errorOriginLogging,
-	                            @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
+	public ObservabilityOptions(
+		@Nullable @JsonProperty("enabled") Boolean enabled,
+		@Nonnull @JsonProperty("host") String host,
+		@Nullable @JsonProperty("exposeOn") String exposeOn,
+		@Nullable @JsonProperty("tlsMode") String tlsMode,
+		@Nullable @JsonProperty("keepAlive") Boolean keepAlive,
+		@Nullable @JsonProperty("prefix") String prefix,
+		@Nullable @JsonProperty("tracing") TracingConfig tracing,
+		@Nullable @JsonProperty("allowedEvents") List<String> allowedEvents,
+		@Nullable @JsonProperty("exportedQueryLabels") List<String> exportedQueryLabels,
+		@Nullable @JsonProperty("errorOriginLogging") ErrorOriginLogging errorOriginLogging,
+		@Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration,
+		@Nullable @JsonProperty("readinessCatalogActivationTimeoutInMillis")
+		Long readinessCatalogActivationTimeoutInMillis
 	) {
 		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration, TlsMode.FORCE_NO_TLS);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_OBSERVABILITY_PATH);
@@ -174,5 +208,20 @@ public class ObservabilityOptions extends AbstractApiOptions implements ApiWithS
 		}
 		this.exportedQueryLabels = exportedQueryLabels;
 		this.errorOriginLogging = Optional.ofNullable(errorOriginLogging).orElse(ErrorOriginLogging.INTERNAL);
+		this.readinessCatalogActivationTimeoutInMillis = Optional.ofNullable(readinessCatalogActivationTimeoutInMillis)
+			.orElse(DEFAULT_READINESS_CATALOG_ACTIVATION_TIMEOUT_IN_MILLIS);
+		Assert.isTrue(
+			this.readinessCatalogActivationTimeoutInMillis > 0,
+			"readinessCatalogActivationTimeoutInMillis must be greater than zero."
+		);
+	}
+
+	/**
+	 * Returns how long startup readiness waits for the APIs to finish activating each loaded catalog.
+	 *
+	 * @return catalog activation timeout in milliseconds, always greater than zero
+	 */
+	public long getReadinessCatalogActivationTimeoutInMillis() {
+		return this.readinessCatalogActivationTimeoutInMillis;
 	}
 }

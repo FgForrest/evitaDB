@@ -468,6 +468,16 @@ public class ExternalApiServer implements AutoCloseable {
 	}
 
 	/**
+	 * Returns the API providers registered on this server.
+	 *
+	 * @return an immutable list of registered providers
+	 */
+	@Nonnull
+	public List<ExternalApiProvider<?>> getRegisteredApiProviders() {
+		return List.copyOf(this.registeredApiProviders.values());
+	}
+
+	/**
 	 * Starts this configured HTTP server with registered APIs.
 	 *
 	 * Also drives the second phase of the engine boot sequence by invoking
@@ -478,11 +488,16 @@ public class ExternalApiServer implements AutoCloseable {
 	 * if the embedding application (e.g. `EvitaServer.run()`) also schedules loading explicitly,
 	 * the second invocation is a silent no-op.
 	 *
+	 * Between opening the ports and scheduling the load, after every provider's `afterStart` has run, each probe
+	 * provider is notified through {@link ProbesProvider#onServerStarted(Evita, ExternalApiServer)}.
+	 *
 	 * **Caveat:** if the `Evita` instance was constructed with the auto-scheduling default
 	 * ({@link Evita#Evita(io.evitadb.api.configuration.EvitaConfiguration)}), loading has already
 	 * begun before this server's providers attached their subscribers — host events for any
 	 * catalog that finished loading in that window were lost. To avoid that race, use
 	 * `new Evita(config, false)` when wiring `ExternalApiServer` manually.
+	 *
+	 * @throws RuntimeException if starting the HTTP server fails or is interrupted
 	 */
 	public void start() {
 		if (this.server == null) {
@@ -495,6 +510,7 @@ public class ExternalApiServer implements AutoCloseable {
 		try {
 			this.server.start().get();
 			this.registeredApiProviders.values().forEach(ExternalApiProvider::afterStart);
+			this.getProbeProviders().forEach(probe -> probe.onServerStarted(this.evita, this));
 			// every provider has subscribed in its constructor — kick off catalog loading now
 			this.evita.scheduleInitialCatalogLoading();
 		} catch (InterruptedException e) {
