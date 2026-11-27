@@ -58,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
+@DisplayName("TransactionalSet")
 @SuppressWarnings("SameParameterValue")
 @Tag(INDEXING)
 @Tag(DATA_TYPE)
