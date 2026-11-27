@@ -282,9 +282,11 @@ final class LongValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 	}
 
 	/**
-	 * Computes the heap occupied by the column and its backing storage.
+	 * Returns the heap this column owns, counted as {@link ValueColumn#getHeapSizeInBytes(ToLongFunction)}
+	 * describes. The keys are `long` values inside the backing array, so this is the whole footprint and the
+	 * sizer overload returns it unchanged. The shared empty array an empty column parks on is not charged.
 	 *
-	 * @return the occupied heap in bytes
+	 * @return the owned heap footprint in bytes
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();

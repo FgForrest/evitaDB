@@ -2070,9 +2070,13 @@ class TransactionalBucketBPlusTreeTest {
 			assertThrows(Exception.class, () -> new TransactionalBucketBPlusTree<>(2, Integer.class, null));
 		}
 
+		/**
+		 * Builds a tree from a valid set of explicit block sizes and proves it accepts a record, as the counterpart of
+		 * the rejection cases around it.
+		 */
 		@Test
-		@DisplayName("accepts the default-block-size constructor")
-		void shouldAcceptDefaultConstructor() {
+		@DisplayName("accepts a valid set of explicit block sizes")
+		void shouldAcceptValidExplicitBlockSizes() {
 			final TransactionalBucketBPlusTree<Integer> tree =
 				new TransactionalBucketBPlusTree<>(
 					64, 31, 31, 15, Integer.class, null,

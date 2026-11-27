@@ -150,9 +150,9 @@ final class ValueColumnTestSupport {
 
 	/**
 	 * Drives one {@link ValueColumn} implementation through the whole grow / trim / `size()` contract: the logical
-	 * capacity never moves, `size()` follows every mutator, `fillEmpty` and `fillEmpty` truncate rather than poke,
-	 * `copyRangeTo` grows its destination (including the leaf's in-place right shift), `duplicate` preserves the
-	 * physical shape and `trimmed` reclaims slack only once there is enough of it.
+	 * capacity never moves, `size()` follows every mutator, `fillEmpty` truncates a live slot and is a no-op past the
+	 * live run, `copyRangeTo` grows its destination (including the leaf's in-place right shift), `duplicate`
+	 * preserves the physical shape and `trimmed` reclaims slack only once there is enough of it.
 	 *
 	 * @param emptyColumnFactory builds a fresh empty column at the given logical capacity
 	 * @param keyFactory         builds the key for an ordinal; ordinals must map to ascending distinct keys
@@ -370,8 +370,8 @@ final class ValueColumnTestSupport {
 		assertEquals(eight.length + 1, headroom.size());
 		if (fixedSlotStorage) {
 			assertEquals(
-			beforeInsert, headroom.getHeapSizeInBytes(key -> 0L), "the layer's first insert must land in place"
-		);
+				beforeInsert, headroom.getHeapSizeInBytes(key -> 0L), "the layer's first insert must land in place"
+			);
 		}
 
 		// ...and the copy is independent of its source in both directions, exactly as `duplicate()` is

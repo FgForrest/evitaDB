@@ -672,9 +672,10 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 	}
 
 	/**
-	 * Computes the heap occupied by the column and its backing storage.
+	 * Returns the heap of the column object and its reference array at the array's allocated length, excluding the
+	 * keys the slots point at. {@link #getHeapSizeInBytes(ToLongFunction)} adds those, priced by the caller's sizer.
 	 *
-	 * @return the occupied heap in bytes
+	 * @return the heap footprint in bytes, excluding the referenced keys
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();

@@ -78,7 +78,6 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	@Serial private static final long serialVersionUID = 124088192205606247L;
 	private static final String ERROR_UPDATER_RETURNED_NULL = "The updater returned null - a B+ tree value must " +
 		"never be null, because a stored null is indistinguishable from an absent key on the read path!";
-	private static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
 	/**
 	 * The type of the values stored in the tree.
 	 */
@@ -1785,9 +1784,11 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		}
 
 		/**
-		 * Moves the final live slot and clears any entries beyond a shortened live run.
+		 * Sets the index of the last occupied child slot. Lowering it clears the keys and children past the new peek.
+		 * Inside a transaction a committed node makes the change in its diff layer instead of itself; an array that
+		 * layer still shares with the committed node is copied, old tail included, rather than cleared.
 		 *
-		 * @param peek the new final live slot
+		 * @param peek the index of the new last occupied child slot
 		 */
 		public void setPeek(int peek) {
 			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
@@ -1886,7 +1887,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		}
 
 		/**
-		 * Checks whether the node has reached its capacity.
+		 * Checks whether the node holds its maximum number of children, reading its diff layer when the current
+		 * transaction has one.
 		 *
 		 * @return whether the node is full
 		 */
@@ -2697,9 +2699,11 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		}
 
 		/**
-		 * Moves the final live slot and clears any entries beyond a shortened live run.
+		 * Sets the index of the last occupied slot and marks the leaf dirty. Lowering it clears the keys and values
+		 * past the new peek. Inside a transaction a committed leaf does both in its diff layer instead of itself; an
+		 * array that layer still shares with the committed leaf is copied, old tail included, rather than cleared.
 		 *
-		 * @param peek the new final live slot
+		 * @param peek the index of the new last occupied slot
 		 */
 		public void setPeek(int peek) {
 			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
@@ -2801,9 +2805,10 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		}
 
 		/**
-		 * Checks whether the node has reached its capacity.
+		 * Checks whether the leaf holds its maximum number of entries, reading its diff layer when the current
+		 * transaction has one.
 		 *
-		 * @return whether the node is full
+		 * @return whether the leaf is full
 		 */
 		public boolean isFull() {
 			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?

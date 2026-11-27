@@ -330,7 +330,7 @@ class UnorderedLookupTreeTest {
 			}
 			assertConsistentWithOracle(tested, oracle);
 
-			// after deep multi-level growth the rightmost descent must land on the true last record
+			// after deep multi-level growth a positional read of the last slot must return the true last record
 			assertEquals(oracle.getLast().intValue(), tested.tree.getRecordAt(tested.tree.size() - 1));
 			// removing the current last record moves the preceding record to the tail
 			final int lastRecordId = oracle.removeLast();
@@ -525,7 +525,7 @@ class UnorderedLookupTreeTest {
 		 */
 		@Test
 		@DisplayName("matches a list oracle after each mutation on a small randomized run")
-		void shouldMatchArrayDelegateForIdenticalOperations() {
+		void shouldMatchListOracleAfterEveryMutation() {
 			final Random random = new Random(123);
 			final TreeWithIndex tested = new TreeWithIndex();
 			final List<Integer> live = new ArrayList<>();

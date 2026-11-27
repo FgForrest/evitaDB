@@ -58,6 +58,9 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
  * delegate set. In such case the class is not thread safe for multiple
  * writers. Within a transaction, the diff records additions of new keys and removals of delegate keys.
  *
+ * Keys are committed by reference: the merge carries over set membership only and never asks the transaction for a
+ * key's own state. A key must therefore not own a transactional layer, because this set never merges that layer.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
 @ThreadSafe
@@ -100,6 +103,7 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 
 	/**
 	 * Applies the transactional membership changes to the set, or reuses the delegate when there is no diff layer.
+	 * Keys are carried over by reference; the merge never commits a key's own transactional state.
 	 *
 	 * @param layer the diff layer, or `null` when the set has no transactional changes
 	 * @param transactionalLayer the maintainer coordinating the commit

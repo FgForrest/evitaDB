@@ -235,9 +235,11 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	}
 
 	/**
-	 * Moves the final live slot and clears any entries beyond a shortened live run.
+	 * Sets the index of the last occupied child slot. Lowering it clears the keys and children past the new peek.
+	 * Inside a transaction a committed node makes the change in its diff layer instead of itself; an array that layer
+	 * still shares with the committed node is copied, old tail included, rather than cleared.
 	 *
-	 * @param peek the new final live slot
+	 * @param peek the index of the new last occupied child slot
 	 */
 	public void setPeek(int peek) {
 		final SELF layer = writeLayer(this, this.transactionalLayer);
@@ -336,7 +338,8 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	}
 
 	/**
-	 * Checks whether the node has reached its capacity.
+	 * Checks whether the node holds its maximum number of children, reading its diff layer when the current transaction
+	 * has one.
 	 *
 	 * @return whether the node is full
 	 */

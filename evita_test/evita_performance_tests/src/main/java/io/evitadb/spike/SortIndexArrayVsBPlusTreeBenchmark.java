@@ -95,9 +95,11 @@ import java.util.function.Function;
  * - {@code pointLookupHashMap} (today's {@code UniqueIndex} O(1) map) vs {@code pointLookupFatTree} (the unified O(log n)
  *   tree search) — the unique-check-on-write probe, the hot write path this gate must not regress materially.
  *
- * The forward seekers in `ascendingSweepTree` and `ascendingSweepFatTree` now allocate one entry object per
- * bucket. The reverse seekers in `descendingSweepTree` and `descendingSweepFatTree` now pay one point lookup per
- * bucket. These four tree arms are not comparable with the recorded cursor results.
+ * The forward seekers in `ascendingSweepTree` and `ascendingSweepFatTree` walk an entry iterator, which builds one
+ * {@link Entry} per bucket. The reverse seekers in `descendingSweepTree` and `descendingSweepFatTree` walk the keys in
+ * reverse and pay one point lookup per bucket, because the tree offers no reverse entry traversal. These four tree
+ * arms are not comparable with the results recorded in
+ * `documentation/performance/individual/SortIndexArrayVsBPlusTreeBenchmark/`.
  *
  * Each benchmark reports both latency ({@link Mode#AverageTime}) and throughput ({@link Mode#Throughput}) so the two
  * facets the migration is gated on can be read directly. The sweep ops cover a bounded, evenly distributed sample of

@@ -4117,9 +4117,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Moves the final live slot and clears any entries beyond a shortened live run.
+		 * Sets the index of the last occupied child slot. Lowering it clears the keys and children past the new peek.
+		 * Inside a transaction a committed node makes the change in its diff layer instead of itself; an array that
+		 * layer still shares with the committed node is copied, old tail included, rather than cleared.
 		 *
-		 * @param peek the new final live slot
+		 * @param peek the index of the new last occupied child slot
 		 */
 		public void setPeek(int peek) {
 			final BPlusInternalTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
@@ -4239,7 +4241,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Checks whether the node has reached its capacity.
+		 * Checks whether the node holds its maximum number of children, reading its diff layer when the current
+		 * transaction has one.
 		 *
 		 * @return whether the node is full
 		 */
@@ -4993,7 +4996,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		private int peek;
 		/**
-		 * The logical persistence page this leaf occupies (see {@link BPlusTreeNode#getPageSequence()}). NOT transactional —
+		 * The logical persistence page this leaf occupies (see {@link #getPageSequence()}). NOT transactional —
 		 * it is structural bookkeeping carried across the commit-merge by {@link #createCopyWithMergedTransactionalMemory}
 		 * (an in-place rebuild of this leaf reuses the source page so the same storage part is overwritten) and is left
 		 * at {@link #UNASSIGNED_PAGE_SEQUENCE} on split-born leaves until the write path allocates a page.
@@ -5246,9 +5249,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Moves the final live slot and clears any entries beyond a shortened live run.
+		 * Sets the index of the last occupied slot and marks the leaf dirty. Lowering it truncates the key, record,
+		 * value-id and overflow columns past the new peek. Inside a transaction a committed leaf does both in its diff
+		 * layer instead of itself, first duplicating any column that layer still shares with the committed leaf.
 		 *
-		 * @param peek the new final live slot
+		 * @param peek the index of the new last occupied slot
 		 */
 		public void setPeek(int peek) {
 			final BPlusLeafTreeNode<M> layer = writeLayer(this, this.transactionalLayer);
@@ -5442,9 +5447,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Checks whether the node has reached its capacity.
+		 * Checks whether the leaf holds its maximum number of buckets, reading its diff layer when the current
+		 * transaction has one.
 		 *
-		 * @return whether the node is full
+		 * @return whether the leaf is full
 		 */
 		public boolean isFull() {
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer

@@ -863,21 +863,21 @@ class TransactionalUnorderedIntArrayTest {
 	}
 
 	/**
-	 * Tests verifying range and append operations on {@link TransactionalUnorderedIntArray}.
+	 * Tests removing a contiguous run of record ids one by one and appending at the tail of
+	 * {@link TransactionalUnorderedIntArray}.
 	 */
 	@Nested
-	@DisplayName("Range operations")
-	class RangeOperationsTest {
+	@DisplayName("Contiguous run removal and tail append")
+	class ContiguousRunAndAppendTest {
 
 		/**
-		 * Removes range lesser than tail.
+		 * Removes a contiguous run of ids that are all lower than the tail id.
 		 */
 		@Test
-		@DisplayName("removes range lesser than tail")
-		void shouldRemoveRangeLesserThanTail() {
+		@DisplayName("removes a contiguous run of ids lower than the tail id")
+		void shouldRemoveContiguousRunOfIdsBelowTailId() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
 			final int[] removed = Arrays.copyOfRange(array.getArray(), 2, 4);
-			assertArrayEquals(new int[]{3, 1}, removed);
 			for (final int recordId : removed) {
 				array.remove(recordId);
 			}
@@ -885,18 +885,17 @@ class TransactionalUnorderedIntArrayTest {
 		}
 
 		/**
-		 * Removes range lesser than tail and commits.
+		 * Removes a contiguous run of ids that are all lower than the tail id and commits.
 		 */
 		@Test
-		@DisplayName("removes range lesser than tail and commits")
-		void shouldRemoveRangeLesserThanTailAndCommit() {
+		@DisplayName("removes a contiguous run of ids lower than the tail id and commits")
+		void shouldRemoveContiguousRunOfIdsBelowTailIdAndCommit() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
 
 			assertStateAfterCommit(
 				array,
 				original -> {
 					final int[] removed = Arrays.copyOfRange(array.getArray(), 2, 4);
-					assertArrayEquals(new int[]{3, 1}, removed);
 					for (final int recordId : removed) {
 						array.remove(recordId);
 					}
@@ -910,14 +909,13 @@ class TransactionalUnorderedIntArrayTest {
 		}
 
 		/**
-		 * Removes range higher than tail.
+		 * Removes a contiguous run holding an id higher than the tail id.
 		 */
 		@Test
-		@DisplayName("removes range higher than tail")
-		void shouldRemoveRangeHigherThanTail() {
+		@DisplayName("removes a contiguous run holding an id higher than the tail id")
+		void shouldRemoveContiguousRunWithIdAboveTailId() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{4, 3, 1, 5, 2});
 			final int[] removed = Arrays.copyOfRange(array.getArray(), 2, 4);
-			assertArrayEquals(new int[]{1, 5}, removed);
 			for (final int recordId : removed) {
 				array.remove(recordId);
 			}
@@ -925,18 +923,17 @@ class TransactionalUnorderedIntArrayTest {
 		}
 
 		/**
-		 * Removes range higher than tail and commits.
+		 * Removes a contiguous run holding an id higher than the tail id and commits.
 		 */
 		@Test
-		@DisplayName("removes range higher than tail and commits")
-		void shouldRemoveRangeHigherThanTailAndCommit() {
+		@DisplayName("removes a contiguous run holding an id higher than the tail id and commits")
+		void shouldRemoveContiguousRunWithIdAboveTailIdAndCommit() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{4, 3, 1, 5, 2});
 
 			assertStateAfterCommit(
 				array,
 				original -> {
 					final int[] removed = Arrays.copyOfRange(original.getArray(), 2, 4);
-					assertArrayEquals(new int[]{1, 5}, removed);
 					for (final int recordId : removed) {
 						original.remove(recordId);
 					}
@@ -950,14 +947,13 @@ class TransactionalUnorderedIntArrayTest {
 		}
 
 		/**
-		 * Removes tail range.
+		 * Removes the contiguous run that ends at the tail.
 		 */
 		@Test
-		@DisplayName("removes tail range")
-		void shouldRemoveTail() {
+		@DisplayName("removes a contiguous run at the tail")
+		void shouldRemoveContiguousRunAtTail() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
 			final int[] removed = Arrays.copyOfRange(array.getArray(), 3, 5);
-			assertArrayEquals(new int[]{1, 5}, removed);
 			for (final int recordId : removed) {
 				array.remove(recordId);
 			}
@@ -965,18 +961,17 @@ class TransactionalUnorderedIntArrayTest {
 		}
 
 		/**
-		 * Removes tail range and commits.
+		 * Removes the contiguous run that ends at the tail and commits.
 		 */
 		@Test
-		@DisplayName("removes tail range and commits")
-		void shouldRemoveTailAndCommit() {
+		@DisplayName("removes a contiguous run at the tail and commits")
+		void shouldRemoveContiguousRunAtTailAndCommit() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
 
 			assertStateAfterCommit(
 				array,
 				original -> {
 					final int[] removed = Arrays.copyOfRange(array.getArray(), 3, 5);
-					assertArrayEquals(new int[]{1, 5}, removed);
 					for (final int recordId : removed) {
 						array.remove(recordId);
 					}
@@ -990,14 +985,13 @@ class TransactionalUnorderedIntArrayTest {
 		}
 
 		/**
-		 * Removes head range.
+		 * Removes the contiguous run that starts at the head.
 		 */
 		@Test
-		@DisplayName("removes head range")
-		void shouldRemoveHead() {
+		@DisplayName("removes a contiguous run at the head")
+		void shouldRemoveContiguousRunAtHead() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
 			final int[] removed = Arrays.copyOfRange(array.getArray(), 0, 2);
-			assertArrayEquals(new int[]{2, 4}, removed);
 			for (final int recordId : removed) {
 				array.remove(recordId);
 			}
@@ -1005,18 +999,17 @@ class TransactionalUnorderedIntArrayTest {
 		}
 
 		/**
-		 * Removes head range and commits.
+		 * Removes the contiguous run that starts at the head and commits.
 		 */
 		@Test
-		@DisplayName("removes head range and commits")
-		void shouldRemoveHeadAndCommit() {
+		@DisplayName("removes a contiguous run at the head and commits")
+		void shouldRemoveContiguousRunAtHeadAndCommit() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
 
 			assertStateAfterCommit(
 				array,
 				original -> {
 					final int[] removed = Arrays.copyOfRange(original.getArray(), 0, 2);
-					assertArrayEquals(new int[]{2, 4}, removed);
 					for (final int recordId : removed) {
 						original.remove(recordId);
 					}

@@ -820,9 +820,11 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		}
 
 		/**
-		 * Moves the final live slot and clears any entries beyond a shortened live run.
+		 * Sets the index of the last occupied slot. Lowering it clears the keys and values past the new peek. Inside a
+		 * transaction a committed leaf makes the change in its diff layer instead of itself; an array that layer still
+		 * shares with the committed leaf is copied, old tail included, rather than cleared.
 		 *
-		 * @param peek the new final live slot
+		 * @param peek the index of the new last occupied slot
 		 */
 		public void setPeek(int peek) {
 			final BPlusLeafTreeNode layer = writeLayer(this, this.transactionalLayer);
@@ -887,9 +889,10 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 		}
 
 		/**
-		 * Checks whether the node has reached its capacity.
+		 * Checks whether the leaf holds its maximum number of entries, reading its diff layer when the current
+		 * transaction has one.
 		 *
-		 * @return whether the node is full
+		 * @return whether the leaf is full
 		 */
 		public boolean isFull() {
 			final BPlusLeafTreeNode current = currentState();

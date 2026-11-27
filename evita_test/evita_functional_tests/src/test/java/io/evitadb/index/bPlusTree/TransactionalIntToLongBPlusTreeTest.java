@@ -55,9 +55,9 @@ import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This test verifies the correctness of the {@link TransactionalIntToLongBPlusTree} implementation. It covers insert,
- * search, upsert, delete, rebalancing (steal and merge), forward and reverse iteration of both keys and values,
- * transactional semantics, tree visualization, constructor validation, and the internal consistency oracle.
+ * This test verifies the correctness of the {@link TransactionalIntToLongBPlusTree} implementation. It covers insert
+ * (including overwriting an existing key), search, delete, rebalancing (steal and merge), forward and reverse key
+ * iteration, transactional semantics, tree visualization, constructor validation, and the internal consistency oracle.
  * Bounded, fixed-seed randomized churn tests guard the rebalancing and commit machinery against regressions; the
  * open-ended generational soak test lives in the long-running test module.
  *
@@ -277,6 +277,35 @@ class TransactionalIntToLongBPlusTreeTest {
 
 					assertEquals(1, committed.size());
 					assertEquals(999L, committed.search(5).orElseThrow());
+				}
+			);
+		}
+
+		/**
+		 * Overwrites a key of a committed multi-leaf tree inside a transaction. The committed copy carries the new
+		 * value under an unchanged key set, while the original tree keeps the old value and stays consistent.
+		 */
+		@Test
+		@DisplayName("overwrites an existing key of a multi-leaf tree inside a transaction")
+		void shouldOverwriteExistingValueOnMultiLeafTreeInsideTransaction() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final int[] expectedArray = testTree.plainArray();
+
+			assertStateAfterCommit(
+				testTree.bPlusTree(),
+				tested -> {
+					assertEquals(valueOf(13), tested.search(13).orElseThrow());
+					tested.insert(13, 180L);
+				},
+				(original, committed) -> {
+					assertEquals(valueOf(13), original.search(13).orElseThrow());
+					verifyTreeConsistency(original, expectedArray);
+
+					assertEquals(expectedArray.length, committed.size());
+					assertEquals(180L, committed.search(13).orElseThrow());
+					// restoring the canonical value lets the oracle check the committed tree against the same keys
+					committed.insert(13, valueOf(13));
+					verifyTreeConsistency(committed, expectedArray);
 				}
 			);
 		}
@@ -635,12 +664,7 @@ class TransactionalIntToLongBPlusTreeTest {
 					if (delete) {
 						tree.delete(key);
 						reference.remove(key);
-					} else if (random.nextBoolean()) {
-						tree.insert(key, valueOf(key));
-						reference.put(key, valueOf(key));
 					} else {
-						// upsert exercises the insert-or-update public path; a value-preserving updater keeps the
-						// oracle exact whether the key was absent (insert + possible split) or already present
 						tree.insert(key, valueOf(key));
 						reference.put(key, valueOf(key));
 					}
@@ -665,7 +689,7 @@ class TransactionalIntToLongBPlusTreeTest {
 		@Test
 		@DisplayName("survives large randomized insert/delete churn committed as one transaction")
 		void shouldSurviveRandomizedTransactionalChurn() {
-			// Runs the same random insert / upsert / delete churn as the bare-tree consistency fuzzer above, but
+			// Runs the same random insert / delete churn as the bare-tree consistency fuzzer above, but
 			// inside a single committed transaction, so it exercises the transactional commit-merge path (layer merge
 			// and leaf split/merge within a transaction) that the non-transactional churn never reaches. The committed
 			// content must match the oracle exactly.
@@ -677,7 +701,7 @@ class TransactionalIntToLongBPlusTreeTest {
 		}
 
 		/**
-		 * Drives a fixed number of random insert / upsert / delete operations against a fresh tree of the given block
+		 * Drives a fixed number of random insert / delete operations against a fresh tree of the given block
 		 * size inside a single transaction, mirroring the mutations into a `TreeMap` oracle. After the commit the
 		 * original (transactional) view must be empty and the committed tree must match the oracle's ascending key set
 		 * exactly. This exercises the transactional commit-merge and layer-merge path under random churn.
@@ -703,11 +727,7 @@ class TransactionalIntToLongBPlusTreeTest {
 						if (delete) {
 							tested.delete(key);
 							oracle.remove(key);
-						} else if (random.nextBoolean()) {
-							tested.insert(key, valueOf(key));
-							oracle.put(key, valueOf(key));
 						} else {
-							// upsert exercises the insert-or-update public path; value-preserving keeps the oracle exact
 							tested.insert(key, valueOf(key));
 							oracle.put(key, valueOf(key));
 						}
@@ -1354,8 +1374,8 @@ class TransactionalIntToLongBPlusTreeTest {
 		@Test
 		@DisplayName("propagates value changes through transactional layer")
 		void shouldHandleTransactionalValueChanges() {
-			// the generic-value tree drove a TransactionalLayerProducer value here; with primitive long values
-			// this verifies the in-transaction visibility and commit of a value mutation via upsert
+			// with primitive long values this verifies the in-transaction visibility and commit of a value that an
+			// insert overwrites
 			final TransactionalIntToLongBPlusTree theTree = new TransactionalIntToLongBPlusTree(3);
 			theTree.insert(1, 100L);
 
@@ -1370,7 +1390,7 @@ class TransactionalIntToLongBPlusTreeTest {
 		}
 
 		@Test
-		@DisplayName("isolates insert, delete and upsert in single transaction")
+		@DisplayName("isolates insert, delete and overwrite in single transaction")
 		void shouldIsolateMultipleModificationsInTransaction() {
 			final TreeTuple testTree = prepareRandomTree(42, 50);
 			final int[] originalArray = testTree.plainArray();
@@ -2036,7 +2056,7 @@ class TransactionalIntToLongBPlusTreeTest {
 	class NonTransactionalModeTest {
 
 		@Test
-		@DisplayName("insert, search, upsert and delete work without a transaction")
+		@DisplayName("insert, search, overwrite and delete work without a transaction")
 		void shouldExerciseCrudWithoutTransaction() {
 			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(3);
 

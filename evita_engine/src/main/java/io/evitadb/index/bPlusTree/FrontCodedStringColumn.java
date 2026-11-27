@@ -634,9 +634,12 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	}
 
 	/**
-	 * Computes the heap occupied by the column and its backing storage.
+	 * Returns the heap this column owns, counted as {@link ValueColumn#getHeapSizeInBytes(ToLongFunction)}
+	 * describes: the column object, the front-coded data blob and the restart offsets. No `String` is retained, so
+	 * this is the whole footprint and the sizer overload returns it unchanged. The shared empty arrays an empty or
+	 * cleared column parks on are not charged.
 	 *
-	 * @return the occupied heap in bytes
+	 * @return the owned heap footprint in bytes
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();

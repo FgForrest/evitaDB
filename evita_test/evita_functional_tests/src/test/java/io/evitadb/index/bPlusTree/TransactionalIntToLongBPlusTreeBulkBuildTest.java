@@ -43,7 +43,6 @@ import java.util.Arrays;
 import java.util.PrimitiveIterator;
 import java.util.List;
 import java.util.Random;
-import java.util.function.IntPredicate;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -128,10 +127,8 @@ class TransactionalIntToLongBPlusTreeBulkBuildTest {
 				assertEquals(-1L, bulk.searchOrDefault(key, -1L));
 			}
 		}
-		for (final int probe : new int[]{Integer.MIN_VALUE, 0, Integer.MAX_VALUE}) {
-			assertEntriesEqual(inserted, bulk, false, key -> key >= probe);
-			assertEntriesEqual(inserted, bulk, true, key -> key <= probe);
-		}
+		// the forward walk ran in `assertMatches` above; the descending order must agree as well
+		assertEntriesEqual(inserted, bulk, true);
 		// The builder must copy both input columns, including the single-leaf case.
 		Arrays.fill(keys, 0);
 		Arrays.fill(values, 0L);
@@ -376,7 +373,7 @@ class TransactionalIntToLongBPlusTreeBulkBuildTest {
 		assertConsistent(actual);
 		assertConsistent(reference);
 		assertEquals(reference.size(), actual.size());
-		assertEntriesEqual(reference, actual, false, key -> true);
+		assertEntriesEqual(reference, actual, false);
 	}
 
 	/**
@@ -424,18 +421,16 @@ class TransactionalIntToLongBPlusTreeBulkBuildTest {
 	}
 
 	/**
-	 * Compares the selected keys and their values in traversal order against the insert-built reference.
+	 * Compares every key and its value in traversal order against the insert-built reference.
 	 *
 	 * @param reference the insert-built tree
 	 * @param actual the bulk-built tree
 	 * @param reverse whether to traverse in descending order
-	 * @param inRange selects the keys to compare
 	 */
 	private static void assertEntriesEqual(
 		@Nonnull TransactionalIntToLongBPlusTree reference,
 		@Nonnull TransactionalIntToLongBPlusTree actual,
-		boolean reverse,
-		@Nonnull IntPredicate inRange
+		boolean reverse
 	) {
 		final PrimitiveIterator.OfInt expected = reverse ? reference.keyReverseIterator() : reference.keyIterator();
 		final PrimitiveIterator.OfInt keys = reverse ? actual.keyReverseIterator() : actual.keyIterator();
@@ -444,9 +439,7 @@ class TransactionalIntToLongBPlusTreeBulkBuildTest {
 			assertTrue(keys.hasNext());
 			final int key = keys.nextInt();
 			assertEquals(expectedKey, key);
-			if (inRange.test(key)) {
-				assertEquals(reference.search(key).orElseThrow(), actual.search(key).orElseThrow());
-			}
+			assertEquals(reference.search(key).orElseThrow(), actual.search(key).orElseThrow());
 		}
 		assertFalse(keys.hasNext());
 	}

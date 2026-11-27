@@ -128,11 +128,9 @@ class FrontCodedStringColumnTest {
 			dup.insertKeyAt(0, "code-00");
 			assertEquals("code-25", frontCoded.keyAt(2), "Duplicate must not alias the source");
 
-			// remove the middle key (position 2 == "code-25") from both, releasing the freed last slot
+			// remove the middle key (position 2 == "code-25") from both
 			frontCoded.removeKeyAt(2);
-
 			boxed.removeKeyAt(2);
-
 			assertColumnsEqual(frontCoded, boxed, inserted.length);
 
 			assertInstanceOf(FrontCodedStringColumn.class, frontCoded);
@@ -369,7 +367,6 @@ class FrontCodedStringColumnTest {
 			// drain from the front one entry at a time, as the leaf does on delete
 			for (int remaining = keys.length; remaining > 0; remaining--) {
 				column.removeKeyAt(0);
-
 			}
 
 			// the blob is fully reset: capacity survives and every slot decodes back to null on the cold path
@@ -592,8 +589,6 @@ class FrontCodedStringColumnTest {
 					front[c].removeKeyAt(pos);
 					boxed[c].removeKeyAt(pos);
 					size[c]--;
-
-
 				}
 				// both columns must always match their own oracle, regardless of which one was just mutated
 				for (int k = 0; k < 2; k++) {
@@ -669,8 +664,6 @@ class FrontCodedStringColumnTest {
 					front.removeKeyAt(pos);
 					boxed.removeKeyAt(pos);
 					size--;
-
-
 				}
 				for (int i = 0; i < size; i++) {
 					final String expected = boxed.keyAt(i);
@@ -1542,8 +1535,6 @@ class FrontCodedStringColumnTest {
 					front.removeKeyAt(pos);
 					oracle.removeKeyAt(pos);
 					size--;
-
-
 				}
 				for (final String pattern : patterns) {
 					final byte[] patternBytes = pattern.getBytes(StandardCharsets.UTF_8);
