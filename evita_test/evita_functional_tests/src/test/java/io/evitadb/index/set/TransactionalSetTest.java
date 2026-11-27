@@ -776,7 +776,7 @@ class TransactionalSetTest {
 		@ParameterizedTest
 		@ValueSource(booleans = {true, false})
 		@DisplayName("remove targets the last returned element after hasNext")
-		void shouldRemoveLastReturnedElementAfterHasNext(boolean moreElements) {
+		void shouldRemoveLastReturnedElementWhenHasNextLooksAhead(boolean moreElements) {
 			final Set<String> expected = new HashSet<>(Set.of("a", "c", "d"));
 			assertStateAfterCommit(
 				TransactionalSetTest.this.tested,
@@ -805,6 +805,34 @@ class TransactionalSetTest {
 				},
 				(original, committedVersion) -> assertSetContains(committedVersion, expected.toArray(String[]::new))
 			);
+		}
+
+		/**
+		 * Checks both illegal removal states on a merged iterator whose only visible key comes from the delegate.
+		 */
+		@Test
+		@DisplayName("merged iterator requires a fresh next before removing a delegate key")
+		void shouldRejectRemovalWhenMergedIteratorHasNoRemovableDelegateKey() {
+			assertStateAfterCommit(
+				TransactionalSetTest.this.tested,
+				original -> {
+					assertTrue(original.remove("b"));
+					removeFirstKeyAndCheckIllegalRemovals(original.iterator());
+					assertSetContains(original);
+				},
+				(original, committedVersion) -> assertSetContains(committedVersion)
+			);
+		}
+
+		/**
+		 * Checks both illegal removal states on a delegate iterator outside a transaction.
+		 */
+		@Test
+		@DisplayName("delegate iterator requires a fresh next outside a transaction")
+		void shouldRejectRemovalWhenDelegateIteratorHasNoRemovableKeyOutsideTransaction() {
+			final TransactionalSet<String> set = TransactionalSetTest.this.tested;
+			removeFirstKeyAndCheckIllegalRemovals(set.iterator());
+			assertSetContains(set, "b");
 		}
 
 		@Test
@@ -930,7 +958,7 @@ class TransactionalSetTest {
 		@ParameterizedTest(name = "removeIf={0}")
 		@ValueSource(booleans = {false, true})
 		@DisplayName("first removal stays isolated through rollback")
-		void shouldIsolateFirstRemovalOnRollback(boolean useRemoveIf) {
+		void shouldIsolateFirstRemovalWhenTransactionRollsBack(boolean useRemoveIf) {
 			assertFirstRemovalIsolated(useRemoveIf, false);
 		}
 
@@ -942,7 +970,7 @@ class TransactionalSetTest {
 		@ParameterizedTest(name = "removeIf={0}")
 		@ValueSource(booleans = {false, true})
 		@DisplayName("first removal stays isolated until commit")
-		void shouldIsolateFirstRemovalUntilCommit(boolean useRemoveIf) {
+		void shouldIsolateFirstRemovalWhenTransactionCommits(boolean useRemoveIf) {
 			assertFirstRemovalIsolated(useRemoveIf, true);
 		}
 
@@ -962,9 +990,7 @@ class TransactionalSetTest {
 				if (useRemoveIf) {
 					original.removeIf("a"::equals);
 				} else {
-					final Iterator<String> iterator = original.iterator();
-					iterator.next();
-					iterator.remove();
+					removeFirstKeyAndCheckIllegalRemovals(original.iterator());
 				}
 				transactionalView.addAll(original);
 				committedWhileOpen.addAll(delegate);
@@ -980,6 +1006,18 @@ class TransactionalSetTest {
 			} else {
 				assertStateAfterRollback(set, removeFirst, verify);
 			}
+		}
+
+		/**
+		 * Removes the first delegate key and checks that both illegal removal states throw.
+		 *
+		 * @param iterator the fresh iterator over the set containing the delegate key "a"
+		 */
+		private static void removeFirstKeyAndCheckIllegalRemovals(@Nonnull Iterator<String> iterator) {
+			assertThrows(IllegalStateException.class, iterator::remove);
+			assertEquals("a", iterator.next());
+			iterator.remove();
+			assertThrows(IllegalStateException.class, iterator::remove);
 		}
 
 		@Test

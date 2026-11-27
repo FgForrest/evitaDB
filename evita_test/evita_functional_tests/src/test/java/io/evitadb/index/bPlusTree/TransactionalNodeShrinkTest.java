@@ -26,8 +26,10 @@ package io.evitadb.index.bPlusTree;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,181 +56,234 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(TRANSACTION)
 class TransactionalNodeShrinkTest {
 	private static final int BLOCK_SIZE = 4;
+	private static final int INTERNAL_NODE_ENTRY_COUNT = 7;
 
 	/**
-	 * Checks the int-to-long routing node's separators and children.
+	 * Covers routing nodes, including donors emptied by a merge.
 	 */
-	@Test
-	@DisplayName("Int-to-long internal node clears its tail")
-	void shouldClearIntToLongInternalTailOnFirstWrite() {
-		final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(BLOCK_SIZE, 1, 3, 1);
-		insertEntries(BLOCK_SIZE + 1, key -> tree.insert(key, key * 10L));
-		assertIntInternalShrink((TransactionalIntToLongBPlusTree.BPlusInternalTreeNode) tree.getRoot());
+	@Nested
+	@DisplayName("Internal nodes")
+	class InternalNodesTest {
+		/**
+		 * Checks the int-to-long routing node's separators and children.
+		 *
+		 * @param targetPeek the last occupied slot after shrinking
+		 */
+		@ParameterizedTest(name = "peek={0}")
+		@ValueSource(ints = {-1, 0, 1})
+		@DisplayName("Int-to-long internal node clears its tail")
+		void shouldClearIntToLongInternalTailWhenFirstWriteShrinksNode(int targetPeek) {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(BLOCK_SIZE, 1, 3, 1);
+			insertEntries(INTERNAL_NODE_ENTRY_COUNT, key -> tree.insert(key, key * 10L));
+			assertIntInternalShrink((TransactionalIntToLongBPlusTree.BPlusInternalTreeNode) tree.getRoot(), targetPeek);
+		}
+
+		/**
+		 * Checks the element tree's use of the shared int-keyed routing node.
+		 *
+		 * @param targetPeek the last occupied slot after shrinking
+		 */
+		@ParameterizedTest(name = "peek={0}")
+		@ValueSource(ints = {-1, 0, 1})
+		@DisplayName("Element internal node clears its tail")
+		void shouldClearElementInternalTailWhenFirstWriteShrinksNode(int targetPeek) {
+			final TransactionalElementBPlusTree<Integer> tree = elementTree();
+			insertEntries(INTERNAL_NODE_ENTRY_COUNT, tree::insert);
+			assertIntInternalShrink((TransactionalElementBPlusTree.BPlusInternalTreeNode) tree.getRoot(), targetPeek);
+		}
+
+		/**
+		 * Checks the long routing node's separators and children.
+		 *
+		 * @param targetPeek the last occupied slot after shrinking
+		 */
+		@ParameterizedTest(name = "peek={0}")
+		@ValueSource(ints = {-1, 0, 1})
+		@DisplayName("Long internal node clears its tail")
+		void shouldClearLongInternalTailWhenFirstWriteShrinksNode(int targetPeek) {
+			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(BLOCK_SIZE, String.class);
+			insertEntries(INTERNAL_NODE_ENTRY_COUNT, key -> tree.insert(key, "value" + key));
+			assertShrink(
+				(TransactionalLongBPlusTree.BPlusInternalTreeNode) tree.getRoot(),
+				TransactionalLongBPlusTree.BPlusInternalTreeNode::getPeek,
+				TransactionalLongBPlusTree.BPlusInternalTreeNode::setPeek,
+				targetPeek,
+				node -> List.of(
+					new Slots(Arrays.stream(node.getKeys()).boxed().toList(), Math.max(0, targetPeek), 0L),
+					new Slots(Arrays.asList(node.getChildren()), targetPeek + 1, null)
+				)
+			);
+		}
+
+		/**
+		 * Checks the object routing node's separators and children.
+		 *
+		 * @param targetPeek the last occupied slot after shrinking
+		 */
+		@ParameterizedTest(name = "peek={0}")
+		@ValueSource(ints = {-1, 0, 1})
+		@DisplayName("Object internal node clears its tail")
+		void shouldClearObjectInternalTailWhenFirstWriteShrinksNode(int targetPeek) {
+			final TransactionalObjectBPlusTree<Integer, String> tree = objectTree();
+			insertEntries(INTERNAL_NODE_ENTRY_COUNT, key -> tree.insert(key, "value" + key));
+			assertShrink(
+				(TransactionalObjectBPlusTree.BPlusInternalTreeNode<?>) tree.getRoot(),
+				TransactionalObjectBPlusTree.BPlusInternalTreeNode::getPeek,
+				TransactionalObjectBPlusTree.BPlusInternalTreeNode::setPeek,
+				targetPeek,
+				node -> List.of(
+					new Slots(Arrays.asList(node.getKeys()), Math.max(0, targetPeek), null),
+					new Slots(Arrays.asList(node.getChildren()), targetPeek + 1, null)
+				)
+			);
+		}
+
+		/**
+		 * Checks the bucket routing node's separators and children.
+		 *
+		 * @param targetPeek the last occupied slot after shrinking
+		 */
+		@ParameterizedTest(name = "peek={0}")
+		@ValueSource(ints = {-1, 0, 1})
+		@DisplayName("Bucket internal node clears its tail")
+		void shouldClearBucketInternalTailWhenFirstWriteShrinksNode(int targetPeek) {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				BLOCK_SIZE, Integer.class, null
+			);
+			insertEntries(INTERNAL_NODE_ENTRY_COUNT, key -> tree.addRecord(key, key * 10));
+			assertShrink(
+				(TransactionalBucketBPlusTree.BPlusInternalTreeNode<Integer>) tree.getRoot(),
+				TransactionalBucketBPlusTree.BPlusInternalTreeNode::getPeek,
+				TransactionalBucketBPlusTree.BPlusInternalTreeNode::setPeek,
+				targetPeek,
+				node -> List.of(
+					new Slots(Arrays.asList(node.getKeys()), Math.max(0, targetPeek), null),
+					new Slots(Arrays.asList(node.getChildren()), targetPeek + 1, null)
+				)
+			);
+		}
 	}
 
 	/**
-	 * Checks the element tree's use of the shared int-keyed routing node.
+	 * Covers leaf storage, including the unchanged bucket leaf as a control.
 	 */
-	@Test
-	@DisplayName("Element internal node clears its tail")
-	void shouldClearElementInternalTailOnFirstWrite() {
-		final TransactionalElementBPlusTree<Integer> tree = elementTree();
-		insertEntries(BLOCK_SIZE + 1, tree::insert);
-		assertIntInternalShrink((TransactionalElementBPlusTree.BPlusInternalTreeNode) tree.getRoot());
-	}
+	@Nested
+	@DisplayName("Leaves")
+	class LeavesTest {
+		/**
+		 * Checks both primitive arrays in an int-to-long leaf.
+		 *
+		 * @param targetPeek the last occupied slot after shrinking
+		 */
+		@ParameterizedTest(name = "peek={0}")
+		@ValueSource(ints = {-1, 0, 1})
+		@DisplayName("Int-to-long leaf clears its tail")
+		void shouldClearIntToLongLeafTailWhenFirstWriteShrinksNode(int targetPeek) {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(BLOCK_SIZE, 1, 3, 1);
+			insertEntries(3, key -> tree.insert(key, key * 10L));
+			assertShrink(
+				(TransactionalIntToLongBPlusTree.BPlusLeafTreeNode) tree.getRoot(),
+				TransactionalIntToLongBPlusTree.BPlusLeafTreeNode::getPeek,
+				TransactionalIntToLongBPlusTree.BPlusLeafTreeNode::setPeek,
+				targetPeek,
+				node -> List.of(
+					new Slots(Arrays.stream(node.getKeys()).boxed().toList(), targetPeek + 1, 0),
+					new Slots(Arrays.stream(node.getValues()).boxed().toList(), targetPeek + 1, 0L)
+				)
+			);
+		}
 
-	/**
-	 * Checks the long routing node's separators and children.
-	 */
-	@Test
-	@DisplayName("Long internal node clears its tail")
-	void shouldClearLongInternalTailOnFirstWrite() {
-		final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(BLOCK_SIZE, String.class);
-		insertEntries(BLOCK_SIZE + 1, key -> tree.insert(key, "value" + key));
-		assertShrink(
-			(TransactionalLongBPlusTree.BPlusInternalTreeNode) tree.getRoot(),
-			TransactionalLongBPlusTree.BPlusInternalTreeNode::getPeek,
-			TransactionalLongBPlusTree.BPlusInternalTreeNode::setPeek,
-			node -> List.of(
-				new Slots(Arrays.stream(node.getKeys()).boxed().toList(), 0, 0L),
-				new Slots(Arrays.asList(node.getChildren()), 1, null)
-			)
-		);
-	}
+		/**
+		 * Checks the element leaf's single array.
+		 *
+		 * @param targetPeek the last occupied slot after shrinking
+		 */
+		@ParameterizedTest(name = "peek={0}")
+		@ValueSource(ints = {-1, 0, 1})
+		@DisplayName("Element leaf clears its tail")
+		void shouldClearElementLeafTailWhenFirstWriteShrinksNode(int targetPeek) {
+			final TransactionalElementBPlusTree<Integer> tree = elementTree();
+			insertEntries(3, tree::insert);
+			assertShrink(
+				(TransactionalElementBPlusTree.BPlusLeafTreeNode<?>) tree.getRoot(),
+				TransactionalElementBPlusTree.BPlusLeafTreeNode::getPeek,
+				TransactionalElementBPlusTree.BPlusLeafTreeNode::setPeek,
+				targetPeek,
+				node -> List.of(new Slots(Arrays.asList(node.getValues()), targetPeek + 1, null))
+			);
+		}
 
-	/**
-	 * Checks the object routing node's separators and children.
-	 */
-	@Test
-	@DisplayName("Object internal node clears its tail")
-	void shouldClearObjectInternalTailOnFirstWrite() {
-		final TransactionalObjectBPlusTree<Integer, String> tree = objectTree();
-		insertEntries(BLOCK_SIZE + 1, key -> tree.insert(key, "value" + key));
-		assertShrink(
-			(TransactionalObjectBPlusTree.BPlusInternalTreeNode<?>) tree.getRoot(),
-			TransactionalObjectBPlusTree.BPlusInternalTreeNode::getPeek,
-			TransactionalObjectBPlusTree.BPlusInternalTreeNode::setPeek,
-			node -> List.of(
-				new Slots(Arrays.asList(node.getKeys()), 0, null),
-				new Slots(Arrays.asList(node.getChildren()), 1, null)
-			)
-		);
-	}
+		/**
+		 * Checks a long leaf's primitive keys and object values.
+		 *
+		 * @param targetPeek the last occupied slot after shrinking
+		 */
+		@ParameterizedTest(name = "peek={0}")
+		@ValueSource(ints = {-1, 0, 1})
+		@DisplayName("Long leaf clears its tail")
+		void shouldClearLongLeafTailWhenFirstWriteShrinksNode(int targetPeek) {
+			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(BLOCK_SIZE, String.class);
+			insertEntries(3, key -> tree.insert(key, "value" + key));
+			assertShrink(
+				(TransactionalLongBPlusTree.BPlusLeafTreeNode<?>) tree.getRoot(),
+				TransactionalLongBPlusTree.BPlusLeafTreeNode::getPeek,
+				TransactionalLongBPlusTree.BPlusLeafTreeNode::setPeek,
+				targetPeek,
+				node -> List.of(
+					new Slots(Arrays.stream(node.getKeys()).boxed().toList(), targetPeek + 1, 0L),
+					new Slots(Arrays.asList(node.getValues()), targetPeek + 1, null)
+				)
+			);
+		}
 
-	/**
-	 * Checks the bucket routing node's separators and children.
-	 */
-	@Test
-	@DisplayName("Bucket internal node clears its tail")
-	void shouldClearBucketInternalTailOnFirstWrite() {
-		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
-			BLOCK_SIZE, Integer.class, null
-		);
-		insertEntries(BLOCK_SIZE + 1, key -> tree.addRecord(key, key * 10));
-		assertShrink(
-			(TransactionalBucketBPlusTree.BPlusInternalTreeNode<Integer>) tree.getRoot(),
-			TransactionalBucketBPlusTree.BPlusInternalTreeNode::getPeek,
-			TransactionalBucketBPlusTree.BPlusInternalTreeNode::setPeek,
-			node -> List.of(
-				new Slots(Arrays.asList(node.getKeys()), 0, null),
-				new Slots(Arrays.asList(node.getChildren()), 1, null)
-			)
-		);
-	}
+		/**
+		 * Checks both object arrays in an object leaf.
+		 *
+		 * @param targetPeek the last occupied slot after shrinking
+		 */
+		@ParameterizedTest(name = "peek={0}")
+		@ValueSource(ints = {-1, 0, 1})
+		@DisplayName("Object leaf clears its tail")
+		void shouldClearObjectLeafTailWhenFirstWriteShrinksNode(int targetPeek) {
+			final TransactionalObjectBPlusTree<Integer, String> tree = objectTree();
+			insertEntries(3, key -> tree.insert(key, "value" + key));
+			assertShrink(
+				(TransactionalObjectBPlusTree.BPlusLeafTreeNode<?, ?>) tree.getRoot(),
+				TransactionalObjectBPlusTree.BPlusLeafTreeNode::getPeek,
+				TransactionalObjectBPlusTree.BPlusLeafTreeNode::setPeek,
+				targetPeek,
+				node -> List.of(
+					new Slots(Arrays.asList(node.getKeys()), targetPeek + 1, null),
+					new Slots(Arrays.asList(node.getValues()), targetPeek + 1, null)
+				)
+			);
+		}
 
-	/**
-	 * Checks both primitive arrays in an int-to-long leaf.
-	 */
-	@Test
-	@DisplayName("Int-to-long leaf clears its tail")
-	void shouldClearIntToLongLeafTailOnFirstWrite() {
-		final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(BLOCK_SIZE, 1, 3, 1);
-		insertEntries(3, key -> tree.insert(key, key * 10L));
-		assertShrink(
-			(TransactionalIntToLongBPlusTree.BPlusLeafTreeNode) tree.getRoot(),
-			TransactionalIntToLongBPlusTree.BPlusLeafTreeNode::getPeek,
-			TransactionalIntToLongBPlusTree.BPlusLeafTreeNode::setPeek,
-			node -> List.of(
-				new Slots(Arrays.stream(node.getKeys()).boxed().toList(), 1, 0),
-				new Slots(Arrays.stream(node.getValues()).boxed().toList(), 1, 0L)
-			)
-		);
-	}
-
-	/**
-	 * Checks the element leaf's single array.
-	 */
-	@Test
-	@DisplayName("Element leaf clears its tail")
-	void shouldClearElementLeafTailOnFirstWrite() {
-		final TransactionalElementBPlusTree<Integer> tree = elementTree();
-		insertEntries(3, tree::insert);
-		assertShrink(
-			(TransactionalElementBPlusTree.BPlusLeafTreeNode<?>) tree.getRoot(),
-			TransactionalElementBPlusTree.BPlusLeafTreeNode::getPeek,
-			TransactionalElementBPlusTree.BPlusLeafTreeNode::setPeek,
-			node -> List.of(new Slots(Arrays.asList(node.getValues()), 1, null))
-		);
-	}
-
-	/**
-	 * Checks a long leaf's primitive keys and object values.
-	 */
-	@Test
-	@DisplayName("Long leaf clears its tail")
-	void shouldClearLongLeafTailOnFirstWrite() {
-		final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(BLOCK_SIZE, String.class);
-		insertEntries(3, key -> tree.insert(key, "value" + key));
-		assertShrink(
-			(TransactionalLongBPlusTree.BPlusLeafTreeNode<?>) tree.getRoot(),
-			TransactionalLongBPlusTree.BPlusLeafTreeNode::getPeek,
-			TransactionalLongBPlusTree.BPlusLeafTreeNode::setPeek,
-			node -> List.of(
-				new Slots(Arrays.stream(node.getKeys()).boxed().toList(), 1, 0L),
-				new Slots(Arrays.asList(node.getValues()), 1, null)
-			)
-		);
-	}
-
-	/**
-	 * Checks both object arrays in an object leaf.
-	 */
-	@Test
-	@DisplayName("Object leaf clears its tail")
-	void shouldClearObjectLeafTailOnFirstWrite() {
-		final TransactionalObjectBPlusTree<Integer, String> tree = objectTree();
-		insertEntries(3, key -> tree.insert(key, "value" + key));
-		assertShrink(
-			(TransactionalObjectBPlusTree.BPlusLeafTreeNode<?, ?>) tree.getRoot(),
-			TransactionalObjectBPlusTree.BPlusLeafTreeNode::getPeek,
-			TransactionalObjectBPlusTree.BPlusLeafTreeNode::setPeek,
-			node -> List.of(
-				new Slots(Arrays.asList(node.getKeys()), 1, null),
-				new Slots(Arrays.asList(node.getValues()), 1, null)
-			)
-		);
-	}
-
-	/**
-	 * Checks the bucket leaf as the reference implementation for first-write truncation.
-	 */
-	@Test
-	@DisplayName("Bucket leaf clears its tail")
-	void shouldClearBucketLeafTailOnFirstWrite() {
-		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
-			BLOCK_SIZE, Integer.class, null
-		);
-		insertEntries(3, key -> tree.addRecord(key, key * 10));
-		assertShrink(
-			(TransactionalBucketBPlusTree.BPlusLeafTreeNode<Integer>) tree.getRoot(),
-			TransactionalBucketBPlusTree.BPlusLeafTreeNode::getPeek,
-			TransactionalBucketBPlusTree.BPlusLeafTreeNode::setPeek,
-			node -> List.of(
-				new Slots(Arrays.asList(node.getKeys()), 1, null),
-				new Slots(IntStream.range(0, node.getRecords().capacity()).map(node.getRecords()::intAt)
-					.boxed().toList(), 1, 0)
-			)
-		);
+		/**
+		 * Checks the bucket leaf as the reference implementation for first-write truncation.
+		 *
+		 * @param targetPeek the last occupied slot after shrinking
+		 */
+		@ParameterizedTest(name = "peek={0}")
+		@ValueSource(ints = {-1, 0, 1})
+		@DisplayName("Bucket leaf clears its tail")
+		void shouldClearBucketLeafTailWhenFirstWriteShrinksNode(int targetPeek) {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				BLOCK_SIZE, Integer.class, null
+			);
+			insertEntries(3, key -> tree.addRecord(key, key * 10));
+			assertShrink(
+				(TransactionalBucketBPlusTree.BPlusLeafTreeNode<Integer>) tree.getRoot(),
+				TransactionalBucketBPlusTree.BPlusLeafTreeNode::getPeek,
+				TransactionalBucketBPlusTree.BPlusLeafTreeNode::setPeek,
+				targetPeek,
+				node -> List.of(
+					new Slots(Arrays.asList(node.getKeys()), targetPeek + 1, null),
+					new Slots(IntStream.range(0, node.getRecords().capacity()).map(node.getRecords()::intAt)
+						.boxed().toList(), targetPeek + 1, 0)
+				)
+			);
+		}
 	}
 
 	/**
@@ -267,14 +322,17 @@ class TransactionalNodeShrinkTest {
 	 * Checks the internal node layout shared by both int-keyed trees.
 	 *
 	 * @param node the committed root
+	 * @param targetPeek the last occupied slot after shrinking
 	 * @param <N> the concrete internal node type
 	 */
-	private static <N extends AbstractIntKeyedInternalNode<N>> void assertIntInternalShrink(@Nonnull N node) {
+	private static <N extends AbstractIntKeyedInternalNode<N>> void assertIntInternalShrink(
+		@Nonnull N node, int targetPeek
+	) {
 		assertShrink(
-			node, AbstractIntKeyedInternalNode::getPeek, AbstractIntKeyedInternalNode::setPeek,
+			node, AbstractIntKeyedInternalNode::getPeek, AbstractIntKeyedInternalNode::setPeek, targetPeek,
 			current -> List.of(
-				new Slots(Arrays.stream(current.getKeys()).boxed().toList(), 0, 0),
-				new Slots(Arrays.asList(current.getChildren()), 1, null)
+				new Slots(Arrays.stream(current.getKeys()).boxed().toList(), Math.max(0, targetPeek), 0),
+				new Slots(Arrays.asList(current.getChildren()), targetPeek + 1, null)
 			)
 		);
 	}
@@ -286,6 +344,7 @@ class TransactionalNodeShrinkTest {
 	 * @param node the committed root of the populated tree
 	 * @param peek reads the node's last occupied slot
 	 * @param shrink changes the node's last occupied slot
+	 * @param targetPeek the last occupied slot after shrinking
 	 * @param readSlots reads the backing slots, including the tail, in a stable order
 	 * @param <N> the concrete node type
 	 */
@@ -293,26 +352,27 @@ class TransactionalNodeShrinkTest {
 		@Nonnull N node,
 		@Nonnull ToIntFunction<N> peek,
 		@Nonnull ObjIntConsumer<N> shrink,
+		int targetPeek,
 		@Nonnull Function<N, List<Slots>> readSlots
 	) {
 		final int originalPeek = peek.applyAsInt(node);
-		assertTrue(originalPeek > 0);
+		assertTrue(originalPeek >= 2, "The source node must have at least three occupied slots");
 		final List<Slots> originalSlots = readSlots.apply(node);
 		final List<Slots> layerSlots = new ArrayList<>();
 		assertStateAfterCommit(
 			node,
 			original -> {
 				assertNull(Transaction.getTransactionalMemoryLayerIfExists(original));
-				shrink.accept(original, 0);
+				shrink.accept(original, targetPeek);
 				final N layer = Transaction.getTransactionalMemoryLayerIfExists(original);
 				assertNotNull(layer);
-				assertEquals(0, peek.applyAsInt(layer));
+				assertEquals(targetPeek, peek.applyAsInt(layer));
 				layerSlots.addAll(readSlots.apply(layer));
 			},
 			(original, committed) -> {
 				assertEquals(originalPeek, peek.applyAsInt(original));
 				assertEquals(originalSlots, readSlots.apply(original));
-				assertEquals(0, peek.applyAsInt(committed));
+				assertEquals(targetPeek, peek.applyAsInt(committed));
 				final List<Slots> committedSlots = readSlots.apply(committed);
 				assertAll(
 					"node snapshots",
