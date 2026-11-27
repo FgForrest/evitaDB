@@ -23,13 +23,9 @@
 
 package io.evitadb.index.set;
 
-import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.core.transaction.memory.Snapshotable;
-import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
-import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.UndoJournal;
-import lombok.Getter;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,7 +42,8 @@ import java.util.Set;
  * insertions and removals against an immutable delegate set. Created
  * keys are stored in a separate `HashSet`, and removed keys are
  * tracked in another `HashSet`. On commit, these changes are merged
- * with the delegate to produce the final set state.
+ * with the delegate to produce the final set state. Created keys
+ * are absent from the delegate, and removed keys belong to it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
@@ -57,7 +54,7 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	/**
 	 * Contains reference to original immutable set.
 	 */
-	@Getter private final Set<K> setDelegate;
+	private final Set<K> setDelegate;
 	/**
 	 * Contains set of removed keys. Lazily allocated on first write
 	 * to avoid unnecessary heap pressure when the layer has no
@@ -84,111 +81,37 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	}
 
 	/**
-	 * Records the insertion of the given key. The update is trapped within this diff layer.
+	 * Adds a new key to this layer or cancels a pending removal from the delegate.
 	 *
-	 * When the key implements {@link ContentComparator} and an equal-by-identity element with
-	 * different content is already present (either in the delegate or in the change layer), the
-	 * existing instance is substituted by the new one. For the delegate case this is encoded as a
-	 * paired "remove + add" in the change layer - {@link #createMergedSet} honors both, so the new
-	 * instance ends up in the committed snapshot.
+	 * @param key the key to add
+	 * @return whether the key was absent from the transactional set
 	 */
 	public boolean put(@Nonnull K key) {
-		// record the pre-mutation membership of this key so a savepoint rollback can undo whatever branch runs below
 		journalKey(key);
-		if (containsCreated(key)) {
-			// already in change layer - replace identity-equal entry if its content has diverged
-			replaceInCreatedIfContentDiffers(key);
-			return false;
-		}
 		if (this.setDelegate.contains(key)) {
-			// already in original delegate
-			if (contentDiffersFromDelegate(key)) {
-				// substitute: mark the original position for removal AND record the new instance as
-				// created - createMergedSet will drop the original and insert the new instance
-				getOrCreateRemovedKeys().add(key);
-				getOrCreateCreatedKeys().add(key);
-				return false;
-			}
-			// contents are logically equal - just cancel any pending removal
 			return this.removedKeys != null && this.removedKeys.remove(key);
 		}
-		getOrCreateCreatedKeys().add(key);
-		return true;
+		return getOrCreateCreatedKeys().add(key);
 	}
 
 	/**
-	 * Records the removal of a key if it is present in the original
-	 * set or removes a previously inserted record trapped in this diff
-	 * layer. If no key is found the call is ignored and returns false.
+	 * Removes a key from this layer or records the removal of a delegate key.
+	 *
+	 * @param key the key to remove
+	 * @return whether the key was present in the transactional set
 	 */
 	@SuppressWarnings("unchecked")
 	public boolean remove(@Nonnull Object key) {
-		@SuppressWarnings("SuspiciousMethodCalls") final boolean originalContained = this.setDelegate.contains(key);
-		final boolean wasInCreated = containsCreated((K) key);
-		final boolean wasInRemoved = containsRemoved((K) key);
-
-		// drop any pending creation (covers both fresh adds and substitution replacements)
-		if (wasInCreated) {
-			removeCreatedKey((K) key);
+		if (containsCreated((K) key)) {
+			journalKey((K) key);
+			return this.createdKeys.remove(key);
 		}
-
-		if (originalContained) {
-			if (wasInRemoved && !wasInCreated) {
-				// original already net-removed and no pending substitution to roll back -> no-op
-				return false;
-			}
-			// either this is a removal of an original entry, or a rollback of a "replace" -
-			// in both cases the original delegate position must end up removed
-			registerRemovedKey((K) key);
-			return true;
+		//noinspection SuspiciousMethodCalls
+		if (this.setDelegate.contains(key) && !containsRemoved((K) key)) {
+			journalKey((K) key);
+			return getOrCreateRemovedKeys().add((K) key);
 		}
-		// not in delegate - only the pending creation (if any) had any effect
-		return wasInCreated;
-	}
-
-	/**
-	 * Detects whether an element identity-equal to {@code key} is already in {@link #setDelegate} but
-	 * carries different content. Returns false for types that do not implement {@link ContentComparator}
-	 * because for them {@link Object#equals} is content-aware and {@code setDelegate.contains} already
-	 * implies equality.
-	 */
-	private boolean contentDiffersFromDelegate(@Nonnull K key) {
-		if (!(key instanceof ContentComparator)) {
-			return false;
-		}
-		final K existing = findIdentityEqual(this.setDelegate, key);
-		return existing != null && ContentComparator.contentDiffers(existing, key);
-	}
-
-	/**
-	 * If an identity-equal entry exists in the change layer with diverging content, substitutes it
-	 * for the new instance. No-op for types whose equals semantics already imply content equality.
-	 */
-	private void replaceInCreatedIfContentDiffers(@Nonnull K key) {
-		if (!(key instanceof ContentComparator)) {
-			return;
-		}
-		final K existing = findIdentityEqual(getCreatedKeys(), key);
-		if (existing != null && ContentComparator.contentDiffers(existing, key)) {
-			final Set<K> created = getOrCreateCreatedKeys();
-			created.remove(key); // removes identity-equal entry from the HashSet
-			created.add(key);
-		}
-	}
-
-	/**
-	 * Returns the element in {@code haystack} that is identity-equal (by {@link Object#equals}) to
-	 * {@code needle}, or {@code null} when none is present. A linear scan is required because the
-	 * {@link Set} API exposes no way to retrieve the stored instance equal to a probe.
-	 */
-	@Nullable
-	private K findIdentityEqual(@Nonnull Set<K> haystack, @Nonnull K needle) {
-		for (K candidate : haystack) {
-			if (needle.equals(candidate)) {
-				return candidate;
-			}
-		}
-		return null;
+		return false;
 	}
 
 	/**
@@ -260,47 +183,20 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	}
 
 	/**
-	 * Computes the new set originating from {@link #setDelegate} with
-	 * all changes from this diff layer applied.
+	 * Applies this diff layer's membership changes to the delegate.
+	 *
+	 * @return a new set containing the retained delegate keys and the added keys
 	 */
-	@SuppressWarnings("unchecked")
 	@Nonnull
-	public Set<K> createMergedSet(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		final HashSet<K> copy = new HashSet<>(this.setDelegate.size());
-		// iterate original set and copy all values from it
-		for (K key : this.setDelegate) {
-			// we need to always create copy - something in the
-			// referenced object might have changed; even the removed
-			// values need to be evaluated (to discard them from
-			// transactional memory set)
-			if (key instanceof TransactionalStateProducer) {
-				key = (K) transactionalLayer.getStateCopyWithCommittedChanges(
-					(TransactionalStateProducer<?>) key
-				);
-			}
-			// except those that were removed
+	public Set<K> createMergedSet() {
+		final Set<K> copy = CollectionUtils.createHashSet(this.setDelegate.size());
+		for (final K key : this.setDelegate) {
 			if (!containsRemoved(key)) {
 				copy.add(key);
 			}
 		}
-
-		// iterate over inserted keys
-		for (K key : getCreatedKeys()) {
-			if (key instanceof TransactionalStateProducer) {
-				key = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalStateProducer<?>) key);
-			}
-			copy.add(key);
-		}
-
+		copy.addAll(getCreatedKeys());
 		return copy;
-	}
-
-	/**
-	 * Registers a removed entry.
-	 */
-	public void registerRemovedKey(@Nonnull K key) {
-		journalKey(key);
-		getOrCreateRemovedKeys().add(key);
 	}
 
 	/**
@@ -332,16 +228,6 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	 */
 	boolean containsCreated(@Nonnull K key) {
 		return this.createdKeys != null && this.createdKeys.contains(key);
-	}
-
-	/**
-	 * Removes a previously created key in this transactional diff.
-	 */
-	void removeCreatedKey(@Nonnull K key) {
-		journalKey(key);
-		if (this.createdKeys != null) {
-			this.createdKeys.remove(key);
-		}
 	}
 
 	/**
@@ -383,19 +269,9 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	}
 
 	/**
-	 * Captures the current diff state of this layer into an independent memento.
+	 * Marks the current position in the undo journal and records which change sets are allocated.
 	 *
-	 * Both change sets are deep-copied into fresh `HashSet` instances so that later
-	 * {@link #put}/{@link #remove}/{@link #clearAll} calls (which mutate them in place) cannot corrupt
-	 * the captured memento. The lazy null-vs-empty distinction is preserved (a `null` set is captured as
-	 * `null`, never as an empty set) so a restored layer keeps the allocation-free fast paths intact.
-	 *
-	 * The {@link #setDelegate} is the shared immutable baseline and is never mutated by this layer, so it
-	 * is intentionally excluded from the memento. The {@code K} elements are captured by reference only -
-	 * they are diff keys whose own transactional state (when they are
-	 * {@link TransactionalLayerProducer}s) is governed by their own savepoints, not by this layer.
-	 *
-	 * @return an immutable memento holding deep copies of the two change sets
+	 * @return the journal mark and the allocation state of the change sets
 	 */
 	@Nonnull
 	@Override
@@ -414,9 +290,8 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	 * Restores the diff state of this layer from the given memento, undoing every
 	 * {@link #put}/{@link #remove}/{@link #clearAll} performed since the memento was captured.
 	 *
-	 * Each change set is rebuilt from a fresh copy of the memento's set (or set to `null` when the
-	 * memento captured `null`), so the same memento may be restored more than once without being aliased
-	 * or mutated by subsequent layer operations. The {@link #setDelegate} is left untouched.
+	 * The undo journal restores the recorded memberships. A change set that was unallocated at the
+	 * time of capture is reset to null.
 	 *
 	 * @param memento the previously captured state to restore
 	 */
@@ -472,48 +347,32 @@ public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetC
 	}
 
 	/**
-	 * Captures the current (pre-mutation) membership of {@code key} in both change sets and returns an inverse operation
-	 * that restores exactly that membership. The inverse is ABSOLUTE (it forces the captured state rather than reversing
-	 * a delta), so replaying several inverses for the same key in reverse order correctly lands on the earliest — i.e.
-	 * the pre-savepoint — state. For {@link ContentComparator} keys the actual stored instance is captured (not merely a
-	 * presence flag) so a same-key content substitution is reverted to the original instance.
+	 * Captures both change sets' membership for the key before an operation. Replaying these inverses
+	 * in reverse order restores the membership recorded at the savepoint.
 	 *
 	 * @param key the key whose pre-mutation membership is captured
-	 * @return an inverse restoring {@code key}'s captured membership in {@link #createdKeys} / {@link #removedKeys}
+	 * @return an inverse restoring the key's membership in the two change sets
 	 */
 	@Nonnull
 	private Runnable captureKeyInverse(@Nonnull K key) {
-		final boolean wasInRemoved = this.removedKeys != null && this.removedKeys.contains(key);
-		final K createdInstance;
-		if (this.createdKeys == null) {
-			createdInstance = null;
-		} else if (key instanceof ContentComparator) {
-			// capture the exact stored instance so a content substitution reverts to the original one
-			createdInstance = findIdentityEqual(this.createdKeys, key);
-		} else {
-			createdInstance = this.createdKeys.contains(key) ? key : null;
-		}
-		return () -> restoreKeyMembership(key, createdInstance, wasInRemoved);
+		final boolean wasInCreated = containsCreated(key);
+		final boolean wasInRemoved = containsRemoved(key);
+		return () -> restoreKeyMembership(key, wasInCreated, wasInRemoved);
 	}
 
 	/**
-	 * Forces {@code key}'s membership in the two change sets back to the captured pre-mutation state. Container
-	 * existence (the lazy null-vs-set invariant) is normalized separately by {@link #restore(SetChangesMemento)} after
-	 * all per-key inverses have replayed.
+	 * Restores the key's membership in both change sets. The memento handles their allocation state
+	 * after all per-key inverses have replayed.
 	 *
-	 * @param key             the key to restore
-	 * @param createdInstance the instance that was stored in {@link #createdKeys} for this key, or `null` if absent
-	 * @param wasInRemoved    whether the key was present in {@link #removedKeys}
+	 * @param key          the key to restore
+	 * @param wasInCreated whether the key was present in {@link #createdKeys}
+	 * @param wasInRemoved whether the key was present in {@link #removedKeys}
 	 */
-	private void restoreKeyMembership(@Nonnull K key, @Nullable K createdInstance, boolean wasInRemoved) {
-		if (createdInstance == null) {
-			if (this.createdKeys != null) {
-				this.createdKeys.remove(key);
-			}
-		} else {
-			final Set<K> created = getOrCreateCreatedKeys();
-			created.remove(key);          // drop any identity-equal current instance
-			created.add(createdInstance); // reinstate the exact pre-mutation instance
+	private void restoreKeyMembership(@Nonnull K key, boolean wasInCreated, boolean wasInRemoved) {
+		if (wasInCreated) {
+			getOrCreateCreatedKeys().add(key);
+		} else if (this.createdKeys != null) {
+			this.createdKeys.remove(key);
 		}
 		if (wasInRemoved) {
 			getOrCreateRemovedKeys().add(key);

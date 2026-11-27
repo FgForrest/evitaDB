@@ -61,14 +61,6 @@ public interface BPlusTreeNode<N extends BPlusTreeNode<N>>
 	int getPeek();
 
 	/**
-	 * Sets the peek index of the B+ Tree node. The peek index indicates the last
-	 * usable position in the node's values or children array.
-	 *
-	 * @param peek the new peek index to set for the node
-	 */
-	void setPeek(int peek);
-
-	/**
 	 * Returns number of values in this node - i.e. peek + 1.
 	 *
 	 * @return number of values in this node
@@ -83,13 +75,6 @@ public interface BPlusTreeNode<N extends BPlusTreeNode<N>>
 	 * @return number of keys in this node
 	 */
 	int keyCount();
-
-	/**
-	 * Checks if the current B+ Tree leaf node is full, meaning all available slots are occupied.
-	 *
-	 * @return true if the node is full, false otherwise.
-	 */
-	boolean isFull();
 
 	/**
 	 * Converts the B+ Tree Node to a string representation with a specified level and indentation.

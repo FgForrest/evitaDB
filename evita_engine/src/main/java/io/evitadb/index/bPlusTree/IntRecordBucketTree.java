@@ -110,7 +110,9 @@ public interface IntRecordBucketTree<K extends Comparable<K>> extends BucketBPlu
 
 	/**
 	 * Returns the record set associated with the given value (a lean single-record view, a transactional bitmap, or the
-	 * empty bitmap when absent).
+	 * empty bitmap when absent). Callers must treat the returned bitmap as read-only. For a large bucket it is the
+	 * tree's live transactional bitmap, which does not enforce that: a change made through it never flags its leaf
+	 * dirty, so the leaf's page would not be rewritten. Records change only through the tree's add and remove methods.
 	 *
 	 * @param value the value to look up (may be null ⇒ empty bitmap)
 	 * @return the record set for the value, never null
@@ -120,24 +122,18 @@ public interface IntRecordBucketTree<K extends Comparable<K>> extends BucketBPlu
 
 	/**
 	 * Resolves one candidate value id, tests the value it names against `valuePredicate`, and returns that value's
-	 * record set when the test passes - all from a SINGLE resolution of the bucket's location.
+	 * record set when the test passes - all from a SINGLE resolution of the bucket's location. Everything the caller
+	 * needs is slot-parallel in the leaf that one probe lands on, so the value, the version token and the record set
+	 * necessarily describe the same bucket, even when a directory rebuild races the call.
 	 *
-	 * This is the fused sibling of `valueOf(id)` + `leafVersionOf(id)` + {@link #getRecordsEqualTo(Comparable)}, which
-	 * a candidate-verifying caller would otherwise have to chain. That chain resolves the same location three times:
-	 * the first two probes are byte-for-byte identical, and the third throws the located slot away to re-find it by a
-	 * root-to-leaf descent plus a leaf-local binary search over front-coded keys. Everything the caller needs is
-	 * slot-parallel in the leaf the first probe already landed on, so one probe answers all three questions.
+	 * The leaf version reaches `leafVersionSink` for MATCHES ONLY: a candidate that fails the predicate contributes no
+	 * record set, so its leaf is not a page the answer depends on and must not enter the staleness token set.
 	 *
-	 * The leaf version reaches `leafVersionSink` for MATCHES ONLY, exactly as a caller chaining the three calls would
-	 * arrange: a candidate that fails the predicate contributes no record set, so its leaf is not a page the answer
-	 * depends on and must not enter the staleness token set.
+	 * ## No open transaction
 	 *
-	 * ## The caller owes the transaction check
-	 *
-	 * The same obligation `valueOf(int)` documents applies unchanged, and for the same reason: the location is
-	 * resolved through the value id directory, which describes the last PUBLISHED version of the tree. Under an open
-	 * transaction the directory and the leaves disagree, so this method refuses rather than reporting a silent
-	 * under-count.
+	 * The location is resolved through the value id directory, which describes the last PUBLISHED version of the tree.
+	 * Under an open transaction the directory and the leaves disagree, so this method refuses rather than reporting a
+	 * silent under-count.
 	 *
 	 * @param valueId         the candidate id to resolve
 	 * @param valuePredicate  the exact test applied to the value the id names, or `null` when the caller already knows

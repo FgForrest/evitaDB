@@ -180,7 +180,7 @@ class ElementAndIntToLongBPlusTreeHeapSizeTest {
 			final Element[] elements = elements(500);
 			final TransactionalElementBPlusTree<Element> tree = buildElementTree(elements);
 
-			final long spineOnly = tree.getHeapSizeInBytes();
+			final long spineOnly = tree.getHeapSizeInBytes(element -> 0L);
 			final long withBodies = tree.getHeapSizeInBytes(JolHeapSize::ownedSize);
 
 			// the gap is exactly the elements and nothing else - this is the invariant the price split rests on:

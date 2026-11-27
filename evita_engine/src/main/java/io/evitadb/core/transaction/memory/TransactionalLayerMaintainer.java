@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Transactional layer is a temporary storage for storing {@link TransactionalLayerCreator#createLayer()} objects.
@@ -70,12 +69,6 @@ public class TransactionalLayerMaintainer {
 	 * concurrency support costs nothing here.
 	 */
 	private final LongObjectHashMap<TransactionalLayerEntry<?>> transactionalLayer;
-	/**
-	 * Internal flag that allows to avoid marking the used transactional layer as {@link TransactionalLayerState#DISCARDED}.
-	 * It's used when we need merged transactional state within the current transaction leaving the modification state
-	 * intact for further {@link #commit()}.
-	 */
-	private final AtomicBoolean avoidDiscardingState = new AtomicBoolean();
 	/**
 	 * This flag is set to FALSE when transaction is committed. From this moment on no transactional memory layer is
 	 * allowed to be created.
@@ -288,28 +281,6 @@ public class TransactionalLayerMaintainer {
 
 	/**
 	 * This method will retrieve transactional layer for passed producer, asks it for creating copy of the producer
-	 * with applying transactional change. When copy is successfully created transactional memory item is NOT removed
-	 * from the transaction.
-	 *
-	 * Method returns NULL if no transactional changes were made to the object, and it may remain same.
-	 */
-	@Nonnull
-	public <S> S getStateCopyWithCommittedChangesWithoutDiscardingState(
-		@Nonnull TransactionalStateProducer<S> transactionalLayerProducer
-	) {
-		try {
-			Assert.isTrue(
-				this.avoidDiscardingState.compareAndSet(false, true),
-				"Calling getStateCopyWithCommittedChangesWithoutDiscardingState in nested way is not allowed (we don't maintain stack)!"
-			);
-			return getStateCopyWithCommittedChanges(transactionalLayerProducer);
-		} finally {
-			this.avoidDiscardingState.set(false);
-		}
-	}
-
-	/**
-	 * This method will retrieve transactional layer for passed producer, asks it for creating copy of the producer
 	 * with applying transactional change. When copy is successfully created transactional memory item is removed from
 	 * the transaction.
 	 */
@@ -340,7 +311,7 @@ public class TransactionalLayerMaintainer {
 			transactionalLayerForItem == null ? null : transactionalLayerForItem.getItem(),
 			this
 		);
-		if (!this.avoidDiscardingState.get() && transactionalLayerForItem != null) {
+		if (transactionalLayerForItem != null) {
 			transactionalLayerForItem.discard();
 		}
 		return copyWithCommittedChanges;

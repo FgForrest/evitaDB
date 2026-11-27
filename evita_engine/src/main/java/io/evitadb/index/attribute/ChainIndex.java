@@ -1625,7 +1625,11 @@ public class ChainIndex implements
 
 	/**
 	 * Reads the contiguous block `[startPos, startPos + length)` from {@link #elements} element-by-element. Used on the
-	 * hot relocation path to avoid {@link TransactionalUnorderedIntArray#getSubArray} flattening the entire array.
+	 * hot relocation path to read only the records being moved.
+	 *
+	 * @param startPos position of the first record
+	 * @param length number of records to read
+	 * @return the records in logical order
 	 */
 	@Nonnull
 	private int[] readBlock(int startPos, int length) {

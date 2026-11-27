@@ -151,10 +151,11 @@ class TransactionalElementBPlusTreeTest {
 
 		// reverse element iteration: descending keys
 		index = expectedKeys.length;
-		final Iterator<PriceRecordContract> reverse = tree.valueReverseIterator();
+		final OfInt reverse = tree.keyReverseIterator();
 		while (reverse.hasNext()) {
-			final PriceRecordContract record = reverse.next();
-			assertEquals(expectedKeys[--index], record.internalPriceId(), "Reverse iterator key mismatch at " + index);
+			final int key = reverse.nextInt();
+			assertEquals(expectedKeys[--index], key, "Reverse iterator key mismatch at " + index);
+			assertEquals(rec(key), tree.search(key), "Reverse iterator content mismatch at " + index);
 		}
 		assertEquals(0, index, "Reverse iterator produced a different element count");
 		assertThrows(NoSuchElementException.class, reverse::next, "Reverse iterator should be exhausted");
@@ -500,7 +501,7 @@ class TransactionalElementBPlusTreeTest {
 		void shouldIterateEmptyTree() {
 			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(4);
 			assertFalse(tree.valueIterator().hasNext());
-			assertFalse(tree.valueReverseIterator().hasNext());
+			assertFalse(tree.keyReverseIterator().hasNext());
 			assertFalse(tree.keyIterator().hasNext());
 			assertEquals(0, tree.toArray().length);
 		}
@@ -523,23 +524,6 @@ class TransactionalElementBPlusTreeTest {
 			assertEquals(12, seen.size());
 		}
 
-		@Test
-		@DisplayName("lesser-or-equal element iterator starts at the last matching key")
-		void shouldIterateLesserOrEqual() {
-			final TransactionalElementBPlusTree<PriceRecordContract> tree = treeOf(3);
-			for (int i = 0; i < 20; i++) {
-				tree.insert(rec(i << 1)); // even keys 0..38
-			}
-			// start on an absent key -> first element with a lesser key
-			final Iterator<PriceRecordContract> it = tree.lesserOrEqualValueIterator(15);
-			final List<Integer> seen = new ArrayList<>();
-			while (it.hasNext()) {
-				seen.add(it.next().internalPriceId());
-			}
-			assertEquals(14, seen.getFirst());
-			assertEquals(0, seen.getLast());
-			assertEquals(8, seen.size());
-		}
 	}
 
 	@Nested
@@ -1884,7 +1868,10 @@ class TransactionalElementBPlusTreeTest {
 		@DisplayName("the heap walk stays inside the array it read")
 		void shouldBoundTheHeapWalkWhenPeekRunsAheadOfTheArray() {
 			// reached from EntityCollection#describeIndex, which takes no snapshot and holds no transaction
-			assertTrue(tornSingleLeafTree().getHeapSizeInBytes() > 0, "the heap walk must survive the torn leaf");
+			assertTrue(
+				tornSingleLeafTree().getHeapSizeInBytes(element -> 0L) > 0,
+				"the heap walk must survive the torn leaf"
+			);
 		}
 
 	}
@@ -2017,12 +2004,12 @@ class TransactionalElementBPlusTreeTest {
 			@Nonnull UnpublishedChildSlotSupport.TornSpine<TransactionalElementBPlusTree<PriceRecordContract>> fixture
 		) {
 			final TransactionalElementBPlusTree<PriceRecordContract> tree = fixture.tree();
-			final long heapBefore = tree.getHeapSizeInBytes();
+			final long heapBefore = tree.getHeapSizeInBytes(element -> 0L);
 
 			UnpublishedChildSlotSupport.tear(fixture.node());
 
 			assertEquals(
-				heapBefore, tree.getHeapSizeInBytes(),
+				heapBefore, tree.getHeapSizeInBytes(element -> 0L),
 				"the heap walk must step over the unpublished slot - the torn node owns no more heap than before"
 			);
 		}

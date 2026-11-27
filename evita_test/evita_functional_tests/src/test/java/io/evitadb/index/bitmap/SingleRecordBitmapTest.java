@@ -60,6 +60,9 @@ class SingleRecordBitmapTest {
 	@DisplayName("Read accessors")
 	class ReadAccessorsTest {
 
+		/**
+		 * Checks the record through the public read accessors.
+		 */
 		@Test
 		@DisplayName("Reports a single non-empty record and exposes it via all read accessors")
 		void shouldExposeTheSingleRecord() {
@@ -69,7 +72,7 @@ class SingleRecordBitmapTest {
 			assertEquals(1, bitmap.size());
 			assertTrue(bitmap.contains(42));
 			assertFalse(bitmap.contains(41));
-			assertEquals(42, bitmap.get(0));
+			assertArrayEquals(new int[]{42}, bitmap.getRange(0, 1));
 			assertEquals(42, bitmap.getFirst());
 			assertEquals(42, bitmap.getLast());
 			assertEquals(42, bitmap.getRecordId());
@@ -88,15 +91,6 @@ class SingleRecordBitmapTest {
 			assertEquals(Integer.MIN_VALUE, new SingleRecordBitmap(Integer.MIN_VALUE).getRecordId());
 			assertEquals(Integer.MAX_VALUE, new SingleRecordBitmap(Integer.MAX_VALUE).getRecordId());
 			assertEquals(0, new SingleRecordBitmap(0).getRecordId());
-		}
-
-		@Test
-		@DisplayName("get throws for any index other than zero")
-		void shouldThrowForOutOfBoundsGet() {
-			final SingleRecordBitmap bitmap = new SingleRecordBitmap(7);
-
-			assertThrows(IndexOutOfBoundsException.class, () -> bitmap.get(1));
-			assertThrows(IndexOutOfBoundsException.class, () -> bitmap.get(-1));
 		}
 
 		@Test
@@ -257,17 +251,16 @@ class SingleRecordBitmapTest {
 	@DisplayName("Immutability")
 	class ImmutabilityTest {
 
+		/**
+		 * Verifies both insertion methods reject writes to the single-record bitmap.
+		 */
 		@Test
 		@DisplayName("All mutation methods are rejected (immutable)")
 		void shouldRejectMutation() {
 			final SingleRecordBitmap bitmap = new SingleRecordBitmap(1);
 
 			assertThrows(UnsupportedOperationException.class, () -> bitmap.add(2));
-			assertThrows(UnsupportedOperationException.class, () -> bitmap.addAll(2, 3));
 			assertThrows(UnsupportedOperationException.class, () -> bitmap.addAll(new BaseBitmap(2)));
-			assertThrows(UnsupportedOperationException.class, () -> bitmap.remove(1));
-			assertThrows(UnsupportedOperationException.class, () -> bitmap.removeAll(1));
-			assertThrows(UnsupportedOperationException.class, () -> bitmap.removeAll(new BaseBitmap(1)));
 		}
 	}
 
@@ -318,6 +311,11 @@ class SingleRecordBitmapTest {
 	@DisplayName("Boundary record ids")
 	class BoundaryRecordIdsTest {
 
+		/**
+		 * Checks accessors for a record id at an integer boundary.
+		 *
+		 * @param recordId the record id to store
+		 */
 		@ParameterizedTest(name = "record id = {0}")
 		@ValueSource(ints = {Integer.MIN_VALUE, -1, 0, 1, Integer.MAX_VALUE})
 		@DisplayName("All accessors agree on the stored record id at signed boundaries")
@@ -328,7 +326,7 @@ class SingleRecordBitmapTest {
 			assertEquals(1, bitmap.size());
 			assertTrue(bitmap.contains(recordId));
 			assertEquals(0, bitmap.indexOf(recordId));
-			assertEquals(recordId, bitmap.get(0));
+			assertEquals(recordId, bitmap.getRecordId());
 			assertEquals(recordId, bitmap.getFirst());
 			assertEquals(recordId, bitmap.getLast());
 			assertArrayEquals(new int[]{recordId}, bitmap.getArray());

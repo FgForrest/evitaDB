@@ -539,6 +539,10 @@ public class ValueDedupCensus {
 	 * `ValueColumn#size()` - the column's live entry count, which is also the leaf's live bucket count.
 	 */
 	private static final Method VALUE_COLUMN_SIZE_METHOD = openMethod(VALUE_COLUMN_CLASS, "size");
+	/**
+	 * Each leaf's logical block size, which caps the projected size of its id column.
+	 */
+	private static final Method VALUE_COLUMN_CAPACITY_METHOD = openMethod(VALUE_COLUMN_CLASS, "capacity");
 
 	/**
 	 * `ValueColumn#getHeapSizeInBytes(ToLongFunction)` - the sizer-aware overload, which is the one the leaf itself
@@ -1297,14 +1301,13 @@ public class ValueDedupCensus {
 	@Nonnull
 	private static KeyColumnFootprint keyColumnFootprintOf(@Nonnull InvertedIndex index) {
 		final BucketBPlusTree<?> tree = bucketTreeOf(index);
-		if (!(tree instanceof final TransactionalBucketBPlusTree<?> transactionalTree)) {
+		if (!(tree instanceof TransactionalBucketBPlusTree<?>)) {
 			throw new GenericEvitaInternalError(
 				"Bucket tree of an inverted index is a `" + tree.getClass().getName() +
 					"`, which exposes no leaf capacity - the tree-shaped dictionary spine cannot be priced!",
 				"Bucket tree exposes no leaf capacity!"
 			);
 		}
-		final int leafCapacity = transactionalTree.getValueBlockSize();
 		final VMLayout layout = VMLayout.current();
 		long keyColumnBytes = 0L;
 		long idColumnBytes = 0L;
@@ -1314,7 +1317,8 @@ public class ValueDedupCensus {
 				VALUE_COLUMN_HEAP_SIZE_METHOD, keyColumn, IndexHeapSize.OWNED_KEY_SIZER
 			);
 			idColumnBytes += projectedIdColumnBytes(
-				layout, (int) invokeMethod(VALUE_COLUMN_SIZE_METHOD, keyColumn), leafCapacity
+				layout, (int) invokeMethod(VALUE_COLUMN_SIZE_METHOD, keyColumn),
+				(int) invokeMethod(VALUE_COLUMN_CAPACITY_METHOD, keyColumn)
 			);
 		}
 		return new KeyColumnFootprint(keyColumnBytes, idColumnBytes);
@@ -1474,16 +1478,21 @@ public class ValueDedupCensus {
 	 */
 	private static long hostIdColumnBytes(@Nonnull InvertedIndex owner) {
 		final BucketBPlusTree<?> tree = bucketTreeOf(owner);
-		if (!(tree instanceof final TransactionalBucketBPlusTree<?> transactionalTree)) {
+		if (!(tree instanceof TransactionalBucketBPlusTree<?>)) {
 			throw new GenericEvitaInternalError(
 				"Bucket tree of an inverted index is a `" + tree.getClass().getName() +
 					"`, which exposes no leaf capacity - the host increment cannot be priced!",
 				"Bucket tree exposes no leaf capacity!"
 			);
 		}
-		final int leafCount = tree.leafPageHandles().size();
-		final int leafCapacity = transactionalTree.getValueBlockSize();
-		return leafCount * VMLayout.current().sizeOfArray(leafCapacity, Integer.BYTES) + VALUE_ID_ALLOCATOR_BYTES;
+		final VMLayout layout = VMLayout.current();
+		long bytes = VALUE_ID_ALLOCATOR_BYTES;
+		for (final Object handle : tree.leafPageHandles()) {
+			final Object keyColumn = readField(LEAF_KEY_COLUMN_FIELD, readField(LEAF_HANDLE_NODE_FIELD, handle));
+			final int leafCapacity = (int) invokeMethod(VALUE_COLUMN_CAPACITY_METHOD, keyColumn);
+			bytes += layout.sizeOfArray(leafCapacity, Integer.BYTES);
+		}
+		return bytes;
 	}
 
 	/**

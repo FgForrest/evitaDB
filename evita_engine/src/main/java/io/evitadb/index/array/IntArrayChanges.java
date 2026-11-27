@@ -84,53 +84,6 @@ public class IntArrayChanges
 	}
 
 	/**
-	 * Returns index of record with specified id in the result array. Returns -1 if record is deleted or not found.
-	 */
-	public int getIndexOf(int recordId) {
-		int index = -1;
-		int removalIndex = 0;
-		int insertIndex = 0;
-		for (int i = 0; i <= this.delegate.length; i++) {
-			// add inserted values
-			if (this.insertions.length > 0 && this.insertions[insertIndex] == i) {
-				final int[] insertedRecordIds = this.insertedValues[insertIndex];
-				final int insertedIndex = Arrays.binarySearch(insertedRecordIds, recordId);
-				if (insertedIndex >= 0) {
-					return index + insertedIndex + 1;
-				} else {
-					index += insertedRecordIds.length;
-				}
-			}
-			// count value from original array
-			if (i < this.delegate.length) {
-				index++;
-			}
-			// subtract value from original array
-			final boolean replaceOriginal = this.removals.length > 0 && this.removals[removalIndex] == i;
-			if (replaceOriginal) {
-				index--;
-			}
-			// if not found in original array and reached end - return -1
-			if (this.delegate.length == i) {
-				return -1;
-			}
-			// if found in original array - return actual position
-			if (this.delegate[i] == recordId && !replaceOriginal) {
-				// value found in original array
-				return index;
-			}
-			// move pointers when we reach altered index in original array
-			if (this.removals.length > removalIndex + 1 && this.removals[removalIndex] == i) {
-				removalIndex++;
-			}
-			if (this.insertions.length > insertIndex + 1 && this.insertions[insertIndex] == i) {
-				insertIndex++;
-			}
-		}
-		return -1;
-	}
-
-	/**
 	 * Returns set of inserted record ids on specified position of the array.
 	 */
 	@Nullable

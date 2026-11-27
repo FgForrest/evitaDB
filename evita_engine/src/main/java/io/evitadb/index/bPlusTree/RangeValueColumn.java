@@ -413,15 +413,6 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	}
 
 	@Override
-	public void clearAt(int index) {
-		if (index < this.size) {
-			Arrays.fill(this.from, index, this.size, 0L);
-			Arrays.fill(this.to, index, this.size, 0L);
-			this.size = index;
-		}
-	}
-
-	@Override
 	public void copyRangeTo(int srcPos, @Nonnull ValueColumn<M> dst, int dstPos, int length) {
 		assertSourceRangeIsLive(srcPos, length);
 		// lockstep bulk move of every live array (overlap-safe, like System.arraycopy)
@@ -529,7 +520,6 @@ final class RangeValueColumn<M extends Comparable<M>> implements ValueColumn<M> 
 	 * {@code getHeapSizeInBytes} shows the column's own saving (down roughly a kilobyte per leaf) **and** one newly
 	 * priced range object per separator (up), and neither figure alone is the change.
 	 */
-	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
 		// three references (kind, from, to) and three ints (indexedDecimalPlaces, capacity, size)

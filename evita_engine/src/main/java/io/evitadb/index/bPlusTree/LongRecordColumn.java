@@ -200,14 +200,6 @@ final class LongRecordColumn implements RecordColumn {
 	}
 
 	@Override
-	public void clearAt(int index) {
-		if (index < this.size) {
-			Arrays.fill(this.records, index, this.size, 0L);
-			this.size = index;
-		}
-	}
-
-	@Override
 	public void copyRangeTo(int srcPos, @Nonnull RecordColumn dst, int dstPos, int length) {
 		assertSourceRangeIsLive(srcPos, length);
 		final LongRecordColumn target = asSameKind(dst);

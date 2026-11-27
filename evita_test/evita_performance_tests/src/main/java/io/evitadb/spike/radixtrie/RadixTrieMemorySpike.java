@@ -91,7 +91,7 @@ public class RadixTrieMemorySpike {
 	) {
 		return new TransactionalObjectBPlusTree<>(
 			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
-			keyType, Object.class, comparator);
+			keyType, Object.class, null, comparator);
 	}
 
 	public static void main(String[] args) {

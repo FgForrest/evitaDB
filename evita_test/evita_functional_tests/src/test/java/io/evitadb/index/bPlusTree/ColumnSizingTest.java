@@ -218,7 +218,7 @@ class ColumnSizingTest {
 			assertEquals(SIZING_CAPACITY, trimmed.capacity());
 			assertEquals(Integer.valueOf(0), trimmed.keyAt(0));
 			assertEquals(Integer.valueOf(1), trimmed.keyAt(1));
-			assertTrue(trimmed.getHeapSizeInBytes() < column.getHeapSizeInBytes());
+			assertTrue(trimmed.getHeapSizeInBytes(key -> 0L) < column.getHeapSizeInBytes(key -> 0L));
 
 			// the 4:1 gap is the hysteresis: the shrunk column sits at the floor of four slots and must not trim
 			// again, or a leaf hovering around a power of two would alternate grow and trim on every commit

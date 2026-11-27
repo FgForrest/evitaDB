@@ -330,8 +330,10 @@ warm-up savepoint. `PersistentTransactionalMap` does the same for thawed state. 
 Map views obtained before the savepoint stay unwrapped, including iterators obtained from those views during the
 savepoint. Wrapped views journal removals (including iterator removals), clears and `Entry.setValue()` while a
 savepoint is open. Clearing a wrapped view in either map copies the view's backing map before clearing it in place.
-`TransactionalSet` always wraps delegate iterators and checks for an open savepoint on `remove()`, including for
-iterators obtained before it opened. It journals removal when the current element is non-null.
+`TransactionalSet` always wraps delegate iterators. Outside a transaction their `remove()` checks for an open
+savepoint, including for iterators obtained before it opened, and journals the removal when the current element is
+non-null. Inside a transaction it removes as `remove(Object)` does, into the diff layer unless the transaction
+suppresses it.
 
 `DataStoreChanges` is worth singling out because it is what makes the entity *body* atomic with its
 indexes, and because it is the one participant that needs **both** granularities at once.

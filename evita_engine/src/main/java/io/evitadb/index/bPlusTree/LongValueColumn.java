@@ -201,14 +201,6 @@ final class LongValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 	}
 
 	@Override
-	public void clearAt(int index) {
-		if (index < this.size) {
-			Arrays.fill(this.keys, index, this.size, 0L);
-			this.size = index;
-		}
-	}
-
-	@Override
 	public void copyRangeTo(int srcPos, @Nonnull ValueColumn<M> dst, int dstPos, int length) {
 		assertSourceRangeIsLive(srcPos, length);
 		final LongValueColumn<M> target = asSameKind(dst);
@@ -289,7 +281,13 @@ final class LongValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 		return boxed;
 	}
 
-	@Override
+	/**
+	 * Returns the heap this column owns, counted as {@link ValueColumn#getHeapSizeInBytes(ToLongFunction)}
+	 * describes. The keys are `long` values inside the backing array, so this is the whole footprint and the
+	 * sizer overload returns it unchanged. The shared empty array an empty column parks on is not charged.
+	 *
+	 * @return the owned heap footprint in bytes
+	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
 		// `codec` addresses a LongKeyCodec enum constant - a JVM-wide singleton shared by every column of this key

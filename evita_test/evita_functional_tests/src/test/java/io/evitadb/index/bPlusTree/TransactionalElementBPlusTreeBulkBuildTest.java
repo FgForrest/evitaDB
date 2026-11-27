@@ -42,6 +42,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.PrimitiveIterator;
 import java.util.List;
 import java.util.Random;
 import java.util.TreeMap;
@@ -102,9 +103,18 @@ class TransactionalElementBPlusTreeBulkBuildTest {
 		}
 		for (final int probe : new int[]{0, count * 3 / 2 + 1, Integer.MAX_VALUE}) {
 			assertIteratorsEqual(inserted.greaterOrEqualValueIterator(probe), bulk.greaterOrEqualValueIterator(probe));
-			assertIteratorsEqual(inserted.lesserOrEqualValueIterator(probe), bulk.lesserOrEqualValueIterator(probe));
 			assertNull(bulk.search(probe % 3 == 0 ? probe + 1 : probe));
 		}
+		// the descending key order and the element behind each key must match the insert-built tree
+		final PrimitiveIterator.OfInt expectedKeys = inserted.keyReverseIterator();
+		final PrimitiveIterator.OfInt actualKeys = bulk.keyReverseIterator();
+		while (expectedKeys.hasNext()) {
+			final int key = expectedKeys.nextInt();
+			assertTrue(actualKeys.hasNext());
+			assertEquals(key, actualKeys.nextInt());
+			assertEquals(inserted.search(key), bulk.search(key));
+		}
+		assertFalse(actualKeys.hasNext());
 		Arrays.fill(input, null);
 		assertArrayEquals(inserted.toArray(), bulk.toArray(), "The builder must copy the input array.");
 	}

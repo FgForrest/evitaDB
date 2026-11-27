@@ -40,7 +40,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
-import java.util.Iterator;
+import java.util.PrimitiveIterator;
 import java.util.List;
 import java.util.Random;
 
@@ -127,10 +127,8 @@ class TransactionalIntToLongBPlusTreeBulkBuildTest {
 				assertEquals(-1L, bulk.searchOrDefault(key, -1L));
 			}
 		}
-		for (final int probe : new int[]{Integer.MIN_VALUE, 0, Integer.MAX_VALUE}) {
-			assertEntriesEqual(inserted.greaterOrEqualEntryIterator(probe), bulk.greaterOrEqualEntryIterator(probe));
-			assertEntriesEqual(inserted.lesserOrEqualEntryIterator(probe), bulk.lesserOrEqualEntryIterator(probe));
-		}
+		// the forward walk ran in `assertMatches` above; the descending order must agree as well
+		assertEntriesEqual(inserted, bulk, true);
 		// The builder must copy both input columns, including the single-leaf case.
 		Arrays.fill(keys, 0);
 		Arrays.fill(values, 0L);
@@ -375,13 +373,7 @@ class TransactionalIntToLongBPlusTreeBulkBuildTest {
 		assertConsistent(actual);
 		assertConsistent(reference);
 		assertEquals(reference.size(), actual.size());
-		final Iterator<TransactionalIntToLongBPlusTree.Entry> expected = reference.entryIterator();
-		final Iterator<TransactionalIntToLongBPlusTree.Entry> entries = actual.entryIterator();
-		while (expected.hasNext()) {
-			assertTrue(entries.hasNext());
-			assertEquals(expected.next(), entries.next());
-		}
-		assertFalse(entries.hasNext());
+		assertEntriesEqual(reference, actual, false);
 	}
 
 	/**
@@ -429,17 +421,27 @@ class TransactionalIntToLongBPlusTreeBulkBuildTest {
 	}
 
 	/**
-	 * Compares complete cursor-backed range walks against the insert-built reference.
+	 * Compares every key and its value in traversal order against the insert-built reference.
+	 *
+	 * @param reference the insert-built tree
+	 * @param actual the bulk-built tree
+	 * @param reverse whether to traverse in descending order
 	 */
 	private static void assertEntriesEqual(
-		@Nonnull Iterator<TransactionalIntToLongBPlusTree.Entry> expected,
-		@Nonnull Iterator<TransactionalIntToLongBPlusTree.Entry> actual
+		@Nonnull TransactionalIntToLongBPlusTree reference,
+		@Nonnull TransactionalIntToLongBPlusTree actual,
+		boolean reverse
 	) {
+		final PrimitiveIterator.OfInt expected = reverse ? reference.keyReverseIterator() : reference.keyIterator();
+		final PrimitiveIterator.OfInt keys = reverse ? actual.keyReverseIterator() : actual.keyIterator();
 		while (expected.hasNext()) {
-			assertTrue(actual.hasNext());
-			assertEquals(expected.next(), actual.next());
+			final int expectedKey = expected.nextInt();
+			assertTrue(keys.hasNext());
+			final int key = keys.nextInt();
+			assertEquals(expectedKey, key);
+			assertEquals(reference.search(key).orElseThrow(), actual.search(key).orElseThrow());
 		}
-		assertFalse(actual.hasNext());
+		assertFalse(keys.hasNext());
 	}
 
 }

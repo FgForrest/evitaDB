@@ -23,7 +23,6 @@
 
 package io.evitadb.index.array;
 
-import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -33,6 +32,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Random;
@@ -51,7 +52,6 @@ import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -68,10 +68,15 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag(TRANSACTION)
 class LongRunningTransactionalUnorderedIntArrayTest implements TimeBoundedTestSupport {
 
+	/**
+	 * Compares each generation of committed mutations to an array oracle.
+	 *
+	 * @param input time budget and random seed for this run
+	 */
 	@DisplayName("survives generational randomized test applying modifications")
 	@ParameterizedTest(name = "TransactionalIntArray should survive generational randomized test applying modifications on it")
 	@ArgumentsSource(TimeArgumentProvider.class)
-	void generationalProofTest(GenerationalTestInput input) {
+	void generationalProofTest(@Nonnull GenerationalTestInput input) {
 		final int initialCount = 100;
 		final int[] initialState = generateRandomInitialArray(new Random(input.randomSeed()), initialCount);
 
@@ -117,9 +122,15 @@ class LongRunningTransactionalUnorderedIntArrayTest implements TimeBoundedTestSu
 									}
 
 									try {
-										codeBuffer.append("\noriginal.appendAll(").append(Arrays.stream(newRecId).mapToObj(String::valueOf).collect(Collectors.joining(", "))).append(");");
-										nextArrayToCompare.set(io.evitadb.utils.ArrayUtils.mergeArrays(comparedArray, newRecId));
-										transactionalArray.appendAll(newRecId);
+										nextArrayToCompare.set(
+											io.evitadb.utils.ArrayUtils.mergeArrays(comparedArray, newRecId)
+										);
+										for (final int recordId : newRecId) {
+											final int position = transactionalArray.getLength();
+											codeBuffer.append("\noriginal.addOnIndex(").append(position)
+												.append(", ").append(recordId).append(");");
+											transactionalArray.addOnIndex(position, recordId);
+										}
 									} catch (IllegalArgumentException ex) {
 										assertTransactionalArrayIs(
 											nextArrayToCompare.get(), transactionalArray,
@@ -158,8 +169,13 @@ class LongRunningTransactionalUnorderedIntArrayTest implements TimeBoundedTestSu
 									final int removedLength = random.nextInt(8) + 1;
 									// remove range
 									final int endIndex = Math.min(randomIndex + removedLength, length);
-									codeBuffer.append("\noriginal.removeRange(").append(randomIndex).append(", ").append(endIndex).append(");");
-									transactionalArray.removeRange(randomIndex, endIndex);
+									final int[] removed = Arrays.copyOfRange(
+										transactionalArray.getArray(), randomIndex, endIndex
+									);
+									for (final int recordId : removed) {
+										codeBuffer.append("\noriginal.remove(").append(recordId).append(");");
+										transactionalArray.remove(recordId);
+									}
 									nextArrayToCompare.set(removeRangeFromArray(comparedArray, randomIndex, endIndex));
 								} else {
 									// remove existing item
@@ -214,14 +230,21 @@ class LongRunningTransactionalUnorderedIntArrayTest implements TimeBoundedTestSu
 	/**
 	 * Asserts that the given {@link TransactionalUnorderedIntArray} matches the expected int array
 	 * with an optional additional message appended to assertion failures.
+	 *
+	 * @param expectedResult expected record order
+	 * @param array          transactional array to verify
+	 * @param additionalMessage optional detail to include on failure
 	 */
-	private static void assertTransactionalArrayIs(int[] expectedResult, TransactionalUnorderedIntArray array, String additionalMessage) {
+	private static void assertTransactionalArrayIs(
+		@Nonnull int[] expectedResult,
+		@Nonnull TransactionalUnorderedIntArray array,
+		@Nullable String additionalMessage
+	) {
 		if (ArrayUtils.isEmpty(expectedResult)) {
 			assertTrue(array.isEmpty());
-			assertThrows(ArrayIndexOutOfBoundsException.class, array::getLastRecordId);
 		} else {
 			assertFalse(array.isEmpty());
-			assertEquals(expectedResult[expectedResult.length - 1], array.getLastRecordId());
+			assertEquals(expectedResult[expectedResult.length - 1], array.get(array.getLength() - 1));
 		}
 
 		assertArrayEquals(
@@ -231,17 +254,12 @@ class LongRunningTransactionalUnorderedIntArrayTest implements TimeBoundedTestSu
 				"Actual:   " + Arrays.stream(array.getArray()).mapToObj(Integer::toString).collect(Collectors.joining(", ")) + "\n" +
 				ofNullable(additionalMessage).orElse("")
 		);
-		assertArrayEquals(
-			expectedResult,
-			CompositeIntArray.toArray(array.iterator()),
-			"\nExpected: " + Arrays.stream(expectedResult).mapToObj(Integer::toString).collect(Collectors.joining(", ")) + "\n" +
-				"Actual:   " + Arrays.stream(CompositeIntArray.toArray(array.iterator())).mapToObj(Integer::toString).collect(Collectors.joining(", ")) + "\n" +
-				ofNullable(additionalMessage).orElse("")
-		);
+		final UnorderedLookupTree.PositionCursor cursor = array.forwardPositionCursor();
 
 		assertEquals(expectedResult.length, array.getLength());
 		for (int i = 0; i < expectedResult.length; i++) {
 			final int recordId = expectedResult[i];
+			assertEquals(recordId, cursor.recordAt(i), "Cursor at position " + i);
 			assertTrue(array.contains(recordId), "Array doesn't contain " + recordId);
 			assertEquals(i, array.indexOf(recordId), "Index of " + recordId + " is not " + i + ", but " + array.indexOf(recordId));
 		}

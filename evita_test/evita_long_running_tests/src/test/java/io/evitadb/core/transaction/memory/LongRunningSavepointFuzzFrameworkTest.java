@@ -26,6 +26,7 @@ package io.evitadb.core.transaction.memory;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -276,7 +277,7 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 					applyRandomUnorderedArrayOps(tested, random, 1 + random.nextInt(8));
 					// applied LAST: a marker applied first is an entry like any other, and the random
 					// batch that follows it could take it straight back out
-					tested.appendAll(KEY_SPACE + 1);
+					tested.addOnIndex(tested.getLength(), KEY_SPACE + 1);
 				}
 			);
 			return iteration + 1;
@@ -458,7 +459,9 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	@Nonnull
 	private static TransactionalObjectBPlusTree<Integer, Integer> newSeededObjectTree(@Nonnull Random random) {
 		final TransactionalObjectBPlusTree<Integer, Integer> tree = new TransactionalObjectBPlusTree<>(
-			8, 3, 7, 3, Integer.class, Integer.class
+			8, 3, 7, 3, Integer.class, Integer.class,
+			null,
+			null
 		);
 		final int size = random.nextInt(KEY_SPACE);
 		for (int i = 0; i < size; i++) {
@@ -511,8 +514,12 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 	 */
 	@Nonnull
 	private static TransactionalBucketBPlusTree<Integer> newSeededBucketTree(@Nonnull Random random) {
+		@SuppressWarnings("unchecked")
+		final ValueColumnFactory<Integer> columnFactory =
+			(ValueColumnFactory<Integer>) ValueColumnFactory.forKey(Integer.class, null);
 		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
-			8, 3, 7, 3, Integer.class, null
+			8, 3, 7, 3, Integer.class, null,
+			columnFactory
 		);
 		final int size = random.nextInt(KEY_SPACE);
 		for (int i = 0; i < size; i++) {
@@ -728,7 +735,7 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 		for (int i = 0; i < size; i++) {
 			seed.add(random.nextInt(KEY_SPACE));
 		}
-		return new TransactionalSet<>(seed);
+		return new TransactionalSet<>(seed, Integer.class);
 	}
 
 	/**
@@ -803,9 +810,13 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 			final int candidate = 1 + random.nextInt(KEY_SPACE);
 			if (array.contains(candidate) || (size > 0 && random.nextBoolean())) {
 				final int start = random.nextInt(size);
-				array.removeRange(start, start + 1 + random.nextInt(size - start));
+				final int end = start + 1 + random.nextInt(size - start);
+				final int[] records = Arrays.copyOfRange(array.getArray(), start, end);
+				for (final int recordId : records) {
+					array.remove(recordId);
+				}
 			} else if (random.nextBoolean()) {
-				array.appendAll(candidate);
+				array.addOnIndex(size, candidate);
 			} else {
 				array.addOnIndex(random.nextInt(size + 1), candidate);
 			}

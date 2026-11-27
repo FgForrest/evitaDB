@@ -53,27 +53,7 @@ public class EmptyBitmap implements Bitmap {
 	}
 
 	@Override
-	public void addAll(int... recordId) {
-		throw new UnsupportedOperationException(ERROR_READ_ONLY);
-	}
-
-	@Override
 	public void addAll(@Nonnull Bitmap recordIds) {
-		throw new UnsupportedOperationException(ERROR_READ_ONLY);
-	}
-
-	@Override
-	public boolean remove(int recordId) {
-		throw new UnsupportedOperationException(ERROR_READ_ONLY);
-	}
-
-	@Override
-	public void removeAll(int... recordId) {
-		throw new UnsupportedOperationException(ERROR_READ_ONLY);
-	}
-
-	@Override
-	public void removeAll(@Nonnull Bitmap recordIds) {
 		throw new UnsupportedOperationException(ERROR_READ_ONLY);
 	}
 
@@ -85,11 +65,6 @@ public class EmptyBitmap implements Bitmap {
 	@Override
 	public int indexOf(int recordId) {
 		return -1;
-	}
-
-	@Override
-	public int get(int index) {
-		throw new IndexOutOfBoundsException(ERROR_EMPTY_BITMAP);
 	}
 
 	@Override

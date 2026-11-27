@@ -255,9 +255,9 @@ class LongValueColumnTest {
 
 			// remove the middle key (position 2 == value 25) from both
 			primitive.removeKeyAt(2);
-			primitive.clearAt(inserted.length);
+
 			boxed.removeKeyAt(2);
-			boxed.clearAt(inserted.length);
+
 			assertColumnsEqual(primitive, boxed, inserted.length);
 
 			assertInstanceOf(LongValueColumn.class, primitive);

@@ -24,7 +24,6 @@
 package io.evitadb.index.array;
 
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +32,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -128,16 +128,6 @@ class TransactionalUnorderedIntArrayTest {
 
 			assertArrayEquals(new int[]{7, 5}, array.getArray());
 			assertEquals(2, array.getLength());
-		}
-
-		@Test
-		@DisplayName("getSubArray() returns correct range without transaction")
-		void shouldGetSubArrayWithoutTransaction() {
-			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 3, 5, 2, 9});
-
-			final int[] sub = array.getSubArray(1, 4);
-
-			assertArrayEquals(new int[]{3, 5, 2}, sub);
 		}
 
 		@Test
@@ -286,16 +276,25 @@ class TransactionalUnorderedIntArrayTest {
 			);
 		}
 
+		/**
+		 * Adds multiple items on same positions.
+		 */
 		@Test
 		@DisplayName("adds multiple items on same positions")
 		void shouldCorrectlyAddMultipleItemsOnSamePositions() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 7, 3});
 
-			array.addAll(EvitaDataTypes.RESERVED_PRIMARY_KEY, 20, 1);
-			array.addAll(2, 4, 5, 6);
+			array.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 20);
+			array.add(20, 1);
+			array.add(2, 4);
+			array.add(4, 5);
+			array.add(5, 6);
 			assertTransactionalArrayIs(new int[]{20, 1, 2, 4, 5, 6, 7, 3}, array);
 		}
 
+		/**
+		 * Adds multiple items on same positions and commits.
+		 */
 		@Test
 		@DisplayName("adds multiple items on same positions and commits")
 		void shouldCorrectlyAddMultipleItemsOnSamePositionsAndCommit() {
@@ -304,8 +303,11 @@ class TransactionalUnorderedIntArrayTest {
 			assertStateAfterCommit(
 				array,
 				original -> {
-					original.addAll(EvitaDataTypes.RESERVED_PRIMARY_KEY, 20, 1);
-					original.addAll(2, 4, 5, 6);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 20);
+					original.add(20, 1);
+					original.add(2, 4);
+					original.add(4, 5);
+					original.add(5, 6);
 					assertTransactionalArrayIs(new int[]{20, 1, 2, 4, 5, 6, 7, 3}, original);
 				},
 				(original, committed) -> {
@@ -388,18 +390,26 @@ class TransactionalUnorderedIntArrayTest {
 	@DisplayName("Transactional remove operations")
 	class TransactionalRemoveTest {
 
+		/**
+		 * Removes items from first, last, and middle positions.
+		 */
 		@Test
 		@DisplayName("removes items from first, last, and middle positions")
 		void shouldCorrectlyRemoveItemsFromFirstLastAndMiddlePositions() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{6, 8, 2, 4, 5});
 
-			array.removeAll(4, 5, 6);
+			for (final int recordId : new int[]{4, 5, 6}) {
+				array.remove(recordId);
+			}
 			assertTransactionalArrayIs(new int[]{8, 2}, array);
 			assertFalse(array.contains(11));
 			assertFalse(array.contains(1));
 			assertFalse(array.contains(5));
 		}
 
+		/**
+		 * Removes items from first, last, and middle positions and commits.
+		 */
 		@Test
 		@DisplayName("removes items from first, last, and middle positions and commits")
 		void shouldCorrectlyRemoveItemsFromFirstLastAndMiddlePositionsAndCommit() {
@@ -408,7 +418,9 @@ class TransactionalUnorderedIntArrayTest {
 			assertStateAfterCommit(
 				array,
 				original -> {
-					original.removeAll(4, 5, 6);
+					for (final int recordId : new int[]{4, 5, 6}) {
+						original.remove(recordId);
+					}
 					assertTransactionalArrayIs(new int[]{8, 2}, original);
 					assertFalse(original.contains(11));
 					assertFalse(original.contains(1));
@@ -421,6 +433,9 @@ class TransactionalUnorderedIntArrayTest {
 			);
 		}
 
+		/**
+		 * Removes multiple consecutive items and commits.
+		 */
 		@Test
 		@DisplayName("removes multiple consecutive items and commits")
 		void shouldCorrectlyRemoveMultipleItemsInARowAndCommit() {
@@ -429,7 +444,9 @@ class TransactionalUnorderedIntArrayTest {
 			assertStateAfterCommit(
 				array,
 				original -> {
-					original.removeAll(6, 5, 2);
+					for (final int recordId : new int[]{6, 5, 2}) {
+						original.remove(recordId);
+					}
 
 					assertTransactionalArrayIs(new int[]{7, 8, 4}, original);
 				},
@@ -440,15 +457,23 @@ class TransactionalUnorderedIntArrayTest {
 			);
 		}
 
+		/**
+		 * Removes multiple consecutive items till the end.
+		 */
 		@Test
 		@DisplayName("removes multiple consecutive items till the end")
 		void shouldCorrectlyRemoveMultipleItemsInARowTillTheEnd() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 2, 4, 9, 8, 3});
-			array.removeAll(8, 9, 3, 4);
+			for (final int recordId : new int[]{8, 9, 3, 4}) {
+				array.remove(recordId);
+			}
 
 			assertTransactionalArrayIs(new int[]{7, 2}, array);
 		}
 
+		/**
+		 * Removes multiple consecutive items till the end and commits.
+		 */
 		@Test
 		@DisplayName("removes multiple consecutive items till the end and commits")
 		void shouldCorrectlyRemoveMultipleItemsInARowTillTheEndAndCommit() {
@@ -457,7 +482,9 @@ class TransactionalUnorderedIntArrayTest {
 			assertStateAfterCommit(
 				array,
 				original -> {
-					original.removeAll(8, 9, 3, 4);
+					for (final int recordId : new int[]{8, 9, 3, 4}) {
+						original.remove(recordId);
+					}
 
 					assertTransactionalArrayIs(new int[]{7, 2}, original);
 				},
@@ -468,15 +495,23 @@ class TransactionalUnorderedIntArrayTest {
 			);
 		}
 
+		/**
+		 * Removes multiple consecutive items from the beginning.
+		 */
 		@Test
 		@DisplayName("removes multiple consecutive items from the beginning")
 		void shouldCorrectlyRemoveMultipleItemsInARowFromTheBeginning() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 2, 4, 9, 8, 3});
-			array.removeAll(9, 7, 2, 4);
+			for (final int recordId : new int[]{9, 7, 2, 4}) {
+				array.remove(recordId);
+			}
 
 			assertTransactionalArrayIs(new int[]{8, 3}, array);
 		}
 
+		/**
+		 * Removes multiple consecutive items from the beginning and commits.
+		 */
 		@Test
 		@DisplayName("removes multiple consecutive items from the beginning and commits")
 		void shouldCorrectlyRemoveMultipleItemsInARowFromTheBeginningAndCommit() {
@@ -485,7 +520,9 @@ class TransactionalUnorderedIntArrayTest {
 			assertStateAfterCommit(
 				array,
 				original -> {
-					original.removeAll(9, 7, 2, 4);
+					for (final int recordId : new int[]{9, 7, 2, 4}) {
+						original.remove(recordId);
+					}
 
 					assertTransactionalArrayIs(new int[]{8, 3}, original);
 				},
@@ -771,7 +808,7 @@ class TransactionalUnorderedIntArrayTest {
 	}
 
 	/**
-	 * Tests verifying transactional read methods (get, getSubArray) inside transactions.
+	 * Tests verifying positional access and lookup inside transactions.
 	 */
 	@Nested
 	@DisplayName("Transactional read methods")
@@ -793,26 +830,6 @@ class TransactionalUnorderedIntArrayTest {
 					assertEquals(3, original.get(2));
 					assertEquals(6, original.get(3));
 					assertEquals(5, original.get(4));
-				},
-				(original, committed) -> {
-					assertArrayEquals(new int[]{9, 7, 3, 6, 5}, committed.getArray());
-				}
-			);
-		}
-
-		@Test
-		@DisplayName("getSubArray() returns correct range inside transaction")
-		void shouldGetSubArrayInsideTransaction() {
-			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 3, 5});
-
-			assertStateAfterCommit(
-				array,
-				original -> {
-					original.add(3, 6);
-					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 9);
-
-					final int[] sub = original.getSubArray(1, 4);
-					assertArrayEquals(new int[]{7, 3, 6}, sub);
 				},
 				(original, committed) -> {
 					assertArrayEquals(new int[]{9, 7, 3, 6, 5}, committed.getArray());
@@ -846,29 +863,42 @@ class TransactionalUnorderedIntArrayTest {
 	}
 
 	/**
-	 * Tests verifying range and append operations on {@link TransactionalUnorderedIntArray}.
+	 * Tests removing a contiguous run of record ids one by one and appending at the tail of
+	 * {@link TransactionalUnorderedIntArray}.
 	 */
 	@Nested
-	@DisplayName("Range operations")
-	class RangeOperationsTest {
+	@DisplayName("Contiguous run removal and tail append")
+	class ContiguousRunAndAppendTest {
 
+		/**
+		 * Removes a contiguous run of ids that are all lower than the tail id.
+		 */
 		@Test
-		@DisplayName("removes range lesser than tail")
-		void shouldRemoveRangeLesserThanTail() {
+		@DisplayName("removes a contiguous run of ids lower than the tail id")
+		void shouldRemoveContiguousRunOfIdsBelowTailId() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
-			assertArrayEquals(new int[]{3, 1}, array.removeRange(2, 4));
+			final int[] removed = Arrays.copyOfRange(array.getArray(), 2, 4);
+			for (final int recordId : removed) {
+				array.remove(recordId);
+			}
 			assertTransactionalArrayIs(new int[]{2, 4, 5}, array);
 		}
 
+		/**
+		 * Removes a contiguous run of ids that are all lower than the tail id and commits.
+		 */
 		@Test
-		@DisplayName("removes range lesser than tail and commits")
-		void shouldRemoveRangeLesserThanTailAndCommit() {
+		@DisplayName("removes a contiguous run of ids lower than the tail id and commits")
+		void shouldRemoveContiguousRunOfIdsBelowTailIdAndCommit() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
 
 			assertStateAfterCommit(
 				array,
 				original -> {
-					assertArrayEquals(new int[]{3, 1}, array.removeRange(2, 4));
+					final int[] removed = Arrays.copyOfRange(array.getArray(), 2, 4);
+					for (final int recordId : removed) {
+						array.remove(recordId);
+					}
 					assertTransactionalArrayIs(new int[]{2, 4, 5}, original);
 				},
 				(original, committed) -> {
@@ -878,23 +908,35 @@ class TransactionalUnorderedIntArrayTest {
 			);
 		}
 
+		/**
+		 * Removes a contiguous run holding an id higher than the tail id.
+		 */
 		@Test
-		@DisplayName("removes range higher than tail")
-		void shouldRemoveRangeHigherThanTail() {
+		@DisplayName("removes a contiguous run holding an id higher than the tail id")
+		void shouldRemoveContiguousRunWithIdAboveTailId() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{4, 3, 1, 5, 2});
-			assertArrayEquals(new int[]{1, 5}, array.removeRange(2, 4));
+			final int[] removed = Arrays.copyOfRange(array.getArray(), 2, 4);
+			for (final int recordId : removed) {
+				array.remove(recordId);
+			}
 			assertTransactionalArrayIs(new int[]{4, 3, 2}, array);
 		}
 
+		/**
+		 * Removes a contiguous run holding an id higher than the tail id and commits.
+		 */
 		@Test
-		@DisplayName("removes range higher than tail and commits")
-		void shouldRemoveRangeHigherThanTailAndCommit() {
+		@DisplayName("removes a contiguous run holding an id higher than the tail id and commits")
+		void shouldRemoveContiguousRunWithIdAboveTailIdAndCommit() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{4, 3, 1, 5, 2});
 
 			assertStateAfterCommit(
 				array,
 				original -> {
-					assertArrayEquals(new int[]{1, 5}, original.removeRange(2, 4));
+					final int[] removed = Arrays.copyOfRange(original.getArray(), 2, 4);
+					for (final int recordId : removed) {
+						original.remove(recordId);
+					}
 					assertTransactionalArrayIs(new int[]{4, 3, 2}, original);
 				},
 				(original, committed) -> {
@@ -904,23 +946,35 @@ class TransactionalUnorderedIntArrayTest {
 			);
 		}
 
+		/**
+		 * Removes the contiguous run that ends at the tail.
+		 */
 		@Test
-		@DisplayName("removes tail range")
-		void shouldRemoveTail() {
+		@DisplayName("removes a contiguous run at the tail")
+		void shouldRemoveContiguousRunAtTail() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
-			assertArrayEquals(new int[]{1, 5}, array.removeRange(3, 5));
+			final int[] removed = Arrays.copyOfRange(array.getArray(), 3, 5);
+			for (final int recordId : removed) {
+				array.remove(recordId);
+			}
 			assertTransactionalArrayIs(new int[]{2, 4, 3}, array);
 		}
 
+		/**
+		 * Removes the contiguous run that ends at the tail and commits.
+		 */
 		@Test
-		@DisplayName("removes tail range and commits")
-		void shouldRemoveTailAndCommit() {
+		@DisplayName("removes a contiguous run at the tail and commits")
+		void shouldRemoveContiguousRunAtTailAndCommit() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
 
 			assertStateAfterCommit(
 				array,
 				original -> {
-					assertArrayEquals(new int[]{1, 5}, array.removeRange(3, 5));
+					final int[] removed = Arrays.copyOfRange(array.getArray(), 3, 5);
+					for (final int recordId : removed) {
+						array.remove(recordId);
+					}
 					assertTransactionalArrayIs(new int[]{2, 4, 3}, original);
 				},
 				(original, committed) -> {
@@ -930,23 +984,35 @@ class TransactionalUnorderedIntArrayTest {
 			);
 		}
 
+		/**
+		 * Removes the contiguous run that starts at the head.
+		 */
 		@Test
-		@DisplayName("removes head range")
-		void shouldRemoveHead() {
+		@DisplayName("removes a contiguous run at the head")
+		void shouldRemoveContiguousRunAtHead() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
-			assertArrayEquals(new int[]{2, 4}, array.removeRange(0, 2));
+			final int[] removed = Arrays.copyOfRange(array.getArray(), 0, 2);
+			for (final int recordId : removed) {
+				array.remove(recordId);
+			}
 			assertTransactionalArrayIs(new int[]{3, 1, 5}, array);
 		}
 
+		/**
+		 * Removes the contiguous run that starts at the head and commits.
+		 */
 		@Test
-		@DisplayName("removes head range and commits")
-		void shouldRemoveHeadAndCommit() {
+		@DisplayName("removes a contiguous run at the head and commits")
+		void shouldRemoveContiguousRunAtHeadAndCommit() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
 
 			assertStateAfterCommit(
 				array,
 				original -> {
-					assertArrayEquals(new int[]{2, 4}, original.removeRange(0, 2));
+					final int[] removed = Arrays.copyOfRange(original.getArray(), 0, 2);
+					for (final int recordId : removed) {
+						original.remove(recordId);
+					}
 					assertTransactionalArrayIs(new int[]{3, 1, 5}, original);
 				},
 				(original, committed) -> {
@@ -956,14 +1022,21 @@ class TransactionalUnorderedIntArrayTest {
 			);
 		}
 
+		/**
+		 * Appends items at the tail.
+		 */
 		@Test
 		@DisplayName("appends items at the tail")
 		void shouldAppendTail() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 4, 3, 1, 5});
-			array.appendAll(8, 6);
+			array.addOnIndex(array.getLength(), 8);
+			array.addOnIndex(array.getLength(), 6);
 			assertTransactionalArrayIs(new int[]{2, 4, 3, 1, 5, 8, 6}, array);
 		}
 
+		/**
+		 * Appends items at the tail and commits.
+		 */
 		@Test
 		@DisplayName("appends items at the tail and commits")
 		void shouldAppendTailAndCommit() {
@@ -972,7 +1045,8 @@ class TransactionalUnorderedIntArrayTest {
 			assertStateAfterCommit(
 				array,
 				original -> {
-					original.appendAll(8, 6);
+					original.addOnIndex(original.getLength(), 8);
+					original.addOnIndex(original.getLength(), 6);
 					assertTransactionalArrayIs(new int[]{2, 4, 3, 1, 5, 8, 6}, original);
 				},
 				(original, committed) -> {
@@ -1199,35 +1273,6 @@ class TransactionalUnorderedIntArrayTest {
 			);
 		}
 
-		/**
-		 * Verifies the duplicate-record guard of `appendAll` rejects a record id the array already holds and leaves the
-		 * array untouched when it fires - again for both the committed state and the transactional layer.
-		 */
-		@Test
-		@DisplayName("throws when appending record that is already part of the array")
-		void shouldFailToAppendRecordAlreadyPresent() {
-			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{1, 2});
-
-			assertStateAfterCommit(
-				array,
-				original -> {
-					// the guard fires before anything is appended, so the array keeps its shape
-					assertThrows(IllegalArgumentException.class, () -> array.appendAll(1));
-					assertTransactionalArrayIs(new int[]{1, 2}, array);
-					// from here on record 3 lives in the transactional layer only
-					array.appendAll(3);
-					final IllegalArgumentException layerHit = assertThrows(
-						IllegalArgumentException.class, () -> array.appendAll(3)
-					);
-					assertEquals("Record with id 3 is already part of the array!", layerHit.getMessage());
-				},
-				(original, committed) -> {
-					assertTransactionalArrayIs(new int[]{1, 2}, original);
-					assertArrayEquals(new int[]{1, 2, 3}, committed.getArray());
-				}
-			);
-		}
-
 	}
 
 	/**
@@ -1432,7 +1477,7 @@ class TransactionalUnorderedIntArrayTest {
 
 	/**
 	 * Asserts that the given {@link TransactionalUnorderedIntArray} matches the expected int array
-	 * by verifying emptiness, last record id, raw array equality, iterator output, length,
+	 * by verifying emptiness, last record id, raw array equality, cursor output, length,
 	 * containment, and index consistency.
 	 *
 	 * @param expectedResult the expected unordered int array
@@ -1450,13 +1495,16 @@ class TransactionalUnorderedIntArrayTest {
 	 * @param array             the transactional array to verify
 	 * @param additionalMessage optional message appended to assertion failure output
 	 */
-	private static void assertTransactionalArrayIs(int[] expectedResult, TransactionalUnorderedIntArray array, String additionalMessage) {
+	private static void assertTransactionalArrayIs(
+		@Nonnull int[] expectedResult,
+		@Nonnull TransactionalUnorderedIntArray array,
+		@Nullable String additionalMessage
+	) {
 		if (ArrayUtils.isEmpty(expectedResult)) {
 			assertTrue(array.isEmpty());
-			assertThrows(ArrayIndexOutOfBoundsException.class, array::getLastRecordId);
 		} else {
 			assertFalse(array.isEmpty());
-			assertEquals(expectedResult[expectedResult.length - 1], array.getLastRecordId());
+			assertEquals(expectedResult[expectedResult.length - 1], array.get(array.getLength() - 1));
 		}
 
 		assertArrayEquals(
@@ -1466,17 +1514,12 @@ class TransactionalUnorderedIntArrayTest {
 				"Actual:   " + Arrays.stream(array.getArray()).mapToObj(Integer::toString).collect(Collectors.joining(", ")) + "\n" +
 				ofNullable(additionalMessage).orElse("")
 		);
-		assertArrayEquals(
-			expectedResult,
-			CompositeIntArray.toArray(array.iterator()),
-			"\nExpected: " + Arrays.stream(expectedResult).mapToObj(Integer::toString).collect(Collectors.joining(", ")) + "\n" +
-				"Actual:   " + Arrays.stream(CompositeIntArray.toArray(array.iterator())).mapToObj(Integer::toString).collect(Collectors.joining(", ")) + "\n" +
-				ofNullable(additionalMessage).orElse("")
-		);
+		final UnorderedLookupTree.PositionCursor cursor = array.forwardPositionCursor();
 
 		assertEquals(expectedResult.length, array.getLength());
 		for (int i = 0; i < expectedResult.length; i++) {
 			final int recordId = expectedResult[i];
+			assertEquals(recordId, cursor.recordAt(i), "Cursor at position " + i);
 			assertTrue(array.contains(recordId), "Array doesn't contain " + recordId);
 			assertEquals(i, array.indexOf(recordId), "Index of " + recordId + " is not " + i + ", but " + array.indexOf(recordId));
 		}
@@ -1513,38 +1556,6 @@ class TransactionalUnorderedIntArrayTest {
 					assertArrayEquals(
 						new int[]{40, 10, 20, 30}, committed.getArray(),
 						"Committed array should have 10 moved after 40 without duplicates"
-					);
-				}
-			);
-		}
-
-		@Test
-		@DisplayName("getLastRecordId should throw ArrayIndexOutOfBoundsException when all elements removed")
-		void shouldThrowArrayIndexOutOfBoundsWhenAllElementsRemovedAndMemoNotSet() {
-			final TransactionalUnorderedIntArray array =
-				new TransactionalUnorderedIntArray(new int[]{10, 20, 30});
-
-			assertStateAfterCommit(
-				array,
-				original -> {
-					// remove all elements in transaction
-					original.remove(10);
-					original.remove(20);
-					original.remove(30);
-
-					// call getLastRecordId WITHOUT calling getArray() first
-					// (to avoid memoizedMergedArray being set)
-					// should throw ArrayIndexOutOfBoundsException per contract
-					assertThrows(
-						ArrayIndexOutOfBoundsException.class,
-						original::getLastRecordId,
-						"Should throw ArrayIndexOutOfBoundsException when array is empty"
-					);
-				},
-				(original, committed) -> {
-					assertArrayEquals(
-						new int[0], committed.getArray(),
-						"Committed array should be empty"
 					);
 				}
 			);

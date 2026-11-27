@@ -135,7 +135,7 @@ public final class Wtf8 {
 	static final int SUPPLEMENTARY_LEAD_BYTE = 0xF0;
 	/** {@link #classify} bit: the scanned range holds a byte {@code >=} {@link #SUPPLEMENTARY_LEAD_BYTE}. */
 	static final int NOT_BMP_SAFE = 1;
-	/** {@link #classify} bit: the scanned range holds an encoded surrogate (see {@link #containsEncodedSurrogate}). */
+	/** {@link #classify} bit: the scanned range holds an encoded surrogate. */
 	static final int HAS_ENCODED_SURROGATE = 2;
 
 	private Wtf8() {
@@ -245,22 +245,6 @@ public final class Wtf8 {
 			}
 		}
 		return flags;
-	}
-
-	/**
-	 * Answers whether `bytes[offset, offset + length)` contains any encoded surrogate, i.e. whether {@link #decode}
-	 * would produce a different answer from {@code new String(bytes, offset, length, UTF_8)}. Implemented via
-	 * {@link #classify} so the byte-scanning logic exists in exactly one place; {@link FrontCodedStringColumn#encode}
-	 * calls {@link #classify} directly (it needs the BMP-safety bit too, and caches this answer for the whole blob
-	 * so the decode side pays one boolean check rather than a scan) — this method itself is exercised by tests only.
-	 *
-	 * @param bytes  the backing array
-	 * @param offset the range's start offset
-	 * @param length the range's length in bytes
-	 * @return {@code true} if the range holds at least one encoded surrogate
-	 */
-	static boolean containsEncodedSurrogate(@Nonnull byte[] bytes, int offset, int length) {
-		return (classify(bytes, offset, length) & HAS_ENCODED_SURROGATE) != 0;
 	}
 
 	/**

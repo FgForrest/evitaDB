@@ -92,11 +92,11 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	 * All flags gets cleared on transaction commit - i.e. when {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
 	 * is called.
 	 */
-	private final TransactionalSet<Serializable> dirtyIndexes;
+	private final TransactionalSet<String> dirtyIndexes;
 
 	public FacetIndex() {
 		this.facetingEntities = new TransactionalMap<>(new HashMap<>(), FacetReferenceIndex.class, Function.identity());
-		this.dirtyIndexes = new TransactionalSet<>(new HashSet<>());
+		this.dirtyIndexes = new TransactionalSet<>(new HashSet<>(), String.class);
 	}
 
 	public FacetIndex(@Nonnull Collection<FacetIndexStoragePart> facetIndexStorageParts) {
@@ -136,12 +136,12 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 		}
 
 		this.facetingEntities = new TransactionalMap<>(baseIndex, FacetReferenceIndex.class, Function.identity());
-		this.dirtyIndexes = new TransactionalSet<>(new HashSet<>());
+		this.dirtyIndexes = new TransactionalSet<>(new HashSet<>(), String.class);
 	}
 
 	private FacetIndex(@Nonnull Map<String, FacetReferenceIndex> sourceFacetingEntities) {
 		this.facetingEntities = new TransactionalMap<>(sourceFacetingEntities, FacetReferenceIndex.class, Function.identity());
-		this.dirtyIndexes = new TransactionalSet<>(new HashSet<>());
+		this.dirtyIndexes = new TransactionalSet<>(new HashSet<>(), String.class);
 	}
 
 	@Override
@@ -385,7 +385,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// we can safely throw away dirty flag now
-		final Set<Serializable> setOfDirtyIndexes = transactionalLayer.getStateCopyWithCommittedChanges(this.dirtyIndexes);
+		final Set<String> setOfDirtyIndexes = transactionalLayer.getStateCopyWithCommittedChanges(this.dirtyIndexes);
 		if (setOfDirtyIndexes.isEmpty()) {
 			return this;
 		} else {

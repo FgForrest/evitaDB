@@ -59,10 +59,7 @@ public class SingleRecordBitmap implements Bitmap {
 	/**
 	 * Returns the lone record id this bitmap holds.
 	 *
-	 * {@link #get(int)} answers exactly the same thing at index `0` and allocates nothing either, so this is a naming
-	 * convenience rather than a cheaper route: a fold reading `getRecordId()` says what it means, where `get(0)`
-	 * carries an index that could only ever be zero. What such a fold must NOT reach for is {@link #getArray()},
-	 * which allocates a one-element array per call - the very cost the fold exists to avoid.
+	 * Single-record folds can read the id directly and avoid the array allocation in {@link #getArray()}.
 	 *
 	 * @return the record id
 	 */
@@ -86,27 +83,7 @@ public class SingleRecordBitmap implements Bitmap {
 	}
 
 	@Override
-	public void addAll(int... recordId) {
-		throw new UnsupportedOperationException(ERROR_READ_ONLY);
-	}
-
-	@Override
 	public void addAll(@Nonnull Bitmap recordIds) {
-		throw new UnsupportedOperationException(ERROR_READ_ONLY);
-	}
-
-	@Override
-	public boolean remove(int recordId) {
-		throw new UnsupportedOperationException(ERROR_READ_ONLY);
-	}
-
-	@Override
-	public void removeAll(int... recordId) {
-		throw new UnsupportedOperationException(ERROR_READ_ONLY);
-	}
-
-	@Override
-	public void removeAll(@Nonnull Bitmap recordIds) {
 		throw new UnsupportedOperationException(ERROR_READ_ONLY);
 	}
 
@@ -122,14 +99,6 @@ public class SingleRecordBitmap implements Bitmap {
 			return 0;
 		}
 		return recordId < this.recordId ? -1 : -2;
-	}
-
-	@Override
-	public int get(int index) {
-		if (index != 0) {
-			throw new IndexOutOfBoundsException(Integer.toString(index));
-		}
-		return this.recordId;
 	}
 
 	@Override

@@ -27,10 +27,9 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
-import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -39,12 +38,9 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
@@ -60,7 +56,13 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
  *
  * If no transaction is opened, changes are applied directly to the
  * delegate set. In such case the class is not thread safe for multiple
- * writers!
+ * writers. Within a transaction, the diff records additions of new keys and removals of delegate keys.
+ *
+ * Keys are committed by reference: the merge carries over set membership only and never asks the transaction for a
+ * key's own state. A key must therefore not be a {@link TransactionalStateProducer}, because this set never merges
+ * its state. The constructor refuses such an element type; it sees only the declared type, so a set declared over a
+ * supertype such as `Object` still accepts a producer instance, and the commit's
+ * {@link TransactionalLayerMaintainer#verifyLayerWasFullySwept()} check remains the backstop for that case.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
@@ -76,8 +78,16 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	 * Creates a new transactional wrapper around the given delegate set.
 	 *
 	 * @param setDelegate the underlying set to wrap
+	 * @param elementType the declared type of the set's elements, which must not be a
+	 *                    {@link TransactionalStateProducer} because the merge never commits an element's own state
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when `elementType` is a {@link TransactionalStateProducer}
 	 */
-	public TransactionalSet(@Nonnull Set<K> setDelegate) {
+	public TransactionalSet(@Nonnull Set<K> setDelegate, @Nonnull Class<K> elementType) {
+		Assert.isPremiseValid(
+			!TransactionalStateProducer.class.isAssignableFrom(elementType),
+			() -> "Transactional set elements must not carry transactional state, but `" + elementType.getName() +
+				"` does - the set commits its elements by reference and would never merge their state!"
+		);
 		this.setDelegate = setDelegate;
 	}
 
@@ -102,50 +112,20 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 		return true;
 	}
 
+	/**
+	 * Applies the transactional membership changes to the set, or reuses the delegate when there is no diff layer.
+	 * Keys are carried over by reference; the merge never commits a key's own transactional state.
+	 *
+	 * @param layer the diff layer, or `null` when the set has no transactional changes
+	 * @param transactionalLayer the maintainer coordinating the commit
+	 * @return the committed set
+	 */
 	@Nonnull
 	@Override
 	public Set<K> createCopyWithMergedTransactionalMemory(
-		@Nullable SetChanges<K> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		// iterate over inserted or updated keys
-		if (layer != null) {
-			return layer.createMergedSet(transactionalLayer);
-		} else {
-			// iterate original set and copy all values from it
-			List<K> oldEntries = null;
-			List<K> newEntries = null;
-			for (K entry : this.setDelegate) {
-				// we need to always create copy - something in the
-				// referenced object might have changed; even the removed
-				// values need to be evaluated (in order to discard them
-				// from transactional memory set)
-				final K transformedEntry;
-				if (entry instanceof TransactionalStateProducer) {
-					//noinspection unchecked
-					transformedEntry = (K) transactionalLayer.getStateCopyWithCommittedChanges(
-						(TransactionalStateProducer<?>) entry
-					);
-				} else {
-					transformedEntry = entry;
-				}
-
-				if (entry != transformedEntry) {
-					if (oldEntries == null) {
-						oldEntries = new ArrayList<>();
-						newEntries = new ArrayList<>();
-					}
-					oldEntries.add(entry);
-					newEntries.add(transformedEntry);
-				}
-			}
-			if (oldEntries == null) {
-				return this.setDelegate;
-			} else {
-				final Set<K> copy = new HashSet<>(this.setDelegate);
-				oldEntries.forEach(copy::remove);
-				copy.addAll(newEntries);
-				return copy;
-			}
-		}
+		@Nullable SetChanges<K> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		return layer == null ? this.setDelegate : layer.createMergedSet();
 	}
 
 	@Override
@@ -184,16 +164,21 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 		}
 	}
 
+	/**
+	 * Iterates over the set as seen by the current thread. The iterator's `remove()` follows the
+	 * {@link Iterator#remove()} contract and routes the removal as {@link #remove(Object)} does. In a transaction it
+	 * writes to the transactional layer, creating it on demand even when the iterator was obtained before the layer
+	 * existed; while the transaction suppresses this set's layer, it removes the key from the delegate instead. Outside
+	 * a transaction it removes the key from the delegate and journals the change when a warm-up savepoint is open.
+	 *
+	 * @return an iterator over the visible keys
+	 */
 	@Nonnull
 	@Override
 	public Iterator<K> iterator() {
 		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			// the wrapper is handed out unconditionally rather than only while a savepoint is open, because the
-			// alternative decides at CONSTRUCTION time: an iterator taken before a savepoint opened and removed
-			// through after it opened would reach the delegate unjournalled. remove() re-resolves the savepoint per
-			// call, so outside one the wrapper is transparent apart from its own allocation
-			return new WarmUpJournalingIterator<>(this.setDelegate);
+			return new DelegateSetIterator();
 		} else {
 			return new TransactionalMemorySetIterator<>(this.setDelegate, layer, this);
 		}
@@ -351,8 +336,12 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 				// Insertion-ordered so a delegate whose iteration order is part of its contract comes back in order
 				final Set<K> preImage = new LinkedHashSet<>(this.setDelegate);
 				savepoint.push(() -> {
-					this.setDelegate.clear();
-					this.setDelegate.addAll(preImage);
+					// reverse replay has emptied the set again by the time this runs, unless the delegate rejected the
+					// clear; such a delegate would reject the restore too, so a set still equal to the capture is kept
+					if (!preImage.equals(this.setDelegate)) {
+						this.setDelegate.clear();
+						this.setDelegate.addAll(preImage);
+					}
 				});
 			}
 			this.setDelegate.clear();
@@ -384,16 +373,24 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	 * removed several times inside one savepoint still ends up with its pre-savepoint membership, the earliest-pushed
 	 * inverse being the one reverse replay runs last.
 	 *
+	 * The inverse writes only when the membership no longer matches the capture, because the delegate may reject the
+	 * change after the inverse is pushed and the inverse must then hold for a change that never happened. An
+	 * unmodifiable delegate throws `UnsupportedOperationException` and would throw again on any write the inverse made;
+	 * a stale delegate iterator throws `ConcurrentModificationException`, and its key may already be absent, which is
+	 * why the membership is captured rather than assumed.
+	 *
 	 * @param savepoint the open savepoint to record into
 	 * @param key       the element whose membership is about to change
 	 */
 	private void journalMembership(@Nonnull WarmUpSavepoint savepoint, K key) {
 		final boolean wasPresent = this.setDelegate.contains(key);
 		savepoint.push(() -> {
-			if (wasPresent) {
-				this.setDelegate.add(key);
-			} else {
-				this.setDelegate.remove(key);
+			if (this.setDelegate.contains(key) != wasPresent) {
+				if (wasPresent) {
+					this.setDelegate.add(key);
+				} else {
+					this.setDelegate.remove(key);
+				}
 			}
 		});
 	}
@@ -459,57 +456,81 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 	}
 
 	/**
-	 * Iterator over the raw delegate that journals every {@link #remove()} into the open warm-up savepoint. It is
-	 * handed out instead of the delegate's own iterator on the whole non-transactional branch, because removing
-	 * through an iterator reaches the delegate without passing through any of this set's mutators - and `removeAll` /
-	 * `retainAll` / `removeIf` on the {@link java.util.Collection} defaults all funnel through it. It is the warm-up
-	 * counterpart of {@link TransactionalMemorySetIterator}, which closes the same hole on the transactional branch.
-	 *
-	 * The savepoint is re-resolved at {@link #remove()} time rather than captured at construction, and this is what
-	 * lets the wrapper be handed out unconditionally: an iterator that outlives the savepoint records nothing, and an
-	 * iterator created BEFORE a savepoint opened still journals into it. Choosing the wrapper at construction time
-	 * would close only the first of those two directions.
-	 *
-	 * @param <K> element type
+	 * Iterates delegate keys when there is no diff layer at construction. Removing through an iterator, including the
+	 * one the inherited {@link Collection#removeIf} drives, bypasses this set's mutators, so {@link #remove()} routes
+	 * each removal as {@link TransactionalSet#remove(Object)} does. It resolves the transaction and the warm-up
+	 * savepoint when the removal happens rather than at construction: an iterator obtained before a transaction opened
+	 * still removes into its diff layer, one obtained before a savepoint opened still journals into it, and one that
+	 * outlives a savepoint records nothing in it.
 	 */
-	private static final class WarmUpJournalingIterator<K> implements Iterator<K> {
-		private final Set<K> setDelegate;
-		private final Iterator<K> delegate;
+	private final class DelegateSetIterator implements Iterator<K> {
+		/**
+		 * Iterator over the shared delegate; its own `remove()` runs only when no transactional layer takes the
+		 * removal.
+		 */
+		private final Iterator<K> delegate = TransactionalSet.this.setDelegate.iterator();
+		/**
+		 * Key the last {@link #next()} returned, the only key {@link #remove()} removes.
+		 */
 		@Nullable private K current;
-
-		WarmUpJournalingIterator(@Nonnull Set<K> setDelegate) {
-			this.setDelegate = setDelegate;
-			this.delegate = setDelegate.iterator();
-		}
+		/**
+		 * Whether {@link #remove()} is allowed: set by {@link #next()} and cleared by {@link #remove()}.
+		 */
+		private boolean canRemove;
 
 		@Override
 		public boolean hasNext() {
 			return this.delegate.hasNext();
 		}
 
+		/**
+		 * Returns the next delegate key and makes it the target of {@link #remove()}.
+		 *
+		 * @return the next delegate key
+		 * @throws NoSuchElementException if the iterator is exhausted
+		 */
+		@Nullable
 		@Override
 		public K next() {
 			this.current = this.delegate.next();
+			this.canRemove = true;
 			return this.current;
 		}
 
+		/**
+		 * Removes the key last returned by {@link #next()} through the transactional layer or the delegate iterator.
+		 * A delegate removal is journaled for any open warm-up savepoint.
+		 *
+		 * @throws IllegalStateException if there is no successful call to {@link #next()} since the last removal
+		 *                               or since the iterator was created
+		 */
 		@Override
 		public void remove() {
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
-			if (savepoint != null && this.current != null) {
-				// the element is still present at this point, so the inverse is unconditionally an add-back
-				final K removed = this.current;
-				savepoint.push(() -> this.setDelegate.add(removed));
+			if (!this.canRemove) {
+				throw new IllegalStateException();
 			}
-			this.delegate.remove();
+
+			final SetChanges<K> layer = Transaction.getOrCreateTransactionalMemoryLayer(TransactionalSet.this);
+			if (layer == null) {
+				final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+				if (savepoint != null && this.current != null) {
+					journalMembership(savepoint, this.current);
+				}
+				this.delegate.remove();
+			} else {
+				layer.remove(this.current);
+			}
+			this.canRemove = false;
 		}
 	}
 
 	/**
 	 * Iterator that merges elements from the delegate set with changes
 	 * from the transactional layer. Created keys are iterated first,
-	 * followed by non-removed delegate keys that are not duplicated
-	 * in the created set.
+	 * followed by delegate keys still present in the transactional set.
+	 *
+	 * `hasNext()` may fetch the next delegate key ahead, so that look-ahead is held apart from the key `next()`
+	 * returned, and {@link #remove()} always removes the latter.
 	 */
 	private static class TransactionalMemorySetIterator<K> implements Iterator<K> {
 
@@ -518,9 +539,27 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 		private final Iterator<K> layerIt;
 		private final Iterator<K> stateIt;
 
-		@Nullable private K currentValue;
-		private boolean fetched = true;
+		/**
+		 * Delegate key fetched ahead by {@link #hasNext()} and handed out by the following {@link #next()}.
+		 */
+		@Nullable private K nextDelegateValue;
+		/**
+		 * Key the last {@link #next()} returned, the only key {@link #remove()} removes.
+		 */
+		@Nullable private K lastReturned;
+		/**
+		 * Whether `nextDelegateValue` must be fetched again, because it was never fetched or `next()` returned it.
+		 */
+		private boolean needsFetch = true;
+		/**
+		 * Set once the delegate iterator holds no further key visible in the transactional view; `nextDelegateValue`
+		 * is `null` from then on.
+		 */
 		private boolean endOfData;
+		/**
+		 * Whether {@link #remove()} is allowed: set by {@link #next()} and cleared by {@link #remove()}.
+		 */
+		private boolean canRemove;
 
 		/**
 		 * Creates a new iterator merging the delegate and layer state.
@@ -541,32 +580,55 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 			this.stateIt = setDelegate.iterator();
 		}
 
+		/**
+		 * Checks for another created or retained delegate key without changing the removal target.
+		 *
+		 * @return whether another key is available
+		 */
 		@Override
 		public boolean hasNext() {
-			if (this.fetched) {
-				this.currentValue = computeNext();
-				this.fetched = false;
+			if (this.layerIt.hasNext()) {
+				return true;
+			}
+			if (this.needsFetch) {
+				this.nextDelegateValue = computeNext();
+				this.needsFetch = false;
 			}
 			return !this.endOfData;
 		}
 
+		/**
+		 * Returns the next key and makes it the target of {@link #remove()}.
+		 *
+		 * @return the next key in the transactional view
+		 * @throws NoSuchElementException if the iterator is exhausted
+		 */
 		@Nullable
 		@Override
 		public K next() {
-			if (this.endOfData) {
-				throw new NoSuchElementException();
+			if (this.layerIt.hasNext()) {
+				this.lastReturned = this.layerIt.next();
+			} else {
+				if (!hasNext()) {
+					throw new NoSuchElementException();
+				}
+				this.lastReturned = this.nextDelegateValue;
+				this.needsFetch = true;
 			}
-			if (this.fetched) {
-				this.currentValue = computeNext();
-			}
-			this.fetched = true;
-			return this.currentValue;
+			this.canRemove = true;
+			return this.lastReturned;
 		}
 
+		/**
+		 * Removes the key last returned by {@link #next()} and journals its membership for savepoint rollback.
+		 *
+		 * @throws IllegalStateException if there is no successful call to {@link #next()} since the last removal
+		 *                               or since the iterator was created
+		 */
 		@Override
 		public void remove() {
-			if (this.currentValue == null) {
-				throw new GenericEvitaInternalError("Value unexpectedly not found!");
+			if (!this.canRemove) {
+				throw new IllegalStateException();
 			}
 
 			// register the write-touch with the maintainer FIRST: when a savepoint is open and this layer has not
@@ -574,57 +636,32 @@ public class TransactionalSet<K> implements Set<K>, Serializable,
 			// journal) BEFORE the removal below mutates the diff layer - otherwise the removal would be unrevertable
 			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.layerCreator);
 
-			final K key = this.currentValue;
-			final boolean existing = this.layer.getSetDelegate().contains(key);
-			final boolean removedFromTransactionalMemory = this.layer.getCreatedKeys().contains(key);
-			if (removedFromTransactionalMemory) {
-				// capture the pre-mutation membership: the raw created-keys iterator removal below bypasses the
-				// layer's journaled mutators, so a savepoint rollback could not reinstate the created key otherwise
+			final K key = this.lastReturned;
+			if (this.layer.containsCreated(key)) {
+				// The created-keys iterator bypasses the layer's journaled mutators.
 				this.layer.journalKey(key);
 				this.layerIt.remove();
-				if (!existing) {
-					this.layer.removeCreatedKey(key);
-				}
+			} else {
+				this.layer.remove(key);
 			}
-			if (existing) {
-				this.layer.registerRemovedKey(key);
-			}
+			this.canRemove = false;
 		}
 
 		/**
-		 * Marks this iterator as exhausted and returns null.
-		 */
-		@Nullable
-		K endOfData() {
-			this.endOfData = true;
-			return null;
-		}
-
-		/**
-		 * Computes the next element by first draining created keys from
-		 * the layer, then iterating the delegate while skipping removed
-		 * and already-created keys.
+		 * Advances the delegate iterator to the next key that is visible in the transactional view.
+		 *
+		 * @return the next retained delegate key, or null when the delegate iterator is exhausted
 		 */
 		@Nullable
 		K computeNext() {
-			if (this.endOfData) {
-				return null;
+			while (this.stateIt.hasNext()) {
+				final K key = this.stateIt.next();
+				if (!this.layer.containsRemoved(key)) {
+					return key;
+				}
 			}
-			if (this.layerIt.hasNext()) {
-				return this.layerIt.next();
-			} else if (this.stateIt.hasNext()) {
-				K adept;
-				do {
-					if (this.stateIt.hasNext()) {
-						adept = this.stateIt.next();
-					} else {
-						return endOfData();
-					}
-				} while (this.layer.containsRemoved(adept) || this.layer.containsCreated(adept));
-				return adept;
-			} else {
-				return endOfData();
-			}
+			this.endOfData = true;
+			return null;
 		}
 
 	}

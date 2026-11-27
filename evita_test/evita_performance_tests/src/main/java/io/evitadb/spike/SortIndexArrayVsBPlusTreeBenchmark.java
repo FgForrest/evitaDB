@@ -24,7 +24,7 @@
 package io.evitadb.spike;
 
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
-import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.EntryCursor;
+import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.Entry;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -50,6 +50,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -74,14 +75,15 @@ import java.util.function.Function;
  * 1. {@code ascendingSweep*} / {@code descendingSweep*} — the ORDER BY traversal. A monotonic forward (resp. reverse)
  *    seeker is created and asked for the value at a strictly increasing (resp. decreasing) sequence of record
  *    positions, exactly as {@code MergedComparableSortedRecordsSupplierSorter} drives it during query sorting. The
- *    array seeker indexes into the contiguous array and reads cardinality from the sparse map; the tree seeker walks a
- *    `(value, cardinality)` entry cursor and reads cardinality inline.
+ *    array seeker indexes into the contiguous array and reads cardinality from the sparse map; the forward tree
+ *    seeker reads cardinality inline from an entry iterator. The reverse tree seeker walks the keys in reverse and
+ *    looks up each cardinality.
  * 2. {@code pointLookup*} — the {@code getRecordsEqualTo} probe: locate a random value and read its cardinality.
  *    Array = {@link Arrays#binarySearch} over the contiguous array plus a map lookup; tree = a single
  *    {@link TransactionalObjectBPlusTree#search}.
  * 3. {@code valueIndexRebuild*} — the per-transaction {@code SortIndexChanges} prefix-sum cache build: a full ordered
  *    walk accumulating cardinalities into a start-offset array. Array = array iteration + per-value map lookup; tree =
- *    a single {@code entryIterator} walk with inline cardinality.
+ *    a single {@link TransactionalObjectBPlusTree#valueIterator()} walk with inline cardinality.
  *
  * A second gate — the **shared value→ValueToRecord tree** backing both the filter and sort indexes — adds two
  * candidate-vs-baseline pairs measuring the deltas that design introduces:
@@ -92,6 +94,12 @@ import java.util.function.Function;
  *   cardinality-access cost, not a leaf-density change.
  * - {@code pointLookupHashMap} (today's {@code UniqueIndex} O(1) map) vs {@code pointLookupFatTree} (the unified O(log n)
  *   tree search) — the unique-check-on-write probe, the hot write path this gate must not regress materially.
+ *
+ * The forward seekers in `ascendingSweepTree` and `ascendingSweepFatTree` walk an entry iterator, which builds one
+ * {@link Entry} per bucket. The reverse seekers in `descendingSweepTree` and `descendingSweepFatTree` walk the keys in
+ * reverse and pay one point lookup per bucket, because the tree offers no reverse entry traversal. These four tree
+ * arms are not comparable with the results recorded in
+ * `documentation/performance/individual/SortIndexArrayVsBPlusTreeBenchmark/`.
  *
  * Each benchmark reports both latency ({@link Mode#AverageTime}) and throughput ({@link Mode#Throughput}) so the two
  * facets the migration is gated on can be read directly. The sweep ops cover a bounded, evenly distributed sample of
@@ -209,14 +217,18 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 	// Both emit the identical sorted id sequence. Selectivity is the decisive axis: low selectivity
 	// favours the baseline (it touches only matches); high selectivity / full sort favours merge-join.
 
+	/**
+	 * Intersects each bucket in tree order with the query result and consumes the matching record IDs.
+	 *
+	 * @param state the shared tree and query result
+	 * @param bh    consumes matching record IDs in sort order
+	 */
 	@Benchmark
-	public void orderByMergeJoinFatTree(MergeJoinState state, Blackhole bh) {
+	public void orderByMergeJoinFatTree(@Nonnull MergeJoinState state, @Nonnull Blackhole bh) {
 		final PersistentRoaringBitmap queryResult = state.queryResult;
-		@SuppressWarnings("rawtypes")
-		final EntryCursor cursor = state.fatTree.entryCursor();
-		while (cursor.hasNext()) {
-			cursor.next();
-			final ValueToRecord bucket = (ValueToRecord) cursor.value();
+		final Iterator<?> buckets = state.fatTree.valueIterator();
+		while (buckets.hasNext()) {
+			final ValueToRecord bucket = (ValueToRecord) buckets.next();
 			final PersistentRoaringBitmap matched = PersistentRoaringBitmap.and(
 				queryResult, RoaringBitmapBackedBitmap.getRoaringBitmap(bucket.getRecordIds())
 			);
@@ -300,15 +312,18 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 		return accumulator;
 	}
 
+	/**
+	 * Walks the tree's inline cardinalities in value order for the prefix-sum rebuild.
+	 *
+	 * @param state the tree containing the cardinalities
+	 * @return the accumulated cardinality
+	 */
 	@Benchmark
-	@SuppressWarnings("rawtypes")
-	public long valueIndexRebuildTree(IndexState state) {
-		// the same prefix-sum build over the tree form: a single allocation-free entry-cursor walk, value inline
+	public long valueIndexRebuildTree(@Nonnull IndexState state) {
 		long accumulator = 0;
-		final EntryCursor cursor = state.tree.entryCursor();
-		while (cursor.hasNext()) {
-			cursor.next();
-			accumulator += (Integer) cursor.value();
+		final Iterator<?> cardinalities = state.tree.valueIterator();
+		while (cardinalities.hasNext()) {
+			accumulator += (Integer) cardinalities.next();
 		}
 		return accumulator;
 	}
@@ -364,7 +379,7 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 			final int minBlock = blockSize / 2 - 1;
 			final int minInternal = (int) (Math.ceil((float) minBlock / 2.0) - 1);
 			final TransactionalObjectBPlusTree theTree = new TransactionalObjectBPlusTree<>(
-				blockSize, minBlock, minBlock, minInternal, Comparable.class, Integer.class, comparator
+				blockSize, minBlock, minBlock, minInternal, Comparable.class, Integer.class, null, comparator
 			);
 			// the fat-value candidate tree: same keys/order, value = ValueToRecord (Primitive for card==1, Bitmap else).
 			// ValueToRecordBitmap implements TransactionalLayerProducer, so the tree needs the same identity value
@@ -600,52 +615,55 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 	}
 
 	/**
-	 * Standalone replica of the new tree-based forward seeker: walks a forward `(value, cardinality)` entry cursor and
-	 * accumulates cardinalities, reading the cardinality inline from each entry. Mirrors the production
-	 * {@code SortIndex.SortedComparableForwardSeeker}.
+	 * Walks `(value, cardinality)` entries in sort order and accumulates the cardinality of each entry.
 	 */
 	private static final class TreeForwardSeeker {
-		@SuppressWarnings("rawtypes")
-		private final EntryCursor cursor;
+		private final Iterator<?> iterator;
 		private Serializable currentValue;
 		private int indexPeak = 0;
 
 		@SuppressWarnings("rawtypes")
 		TreeForwardSeeker(@Nonnull TransactionalObjectBPlusTree tree) {
-			this.cursor = tree.entryCursor();
+			this.iterator = tree.entryIterator();
 		}
 
 		Serializable getValueToCompareOn(int position) {
-			while (this.indexPeak <= position && this.cursor.hasNext()) {
-				this.currentValue = (Serializable) this.cursor.next();
-				this.indexPeak += (Integer) this.cursor.value();
+			while (this.indexPeak <= position && this.iterator.hasNext()) {
+				final Entry<?, ?> entry = (Entry<?, ?>) this.iterator.next();
+				this.currentValue = (Serializable) entry.key();
+				this.indexPeak += (Integer) entry.value();
 			}
 			return this.currentValue;
 		}
 	}
 
 	/**
-	 * Standalone replica of the new tree-based reverse seeker.
+	 * Tree-based reverse seeker: walks the keys in reverse and reads each cardinality with one point lookup, because
+	 * the tree offers no reverse entry traversal.
 	 */
 	private static final class TreeReverseSeeker {
 		@SuppressWarnings("rawtypes")
-		private final EntryCursor cursor;
+		private final TransactionalObjectBPlusTree tree;
+		private final Iterator<?> iterator;
 		private final int totalCount;
 		private Serializable currentValue;
 		private int indexPeak;
 
 		@SuppressWarnings("rawtypes")
 		TreeReverseSeeker(@Nonnull TransactionalObjectBPlusTree tree, int totalCount) {
-			this.cursor = tree.entryReverseCursor();
+			this.tree = tree;
+			this.iterator = tree.keyReverseIterator();
 			this.totalCount = totalCount;
 			this.indexPeak = totalCount;
 		}
 
+		@SuppressWarnings("unchecked")
 		Serializable getValueToCompareOn(int invertedPosition) {
 			final int position = this.totalCount - invertedPosition - 1;
-			while (this.indexPeak > position && this.cursor.hasNext()) {
-				this.currentValue = (Serializable) this.cursor.next();
-				this.indexPeak -= (Integer) this.cursor.value();
+			while (this.indexPeak > position && this.iterator.hasNext()) {
+				final Comparable<?> key = (Comparable<?>) this.iterator.next();
+				this.currentValue = (Serializable) key;
+				this.indexPeak -= (Integer) this.tree.search(key).orElseThrow();
 			}
 			return this.currentValue;
 		}
@@ -657,47 +675,52 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 	 * bucket) rather than an inline `Integer`. This is the cardinality-access delta the non-regression gate measures.
 	 */
 	private static final class FatTreeForwardSeeker {
-		@SuppressWarnings("rawtypes")
-		private final EntryCursor cursor;
+		private final Iterator<?> iterator;
 		private Serializable currentValue;
 		private int indexPeak = 0;
 
 		@SuppressWarnings("rawtypes")
 		FatTreeForwardSeeker(@Nonnull TransactionalObjectBPlusTree tree) {
-			this.cursor = tree.entryCursor();
+			this.iterator = tree.entryIterator();
 		}
 
 		Serializable getValueToCompareOn(int position) {
-			while (this.indexPeak <= position && this.cursor.hasNext()) {
-				this.currentValue = (Serializable) this.cursor.next();
-				this.indexPeak += ((ValueToRecord) this.cursor.value()).size();
+			while (this.indexPeak <= position && this.iterator.hasNext()) {
+				final Entry<?, ?> entry = (Entry<?, ?>) this.iterator.next();
+				this.currentValue = (Serializable) entry.key();
+				this.indexPeak += ((ValueToRecord) entry.value()).size();
 			}
 			return this.currentValue;
 		}
 	}
 
 	/**
-	 * The shared-tree reverse seeker — counterpart to {@link FatTreeForwardSeeker}.
+	 * The shared-tree reverse seeker — counterpart to {@link FatTreeForwardSeeker}. Like {@link TreeReverseSeeker}, it
+	 * pays one point lookup per distinct value, because the tree offers no reverse entry traversal.
 	 */
 	private static final class FatTreeReverseSeeker {
 		@SuppressWarnings("rawtypes")
-		private final EntryCursor cursor;
+		private final TransactionalObjectBPlusTree tree;
+		private final Iterator<?> iterator;
 		private final int totalCount;
 		private Serializable currentValue;
 		private int indexPeak;
 
 		@SuppressWarnings("rawtypes")
 		FatTreeReverseSeeker(@Nonnull TransactionalObjectBPlusTree tree, int totalCount) {
-			this.cursor = tree.entryReverseCursor();
+			this.tree = tree;
+			this.iterator = tree.keyReverseIterator();
 			this.totalCount = totalCount;
 			this.indexPeak = totalCount;
 		}
 
+		@SuppressWarnings("unchecked")
 		Serializable getValueToCompareOn(int invertedPosition) {
 			final int position = this.totalCount - invertedPosition - 1;
-			while (this.indexPeak > position && this.cursor.hasNext()) {
-				this.currentValue = (Serializable) this.cursor.next();
-				this.indexPeak -= ((ValueToRecord) this.cursor.value()).size();
+			while (this.indexPeak > position && this.iterator.hasNext()) {
+				final Comparable<?> key = (Comparable<?>) this.iterator.next();
+				this.currentValue = (Serializable) key;
+				this.indexPeak -= ((ValueToRecord) this.tree.search(key).orElseThrow()).size();
 			}
 			return this.currentValue;
 		}

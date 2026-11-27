@@ -89,6 +89,9 @@ class SortedArrayBitmapTest {
 	@DisplayName("Read accessors")
 	class ReadAccessorsTest {
 
+		/**
+		 * Verifies empty reads and rejects requests for a record from an empty view.
+		 */
 		@Test
 		@DisplayName("An empty view reports no records and refuses every positional accessor")
 		void shouldExposeAnEmptyRecordSet() {
@@ -104,9 +107,12 @@ class SortedArrayBitmapTest {
 			assertFalse(bitmap.iterator().hasNext());
 			assertThrows(IndexOutOfBoundsException.class, bitmap::getFirst);
 			assertThrows(IndexOutOfBoundsException.class, bitmap::getLast);
-			assertThrows(IndexOutOfBoundsException.class, () -> bitmap.get(0));
+			assertThrows(IndexOutOfBoundsException.class, () -> bitmap.getRange(0, 1));
 		}
 
+		/**
+		 * Checks that a single-record view returns the same id through its read accessors.
+		 */
 		@Test
 		@DisplayName("A single-element view answers the one id through every accessor")
 		void shouldExposeASingleRecord() {
@@ -116,13 +122,16 @@ class SortedArrayBitmapTest {
 			assertEquals(1, bitmap.size());
 			assertTrue(bitmap.contains(42));
 			assertFalse(bitmap.contains(41));
-			assertEquals(42, bitmap.get(0));
+			assertArrayEquals(new int[]{42}, bitmap.getRange(0, 1));
 			assertEquals(42, bitmap.getFirst());
 			assertEquals(42, bitmap.getLast());
 			assertArrayEquals(new int[]{42}, bitmap.getArray());
 			assertEquals("[42]", bitmap.toString());
 		}
 
+		/**
+		 * Checks unsigned positional access and membership for mixed-sign ids.
+		 */
 		@Test
 		@DisplayName("A multi-element view answers first, last and membership in unsigned order")
 		void shouldExposeAMultiRecordSet() {
@@ -131,7 +140,7 @@ class SortedArrayBitmapTest {
 			assertEquals(5, bitmap.size());
 			assertEquals(0, bitmap.getFirst());
 			assertEquals(-1, bitmap.getLast(), "under unsigned ordering -1 is the greatest id there is");
-			assertEquals(Integer.MIN_VALUE, bitmap.get(3));
+			assertArrayEquals(new int[]{Integer.MIN_VALUE}, bitmap.getRange(3, 4));
 			assertTrue(bitmap.contains(Integer.MIN_VALUE));
 			assertTrue(bitmap.contains(Integer.MAX_VALUE));
 			assertFalse(bitmap.contains(-2));
@@ -302,6 +311,9 @@ class SortedArrayBitmapTest {
 	@DisplayName("Immutability")
 	class ImmutabilityTest {
 
+		/**
+		 * Verifies both insertion methods reject writes to the borrowed array.
+		 */
 		@Test
 		@DisplayName("Every mutator is refused, so a borrowed array can never be written through the view")
 		void shouldRejectEveryMutation() {
@@ -309,11 +321,7 @@ class SortedArrayBitmapTest {
 			final Bitmap other = new BaseBitmap(4, 5);
 
 			assertThrows(UnsupportedOperationException.class, () -> bitmap.add(4));
-			assertThrows(UnsupportedOperationException.class, () -> bitmap.addAll(4, 5));
 			assertThrows(UnsupportedOperationException.class, () -> bitmap.addAll(other));
-			assertThrows(UnsupportedOperationException.class, () -> bitmap.remove(1));
-			assertThrows(UnsupportedOperationException.class, () -> bitmap.removeAll(1, 2));
-			assertThrows(UnsupportedOperationException.class, () -> bitmap.removeAll(other));
 			assertArrayEquals(new int[]{1, 2, 3}, bitmap.getArray(), "a refused mutation must change nothing");
 		}
 	}

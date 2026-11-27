@@ -224,7 +224,11 @@ public class TransactionalBitmap
 		}
 	}
 
-	@Override
+	/**
+	 * Adds the supplied record ids, skipping duplicates.
+	 *
+	 * @param recordId the record ids to add
+	 */
 	public void addAll(int... recordId) {
 		if (!Transaction.isTransactionAvailable()) {
 			addAllToDelegate(recordId);
@@ -287,7 +291,12 @@ public class TransactionalBitmap
 		}
 	}
 
-	@Override
+	/**
+	 * Removes a record id if it is present.
+	 *
+	 * @param recordId the record id to remove
+	 * @return true if the record id was removed
+	 */
 	public boolean remove(int recordId) {
 		// no layer yet — avoid creating one for a no-op (record already absent)
 		if (!this.contains(recordId)) {
@@ -308,7 +317,11 @@ public class TransactionalBitmap
 		}
 	}
 
-	@Override
+	/**
+	 * Removes the supplied record ids that are present.
+	 *
+	 * @param recordId the record ids to remove
+	 */
 	public void removeAll(int... recordId) {
 		if (!Transaction.isTransactionAvailable()) {
 			removeAllFromDelegate(recordId);
@@ -337,7 +350,11 @@ public class TransactionalBitmap
 		}
 	}
 
-	@Override
+	/**
+	 * Removes all record ids present in the supplied bitmap.
+	 *
+	 * @param recordIds the bitmap containing the record ids to remove
+	 */
 	public void removeAll(@Nonnull Bitmap recordIds) {
 		if (!Transaction.isTransactionAvailable()) {
 			removeAllFromDelegate(recordIds);
@@ -800,16 +817,6 @@ public class TransactionalBitmap
 			return RoaringBitmapBackedBitmap.indexOf(this.roaringBitmap, recordId);
 		} else {
 			return RoaringBitmapBackedBitmap.indexOf(layer.getMergedBitmap(), recordId);
-		}
-	}
-
-	@Override
-	public int get(int index) {
-		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
-		if (layer == null) {
-			return this.roaringBitmap.select(index);
-		} else {
-			return layer.getMergedBitmap().select(index);
 		}
 	}
 

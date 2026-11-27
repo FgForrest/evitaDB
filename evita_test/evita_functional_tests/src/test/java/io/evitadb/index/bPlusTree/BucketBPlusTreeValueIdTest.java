@@ -55,7 +55,6 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -97,7 +96,7 @@ class BucketBPlusTreeValueIdTest {
 	 */
 	@Nonnull
 	private static TransactionalBucketBPlusTree<Integer> emptyTree() {
-		return new TransactionalBucketBPlusTree<>(LEAF_BLOCK_SIZE, Integer.class);
+		return new TransactionalBucketBPlusTree<>(LEAF_BLOCK_SIZE, Integer.class, null);
 	}
 
 	/**
@@ -196,7 +195,6 @@ class BucketBPlusTreeValueIdTest {
 			executeInsideTransaction(() -> {
 				tree.installValueIdMinter(new ValueIdAllocator()::allocate);
 
-				assertTrue(tree.carriesValueIds());
 				tree.addRecord(10, 1);
 				assertEquals(ValueIdAllocator.FIRST_VALUE_ID, tree.valueIdOf(10));
 			});
@@ -222,10 +220,7 @@ class BucketBPlusTreeValueIdTest {
 					&& error.getMessage().contains(String.valueOf(valueCount)),
 				"the refusal must name both counts, but was: " + error.getMessage()
 			);
-			// the check deliberately runs BEFORE the walk, so no bucket was stamped - but the minter field is assigned
-			// on the way in, so the tree reports itself id-carrying while none of its leaves holds a column. The only
-			// caller is the load path, which discards the whole tree when a load throws
-			assertTrue(tree.carriesValueIds(), "the minter is installed before the column is checked");
+			// The check runs before the walk, leaving the existing buckets unstamped.
 			assertEquals(
 				ValueIdAllocator.UNASSIGNED_VALUE_ID, tree.valueIdOf(0),
 				"no bucket may be stamped by a walk the guard stopped from running"
@@ -285,8 +280,9 @@ class BucketBPlusTreeValueIdTest {
 
 			executeInsideTransaction(() -> {
 				tree.removeValueIdMinter();
-
-				assertFalse(tree.carriesValueIds());
+				tree.addRecord(10, 1);
+				assertEquals(ValueIdAllocator.UNASSIGNED_VALUE_ID, tree.valueIdOf(10));
+				assertNull(tree.enumerateLeaves().getFirst().getValueIds());
 			});
 		}
 
@@ -297,12 +293,12 @@ class BucketBPlusTreeValueIdTest {
 			tree.addRecord(10, 1);
 
 			tree.removeValueIdMinter();
-			assertFalse(tree.carriesValueIds());
+			assertNull(tree.enumerateLeaves().getFirst().getValueIds());
 
 			// the early return sits ABOVE the transaction premise, so a tree with nothing to drop is never refused
 			executeInsideTransaction(() -> {
 				tree.removeValueIdMinter();
-				assertFalse(tree.carriesValueIds());
+				assertNull(tree.enumerateLeaves().getFirst().getValueIds());
 			});
 		}
 	}
@@ -331,7 +327,7 @@ class BucketBPlusTreeValueIdTest {
 
 			tree.bulkLoadPage(new Object[]{10, 20, 30}, new long[]{1, 2, 3}, null, null, 3);
 
-			assertFalse(tree.carriesValueIds());
+			assertNull(tree.enumerateLeaves().getFirst().getValueIds());
 			assertEquals(ValueIdAllocator.UNASSIGNED_VALUE_ID, tree.valueIdOf(20));
 			// read through the cursor as well: the tree-level lookup short-circuits on the absent minter, so only the
 			// cursor actually reports what the loaded leaf holds
@@ -507,7 +503,9 @@ class BucketBPlusTreeValueIdTest {
 			// trim threshold never gives those 28 back - the leaf would carry them for the rest of its life. The
 			// record column beside it was grown one insert at a time and IS on 128, which is what makes the
 			// comparison below a real assertion rather than a tautology
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				255, Integer.class, null
+			);
 			for (int value = 0; value < 100; value++) {
 				tree.addRecord(value, value + 1);
 			}
@@ -543,7 +541,7 @@ class BucketBPlusTreeValueIdTest {
 			for (int value = 0; value < 12; value++) {
 				tree.addRecord(value, value + 1);
 			}
-			assertFalse(tree.carriesValueIds());
+			assertNull(tree.enumerateLeaves().getFirst().getValueIds());
 
 			tree.installValueIdMinter(new ValueIdAllocator()::allocate);
 			assertColumnsAlignedWithLeaves(tree);
@@ -569,7 +567,9 @@ class BucketBPlusTreeValueIdTest {
 			// descends the transaction-aware tree and finds the id, the reverse one consults a directory the
 			// transaction never touched and finds nothing. Whoever makes the reverse lookup transaction-aware needs
 			// this pinned rather than assumed
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(10, 1);
 			tree.addRecord(20, 2);
 			tree.installValueIdMinter(new ValueIdAllocator()::allocate);

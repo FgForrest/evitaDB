@@ -44,7 +44,7 @@ import javax.annotation.Nonnull;
  * Design contract (so the abstraction adds **no** allocation over the raw {@code int[]} it replaces):
  *
  * - The column owns all bulk / single-slot moves ({@link #copyRangeTo}, {@link #insertAt}, {@link #removeAt},
- *   {@link #clearAt}, {@link #fillEmpty}) so the tree never touches the backing array directly on any hot path.
+ *   {@link #fillEmpty}) so the tree never touches the backing array directly on any hot path.
  * - MVCC copy-on-write mirrors the key column: {@link #duplicate} is a **deep** copy (new backing array, new identity)
  *   used to decouple a transactional layer on first write; the leaf shares the *same* column reference into its
  *   transactional layer so the `layer.payload == this.payload` reference check fires exactly once.
@@ -216,8 +216,7 @@ sealed interface RecordColumn permits IntRecordColumn, LongRecordColumn {
 
 	/**
 	 * Removes the record at {@code index}, shifting the live tail one slot to the left and lowering {@link #size()} by
-	 * one (the leaf clears the freed last slot via {@link #clearAt} and shrinks {@code peek} afterwards). The vacated
-	 * slot is zeroed, so nothing stale survives past the live run.
+	 * one. The vacated slot is zeroed and the leaf updates its `peek` afterwards.
 	 *
 	 * Removing a slot at or beyond {@link #size()} is a no-op rather than an error: that region is already zero, and
 	 * dropping one zero out of a run of zeroes leaves a run of zeroes.
@@ -225,18 +224,6 @@ sealed interface RecordColumn permits IntRecordColumn, LongRecordColumn {
 	 * @param index the slot to remove
 	 */
 	void removeAt(int index);
-
-	/**
-	 * Truncates the live run to {@code index}, zeroing everything from there on — used to release the freed last slot
-	 * after a delete, and reached with a still-live slot when a downward {@code setPeek} shortens a leaf.
-	 *
-	 * **Size-authoritative, so it is a strict no-op for {@code index >= size()}.** That is what makes it safe on the
-	 * committed column a transactional layer still aliases, and it is why the leaf may call it with its pre-decrement
-	 * {@code peek} right after {@link #removeAt} has already dropped the entry.
-	 *
-	 * @param index the first slot to release
-	 */
-	void clearAt(int index);
 
 	/**
 	 * Bulk lockstep move: copies {@code length} records from {@code this[srcPos]} into {@code dst[dstPos]} (supports

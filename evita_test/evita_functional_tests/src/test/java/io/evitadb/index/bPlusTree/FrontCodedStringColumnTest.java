@@ -128,11 +128,9 @@ class FrontCodedStringColumnTest {
 			dup.insertKeyAt(0, "code-00");
 			assertEquals("code-25", frontCoded.keyAt(2), "Duplicate must not alias the source");
 
-			// remove the middle key (position 2 == "code-25") from both, releasing the freed last slot
+			// remove the middle key (position 2 == "code-25") from both
 			frontCoded.removeKeyAt(2);
-			frontCoded.clearAt(inserted.length);
 			boxed.removeKeyAt(2);
-			boxed.clearAt(inserted.length);
 			assertColumnsEqual(frontCoded, boxed, inserted.length);
 
 			assertInstanceOf(FrontCodedStringColumn.class, frontCoded);
@@ -366,10 +364,9 @@ class FrontCodedStringColumnTest {
 				column.insertKeyAt(i, keys[i]);
 			}
 
-			// drain from the front one entry at a time, releasing the freed last slot like the leaf does on delete
+			// drain from the front one entry at a time, as the leaf does on delete
 			for (int remaining = keys.length; remaining > 0; remaining--) {
 				column.removeKeyAt(0);
-				column.clearAt(remaining - 1);
 			}
 
 			// the blob is fully reset: capacity survives and every slot decodes back to null on the cold path
@@ -388,32 +385,6 @@ class FrontCodedStringColumnTest {
 				boxed.insertKeyAt(i, regrown[i]);
 			}
 			assertColumnsEqual(column, boxed, regrown.length);
-		}
-
-		@Test
-		@DisplayName("clearAt on a live slot truncates the live tail like a downward setPeek")
-		void shouldClearLiveSlotViaClearAt() {
-			// the leaf calls clearAt on a slot below size when a downward setPeek frees a still-live tail; the boxed
-			// column nulls that slot, the front-coded column truncates the live prefix to it — both observe size == index
-			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
-			final String[] keys = {"alpha", "alpine", "beta", "betard", "gamma"};
-			for (int i = 0; i < keys.length; i++) {
-				column.insertKeyAt(i, keys[i]);
-			}
-
-			final int liveSlot = 3;
-			column.clearAt(liveSlot);
-
-			// the surviving prefix [0, liveSlot) is unchanged
-			final ValueColumn<String> expected = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
-			for (int i = 0; i < liveSlot; i++) {
-				expected.insertKeyAt(i, keys[i]);
-			}
-			assertColumnsEqual(column, expected, liveSlot);
-
-			// the truncated slot is free again — a re-insert lands there and round-trips
-			column.insertKeyAt(liveSlot, "delta");
-			assertEquals("delta", column.keyAt(liveSlot));
 		}
 
 		@Test
@@ -618,8 +589,6 @@ class FrontCodedStringColumnTest {
 					front[c].removeKeyAt(pos);
 					boxed[c].removeKeyAt(pos);
 					size[c]--;
-					front[c].clearAt(size[c]);
-					boxed[c].clearAt(size[c]);
 				}
 				// both columns must always match their own oracle, regardless of which one was just mutated
 				for (int k = 0; k < 2; k++) {
@@ -695,8 +664,6 @@ class FrontCodedStringColumnTest {
 					front.removeKeyAt(pos);
 					boxed.removeKeyAt(pos);
 					size--;
-					front.clearAt(size);
-					boxed.clearAt(size);
 				}
 				for (int i = 0; i < size; i++) {
 					final String expected = boxed.keyAt(i);
@@ -1568,8 +1535,6 @@ class FrontCodedStringColumnTest {
 					front.removeKeyAt(pos);
 					oracle.removeKeyAt(pos);
 					size--;
-					front.clearAt(size);
-					oracle.clearAt(size);
 				}
 				for (final String pattern : patterns) {
 					final byte[] patternBytes = pattern.getBytes(StandardCharsets.UTF_8);
@@ -1934,9 +1899,9 @@ class FrontCodedStringColumnTest {
 		@DisplayName("range moves and truncation leave surviving surrogate keys decodable")
 		void shouldKeepSurrogateKeysDecodableThroughRangeMovesAndTruncation() {
 			// `copyRangeTo` rebuilds the DESTINATION's blob from the moved slice, so the destination has to derive
-			// the decode gate for itself rather than inherit it; `fillEmpty` and `clearAt` re-encode what is left,
-			// so a gate that was not recomputed would strand the survivors. These are the leaf split / merge / steal
-			// paths, reached here directly instead of through a tree.
+			// the decode gate for itself rather than inherit it; `fillEmpty` re-encodes what is left, on the copied
+			// column and on the source alike, so a gate that was not recomputed would strand the survivors. These are
+			// the leaf split / merge / steal paths, reached here directly instead of through a tree.
 			final String[] keys = {"a\ud7ff", "a\ud800", "a\udfff", "b"};
 			final ValueColumn<String> source = new FrontCodedStringColumn<>(BLOCK_SIZE, true);
 			source.bulkLoad(keys, keys.length);
@@ -1953,8 +1918,8 @@ class FrontCodedStringColumnTest {
 			assertEquals(keys[0], destination.keyAt(0), "the ordinary neighbour must survive fillEmpty");
 			assertEquals(keys[1], destination.keyAt(1), "the surviving surrogate must still decode after fillEmpty");
 
-			source.clearAt(2);
-			assertEquals(keys[1], source.keyAt(1), "the surviving surrogate must still decode after clearAt");
+			source.fillEmpty(2, source.capacity());
+			assertEquals(keys[1], source.keyAt(1), "the surviving surrogate must still decode after fillEmpty");
 		}
 
 		@Test

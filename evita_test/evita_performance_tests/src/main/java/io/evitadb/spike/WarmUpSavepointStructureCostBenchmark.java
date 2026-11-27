@@ -28,8 +28,10 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -68,7 +70,11 @@ import java.util.concurrent.TimeUnit;
  * | {@link #rangeIndex} / `TransactionalLongBPlusTree` | 6 576 B | 512 B |
  * | {@link #priceRecords} / `TransactionalElementBPlusTree` | 320 B | 24 B |
  * | {@link #bitmap} | 68 B | 68 B |
- * | {@link #bucketTree} | 116 B | 113 B |
+ * | {@link #bucketTree} (boxed keys) | 116 B | 113 B |
+ *
+ * The current {@link #bucketTree} control is primitive-keyed. It uses the same key column as production
+ * {@link InvertedIndex} for naturally ordered integral keys. Its results are not comparable with the results
+ * recorded for the boxed key column.
  *
  * **What it is for NOW: a regression guard.** All five structures journal per slot today, so **every arm is expected
  * near-flat** — tens of bytes per additional instance, not hundreds or thousands. An arm that climbs into the
@@ -475,7 +481,7 @@ public class WarmUpSavepointStructureCostBenchmark {
 
 	/**
 	 * CONTROL state for {@link WarmUpSavepointStructureCostBenchmark#bucketTree} on the already-converted
-	 * {@link TransactionalBucketBPlusTree}.
+	 * {@link TransactionalBucketBPlusTree} with primitive keys.
 	 */
 	@State(Scope.Benchmark)
 	public static class BucketTreeState extends AbstractStructureState {
@@ -487,9 +493,15 @@ public class WarmUpSavepointStructureCostBenchmark {
 		@SuppressWarnings("unchecked")
 		@Override
 		protected void setUpStructures() {
+			@SuppressWarnings("unchecked")
+			final ValueColumnFactory<Integer> columnFactory =
+				(ValueColumnFactory<Integer>) ValueColumnFactory.forKey(Integer.class, null);
 			this.trees = new TransactionalBucketBPlusTree[MAX_INSTANCES];
 			for (int i = 0; i < MAX_INSTANCES; i++) {
-				final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(Integer.class);
+				final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+					64, 31, 31, 15, Integer.class, null,
+					columnFactory
+				);
 				for (int pk = 1; pk <= PREPOPULATED_ENTRIES; pk++) {
 					tree.addRecord(pk, pk);
 				}

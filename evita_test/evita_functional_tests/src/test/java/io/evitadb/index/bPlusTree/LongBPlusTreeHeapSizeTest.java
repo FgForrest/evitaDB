@@ -119,7 +119,7 @@ class LongBPlusTreeHeapSizeTest {
 
 			// the default walk charges the reference slots holding the values, never the values themselves - the
 			// leaf cannot know whether the tree owns them or borrows them from somewhere else
-			final long withoutValues = tree.getHeapSizeInBytes();
+			final long withoutValues = tree.getHeapSizeInBytes(element -> 0L);
 			final long withValues = tree.getHeapSizeInBytes(JolHeapSize::ownedSize);
 			assertTrue(
 				withValues > withoutValues,
@@ -130,11 +130,11 @@ class LongBPlusTreeHeapSizeTest {
 		@Test
 		void shouldAddOnlyTheTreesOwnObjectOnTopOfItsNodeGraph() {
 			final TransactionalLongBPlusTree<String> tree = buildTree(500);
-			final long own = tree.getHeapSizeInBytes() - tree.getNodeGraphHeapSizeInBytes(element -> 0L);
+			final long own = tree.getHeapSizeInBytes(element -> 0L) - tree.getNodeGraphHeapSizeInBytes(element -> 0L);
 			assertTrue(own > 0 && own < 256, "the tree's own object should be a small constant, was " + own);
 
 			final TransactionalLongBPlusTree<String> larger = buildTree(5_000);
-			final long largerOwn = larger.getHeapSizeInBytes()
+			final long largerOwn = larger.getHeapSizeInBytes(element -> 0L)
 				- larger.getNodeGraphHeapSizeInBytes(element -> 0L);
 			assertEquals(own, largerOwn, "the tree's own object must not grow with the tree");
 		}

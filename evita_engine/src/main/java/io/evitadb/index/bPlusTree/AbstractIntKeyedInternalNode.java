@@ -234,7 +234,13 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 		}
 	}
 
-	@Override
+	/**
+	 * Sets the index of the last occupied child slot. Lowering it clears the keys and children past the new peek.
+	 * Inside a transaction a committed node makes the change in its diff layer.
+	 * The layer copies only the live prefix of any shared array, leaving the new tail empty.
+	 *
+	 * @param peek the index of the new last occupied child slot
+	 */
 	public void setPeek(int peek) {
 		final SELF layer = writeLayer(this, this.transactionalLayer);
 		if (layer == null) {
@@ -254,14 +260,14 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 				//noinspection ArrayEquality
 				if (layer.keys == this.keys) {
 					layer.keys = new int[this.keys.length];
-					System.arraycopy(this.keys, 0, layer.keys, 0, originPeek);
+					System.arraycopy(this.keys, 0, layer.keys, 0, Math.max(0, peek));
 				} else {
 					Arrays.fill(layer.keys, Math.max(0, peek), originPeek, 0);
 				}
 				//noinspection ArrayEquality
 				if (layer.children == this.children) {
 					layer.children = new BPlusTreeNode[this.children.length];
-					System.arraycopy(this.children, 0, layer.children, 0, originPeek + 1);
+					System.arraycopy(this.children, 0, layer.children, 0, peek + 1);
 				} else {
 					Arrays.fill(layer.children, peek + 1, originPeek + 1, null);
 				}
@@ -331,7 +337,12 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 		}
 	}
 
-	@Override
+	/**
+	 * Checks whether the node holds its maximum number of children, reading its diff layer when the current transaction
+	 * has one.
+	 *
+	 * @return whether the node is full
+	 */
 	public boolean isFull() {
 		final SELF layer = this.transactionalLayer ?
 			Transaction.getTransactionalMemoryLayerIfExists(this) :
@@ -681,8 +692,7 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	}
 
 	/**
-	 * Searches for the child index that should contain the given key. This method avoids allocating a NodeWithIndex
-	 * record.
+	 * Searches for the child index that should contain the given key.
 	 *
 	 * Allocation-free: {@link Arrays#binarySearch(int[], int, int, int)} is folded directly into the child-index
 	 * mapping instead of routing through `ArrayUtils.computeInsertPositionOfIntInOrderedArray`, which allocates an

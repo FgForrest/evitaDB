@@ -65,15 +65,15 @@ import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
  * lockstep with its record column, of which the first {@link #size} hold live keys — see {@link ValueColumn} for the
  * family-wide statement of it. A variable-length blob honours that contract by tracking the live entry count
  * ({@link #size}, normally equal to the leaf's {@code peek + 1}) and emulating each array-slot operation
- * ({@link #insertKeyAt} / {@link #removeKeyAt} / {@link #copyRangeTo} / {@link #fillEmpty} / {@link #clearAt}) by
+ * ({@link #insertKeyAt} / {@link #removeKeyAt} / {@link #copyRangeTo} / {@link #fillEmpty}) by
  * decoding the affected entries, applying the exact {@code System.arraycopy} slot semantics, and re-encoding a fresh
  * dense blob. The hot mutators ({@link #insertKeyAt} / {@link #removeKeyAt} / {@link #copyRangeTo}) decode into
  * thread-local flat {@code byte[]} + {@code int[]} offset-table buffers ({@link #decodeAllToFlat} /
  * {@link #decodeRangeToFlat}) and splice like an in-place array move, instead of allocating {@link #size} (or
  * {@code length}) individual {@code byte[]} entries; {@link #copyRangeTo} additionally assembles its spliced output
- * into a third reused flat/offset pair rather than a fresh array per call. The colder {@link #clearAt} /
- * {@link #fillEmpty} (pure tail truncation) still go through {@link #decodeAllBytes}'s {@code byte[][]}. Either way
- * the transient decode state lives only for the duration of the
+ * into a third reused flat/offset pair rather than a fresh array per call. The colder {@link #fillEmpty} truncation
+ * still uses the {@code byte[][]} returned by {@link #decodeAllBytes}. The transient decode state lives only
+ * for the duration of the
  * operation, so the column's retained footprint is just the trimmed blob plus the sparse restart index. A mutation is
  * therefore {@code O(size)} — the same asymptotic cost as the boxed column's reference {@code System.arraycopy}, and
  * {@code size} is bounded by the leaf block size — so no hot path regresses asymptotically. The transient {@link String}
@@ -374,7 +374,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	@Override
 	public ValueColumn<M> duplicate() {
 		// structural share, not a copy: `data` / `restartOffsets` are safe to alias because every mutator
-		// (insertKeyAt / removeKeyAt / copyRangeTo / clearAt / fillEmpty) replaces both by WHOLE REFERENCE via
+		// (insertKeyAt / removeKeyAt / copyRangeTo / fillEmpty) replaces both by WHOLE REFERENCE via
 		// encode(), never edits their bytes in place - so the new layer and this column can never observe each
 		// other's writes even though they start out pointing at the same arrays. If a future in-place `data` edit
 		// ever lands (reusing slack instead of trimming on every encode), this share must become copy-on-first-write.
@@ -469,15 +469,6 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 			offsets[i] = offsets[i + 1] - removeLen;
 		}
 		encode(scratch, flat, offsets, n - 1);
-	}
-
-	@Override
-	public void clearAt(int index) {
-		// the leaf calls this only to release the freed last slot after removeKeyAt already dropped the entry, so the
-		// slot is already absent (index == size); a defensive truncate keeps it a strict no-op for any slot >= size
-		if (index < this.size) {
-			encode(decodeAllBytes(), index);
-		}
 	}
 
 	@Override
@@ -642,7 +633,14 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		return (M[]) boxed;
 	}
 
-	@Override
+	/**
+	 * Returns the heap this column owns, counted as {@link ValueColumn#getHeapSizeInBytes(ToLongFunction)}
+	 * describes: the column object, the front-coded data blob and the restart offsets. No `String` is retained, so
+	 * this is the whole footprint and the sizer overload returns it unchanged. The shared empty arrays an empty or
+	 * cleared column parks on are not charged.
+	 *
+	 * @return the owned heap footprint in bytes
+	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
 		// three ints, two references and three booleans
@@ -813,7 +811,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 
 	/**
 	 * Decodes all live entries sequentially into a fresh {@code byte[][]} of length {@link #size}, each element
-	 * holding one entry's raw WTF-8 bytes. Used by the cold {@link #clearAt} / {@link #fillEmpty} truncation paths
+	 * holding one entry's raw WTF-8 bytes. Used by the cold {@link #fillEmpty} truncation paths
 	 * (re-encoding via {@link #encode(byte[][], int)} never has to turn the unchanged keys back into bytes) and by
 	 * {@link #decodeAll}; the hot slot mutators use {@link #decodeAllToFlat} / {@link #decodeRangeToFlat} instead.
 	 *
@@ -999,7 +997,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	}
 
 	/**
-	 * Cold path only ({@link #clearAt} / {@link #fillEmpty} truncation — the hot slot mutators call
+	 * Cold path only ({@link #fillEmpty} truncation — the hot slot mutators call
 	 * {@link #encode(DecodeScratch, byte[], int[], int)} directly). Flattens {@code keys} (raw WTF-8 key bytes, one
 	 * entry per element; {@code keys.length} may exceed {@code n}, only the live prefix is encoded) into a contiguous
 	 * buffer once and delegates there, so the shared-prefix / restart-table / trim logic exists in exactly one place.

@@ -36,10 +36,13 @@ import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusInternalTree
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusLeafTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.page.PageEmission;
+import io.evitadb.index.page.PageStreamRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -49,11 +52,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.text.Collator;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
@@ -61,6 +66,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
@@ -170,7 +176,7 @@ class TransactionalBucketBPlusTreeTest {
 	 */
 	@Nonnull
 	private static TreeTuple prepareRandomTree(long seed, int totalKeys) {
-		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class, null);
 		final Random random = new Random(seed);
 		final List<Integer> order = new ArrayList<>(totalKeys);
 		for (int i = 0; i < totalKeys; i++) {
@@ -197,7 +203,7 @@ class TransactionalBucketBPlusTreeTest {
 	 */
 	@Nonnull
 	private static TreeTuple prepareRandomMultiTree(long seed, int totalKeys, int multiStride) {
-		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+		final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class, null);
 		final Random random = new Random(seed);
 		final List<Integer> order = new ArrayList<>(totalKeys);
 		for (int i = 0; i < totalKeys; i++) {
@@ -269,7 +275,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("creates single-record buckets in sorted order")
 		void shouldInsertSingleRecords() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			assertStateAfterCommit(
 				tree,
 				tested -> {
@@ -292,7 +300,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("returns a lean single-record bitmap for a single bucket")
 		void shouldExposeSingleRecordBitmap() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(7, 70);
 			final Bitmap records = tree.getRecordsEqualTo(7);
 			assertInstanceOf(SingleRecordBitmap.class, records, "Single bucket must yield a SingleRecordBitmap view!");
@@ -304,7 +314,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("promotes a single bucket to a bitmap on a second distinct record")
 		void shouldPromoteOnSecondRecord() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			assertStateAfterCommit(
 				tree,
 				tested -> {
@@ -324,7 +336,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("keeps a single bucket compact when re-adding its sole record")
 		void shouldStaySingleWhenReaddingSameRecord() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 100);
 			tree.addRecord(5, 100);
 			assertEquals(1, tree.cardinalityOf(5));
@@ -334,7 +348,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("creates a single bucket from a one-element vararg, a multi from many")
 		void shouldHandleVarargAdd() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, new int[]{10});
 			tree.addRecord(2, 20, 21, 22);
 			assertInstanceOf(
@@ -347,7 +363,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("keeps a single bucket compact when the only vararg id is the held one")
 		void shouldStaySingleWhenVarargReaddsSameRecord() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 100);
 			tree.addRecord(5, new int[]{100});
 			assertEquals(1, tree.cardinalityOf(5));
@@ -357,7 +375,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("promotes a single bucket when a vararg add includes other ids")
 		void shouldPromoteOnVarargWithOtherIds() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 100);
 			tree.addRecord(5, 100, 200);
 			assertEquals(2, tree.cardinalityOf(5));
@@ -367,14 +387,18 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("rejects an empty vararg add")
 		void shouldRejectEmptyVarargAdd() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			assertThrows(IllegalArgumentException.class, () -> tree.addRecord(5));
 		}
 
 		@Test
 		@DisplayName("splits a leaf when capacity is exceeded")
 		void shouldSplitLeafWhenFull() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			assertStateAfterCommit(
 				tree,
 				tested -> {
@@ -393,7 +417,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("stays balanced over a long ascending run")
 		void shouldStayBalanced() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			final AtomicReference<int[]> keys = new AtomicReference<>(new int[0]);
 			assertStateAfterCommit(
 				tree,
@@ -418,7 +444,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("reports absence with empty bitmap, zero cardinality and contains==false")
 		void shouldReportAbsence() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 50);
 			assertSame(EmptyBitmap.INSTANCE, tree.getRecordsEqualTo(9));
 			assertEquals(0, tree.cardinalityOf(9));
@@ -429,7 +457,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("treats null lookups as absent")
 		void shouldHandleNullLookups() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 50);
 			assertSame(EmptyBitmap.INSTANCE, tree.getRecordsEqualTo(null));
 			assertEquals(0, tree.cardinalityOf(null));
@@ -439,7 +469,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("counts total records across single and multi buckets")
 		void shouldCountRecords() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 			tree.addRecord(2, 20, 21, 22);
 			tree.addRecord(3, 30);
@@ -455,7 +487,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("removing records of an absent value in a transaction opens no write layer on its leaf")
 		void shouldOpenNoWriteLayerWhenRemovingRecordsOfAbsentValue() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 			tree.addRecord(2, 20);
 			// both keys fit one leaf, so the root IS the leaf every removal below lands on
@@ -479,7 +513,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("removing records of a present value in a transaction writes through a layer on its leaf")
 		void shouldWriteThroughLayerWhenRemovingRecordsOfPresentValue() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 			tree.addRecord(2, 20);
 			// both keys fit one leaf, so the root IS the leaf every removal below lands on
@@ -507,7 +543,9 @@ class TransactionalBucketBPlusTreeTest {
 			"removing records of a value after an insert in the same transaction shifted it removes from that value"
 		)
 		void shouldRemoveRecordsOfValueWhosePositionAnEarlierInsertShifted() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(8, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				8, Integer.class, null
+			);
 			tree.addRecord(2, 20);
 			tree.addRecord(4, 40);
 			tree.addRecord(6, 60);
@@ -534,7 +572,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("removing records of a value added earlier in the same transaction removes them")
 		void shouldRemoveRecordsOfValueAddedEarlierInSameTransaction() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(8, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				8, Integer.class, null
+			);
 			tree.addRecord(2, 20);
 			tree.addRecord(4, 40);
 			tree.addRecord(6, 60);
@@ -556,7 +596,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("removing the last record of a value twice in one transaction deletes the bucket once")
 		void shouldDeleteBucketOnceWhenLastRecordRemovedTwiceInSameTransaction() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(8, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				8, Integer.class, null
+			);
 			tree.addRecord(2, 20);
 			tree.addRecord(4, 40);
 			// the successor shares the removed record, so a second removal landing on it would show
@@ -582,7 +624,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("removing records of an absent value outside a transaction flags no leaf for re-emission")
 		void shouldFlagNoLeafDirtyWhenRemovingRecordsOfAbsentValue() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			for (int value = 0; value < 40; value += 2) {
 				tree.addRecord(value, value * 10);
 			}
@@ -606,7 +650,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("deletes a single bucket when its sole record is removed")
 		void shouldDeleteSingleBucket() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			assertStateAfterCommit(
 				tree,
 				tested -> {
@@ -626,7 +672,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("removes a single record from a multi bucket and keeps the bucket")
 		void shouldRemoveFromMultiBucket() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 100, 200, 300);
 			tree.removeRecord(5, 200);
 			assertEquals(2, tree.cardinalityOf(5));
@@ -636,7 +684,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("deletes a multi bucket when its last record is removed")
 		void shouldDeleteMultiBucketWhenEmptied() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 100, 200);
 			tree.removeRecord(5, 100, 200);
 			assertFalse(tree.contains(5));
@@ -646,7 +696,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("does not demote mid-operation on a non-transactional remove (demotion is deferred to commit)")
 		void shouldNotDemoteOnNonTransactionalRemove() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 100, 200);
 			tree.removeRecord(5, 200);
 			assertEquals(1, tree.cardinalityOf(5));
@@ -662,7 +714,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("is a no-op when removing a non-existent value")
 		void shouldNoOpOnRemoveOfMissingValue() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 100);
 			tree.removeRecord(9, 999);
 			assertEquals(1, tree.bucketCount());
@@ -672,7 +726,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("is a no-op when removing a record id absent from the bucket")
 		void shouldNoOpOnRemoveOfMissingRecord() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 100);
 			tree.removeRecord(5, 999);
 			assertEquals(1, tree.cardinalityOf(5));
@@ -682,7 +738,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("rejects an empty vararg remove")
 		void shouldRejectEmptyVarargRemove() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 100);
 			assertThrows(IllegalArgumentException.class, () -> tree.removeRecord(5));
 		}
@@ -696,7 +754,9 @@ class TransactionalBucketBPlusTreeTest {
 			// does, so a walk that steps over emptied subtrees must still answer `0` here rather than skipping its
 			// way into a wrong answer or failing outright. `shouldConsolidateOnDeletes` drains only half the
 			// buckets, and `shouldDeleteMultiBucketWhenEmptied` drains fully but never walks afterwards.
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			for (int i = 1; i <= 30; i++) {
 				tree.addRecord(i, i * 10);
 			}
@@ -719,7 +779,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("collapses tree structure as buckets are deleted")
 		void shouldConsolidateOnDeletes() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			final AtomicReference<TreeSet<Integer>> keys = new AtomicReference<>(new TreeSet<>());
 			assertStateAfterCommit(
 				tree,
@@ -747,7 +809,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("demotes a multi bucket drained to a single record back to the primitive single form at commit")
 		void shouldDemoteMultiBucketDrainedToSingleAtCommit() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			assertStateAfterCommit(
 				tree,
 				tested -> {
@@ -768,7 +832,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("demotes keeping the surviving record, not the first promoted one")
 		void shouldDemoteKeepingTheSurvivingRecordNotTheFirstPromotedOne() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			assertStateAfterCommit(
 				tree,
 				tested -> {
@@ -790,7 +856,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("demotes at most once even when the bucket oscillates across the 1/2 boundary within a transaction")
 		void shouldNotOscillateWhenCrossingBoundaryRepeatedlyWithinTransaction() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			assertStateAfterCommit(
 				tree,
 				tested -> {
@@ -814,7 +882,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("demotes several buckets and keeps a multi bucket co-located in the same leaf")
 		void shouldDemoteMultipleBucketsAndKeepAMultiBucketInSameLeaf() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			assertStateAfterCommit(
 				tree,
 				tested -> {
@@ -844,7 +914,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("keeps a multi bucket that is reduced but not drained to a single record")
 		void shouldKeepMultiBucketWhenNotDrainedToSingle() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			assertStateAfterCommit(
 				tree,
 				tested -> {
@@ -865,7 +937,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("demotes a leftover cardinality-1 multi bitmap on a leaf touched for another bucket")
 		void shouldDemoteLeftoverSingleBitmapOnTouchedLeaf() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			// establish a cardinality-1 MULTI bitmap out-of-transaction: the non-transactional remove keeps the bitmap
 			// (demotion is a commit-time concern), so bucket 1 holds a size-1 bitmap {10}, NOT a primitive single
 			tree.addRecord(1, 10, 20);
@@ -893,7 +967,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("demotes when the surviving record is a negative primary key (setAt narrowing boundary)")
 		void shouldDemoteWhenSurvivingRecordIsANegativePrimaryKey() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			assertStateAfterCommit(
 				tree,
 				tested -> {
@@ -908,7 +984,9 @@ class TransactionalBucketBPlusTreeTest {
 				}
 			);
 			// a realistic externally-assigned negative pk as the survivor
-			final TransactionalBucketBPlusTree<Integer> tree2 = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree2 = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			assertStateAfterCommit(
 				tree2,
 				tested -> {
@@ -925,7 +1003,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("demotes a drained bucket on a leaf that also splits in the same transaction")
 		void shouldDemoteWhenLeafSplitsInSameTransaction() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			// base: a full leaf (3 buckets) carrying a multi bucket; the transaction both drains it and splits the leaf
 			tree.addRecord(1, 10, 11);
 			tree.addRecord(2, 20);
@@ -1012,7 +1092,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("moves multi buckets across leaves during rebalancing")
 		void shouldRebalanceMultiBuckets() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			final TreeSet<Integer> remaining = new TreeSet<>();
 			assertStateAfterCommit(
 				tree,
@@ -1115,7 +1197,9 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldEnsureOverflowWhenStealingMultiFromSibling() {
 			// hand-build a layout where a single-only leaf is adjacent to a leaf owning a multi bucket; deleting from
 			// the single-only leaf makes it underflow and steal the multi bucket - exercising ensureOverflowForSteal
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 			tree.addRecord(2, 20);
 			tree.addRecord(3, 30);
@@ -1142,7 +1226,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("splits a leaf containing multi buckets inside a txn and commits correctly")
 		void shouldSplitLeafWithMultiBucketsInTransaction() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			final TreeSet<Integer> keys = new TreeSet<>();
 			assertStateAfterCommit(
 				tree,
@@ -1171,7 +1257,9 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("relocates a multi bucket whose bitmap was mutated earlier in the same txn")
 		void shouldRelocateMultiBucketMutatedEarlierInTransaction() {
 			// base layout: a multi bucket whose bitmap layer will be OPENED (mutated) before the move forces it across
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 			tree.addRecord(2, 20);
 			tree.addRecord(3, 30, 31);
@@ -1207,7 +1295,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("forward cursor yields buckets ascending with correct representation")
 		void shouldIterateForward() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(3, 30);
 			tree.addRecord(1, 10, 11);
 			tree.addRecord(2, 20);
@@ -1233,7 +1323,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("reverse cursor yields buckets descending")
 		void shouldIterateReverse() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			for (int i = 1; i <= 10; i++) {
 				tree.addRecord(i, i * 10);
 			}
@@ -1248,7 +1340,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("from-key cursor starts at the first bucket >= the key")
 		void shouldIterateFromKey() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			for (int i = 0; i < 20; i += 2) {
 				tree.addRecord(i, i * 10);
 			}
@@ -1264,7 +1358,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("from-key cursor on a present key starts at that key")
 		void shouldIterateFromPresentKey() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			for (int i = 1; i <= 10; i++) {
 				tree.addRecord(i, i * 10);
 			}
@@ -1279,7 +1375,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("cursors over an empty tree yield nothing")
 		void shouldIterateEmptyTree() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			assertFalse(tree.cursor().next());
 			assertFalse(tree.reverseCursor().next());
 		}
@@ -1292,7 +1390,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("stores Integer.MIN_VALUE and -1 as single records")
 		void shouldStoreNegativeSingleRecords() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, Integer.MIN_VALUE);
 			tree.addRecord(2, -1);
 			assertInstanceOf(SingleRecordBitmap.class, tree.getRecordsEqualTo(1));
@@ -1304,7 +1404,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("promotes a bucket holding a negative single to a multi with another negative")
 		void shouldPromoteWithNegativeRecords() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, Integer.MIN_VALUE);
 			tree.addRecord(1, -1);
 			assertEquals(2, tree.cardinalityOf(1));
@@ -1316,7 +1418,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("creates and removes a multi bucket with negative members")
 		void shouldHandleNegativeMultiMembers() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, Integer.MIN_VALUE, -1, 0, 1);
 			assertEquals(4, tree.cardinalityOf(5));
 			tree.removeRecord(5, Integer.MIN_VALUE);
@@ -1329,7 +1433,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("deletes a single bucket holding a negative pk")
 		void shouldDeleteNegativeSingleBucket() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, -1);
 			tree.addRecord(2, 20);
 			tree.removeRecord(1, -1);
@@ -1345,7 +1451,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("isolates a pre-commit reader snapshot from writer mutations")
 		void shouldIsolateReaderSnapshot() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 			tree.addRecord(2, 20);
 			assertStateAfterCommit(
@@ -1372,7 +1480,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("rolls back all changes, leaving the original untouched")
 		void shouldRollback() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 			tree.addRecord(2, 20);
 			assertStateAfterRollback(
@@ -1394,7 +1504,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("deep-commits a mutated overflow bitmap")
 		void shouldDeepCommitMutatedOverflow() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 100, 200);
 			assertStateAfterCommit(
 				tree,
@@ -1414,7 +1526,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("promotes a single bucket to multi within a transaction and commits it")
 		void shouldCommitPromotionInTransaction() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 100);
 			assertStateAfterCommit(
 				tree,
@@ -1431,7 +1545,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("deletes a multi bucket inside a txn without leaving a stale layer")
 		void shouldDeleteMultiBucketThenCommit() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 			tree.addRecord(5, 100, 200);
 			tree.addRecord(9, 90);
@@ -1455,7 +1571,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("deletes a freshly-created multi bucket inside the same txn and commits")
 		void shouldDeleteFreshMultiBucketThenCommit() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 			tree.addRecord(9, 90);
 			assertStateAfterCommit(
@@ -1526,7 +1644,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("a transaction sees its own count while a session-free reader still sees the committed one")
 		void shouldIsolateTheBucketCountFromASessionFreeReader() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 			tree.addRecord(2, 20);
 			tree.addRecord(3, 30);
@@ -1568,7 +1688,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("a rolled-back transaction leaves the committed count untouched")
 		void shouldLeaveTheCommittedBucketCountUntouchedOnRollback() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			for (int i = 0; i < 6; i++) {
 				tree.addRecord(i, i * 10);
 			}
@@ -1592,9 +1714,11 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("dropping a tree's layers inside a transaction gives its count back and sweeps clean")
 		void shouldGiveTheBucketCountBackWhenTheLayerIsDropped() {
 			// the outer tree is never touched - it only provides the transactional context that drives the commit sweep
-			final TransactionalBucketBPlusTree<Integer> outer = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> outer = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			final TransactionalBucketBPlusTree<Integer> discarded =
-				new TransactionalBucketBPlusTree<>(3, Integer.class);
+				new TransactionalBucketBPlusTree<>(3, Integer.class, null);
 			for (int i = 0; i < 6; i++) {
 				discarded.addRecord(i, i * 10);
 			}
@@ -1628,7 +1752,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("a transaction that changes the count registers a layer of its own and the commit sweeps it")
 		void shouldRegisterAndSweepTheTreesOwnBucketCountLayer() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 
 			assertStateAfterCommit(
@@ -1658,7 +1784,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("a savepoint rollback returns the count to the value it had when the savepoint opened")
 		void shouldRestoreTheBucketCountOnSavepointRollback() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 
 			// the baseline insert opens the count layer BEFORE the savepoint, so the rollback has to restore that layer
@@ -1679,7 +1807,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("a savepoint rollback drops a count layer that was born inside it")
 		void shouldDropTheBucketCountLayerBornInsideTheSavepoint() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 
 			// the baseline only adds a record to an EXISTING bucket, so it opens the leaf's own layer while leaving the
@@ -1709,7 +1839,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("a committed savepoint keeps the count it moved to")
 		void shouldKeepTheBucketCountWhenTheSavepointIsCommitted() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 
 			assertSavepointCommitKeeps(
@@ -1805,8 +1937,12 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("returns a stable and unique id across instances")
 		void shouldReturnStableAndUniqueId() {
-			final TransactionalBucketBPlusTree<Integer> tree1 = new TransactionalBucketBPlusTree<>(3, Integer.class);
-			final TransactionalBucketBPlusTree<Integer> tree2 = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree1 = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
+			final TransactionalBucketBPlusTree<Integer> tree2 = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 
 			final long id1 = tree1.getId();
 			final long id2 = tree2.getId();
@@ -1821,7 +1957,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("commits a leaf-only-root tree through the leaf branch")
 		void shouldCommitTreeWithSingleLeafRoot() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			// a single bucket keeps the root a leaf
 			assertStateAfterCommit(
 				tree,
@@ -1838,7 +1976,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("yields a different instance with a distinct id after a committing mutation")
 		void shouldReturnDifferentInstanceAfterCommit() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			assertStateAfterCommit(
 				tree,
 				tested -> tested.addRecord(1, 10),
@@ -1927,13 +2067,21 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("rejects a block size below 3")
 		void shouldRejectTooSmallBlockSize() {
-			assertThrows(Exception.class, () -> new TransactionalBucketBPlusTree<>(2, Integer.class));
+			assertThrows(Exception.class, () -> new TransactionalBucketBPlusTree<>(2, Integer.class, null));
 		}
 
+		/**
+		 * Builds a tree from a valid set of explicit block sizes and proves it accepts a record, as the counterpart of
+		 * the rejection cases around it.
+		 */
 		@Test
-		@DisplayName("accepts the default-block-size constructor")
-		void shouldAcceptDefaultConstructor() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(Integer.class);
+		@DisplayName("accepts a valid set of explicit block sizes")
+		void shouldAcceptValidExplicitBlockSizes() {
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(
+					64, 31, 31, 15, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 			tree.addRecord(1, 10);
 			assertEquals(1, tree.bucketCount());
 		}
@@ -1944,7 +2092,10 @@ class TransactionalBucketBPlusTreeTest {
 			// internalNodeBlockSize must be odd
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new TransactionalBucketBPlusTree<>(4, 1, 4, 1, Integer.class, null)
+				() -> new TransactionalBucketBPlusTree<>(
+					4, 1, 4, 1, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				)
 			);
 		}
 
@@ -1954,7 +2105,10 @@ class TransactionalBucketBPlusTreeTest {
 			// internalNodeBlockSize must not exceed valueBlockSize
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new TransactionalBucketBPlusTree<>(3, 1, 5, 1, Integer.class, null)
+				() -> new TransactionalBucketBPlusTree<>(
+					3, 1, 5, 1, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				)
 			);
 		}
 
@@ -1963,7 +2117,10 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldRejectMinValueBlockSizeBelowOne() {
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new TransactionalBucketBPlusTree<>(3, 0, 3, 1, Integer.class, null)
+				() -> new TransactionalBucketBPlusTree<>(
+					3, 0, 3, 1, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				)
 			);
 		}
 
@@ -1973,7 +2130,10 @@ class TransactionalBucketBPlusTreeTest {
 			// valueBlockSize=3, ceil(3/2)-1 = 1, so minValueBlockSize=2 is invalid
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new TransactionalBucketBPlusTree<>(3, 2, 3, 1, Integer.class, null)
+				() -> new TransactionalBucketBPlusTree<>(
+					3, 2, 3, 1, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				)
 			);
 		}
 
@@ -1982,22 +2142,10 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldRejectKeyTypeImplementingTransactionalLayerProducer() {
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new TransactionalBucketBPlusTree<>(3, TransactionalComparableKey.class)
+				() -> new TransactionalBucketBPlusTree<>(3, TransactionalComparableKey.class, null)
 			);
 		}
 
-		@Test
-		@DisplayName("exposes the configured block sizes through its getters")
-		void shouldExposeConfiguredBlockSizes() {
-			final TransactionalBucketBPlusTree<Integer> tree =
-				new TransactionalBucketBPlusTree<>(7, 2, 7, 2, Integer.class, null);
-			assertEquals(7, tree.getValueBlockSize());
-			assertEquals(2, tree.getMinValueBlockSize());
-			assertEquals(7, tree.getInternalNodeBlockSize());
-			assertEquals(2, tree.getMinInternalNodeBlockSize());
-			assertSame(Integer.class, tree.getKeyType());
-			assertEquals(0, tree.bucketCount());
-		}
 	}
 
 	@Nested
@@ -2014,7 +2162,7 @@ class TransactionalBucketBPlusTreeTest {
 		 */
 		private static void runTransactionalChurn(long seed, int blockSize) {
 			final TransactionalBucketBPlusTree<Integer> tree =
-				new TransactionalBucketBPlusTree<>(blockSize, Integer.class);
+				new TransactionalBucketBPlusTree<>(blockSize, Integer.class, null);
 			final TreeMap<Integer, TreeSet<Integer>> oracle = new TreeMap<>();
 			final Random random = new Random(seed);
 			assertStateAfterCommit(
@@ -2108,7 +2256,9 @@ class TransactionalBucketBPlusTreeTest {
 		 * @param seed the random seed
 		 */
 		private static void runChurn(long seed) {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			final TreeMap<Integer, TreeSet<Integer>> oracle = new TreeMap<>();
 			final Random random = new Random(seed);
 			for (int op = 0; op < 400; op++) {
@@ -2207,7 +2357,8 @@ class TransactionalBucketBPlusTreeTest {
 			// internal-node block size is a fixed odd value (its own constraint, must not exceed the leaf block size);
 			// only the leaf block size + minimum vary, since the bug lives entirely in the leaf overflow column
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
-				valueBlockSize, minBlockSize, 3, 1, Integer.class, null
+				valueBlockSize, minBlockSize, 3, 1, Integer.class, null,
+				capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
 			);
 			final int n = 60;
 			final TreeMap<Integer, TreeSet<Integer>> oracle = new TreeMap<>();
@@ -2292,7 +2443,9 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("round-trips a tree whose root is a single leaf")
 		@Tag(INDEXING)
 		void shouldRoundTripSingleLeafTree() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(5, 50);
 			tree.addRecord(1, 10);
 			assertEquals(1, tree.enumerateLeaves().size(), "Fixture should be a single-leaf tree.");
@@ -2311,7 +2464,9 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("round-trips an empty tree exposing a single empty leaf")
 		@Tag(INDEXING)
 		void shouldRoundTripEmptyTree() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			assertEquals(1, tree.enumerateLeaves().size(), "An empty tree must expose a single empty leaf.");
 			assertRoundTrip(tree);
 		}
@@ -2349,7 +2504,8 @@ class TransactionalBucketBPlusTreeTest {
 		) {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
 				valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize,
-				Integer.class, null
+				Integer.class, null,
+				capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
 			);
 			final Random random = new Random(99L);
 			final List<Integer> order = new ArrayList<>(totalKeys);
@@ -2413,220 +2569,242 @@ class TransactionalBucketBPlusTreeTest {
 	}
 
 	/**
-	 * Verifies {@link TransactionalBucketBPlusTree#collectRebuiltNodesSince(TransactionalBucketBPlusTree)} — the
-	 * Option-2 dirty-page detector for the granular FilterIndex layout. The rebuilt set it reports must
-	 * equal, by instance identity, the set the transactional merge actually rebuilt (committed nodes absent from the
-	 * prior committed tree), it must prune clean subtrees, and — the case a leaf-layer-only predicate would miss — it
-	 * must flag a leaf whose record set changed only through an overflow bitmap mutated outside the leaf's own methods.
+	 * Verifies that the page emitter can identify the leaves rebuilt by a commit, including when a tree mutator
+	 * changes the records of a bucket that stays in the bitmap tier.
 	 */
 	@Nested
-	@DisplayName("Committed-page diff (Option-2 rebuilt-node detection)")
+	@DisplayName("Committed-page dirty tracking")
 	@Tag(TRANSACTION)
 	class CommittedPageDiff {
 
+		/** Checks that a no-op commit shares the root and leaves every page clean. */
 		@Test
-		@DisplayName("reports no rebuilt nodes for a no-op commit")
+		@DisplayName("flags no leaf pages for a no-op commit")
 		@Tag(INDEXING)
 		void shouldReportNoRebuiltNodesForNoOpCommit() {
 			final TreeTuple prepared = prepareRandomTree(11L, 200);
+			markBaselinePagesWritten(prepared.tree());
 			assertStateAfterCommit(
 				prepared.tree(),
-				tree -> {
-					// no mutation at all
-				},
-				(original, committed) -> {
-					assertSame(original.getRoot(), committed.getRoot(), "A no-op commit must share the root by identity.");
-					assertTrue(
-						committed.collectRebuiltNodesSince(original).isEmpty(),
-						"A no-op commit must rebuild nothing."
-					);
-				}
+				tree -> assertTrue(
+					tree.leafPageHandles().stream().noneMatch(PagedLeafHandle::isDirty),
+					"A no-op commit must leave every leaf page clean."
+				),
+				(original, committed) -> assertSame(
+					original.getRoot(), committed.getRoot(), "A no-op commit must share the root by identity."
+				)
 			);
 		}
 
+		/** Checks that a single-bucket mutation dirties exactly one leaf page. */
 		@Test
-		@DisplayName("reports exactly the root-to-leaf path for a single changed bucket")
+		@DisplayName("flags exactly one leaf page for a single changed bucket")
 		@Tag(INDEXING)
 		void shouldReportRootToLeafPathForSingleChangedBucket() {
 			final TreeTuple prepared = prepareRandomTree(12L, 300);
-			assertStateAfterCommit(
-				prepared.tree(),
-				tree -> tree.addRecord(150, 1_500, 9_999), // promote one existing bucket to multi
-				(original, committed) -> {
-					final List<BPlusTreeNode<Integer, ?>> rebuilt = committed.collectRebuiltNodesSince(original);
-					assertRebuiltMatchesMergeSet(original, committed, rebuilt);
-					// the change touches one leaf, so only that leaf + its spine path are rebuilt — far fewer than all
-					assertTrue(rebuilt.size() < original.bucketCount(), "Must not rebuild the whole tree.");
-					assertEquals(1, leafCount(rebuilt), "Exactly one leaf must be rebuilt for a single-bucket change.");
-				}
-			);
-		}
-
-		@Test
-		@DisplayName("flags the leaf when a record set changes only through its overflow bitmap")
-		@Tag(INDEXING)
-		void shouldReportLeafForOverflowOnlyBitmapMutation() {
-			// value 0 is a multi bucket (0 % 5 == 0) holding {0, 1}
-			final TreeTuple prepared = prepareRandomMultiTree(13L, 300, 5);
-			// grow it past the small-bucket threshold so its record set is a live, mutable TransactionalBitmap. Only
-			// the bitmap tier can be mutated behind the leaf's back at all - a sorted-array bucket is immutable and
-			// every change to it goes through the leaf, which then acquires a layer of its own - and it is that
-			// behind-the-back mutation this test exists to prove the rebuilt-node detection still catches
-			final int[] filler = new int[OverflowRecords.SMALL_BUCKET_THRESHOLD];
-			for (int i = 0; i < filler.length; i++) {
-				filler[i] = 1_000 + i;
-			}
-			prepared.tree().addRecord(0, filler);
-			final int cardinalityBefore = prepared.tree().getRecordsEqualTo(0).size();
-
+			markBaselinePagesWritten(prepared.tree());
+			final List<Boolean> emissionFlags = new ArrayList<>();
 			assertStateAfterCommit(
 				prepared.tree(),
 				tree -> {
-					// mutate the live overflow bitmap directly, bypassing the leaf's addRecord — so the leaf node
-					// itself never acquires a transactional layer (the case the old leaf-layer predicate missed)
-					final Bitmap records = tree.getRecordsEqualTo(0);
-					assertInstanceOf(TransactionalBitmap.class, records, "Value 0 must be a bitmap-tier bucket.");
-					records.add(9_999);
+					tree.addRecord(150, 1_500, 9_999); // promote one existing bucket to multi
+					captureEmissionFlags(tree, emissionFlags);
 				},
 				(original, committed) -> {
-					final List<BPlusTreeNode<Integer, ?>> rebuilt = committed.collectRebuiltNodesSince(original);
-					assertRebuiltMatchesMergeSet(original, committed, rebuilt);
-					assertEquals(1, leafCount(rebuilt), "The overflow mutation must rebuild exactly its one leaf.");
-					final Bitmap committedRecords = committed.getRecordsEqualTo(0);
+					assertDirtyLeavesMatchRebuiltLeaves(original, committed, emissionFlags);
 					assertEquals(
-						cardinalityBefore + 1, committedRecords.size(),
-						"The committed tree must carry the overflow-added record."
+						1, emissionFlags.stream().filter(Boolean::booleanValue).count(),
+						"Exactly one leaf must be rebuilt for a single-bucket change."
 					);
-					// the whole expected set is known - {0, 1} the bucket was born with, the filler, and the id the
-					// transaction added behind the leaf's back - so assert it exactly rather than by cardinality
-					// plus a few memberships, which a lost or duplicated filler id would slip past
-					final int[] expected = new int[3 + filler.length];
-					expected[0] = 0;
-					expected[1] = 1;
-					System.arraycopy(filler, 0, expected, 2, filler.length);
-					expected[expected.length - 1] = 9_999;
-					assertArrayEquals(expected, committedRecords.getArray(), "No record may be lost or duplicated.");
 				}
 			);
 		}
 
+		/** Checks that adding a record to a bitmap-tier bucket dirties its leaf and commits the exact set. */
 		@Test
-		@DisplayName("matches the merge rebuilt set across split-inducing inserts")
+		@DisplayName("flags one dirty leaf when adding to a bitmap-tier bucket")
+		@Tag(INDEXING)
+		void shouldFlagOneDirtyLeafWhenAddingToBitmapTierBucket() {
+			final int[] expected = new int[OverflowRecords.SMALL_BUCKET_THRESHOLD + 3];
+			Arrays.setAll(expected, index -> index);
+
+			assertBitmapTierMutation(tree -> tree.addRecord(0, expected.length - 1), expected);
+		}
+
+		/** Checks that removing a record from a bitmap-tier bucket dirties its leaf and commits the exact set. */
+		@Test
+		@DisplayName("flags one dirty leaf when removing from a bitmap-tier bucket")
+		@Tag(INDEXING)
+		void shouldFlagOneDirtyLeafWhenRemovingFromBitmapTierBucket() {
+			final int[] expected = new int[OverflowRecords.SMALL_BUCKET_THRESHOLD + 1];
+			Arrays.setAll(expected, index -> index + 1);
+
+			assertBitmapTierMutation(tree -> tree.removeRecord(0, 0), expected);
+		}
+
+		/**
+		 * Checks that a mutation dirties and emits only the page holding bucket zero, with the updated records.
+		 * Also checks that the same records remain in the bitmap tier after commit.
+		 *
+		 * @param mutate   changes the records in bucket zero
+		 * @param expected the expected record IDs after the mutation
+		 */
+		private static void assertBitmapTierMutation(
+			@Nonnull Consumer<TransactionalBucketBPlusTree<Integer>> mutate, @Nonnull int[] expected
+		) {
+			final TransactionalBucketBPlusTree<Integer> prepared = prepareBitmapTierBucket();
+			final List<LeafPageHandle<Integer>> baseline = prepared.leafPageHandles();
+			final int streamId = 0;
+			final PageStreamRegistry registry =
+				PageStreamRegistry.restoredFrom(streamId, baseline.size() - 1, baseline);
+
+			assertStateAfterCommit(
+				prepared,
+				tree -> {
+					assertInstanceOf(TransactionalBitmap.class, tree.getRecordsEqualTo(0));
+					mutate.accept(tree);
+
+					final List<LeafPageHandle<Integer>> handles = tree.leafPageHandles();
+					int bucketPageSequence = PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE;
+					for (final LeafPageHandle<Integer> handle : handles) {
+						final BucketCursor<Integer> cursor = handle.cursor();
+						// The fixture has non-negative, ascending keys, so zero is the first key on its page.
+						final boolean holdsBucketZero = cursor.next() && cursor.value() == 0;
+						assertEquals(
+							holdsBucketZero, handle.isDirty(),
+							"Dirty flag for page " + handle.getPageSequence() +
+								" (holds bucket 0: " + holdsBucketZero + ")"
+						);
+						if (holdsBucketZero) {
+							bucketPageSequence = handle.getPageSequence();
+						}
+					}
+					assertNotEquals(PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE, bucketPageSequence);
+
+					final PageEmission<Entry<Integer, int[]>> emission = registry.collectChangedPages(
+						streamId, handles, (pageSequence, handle) -> {
+							final BucketCursor<Integer> cursor = handle.cursor();
+							assertTrue(cursor.next(), "The emitted page must contain bucket 0.");
+							assertEquals(0, cursor.value(), "The emitted page must start with bucket 0.");
+							return Map.entry(pageSequence, cursor.records().getArray());
+						}
+					);
+					assertEquals(1, emission.changedPages().size());
+					final Entry<Integer, int[]> emitted = emission.changedPages().getFirst();
+					assertEquals(bucketPageSequence, emitted.getKey());
+					assertArrayEquals(expected, emitted.getValue());
+				},
+				(original, committed) -> {
+					assertInstanceOf(TransactionalBitmap.class, committed.getRecordsEqualTo(0));
+					assertArrayEquals(expected, committed.getRecordsEqualTo(0).getArray());
+				}
+			);
+		}
+
+		/**
+		 * Builds a committed tree whose value zero contains enough records to stay bitmap-tier after one removal.
+		 *
+		 * @return the tree with its baseline pages marked written
+		 */
+		@Nonnull
+		private static TransactionalBucketBPlusTree<Integer> prepareBitmapTierBucket() {
+			final TransactionalBucketBPlusTree<Integer> tree = prepareRandomTree(13L, 300).tree();
+			final int[] filler = new int[OverflowRecords.SMALL_BUCKET_THRESHOLD + 1];
+			Arrays.setAll(filler, index -> index + 1);
+			tree.addRecord(0, filler);
+			markBaselinePagesWritten(tree);
+			return tree;
+		}
+
+		/** Checks that a split flags exactly the rebuilt leaf pages. */
+		@Test
+		@DisplayName("flags exactly the rebuilt leaf pages across split-inducing inserts")
 		@Tag(INDEXING)
 		void shouldMatchMergeSetForSplitInducingInserts() {
 			final TreeTuple prepared = prepareRandomTree(14L, 200);
+			markBaselinePagesWritten(prepared.tree());
+			final List<Boolean> emissionFlags = new ArrayList<>();
 			assertStateAfterCommit(
 				prepared.tree(),
 				tree -> {
 					for (int i = 1_000; i < 1_120; i++) {
 						tree.addRecord(i, i * 10);
 					}
+					captureEmissionFlags(tree, emissionFlags);
 				},
-				(original, committed) -> assertRebuiltMatchesMergeSet(
-					original, committed, committed.collectRebuiltNodesSince(original)
-				)
+				(original, committed) -> assertDirtyLeavesMatchRebuiltLeaves(original, committed, emissionFlags)
 			);
 		}
 
+		/** Checks that a merge flags exactly the rebuilt leaf pages. */
 		@Test
-		@DisplayName("matches the merge rebuilt set across merge-inducing removals")
+		@DisplayName("flags exactly the rebuilt leaf pages across merge-inducing removals")
 		@Tag(INDEXING)
 		void shouldMatchMergeSetForMergeInducingRemovals() {
 			final TreeTuple prepared = prepareRandomTree(15L, 200);
+			markBaselinePagesWritten(prepared.tree());
+			final List<Boolean> emissionFlags = new ArrayList<>();
 			assertStateAfterCommit(
 				prepared.tree(),
 				tree -> {
 					for (int i = 0; i < 150; i++) {
 						tree.removeRecord(i, i * 10);
 					}
+					captureEmissionFlags(tree, emissionFlags);
 				},
-				(original, committed) -> assertRebuiltMatchesMergeSet(
-					original, committed, committed.collectRebuiltNodesSince(original)
-				)
+				(original, committed) -> assertDirtyLeavesMatchRebuiltLeaves(original, committed, emissionFlags)
 			);
 		}
 
 		/**
-		 * Asserts the reported rebuilt set equals, by identity, the merge's actual rebuilt set — the committed nodes
-		 * not identity-present in the prior tree — computed here independently via a full (unpruned) walk of both trees.
-		 * Also asserts the report has no duplicates and that no reported node was carried over from the prior tree.
+		 * Assigns pages and clears dirty flags as the page emitter does after writing the baseline.
 		 *
-		 * @param prior     the pre-commit committed tree
-		 * @param committed the post-commit committed tree
-		 * @param rebuilt   the nodes the detector reported as rebuilt
+		 * @param tree the tree whose baseline pages have been written
 		 */
-		private static void assertRebuiltMatchesMergeSet(
+		private static void markBaselinePagesWritten(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
+			final List<? extends PagedLeafHandle> handles = tree.leafPageHandles();
+			for (int i = 0; i < handles.size(); i++) {
+				handles.get(i).setPageSequence(i);
+				handles.get(i).clearDirty();
+			}
+		}
+
+		/**
+		 * Samples the flags while the transaction is active. The emitter writes fresh leaves and dirty pages.
+		 *
+		 * @param tree the tree with transactional mutations applied
+		 * @param flags the accumulator for emission decisions in leaf order
+		 */
+		private static void captureEmissionFlags(
+			@Nonnull TransactionalBucketBPlusTree<Integer> tree, @Nonnull List<Boolean> flags
+		) {
+			for (final PagedLeafHandle handle : tree.leafPageHandles()) {
+				flags.add(handle.isDirty() || handle.getPageSequence() == PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE);
+			}
+		}
+
+		/**
+		 * Checks every committed leaf against the pre-commit leaf identities.
+		 *
+		 * @param prior the pre-commit tree with clean pages
+		 * @param committed the tree produced by the commit
+		 * @param emissionFlags the pre-commit emission decisions in leaf order
+		 */
+		private static void assertDirtyLeavesMatchRebuiltLeaves(
 			@Nonnull TransactionalBucketBPlusTree<Integer> prior,
 			@Nonnull TransactionalBucketBPlusTree<Integer> committed,
-			@Nonnull List<BPlusTreeNode<Integer, ?>> rebuilt
+			@Nonnull List<Boolean> emissionFlags
 		) {
-			final Set<BPlusTreeNode<Integer, ?>> priorNodes = identityNodesOf(prior);
-			final Set<BPlusTreeNode<Integer, ?>> committedNodes = identityNodesOf(committed);
-			final Set<BPlusTreeNode<Integer, ?>> oracle = Collections.newSetFromMap(new IdentityHashMap<>());
-			for (final BPlusTreeNode<Integer, ?> node : committedNodes) {
-				if (!priorNodes.contains(node)) {
-					oracle.add(node);
-				}
+			final Set<BPlusLeafTreeNode<Integer>> priorLeaves = Collections.newSetFromMap(new IdentityHashMap<>());
+			priorLeaves.addAll(prior.enumerateLeaves());
+			final List<BPlusLeafTreeNode<Integer>> leaves = committed.enumerateLeaves();
+			assertEquals(leaves.size(), emissionFlags.size(), "Each committed leaf must have had exactly one handle.");
+			for (int i = 0; i < leaves.size(); i++) {
+				assertEquals(
+					!priorLeaves.contains(leaves.get(i)), emissionFlags.get(i).booleanValue(),
+					"Exactly the rebuilt leaves must be flagged for page emission at leaf " + i + "."
+				);
 			}
-			final Set<BPlusTreeNode<Integer, ?>> reported = Collections.newSetFromMap(new IdentityHashMap<>());
-			reported.addAll(rebuilt);
-			assertEquals(rebuilt.size(), reported.size(), "The report must not contain duplicate nodes.");
-			for (final BPlusTreeNode<Integer, ?> node : rebuilt) {
-				assertFalse(priorNodes.contains(node), "A reported node must not be one carried over from the prior tree.");
-			}
-			assertEquals(oracle.size(), reported.size(), "Reported set size must equal the merge rebuilt set.");
-			assertTrue(reported.containsAll(oracle), "Reported set must contain every node the merge rebuilt.");
-			assertTrue(oracle.containsAll(reported), "Reported set must contain only nodes the merge rebuilt.");
-		}
-
-		/**
-		 * Collects every node of the tree into an identity set via a full walk.
-		 *
-		 * @param tree the tree to index
-		 * @return the identity set of all its nodes
-		 */
-		@Nonnull
-		private static Set<BPlusTreeNode<Integer, ?>> identityNodesOf(
-			@Nonnull TransactionalBucketBPlusTree<Integer> tree
-		) {
-			final Set<BPlusTreeNode<Integer, ?>> nodes = Collections.newSetFromMap(new IdentityHashMap<>());
-			walkNodes(tree.getRoot(), nodes);
-			return nodes;
-		}
-
-		/**
-		 * Recursively adds `node` and its descendants to `out`.
-		 *
-		 * @param node the subtree root
-		 * @param out  the identity set accumulator
-		 */
-		private static void walkNodes(
-			@Nonnull BPlusTreeNode<Integer, ?> node, @Nonnull Set<BPlusTreeNode<Integer, ?>> out) {
-			out.add(node);
-			if (node instanceof BPlusInternalTreeNode<?> internal) {
-				@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> internalNode =
-					(BPlusInternalTreeNode<Integer>) internal;
-				final BPlusTreeNode<Integer, ?>[] children = internalNode.getChildren();
-				for (int i = 0; i <= internalNode.getPeek(); i++) {
-					walkNodes(children[i], out);
-				}
-			}
-		}
-
-		/**
-		 * Counts how many of the reported nodes are leaves.
-		 *
-		 * @param nodes the reported nodes
-		 * @return the leaf count
-		 */
-		private static int leafCount(@Nonnull List<BPlusTreeNode<Integer, ?>> nodes) {
-			int count = 0;
-			for (final BPlusTreeNode<Integer, ?> node : nodes) {
-				if (node instanceof BPlusLeafTreeNode<?>) {
-					count++;
-				}
-			}
-			return count;
 		}
 	}
 
@@ -2646,7 +2824,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Tag(INDEXING)
 		@Tag(SERIALIZATION)
 		void shouldDefaultPageSequenceToUnassignedForFreshTree() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
 			assertEquals(1, leaves.size(), "A fresh tree is a single empty leaf.");
 			assertEquals(
@@ -2698,7 +2878,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Tag(SERIALIZATION)
 		void shouldLeaveSplitBornLeavesUnassigned() {
 			// a tiny tree that is still a single leaf, with a page already assigned
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(1, 10);
 			tree.addRecord(2, 20);
 			final List<BPlusLeafTreeNode<Integer>> before = tree.enumerateLeaves();
@@ -2781,17 +2963,23 @@ class TransactionalBucketBPlusTreeTest {
 		@Tag(SERIALIZATION)
 		void shouldThrowWhenSingleLeafTreesOverlapAcrossBoundary() {
 			// block size 9 keeps three buckets in a single leaf, so each source tree rebuilds to exactly one leaf page
-			final TransactionalBucketBPlusTree<Integer> treeA = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> treeA = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			treeA.addRecord(1, 10);
 			treeA.addRecord(2, 20);
 			treeA.addRecord(3, 30);
 			// tree B's first key (2) does not sort strictly after tree A's last key (3): a stale-twin overlap shape
-			final TransactionalBucketBPlusTree<Integer> treeB = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> treeB = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			treeB.addRecord(2, 20);
 			treeB.addRecord(3, 30);
 			treeB.addRecord(4, 40);
 
-			final TransactionalBucketBPlusTree<Integer> target = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> target = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			final GenericEvitaInternalError ex = assertThrows(
 				GenericEvitaInternalError.class,
 				() -> target.assembleFromSingleLeafTrees(
@@ -2836,16 +3024,22 @@ class TransactionalBucketBPlusTreeTest {
 			// predecessor page 0 spans [1..10]; successor page 1 spans [3..5], entirely inside it — the nested shape a
 			// stale-donor twin leaves behind. The overlap trigger still fires (10 does not sort before 3) but the
 			// containment fact must now read true, distinguishing this shape from a partial overlap
-			final TransactionalBucketBPlusTree<Integer> treeA = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> treeA = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			treeA.addRecord(1, 10);
 			treeA.addRecord(2, 20);
 			treeA.addRecord(10, 100);
-			final TransactionalBucketBPlusTree<Integer> treeB = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> treeB = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			treeB.addRecord(3, 30);
 			treeB.addRecord(4, 40);
 			treeB.addRecord(5, 50);
 
-			final TransactionalBucketBPlusTree<Integer> target = new TransactionalBucketBPlusTree<>(9, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> target = new TransactionalBucketBPlusTree<>(
+				9, Integer.class, null
+			);
 			final GenericEvitaInternalError ex = assertThrows(
 				GenericEvitaInternalError.class,
 				() -> target.assembleFromSingleLeafTrees(
@@ -2884,7 +3078,10 @@ class TransactionalBucketBPlusTreeTest {
 			// build a sound single-leaf source tree, then corrupt its interior key order in place (swap two keys) to
 			// simulate a serializer bug / truncated write / bit rot; the intra-leaf order check must reject it
 			final TransactionalBucketBPlusTree<Integer> corrupt =
-				new TransactionalBucketBPlusTree<>(10, 1, 3, 1, Integer.class, null);
+				new TransactionalBucketBPlusTree<>(
+					10, 1, 3, 1, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 			corrupt.addRecord(1, 10);
 			corrupt.addRecord(2, 20);
 			corrupt.addRecord(3, 30);
@@ -2896,7 +3093,10 @@ class TransactionalBucketBPlusTreeTest {
 			keys[1] = swap;
 
 			final TransactionalBucketBPlusTree<Integer> target =
-				new TransactionalBucketBPlusTree<>(10, 1, 3, 1, Integer.class, null);
+				new TransactionalBucketBPlusTree<>(
+					10, 1, 3, 1, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 			final GenericEvitaInternalError ex = assertThrows(
 				GenericEvitaInternalError.class,
 				() -> target.assembleFromSingleLeafTrees(
@@ -2942,7 +3142,9 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("mutating one bucket re-mints only its leaf's id; sibling leaves keep theirs")
 		void mutationChangesOnlyTouchedLeafVersion() {
 			// small block size -> a handful of buckets already spans several leaves
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			for (int value = 10; value <= 120; value += 10) {
 				tree.addRecord(value, value * 100);
 			}
@@ -2992,7 +3194,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("currentLeafId before the first positioning fails fast")
 		void currentLeafIdBeforePositioningThrows() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			tree.addRecord(10, 100);
 			tree.addRecord(20, 200);
 
@@ -3017,7 +3221,10 @@ class TransactionalBucketBPlusTreeTest {
 		@Nonnull
 		private static TransactionalBucketBPlusTree<Integer> singleLeaf(@Nonnull int... keys) {
 			final TransactionalBucketBPlusTree<Integer> tree =
-				new TransactionalBucketBPlusTree<>(10, 1, 3, 1, Integer.class, null);
+				new TransactionalBucketBPlusTree<>(
+					10, 1, 3, 1, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 			for (final int key : keys) {
 				tree.addRecord(key, key * 10);
 			}
@@ -3041,7 +3248,10 @@ class TransactionalBucketBPlusTreeTest {
 			for (int i = 0; i < pageSequences.length; i++) {
 				pageSequences[i] = i;
 			}
-			return new TransactionalBucketBPlusTree<>(10, 1, 3, 1, Integer.class, null)
+			return new TransactionalBucketBPlusTree<>(
+				10, 1, 3, 1, Integer.class, null,
+				capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+			)
 				.assembleFromSingleLeafTrees(leaves, pageSequences, "bucket B+ tree op-time boundary test");
 		}
 
@@ -3202,7 +3412,9 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldNotThrowOnSequentialInsertions() {
 			// ascending adds are all tail inserts (Check T runs on the rightmost leaf and finds no fence);
 			// descending adds are all head inserts on the leftmost leaf (Check H finds no predecessor)
-			final TransactionalBucketBPlusTree<Integer> ascending = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> ascending = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			assertDoesNotThrow(() -> {
 				for (int i = 1; i <= 256; i++) {
 					ascending.addRecord(i, i * 10);
@@ -3212,7 +3424,7 @@ class TransactionalBucketBPlusTreeTest {
 			assertEquals(ConsistencyState.CONSISTENT, ascendingReport.state(), ascendingReport.report());
 
 			final TransactionalBucketBPlusTree<Integer> descending =
-				new TransactionalBucketBPlusTree<>(3, Integer.class);
+				new TransactionalBucketBPlusTree<>(3, Integer.class, null);
 			assertDoesNotThrow(() -> {
 				for (int i = 256; i >= 1; i--) {
 					descending.addRecord(i, i * 10);
@@ -3536,7 +3748,8 @@ class TransactionalBucketBPlusTreeTest {
 		private static TransactionalBucketBPlusTree<Integer> newConfiguredTree() {
 			return new TransactionalBucketBPlusTree<>(
 				VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, INTERNAL_NODE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
-				Integer.class, null
+				Integer.class, null,
+				capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
 			);
 		}
 
@@ -3705,7 +3918,10 @@ class TransactionalBucketBPlusTreeTest {
 		@Nonnull
 		private static TransactionalBucketBPlusTree<MutableIntKey> singleLeaf(@Nonnull int... keys) {
 			final TransactionalBucketBPlusTree<MutableIntKey> tree =
-				new TransactionalBucketBPlusTree<>(10, 1, 3, 1, MutableIntKey.class, null);
+				new TransactionalBucketBPlusTree<>(
+					10, 1, 3, 1, MutableIntKey.class, null,
+					capacity -> new BoxedObjectColumn<>(MutableIntKey.class, capacity)
+				);
 			for (final int key : keys) {
 				tree.addRecord(new MutableIntKey(key), key * 10);
 			}
@@ -3720,7 +3936,10 @@ class TransactionalBucketBPlusTreeTest {
 			for (int i = 0; i < pageSequences.length; i++) {
 				pageSequences[i] = i;
 			}
-			return new TransactionalBucketBPlusTree<>(10, 1, 3, 1, MutableIntKey.class, null)
+			return new TransactionalBucketBPlusTree<>(
+				10, 1, 3, 1, MutableIntKey.class, null,
+				capacity -> new BoxedObjectColumn<>(MutableIntKey.class, capacity)
+			)
 				.assembleFromSingleLeafTrees(leaves, pageSequences, "bucket B+ tree scope test");
 		}
 
@@ -3793,7 +4012,10 @@ class TransactionalBucketBPlusTreeTest {
 			// an empty tree routes any probe key to its empty root leaf (peek < 0) — the scope validation must skip
 			// it rather than dereference the peek slot
 			final TransactionalBucketBPlusTree<MutableIntKey> tree =
-				new TransactionalBucketBPlusTree<>(10, 1, 3, 1, MutableIntKey.class, null);
+				new TransactionalBucketBPlusTree<>(
+					10, 1, 3, 1, MutableIntKey.class, null,
+					capacity -> new BoxedObjectColumn<>(MutableIntKey.class, capacity)
+				);
 			assertDoesNotThrow(() -> tree.validateDirtyScope(List.of(new MutableIntKey(42))));
 		}
 
@@ -3916,7 +4138,10 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldRegisterBothHalvesOnLeafSplit() {
 			// block size 3 splits the root leaf as these four distinct keys are added
 			final TransactionalBucketBPlusTree<MutableIntKey> tree =
-				new TransactionalBucketBPlusTree<>(3, 1, 3, 1, MutableIntKey.class, null);
+				new TransactionalBucketBPlusTree<>(
+					3, 1, 3, 1, MutableIntKey.class, null,
+					capacity -> new BoxedObjectColumn<>(MutableIntKey.class, capacity)
+				);
 			assertStateAfterCommit(
 				tree,
 				t -> {
@@ -3982,7 +4207,9 @@ class TransactionalBucketBPlusTreeTest {
 			// a production-sized block against five values: the backing arrays hold eight slots, the leaf holds 255
 			// (the single-argument constructor derives the minimum as blockSize / 2 and demands it be strictly below
 			// half, so an odd block is the largest legal one it accepts)
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				255, Integer.class, null
+			);
 			for (int i = 0; i < 5; i++) {
 				tree.addRecord(i, i * 10);
 			}
@@ -4005,7 +4232,9 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("a real split keeps every bucket of both halves")
 		void shouldKeepEveryBucketOfBothHalvesWhenALeafSplits() {
 			// block size 5 with six values forces exactly one split, so both halves can be read back whole
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(5, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				5, Integer.class, null
+			);
 			for (int i = 0; i < 6; i++) {
 				tree.addRecord(i, i * 10);
 			}
@@ -4035,7 +4264,9 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("a low-cardinality tree in which every bucket is multi-record stays whole")
 		void shouldKeepEveryRecordWhenEveryBucketIsMultiRecord() {
 			// the shape the overflow column dominates: few distinct values, every one of them promoted
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				255, Integer.class, null
+			);
 			for (int value = 0; value < 6; value++) {
 				tree.addRecord(value, value * 100, value * 100 + 1, value * 100 + 2);
 			}
@@ -4067,7 +4298,9 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldRebalanceWhenDonorAndReceiverHaveDifferentPhysicalLengths() {
 			// small blocks so a handful of removals force a real steal / merge, and the two leaves reach it with
 			// arrays grown to different lengths because they were filled at different times
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				3, Integer.class, null
+			);
 			for (int i = 0; i < 24; i++) {
 				tree.addRecord(i, i * 10);
 			}
@@ -4129,7 +4362,9 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldTrimTheColumnsOfADrainedLeafWhenTheCommitMergeRebuildsIt() {
 			// one leaf grown to sixteen buckets, then drained to three inside a transaction: at commit the rebuilt
 			// leaf carries columns sized to what is left rather than to the high-water mark
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				255, Integer.class, null
+			);
 			for (int i = 0; i < 16; i++) {
 				tree.addRecord(i, i * 10);
 			}
@@ -4161,7 +4396,9 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("a growth inside a savepoint never reaches the committed columns")
 		@Tag(TRANSACTION)
 		void shouldLeaveTheCommittedColumnsUntouchedWhenASavepointGrowsALeaf() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				255, Integer.class, null
+			);
 			tree.addRecord(10, 100);
 
 			final BPlusLeafTreeNode<Integer> committedLeaf = tree.enumerateLeaves().getFirst();
@@ -4203,7 +4440,9 @@ class TransactionalBucketBPlusTreeTest {
 		@Test
 		@DisplayName("a leaf whose columns have fallen out of step with its peek is refused")
 		void shouldRefuseALeafWhoseColumnsHaveFallenOutOfStepWithItsPeek() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				255, Integer.class, null
+			);
 			for (int i = 0; i < 5; i++) {
 				tree.addRecord(i, i * 10);
 			}
@@ -4233,7 +4472,9 @@ class TransactionalBucketBPlusTreeTest {
 			// does run off the end of the backing array - which is what makes the bound below an assertion rather
 			// than a formality. This is the state a session-free management or statistics reader can observe while a
 			// warm-up bulk load is still growing a column the leaf's `peek` has already moved past
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				255, Integer.class, null
+			);
 			tree.bulkLoadPage(new Object[]{10, 20, 30}, new long[]{1, 2, 3}, null, 3);
 			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().getFirst();
 
@@ -4261,7 +4502,8 @@ class TransactionalBucketBPlusTreeTest {
 			// The key column cannot catch it: the two are driven with the same range, the key column is copied first,
 			// and it is intact - so the overflow column has to answer for itself
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
-				9, 4, 3, 1, Integer.class, null
+				9, 4, 3, 1, Integer.class, null,
+				capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
 			);
 			for (int i = 0; i < 12; i++) {
 				tree.addRecord(i, i * 10);
@@ -4304,7 +4546,9 @@ class TransactionalBucketBPlusTreeTest {
 			// so the copy and the size-authoritative fill behind it rewrite the committed leaf in place. They are
 			// inert only while every column's live run is exactly `peek + 1`, which is why the leaf has to be
 			// refused before the first of them runs rather than after the last
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				255, Integer.class, null
+			);
 			for (int i = 0; i < 5; i++) {
 				tree.addRecord(i, i * 10);
 			}
@@ -4333,7 +4577,9 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("a savepoint that is committed keeps the growth it caused")
 		@Tag(TRANSACTION)
 		void shouldKeepTheGrowthWhenASavepointIsCommitted() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				255, Integer.class, null
+			);
 			tree.addRecord(10, 100);
 
 			assertSavepointCommitKeeps(
@@ -4368,7 +4614,7 @@ class TransactionalBucketBPlusTreeTest {
 		 */
 		private static long columnBytesOfLeafSizedTo(int count) {
 			final TransactionalBucketBPlusTree<Integer> reference =
-				new TransactionalBucketBPlusTree<>(255, Integer.class);
+				new TransactionalBucketBPlusTree<>(255, Integer.class, null);
 			for (int i = 0; i < count; i++) {
 				reference.addRecord(i, i);
 			}
@@ -4385,7 +4631,9 @@ class TransactionalBucketBPlusTreeTest {
 		 */
 		@Nonnull
 		private static TransactionalBucketBPlusTree<Integer> exactlyFullLeafTree() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				255, Integer.class, null
+			);
 			for (int i = 0; i < 8; i++) {
 				tree.addRecord(i * 10, i);
 			}
@@ -4661,7 +4909,10 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("an internal node whose arrays are full but whose block is not does not split")
 		void shouldNotSplitAnInternalNodeWhoseArraysAreShorterThanTheBlockSize() {
 			final TransactionalBucketBPlusTree<Integer> tree =
-				new TransactionalBucketBPlusTree<>(WIDE_BLOCK, 63, WIDE_BLOCK, 63, Integer.class, null);
+				new TransactionalBucketBPlusTree<>(
+					WIDE_BLOCK, 63, WIDE_BLOCK, 63, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 
 			// insert until the root's child array is exactly filled - the one occupancy at which reading fullness off
 			// the array length rather than off the block size would answer "full" and split a node holding four
@@ -4702,7 +4953,10 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("a root born from the first split allocates the floor, not the block")
 		void shouldAllocateAFreshRootAtTheFloorRatherThanTheBlockSize() {
 			final TransactionalBucketBPlusTree<Integer> tree =
-				new TransactionalBucketBPlusTree<>(WIDE_BLOCK, 63, WIDE_BLOCK, 63, Integer.class, null);
+				new TransactionalBucketBPlusTree<>(
+					WIDE_BLOCK, 63, WIDE_BLOCK, 63, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 
 			int inserted = 0;
 			while (tree.getRoot() instanceof BPlusLeafTreeNode<?>) {
@@ -4725,7 +4979,10 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("an internal node grows on demand and keeps every child across the growth")
 		void shouldGrowAnInternalNodeOnDemandAndKeepEveryChild() {
 			final TransactionalBucketBPlusTree<Integer> tree =
-				new TransactionalBucketBPlusTree<>(WIDE_BLOCK, 63, WIDE_BLOCK, 63, Integer.class, null);
+				new TransactionalBucketBPlusTree<>(
+					WIDE_BLOCK, 63, WIDE_BLOCK, 63, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 
 			int inserted = 0;
 			BPlusInternalTreeNode<Integer> root = null;
@@ -4762,7 +5019,10 @@ class TransactionalBucketBPlusTreeTest {
 			// a nine-key internal block splits after ten children, which a handful of leaves reaches - and the origin
 			// is at the block size by then, so the halves being shorter is a real comparison rather than a tautology
 			final TransactionalBucketBPlusTree<Integer> tree =
-				new TransactionalBucketBPlusTree<>(9, 4, 9, 4, Integer.class, null);
+				new TransactionalBucketBPlusTree<>(
+					9, 4, 9, 4, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 
 			int inserted = 0;
 			BPlusTreeNode<Integer, ?> previousRoot = tree.getRoot();
@@ -4809,7 +5069,10 @@ class TransactionalBucketBPlusTreeTest {
 		@Tag(TRANSACTION)
 		void shouldTrimADrainedInternalNodeWhenTheCommitMergeRebuildsIt() {
 			final TransactionalBucketBPlusTree<Integer> tree =
-				new TransactionalBucketBPlusTree<>(31, 15, 31, 15, Integer.class, null);
+				new TransactionalBucketBPlusTree<>(
+					31, 15, 31, 15, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 
 			// grow the root well past the four-slot floor so a drained node has real slack to give back
 			int inserted = 0;
@@ -4902,7 +5165,10 @@ class TransactionalBucketBPlusTreeTest {
 		@Nonnull
 		private TransactionalBucketBPlusTree<Integer> deepTree(int recordCount) {
 			final TransactionalBucketBPlusTree<Integer> tree =
-				new TransactionalBucketBPlusTree<>(3, 1, 3, 1, Integer.class, null);
+				new TransactionalBucketBPlusTree<>(
+					3, 1, 3, 1, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 			for (int i = 0; i < recordCount; i++) {
 				tree.addRecord(i, (i + 1) * 10);
 			}
@@ -4919,7 +5185,10 @@ class TransactionalBucketBPlusTreeTest {
 		@Nonnull
 		private TransactionalBucketBPlusTree<Integer> shallowTree() {
 			final TransactionalBucketBPlusTree<Integer> tree =
-				new TransactionalBucketBPlusTree<>(3, 1, 3, 1, Integer.class, null);
+				new TransactionalBucketBPlusTree<>(
+					3, 1, 3, 1, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 			for (int i = 0; i < 100; i++) {
 				tree.addRecord(i, (i + 1) * 10);
 				if (tree.getRoot() instanceof BPlusInternalTreeNode<?> internal
@@ -4969,7 +5238,13 @@ class TransactionalBucketBPlusTreeTest {
 			// `setPeek(-1)` is exactly what both merge directions perform on their donor - for an internal node down
 			// to nulling its whole child array, for a leaf down to emptying all four columns - and outside a
 			// transaction it takes the same `layer == null` arm the warm-up delete path takes
-			victim.setPeek(-1);
+			if (victim instanceof BPlusInternalTreeNode<?> internal) {
+				internal.setPeek(-1);
+			} else if (victim instanceof BPlusLeafTreeNode<?> leaf) {
+				leaf.setPeek(-1);
+			} else {
+				fail("Unexpected child type: " + victim.getClass());
+			}
 			assertEquals(-1, victim.getPeek(), "the fixture must leave the victim with nothing live");
 			assertSame(
 				victim, root.getChildren()[victimIndex],
@@ -5153,7 +5428,10 @@ class TransactionalBucketBPlusTreeTest {
 		) {
 			for (long seed = 0; seed < SEED_BUDGET; seed++) {
 				final TransactionalBucketBPlusTree<Integer> tree =
-					new TransactionalBucketBPlusTree<>(BLOCK, MIN_BLOCK, BLOCK, MIN_BLOCK, Integer.class, null);
+					new TransactionalBucketBPlusTree<>(
+						BLOCK, MIN_BLOCK, BLOCK, MIN_BLOCK, Integer.class, null,
+						capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+					);
 				final List<Integer> keys = new ArrayList<>(keyCount);
 				for (int key = 0; key < keyCount; key++) {
 					keys.add(key);
@@ -5317,7 +5595,10 @@ class TransactionalBucketBPlusTreeTest {
 			// the guards exist only for a reader that shares no happens-before edge with the writer. A transaction
 			// reading its own layers is the opposite case, and there every one of them must return its input untouched
 			final TransactionalBucketBPlusTree<Integer> tree =
-				new TransactionalBucketBPlusTree<>(5, 2, 5, 2, Integer.class, null);
+				new TransactionalBucketBPlusTree<>(
+					5, 2, 5, 2, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 			final TreeMap<Integer, TreeSet<Integer>> oracle = new TreeMap<>();
 			final Random random = new Random(7L);
 			assertStateAfterCommit(
@@ -5340,7 +5621,10 @@ class TransactionalBucketBPlusTreeTest {
 			// the in-place path the session-free reader races: here the reader IS the writer, so it sees every store
 			// in program order and no guard may change a single answer
 			final TransactionalBucketBPlusTree<Integer> tree =
-				new TransactionalBucketBPlusTree<>(5, 2, 5, 2, Integer.class, null);
+				new TransactionalBucketBPlusTree<>(
+					5, 2, 5, 2, Integer.class, null,
+					capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
+				);
 			final TreeMap<Integer, TreeSet<Integer>> oracle = new TreeMap<>();
 			final Random random = new Random(11L);
 			for (int op = 1; op <= NO_OP_CHURN_OPERATIONS; op++) {

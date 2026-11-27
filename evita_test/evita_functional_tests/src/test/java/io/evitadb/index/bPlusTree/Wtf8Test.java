@@ -185,18 +185,21 @@ class Wtf8Test {
 			// the detector keys on. Confusing them would send every CJK-adjacent blob down the slow decode path (or,
 			// worse, mis-decode one).
 			final byte[] surrogate = Wtf8.encode("\ud800");
-			assertTrue(Wtf8.containsEncodedSurrogate(surrogate, 0, surrogate.length), "U+D800 must be detected");
+			assertTrue(
+				(Wtf8.classify(surrogate, 0, surrogate.length) & Wtf8.HAS_ENCODED_SURROGATE) != 0,
+				"U+D800 must be detected"
+			);
 
 			final byte[] justBelow = Wtf8.encode("\ud7ff");
 			assertEquals(0xED, justBelow[0] & 0xFF, "U+D7FF shares the surrogate lead byte - that is the point");
 			assertFalse(
-				Wtf8.containsEncodedSurrogate(justBelow, 0, justBelow.length),
+				(Wtf8.classify(justBelow, 0, justBelow.length) & Wtf8.HAS_ENCODED_SURROGATE) != 0,
 				"U+D7FF is an ordinary BMP character and must not be mistaken for a surrogate"
 			);
 
 			final byte[] emoji = Wtf8.encode("\ud83d\ude00");
 			assertFalse(
-				Wtf8.containsEncodedSurrogate(emoji, 0, emoji.length),
+				(Wtf8.classify(emoji, 0, emoji.length) & Wtf8.HAS_ENCODED_SURROGATE) != 0,
 				"a well-formed pair is encoded as a supplementary character and holds no surrogate sequence"
 			);
 		}
@@ -246,22 +249,23 @@ class Wtf8Test {
 			System.arraycopy(plain, 0, buffer, plain.length + surrogate.length, plain.length);
 
 			assertTrue(
-				Wtf8.containsEncodedSurrogate(buffer, plain.length, surrogate.length),
+				(Wtf8.classify(buffer, plain.length, surrogate.length) & Wtf8.HAS_ENCODED_SURROGATE) != 0,
 				"the range holding the surrogate must be reported"
 			);
 			assertFalse(
-				Wtf8.containsEncodedSurrogate(buffer, 0, plain.length),
+				(Wtf8.classify(buffer, 0, plain.length) & Wtf8.HAS_ENCODED_SURROGATE) != 0,
 				"a range stopping short of the surrogate must not be reported"
 			);
 			assertFalse(
-				Wtf8.containsEncodedSurrogate(buffer, plain.length + surrogate.length, plain.length),
+				(Wtf8.classify(buffer, plain.length + surrogate.length, plain.length)
+					& Wtf8.HAS_ENCODED_SURROGATE) != 0,
 				"a range starting after the surrogate must not be reported"
 			);
 			// and the property the column's whole-key scan is built on: a range ending INSIDE the sequence reports
 			// nothing, because only a complete three-byte sequence counts. That is precisely why the column may not
 			// scan suffixes - a front-coded suffix is exactly such a partial range
 			assertFalse(
-				Wtf8.containsEncodedSurrogate(buffer, 0, plain.length + 1),
+				(Wtf8.classify(buffer, 0, plain.length + 1) & Wtf8.HAS_ENCODED_SURROGATE) != 0,
 				"a range ending inside the surrogate's own sequence must not report a whole one"
 			);
 		}

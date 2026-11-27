@@ -73,15 +73,15 @@ public abstract class AbstractTransactionalBPlusTree implements Serializable {
 	/**
 	 * Maximum number of keys per leaf node. Use odd number. The number of children in internal nodes is one more.
 	 */
-	@Getter protected final int internalNodeBlockSize;
+	protected final int internalNodeBlockSize;
 	/**
 	 * Minimum number of keys per internal node. Controls branching factor for internal nodes.
 	 */
-	@Getter protected final int minInternalNodeBlockSize;
+	protected final int minInternalNodeBlockSize;
 	/**
 	 * Minimum number of keys = values per leaf node. Controls branching factor for leaf nodes.
 	 */
-	@Getter protected final int minValueBlockSize;
+	protected final int minValueBlockSize;
 	/**
 	 * Root node of the tree.
 	 */
@@ -93,7 +93,7 @@ public abstract class AbstractTransactionalBPlusTree implements Serializable {
 	/**
 	 * Maximum number of keys = values per leaf node. Use odd number. The number of keys in internal nodes is one less.
 	 */
-	@Getter protected final int valueBlockSize;
+	protected final int valueBlockSize;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
 	/**
@@ -1063,19 +1063,6 @@ public abstract class AbstractTransactionalBPlusTree implements Serializable {
 			//noinspection unchecked
 			return (N) this.siblings[this.index];
 		}
-	}
-
-	/**
-	 * Represents a node along with its associated index. This class is a record that holds an integer index
-	 * and a non-nullable node.
-	 *
-	 * @param node  the non-null node associated with the index
-	 * @param index the index associated with the value
-	 */
-	protected record NodeWithIndex(
-		@Nonnull BPlusTreeNode<?> node,
-		int index
-	) {
 	}
 
 	/**

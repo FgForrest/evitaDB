@@ -44,6 +44,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -172,12 +173,25 @@ class UnorderedLookupTreeTest {
 			this.tree = new UnorderedLookupTree();
 		}
 
+		/**
+		 * Creates an indexed tree with production fan-out and test-specific key spacing.
+		 *
+		 * @param orderKeyGap initial spacing between container keys
+		 */
 		TreeWithIndex(long orderKeyGap) {
-			this.tree = new UnorderedLookupTree(orderKeyGap);
+			this.tree = new UnorderedLookupTree(
+				UnorderedLookupTree.DEFAULT_BLOCK_SIZE, orderKeyGap, false
+			);
 		}
 
+		/**
+		 * Creates an indexed tree without head tracking and with the supplied fan-out and key spacing.
+		 *
+		 * @param blockSize internal fan-out and split threshold
+		 * @param orderKeyGap initial spacing between container keys
+		 */
 		TreeWithIndex(int blockSize, long orderKeyGap) {
-			this.tree = new UnorderedLookupTree(blockSize, orderKeyGap);
+			this.tree = new UnorderedLookupTree(blockSize, orderKeyGap, false);
 		}
 
 		TreeWithIndex(int blockSize, long orderKeyGap, boolean headAware) {
@@ -270,6 +284,9 @@ class UnorderedLookupTreeTest {
 			assertEquals("UnorderedLookupTree[]", tested.tree.toString());
 		}
 
+		/**
+		 * Bulk-loads a small array and addresses every record by position.
+		 */
 		@Test
 		@DisplayName("bulk-loads a small array and addresses every record by position")
 		void shouldBulkLoadAndAddressByPosition() {
@@ -282,10 +299,13 @@ class UnorderedLookupTreeTest {
 			assertEquals(3, tested.findPosition(1));
 			assertEquals(4, tested.tree.getRecordAt(0));
 			assertEquals(1, tested.tree.getRecordAt(3));
-			assertEquals(1, tested.tree.getLastRecordId());
+			assertEquals(1, tested.tree.getRecordAt(tested.tree.size() - 1));
 			assertConsistent(tested);
 		}
 
+		/**
+		 * Bulk-loads a large array and stays consistent through later splits and collapses.
+		 */
 		@Test
 		@DisplayName("bulk-loads a large array and stays consistent through later splits and collapses")
 		void shouldBulkLoadLargeArrayAndStayConsistent() {
@@ -310,12 +330,12 @@ class UnorderedLookupTreeTest {
 			}
 			assertConsistentWithOracle(tested, oracle);
 
-			// after deep multi-level growth the rightmost descent must land on the true last record
-			assertEquals(oracle.getLast().intValue(), tested.tree.getLastRecordId());
-			// removing the current last record re-targets getLastRecordId to the new tail
+			// after deep multi-level growth a positional read of the last slot must return the true last record
+			assertEquals(oracle.getLast().intValue(), tested.tree.getRecordAt(tested.tree.size() - 1));
+			// removing the current last record moves the preceding record to the tail
 			final int lastRecordId = oracle.removeLast();
 			tested.remove(lastRecordId);
-			assertEquals(oracle.getLast().intValue(), tested.tree.getLastRecordId());
+			assertEquals(oracle.getLast().intValue(), tested.tree.getRecordAt(tested.tree.size() - 1));
 			assertConsistentWithOracle(tested, oracle);
 		}
 
@@ -352,6 +372,9 @@ class UnorderedLookupTreeTest {
 			assertConsistent(tested);
 		}
 
+		/**
+		 * Adds records after a predecessor and at the head while keeping positions coherent.
+		 */
 		@Test
 		@DisplayName("adds records after a predecessor and at the head while keeping positions coherent")
 		void shouldAddRecordsAfterAndAtHead() {
@@ -368,7 +391,7 @@ class UnorderedLookupTreeTest {
 			assertArrayEquals(new int[]{0, 5, 1, 3, 2}, tested.tree.getArray());
 			tested.addAfter(2, 10);
 			assertArrayEquals(new int[]{0, 5, 1, 3, 2, 10}, tested.tree.getArray());
-			assertEquals(10, tested.tree.getLastRecordId());
+			assertEquals(10, tested.tree.getRecordAt(tested.tree.size() - 1));
 			assertConsistent(tested);
 		}
 
@@ -497,12 +520,14 @@ class UnorderedLookupTreeTest {
 			assertConsistentWithOracle(tested, oracle);
 		}
 
+		/**
+		 * Matches a list oracle after each mutation on a small randomized run.
+		 */
 		@Test
-		@DisplayName("matches the array delegate operation-for-operation on a small randomized run")
-		void shouldMatchArrayDelegateForIdenticalOperations() {
+		@DisplayName("matches a list oracle after each mutation on a small randomized run")
+		void shouldMatchListOracleAfterEveryMutation() {
 			final Random random = new Random(123);
 			final TreeWithIndex tested = new TreeWithIndex();
-			final UnorderedLookup array = new UnorderedLookup(new int[0]);
 			final List<Integer> live = new ArrayList<>();
 			int nextRecordId = 1;
 			for (int op = 0; op < 500; op++) {
@@ -512,21 +537,22 @@ class UnorderedLookupTreeTest {
 					final int recordId = nextRecordId++;
 					if (size == 0) {
 						tested.addAtHead(recordId);
-						array.addRecord(Integer.MIN_VALUE, recordId);
 						live.addFirst(recordId);
 					} else {
-						final int prev = live.get(random.nextInt(size));
+						final int prevIndex = random.nextInt(size);
+						final int prev = live.get(prevIndex);
 						tested.addAfter(prev, recordId);
-						array.addRecord(prev, recordId);
-						live.add(live.indexOf(prev) + 1, recordId);
+						live.add(prevIndex + 1, recordId);
 					}
 				} else {
 					final int recordId = live.remove(random.nextInt(size));
 					tested.remove(recordId);
-					array.removeRecord(recordId);
 				}
-				// the tree's permutation must match the array delegate operation for operation
-				assertArrayEquals(array.getArray(), tested.tree.getArray(), "permutation mismatch at op " + op);
+				assertArrayEquals(
+					live.stream().mapToInt(Integer::intValue).toArray(),
+					tested.tree.getArray(),
+					"permutation mismatch at op " + op
+				);
 			}
 		}
 	}
@@ -561,13 +587,6 @@ class UnorderedLookupTreeTest {
 		}
 
 		@Test
-		@DisplayName("throws when asking for the last record id of an empty tree")
-		void shouldThrowWhenGettingLastRecordIdOfEmptyTree() {
-			final TreeWithIndex empty = new TreeWithIndex();
-			assertThrows(ArrayIndexOutOfBoundsException.class, empty.tree::getLastRecordId);
-		}
-
-		@Test
 		@DisplayName("throws when locating a record missing from the routed container")
 		void shouldThrowWhenLocatingRecordMissingFromRoutedContainer() {
 			final TreeWithIndex tested = new TreeWithIndex();
@@ -584,6 +603,9 @@ class UnorderedLookupTreeTest {
 	@DisplayName("Edge cases")
 	class EdgeCaseTest {
 
+		/**
+		 * Inserts a single element and removes it back to empty, then reuses the tree.
+		 */
 		@Test
 		@DisplayName("inserts a single element and removes it back to empty, then reuses the tree")
 		void shouldInsertSingleElementRemoveToEmptyAndReuse() {
@@ -592,7 +614,7 @@ class UnorderedLookupTreeTest {
 			tested.addAtHead(42);
 			assertArrayEquals(new int[]{42}, tested.tree.getArray());
 			assertEquals(1, tested.tree.size());
-			assertEquals(42, tested.tree.getLastRecordId());
+			assertEquals(42, tested.tree.getRecordAt(tested.tree.size() - 1));
 			assertConsistent(tested);
 
 			tested.remove(42);
@@ -1114,6 +1136,9 @@ class UnorderedLookupTreeTest {
 			assertHeadQueriesMatchOracle(tested, oracle, heads);
 		}
 
+		/**
+		 * Checks live handle bookkeeping through simulated flush, mutation, and stream reset.
+		 */
 		@Test
 		@DisplayName("enumerates dirty pages / live page sequences after mutations and resets on forgetPageStream")
 		void shouldEnumerateAndResetPages() {
@@ -1125,7 +1150,7 @@ class UnorderedLookupTreeTest {
 			final List<UnorderedLookupTree.LeafPageHandle> handles = tested.tree.leafPageHandles();
 			assertTrue(handles.size() >= 2, "expected multiple leaf pages");
 			// every freshly built leaf is dirty and not yet paged
-			assertEquals(handles.size(), tested.tree.collectChangedPages().size(), "all fresh leaves must be dirty");
+			assertEquals(handles.size(), countDirtyLeaves(tested.tree), "all fresh leaves must be dirty");
 			for (final UnorderedLookupTree.LeafPageHandle handle : handles) {
 				assertEquals(PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE, handle.getPageSequence());
 			}
@@ -1135,17 +1160,44 @@ class UnorderedLookupTreeTest {
 				handle.setPageSequence(seq++);
 				handle.clearDirty();
 			}
-			assertEquals(0, tested.tree.collectChangedPages().size(), "no leaf may be dirty after a simulated flush");
-			assertEquals(seq, tested.tree.livePageSequences().length, "every leaf must now carry a live page");
+			assertEquals(0, countDirtyLeaves(tested.tree), "no leaf may be dirty after a simulated flush");
+			assertArrayEquals(
+				IntStream.range(0, seq).toArray(), assignedPageSequences(tested.tree),
+				"every leaf must carry its assigned page sequence in logical order"
+			);
 			// a single insert touches only its holding leaf (and at most a split-born sibling) - never every page
 			tested.addAfter(105, 9_999);
-			final int dirtyAfterInsert = tested.tree.collectChangedPages().size();
+			final long dirtyAfterInsert = countDirtyLeaves(tested.tree);
 			assertTrue(dirtyAfterInsert >= 1 && dirtyAfterInsert <= 2, "one insert must dirty 1 leaf (2 on a split)");
 			assertTrue(dirtyAfterInsert < handles.size(), "one insert must NOT dirty every page (granular)");
 			// forgetPageStream resets the whole bookkeeping: no live pages, no dirty leaves
 			tested.tree.forgetPageStream();
-			assertEquals(0, tested.tree.livePageSequences().length, "forgetPageStream must un-assign every page");
-			assertEquals(0, tested.tree.collectChangedPages().size(), "forgetPageStream must clear every dirty flag");
+			assertEquals(0, assignedPageSequences(tested.tree).length, "forgetPageStream must un-assign every page");
+			assertEquals(0, countDirtyLeaves(tested.tree), "forgetPageStream must clear every dirty flag");
+		}
+
+		/**
+		 * Counts dirty leaves in the tree's live page handles.
+		 *
+		 * @param tree the paged tree to inspect
+		 * @return the number of dirty leaves
+		 */
+		private static long countDirtyLeaves(@Nonnull UnorderedLookupTree tree) {
+			return tree.leafPageHandles().stream().filter(PagedLeafHandle::isDirty).count();
+		}
+
+		/**
+		 * Reads the assigned page sequences in logical leaf order.
+		 *
+		 * @param tree the paged tree to inspect
+		 * @return the assigned page sequences in leaf order
+		 */
+		@Nonnull
+		private static int[] assignedPageSequences(@Nonnull UnorderedLookupTree tree) {
+			return tree.leafPageHandles().stream()
+				.mapToInt(PagedLeafHandle::getPageSequence)
+				.filter(sequence -> sequence != PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE)
+				.toArray();
 		}
 
 		@Test
@@ -1183,6 +1235,9 @@ class UnorderedLookupTreeTest {
 			assertEquals(42, leaf.getPageSequence(), "pageSequence must survive snapshot -> mutate -> restore");
 		}
 
+		/**
+		 * SortIndex-style tree stays zero-cost: empty leaves allocate nothing, null head mask, non-paged.
+		 */
 		@Test
 		@DisplayName("SortIndex-style tree stays zero-cost: empty leaves allocate nothing, null head mask, non-paged")
 		void shouldKeepNonPagedNonHeadAwareTreeZeroCost() {
@@ -1191,10 +1246,6 @@ class UnorderedLookupTreeTest {
 			// all (null), while the paged head-aware ChainIndex tree grows page-sized leaves + a multi-word mask
 			final UnorderedLookupTree.LeafNode sortLeaf =
 				new UnorderedLookupTree.LeafNode(false, UnorderedLookupTree.DEFAULT_BLOCK_SIZE, 0);
-			assertEquals(
-				UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1, sortLeaf.capacity(),
-				"SortIndex leaves keep a DEFAULT_BLOCK_SIZE + 1 (65) slot logical capacity"
-			);
 			assertEquals(
 				0, sortLeaf.getRecordIds().length,
 				"an empty SortIndex leaf must allocate no record slots at all"
@@ -1209,7 +1260,6 @@ class UnorderedLookupTreeTest {
 			final int maskWords = (UnorderedLookupTree.PAGE_RECORDS + 1 + 63) / 64;
 			final UnorderedLookupTree.LeafNode chainLeaf =
 				new UnorderedLookupTree.LeafNode(false, UnorderedLookupTree.PAGE_RECORDS, maskWords);
-			assertEquals(UnorderedLookupTree.PAGE_RECORDS + 1, chainLeaf.capacity());
 			assertEquals(
 				0, chainLeaf.getRecordIds().length,
 				"an empty ChainIndex leaf must allocate no record slots either - this is the 4,120 B that goes away"
@@ -1222,11 +1272,17 @@ class UnorderedLookupTreeTest {
 			// the non-paged, non-head-aware tree rejects every page-SPI call (the SPI is gated behind `paged`)
 			final UnorderedLookupTree sortIndexStyle = new UnorderedLookupTree();
 			assertThrows(GenericEvitaInternalError.class, sortIndexStyle::leafPageHandles);
-			assertThrows(GenericEvitaInternalError.class, sortIndexStyle::collectChangedPages);
-			assertThrows(GenericEvitaInternalError.class, sortIndexStyle::livePageSequences);
 			assertThrows(GenericEvitaInternalError.class, sortIndexStyle::forgetPageStream);
+
+			final int sortCapacity = UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1;
+			assertEquals(sortCapacity, sortLeaf.getRecordIdsForUpdate(sortCapacity).length);
+			final int chainCapacity = UnorderedLookupTree.PAGE_RECORDS + 1;
+			assertEquals(chainCapacity, chainLeaf.getRecordIdsForUpdate(chainCapacity).length);
 		}
 
+		/**
+		 * A container reloaded from a page is sized to that page and grows on its first insert.
+		 */
 		@Test
 		@DisplayName("a container reloaded from a page is sized to that page and grows on its first insert")
 		void shouldGrowAReloadedContainerOnItsFirstInsert() {
@@ -1245,7 +1301,6 @@ class UnorderedLookupTreeTest {
 				4, leaf.getRecordIds().length,
 				"a reloaded container must be sized to its page, not to the leaf capacity"
 			);
-			assertEquals(17, leaf.capacity(), "the LOGICAL capacity must still be leafCapacity + 1");
 
 			// the write the sizing leans on: without the growth this indexes slot 4 of a four-slot array
 			tested.addAfter(44, 55);
@@ -1255,6 +1310,7 @@ class UnorderedLookupTreeTest {
 				"the first insert must grow the reloaded container's array beyond the page it was sized to"
 			);
 			assertConsistentWithOracle(tested, List.of(11, 22, 33, 44, 55));
+			assertEquals(17, leaf.getRecordIdsForUpdate(17).length, "reload must preserve room for a split");
 		}
 	}
 
@@ -1479,6 +1535,9 @@ class UnorderedLookupTreeTest {
 			}
 		}
 
+		/**
+		 * A one-record container holds four slots, not the whole leaf capacity.
+		 */
 		@Test
 		@DisplayName("a one-record container holds four slots, not the whole leaf capacity")
 		void shouldSizeAOneRecordContainerToTheSizingFloor() {
@@ -1491,10 +1550,8 @@ class UnorderedLookupTreeTest {
 				ColumnSizing.MIN_PHYSICAL_LENGTH, leaf.getRecordIds().length,
 				"a one-record container must allocate the sizing floor, not its capacity"
 			);
-			assertEquals(
-				UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1, leaf.capacity(),
-				"the LOGICAL capacity must be untouched by the physical sizing"
-			);
+			final int capacity = UnorderedLookupTree.DEFAULT_BLOCK_SIZE + 1;
+			assertEquals(capacity, leaf.getRecordIdsForUpdate(capacity).length);
 		}
 
 		@Test
@@ -1664,6 +1721,9 @@ class UnorderedLookupTreeTest {
 			assertConsistentWithOracle(tested, oracle);
 		}
 
+		/**
+		 * The consistency report names a container whose count runs past its array.
+		 */
 		@Test
 		@DisplayName("the consistency report names a container whose count runs past its array")
 		void shouldReportAContainerWhoseCountRunsPastItsArray() {
@@ -1671,7 +1731,7 @@ class UnorderedLookupTreeTest {
 			// on - and nothing else in the verifier reads an array length at all. A tree that broke it passed every
 			// structural check and then threw, or returned a phantom record id, from an unrelated read path much later
 			final TreeWithIndex tested = new TreeWithIndex(
-				new UnorderedLookupTree(16, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP));
+				new UnorderedLookupTree(16, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, false));
 			tested.bulkLoad(new int[]{11, 22, 33, 44});
 
 			final UnorderedLookupTree.LeafNode leaf = singleLeaf(tested.tree);

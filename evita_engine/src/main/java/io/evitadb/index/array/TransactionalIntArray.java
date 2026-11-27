@@ -31,7 +31,6 @@ import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.core.transaction.memory.WarmUpTouchStamped;
 import io.evitadb.dataType.iterator.ConstantIntIterator;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.Setter;
@@ -117,18 +116,6 @@ public class TransactionalIntArray
 	}
 
 	/**
-	 * Method returns record id on specified index of the array.
-	 */
-	public int get(int index) {
-		final IntArrayChanges layer = getTransactionalMemoryLayerIfExists(this);
-		if (layer == null) {
-			return this.delegate[index];
-		} else {
-			return layer.getMergedArray()[index];
-		}
-	}
-
-	/**
 	 * Method returns the underlying array or record ids.
 	 */
 	public int[] getArray() {
@@ -150,36 +137,6 @@ public class TransactionalIntArray
 			this.delegate = ArrayUtils.insertIntIntoOrderedArray(recordId, this.delegate);
 		} else {
 			layer.addRecordId(recordId);
-		}
-	}
-
-	/**
-	 * Method adds new record to the array and returns the index where record was placed.
-	 */
-	public int addReturningIndex(int recordId) {
-		final IntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
-			final InsertionPosition insertionPosition =
-				ArrayUtils.computeInsertPositionOfIntInOrderedArray(recordId, this.delegate);
-			if (!insertionPosition.alreadyPresent()) {
-				recordWarmUpSavepointTouch();
-				this.delegate = ArrayUtils.insertIntIntoArrayOnIndex(
-					recordId, this.delegate, insertionPosition.position()
-				);
-			}
-			return insertionPosition.position();
-		} else {
-			layer.addRecordId(recordId);
-			return layer.getIndexOf(recordId);
-		}
-	}
-
-	/**
-	 * Method adds multiple record ids to the array.
-	 */
-	public void addAll(int[] recordIds) {
-		for (int recordId : recordIds) {
-			add(recordId);
 		}
 	}
 
@@ -219,15 +176,6 @@ public class TransactionalIntArray
 	}
 
 	/**
-	 * Method removes multiple record ids from the array.
-	 */
-	public void removeAll(int[] recordIds) {
-		for (int recordId : recordIds) {
-			remove(recordId);
-		}
-	}
-
-	/**
 	 * Returns length of the array.
 	 */
 	public int getLength() {
@@ -248,20 +196,6 @@ public class TransactionalIntArray
 			return ArrayUtils.isEmpty(this.delegate);
 		} else {
 			return layer.getMergedLength() == 0;
-		}
-	}
-
-	/**
-	 * Returns index (position) of the record id in the array.
-	 *
-	 * @return negative value when record is not found, positive if found
-	 */
-	public int indexOf(int recordId) {
-		final IntArrayChanges layer = getTransactionalMemoryLayerIfExists(this);
-		if (layer == null) {
-			return Arrays.binarySearch(this.delegate, recordId);
-		} else {
-			return layer.getIndexOf(recordId);
 		}
 	}
 

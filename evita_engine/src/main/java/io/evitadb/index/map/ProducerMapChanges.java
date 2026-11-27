@@ -150,9 +150,8 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 	 *
 	 * It exists because a dirty-key set is not always accumulated by {@link #markValueMutated}. `EntityCollection` already
 	 * holds the exact set of indexes its transaction mutated (the snapshot the just-completed flush captured), so it hands
-	 * that set in directly instead of duplicating it through marks scattered across every mutation path. The `valueMerger`
-	 * is the same hook {@link MapChanges#createMergedMap(TransactionalLayerMaintainer, ValueMerger)} offers, and carries
-	 * the same contract — every touched key resolved exactly once, and a value the merger skips must own no diff layer.
+	 * that set in directly instead of duplicating it through marks scattered across every mutation path. The merger
+	 * resolves each touched key that survives exactly once. A value the merger skips must own no diff layer.
 	 *
 	 * Precedence is unchanged: removed > created/modified > dirty. A dirty key covered by a higher-precedence pass is
 	 * skipped here, and a dirty key that appears in NONE of the three (created and removed again within the same

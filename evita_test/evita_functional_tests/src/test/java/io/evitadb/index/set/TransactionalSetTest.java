@@ -23,17 +23,20 @@
 
 package io.evitadb.index.set;
 
-import io.evitadb.api.requestResponse.data.ContentComparator;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -42,6 +45,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -55,6 +60,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
+@DisplayName("TransactionalSet")
 @SuppressWarnings("SameParameterValue")
 @Tag(INDEXING)
 @Tag(DATA_TYPE)
@@ -67,7 +73,7 @@ class TransactionalSetTest {
 		final Set<String> underlyingData = new LinkedHashSet<>();
 		underlyingData.add("a");
 		underlyingData.add("b");
-		this.tested = new TransactionalSet<>(underlyingData);
+		this.tested = new TransactionalSet<>(underlyingData, String.class);
 	}
 
 	/**
@@ -80,7 +86,7 @@ class TransactionalSetTest {
 		@Test
 		@DisplayName("each instance gets a unique ID")
 		void shouldAssignUniqueIdPerInstance() {
-			final TransactionalSet<String> other = new TransactionalSet<>(new HashSet<>());
+			final TransactionalSet<String> other = new TransactionalSet<>(new HashSet<>(), String.class);
 
 			assertNotEquals(
 				TransactionalSetTest.this.tested.getId(),
@@ -88,15 +94,36 @@ class TransactionalSetTest {
 			);
 		}
 
+		/**
+		 * Verifies that the constructor refuses an element type carrying its own transactional state, because the set
+		 * commits its elements by reference and would never merge that state.
+		 */
+		@Test
+		@DisplayName("refuses an element type that carries transactional state")
+		void shouldRefuseElementTypeWhenItIsTransactionalStateProducer() {
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new TransactionalSet<>(new HashSet<>(), TransactionalBitmap.class)
+			);
+
+			assertTrue(
+				error.getMessage().contains(TransactionalBitmap.class.getName()),
+				"The message must name the refused type."
+			);
+		}
+
+		/**
+		 * Verifies that a new diff layer exposes the delegate's original membership.
+		 */
 		@Test
 		@DisplayName("createLayer returns SetChanges backed by delegate")
 		void shouldCreateLayerBackedByDelegate() {
 			final SetChanges<String> layer = TransactionalSetTest.this.tested.createLayer();
 
 			assertNotNull(layer);
-			assertEquals(2, layer.getSetDelegate().size());
-			assertTrue(layer.getSetDelegate().contains("a"));
-			assertTrue(layer.getSetDelegate().contains("b"));
+			assertEquals(2, layer.size());
+			assertTrue(layer.contains("a"));
+			assertTrue(layer.contains("b"));
 		}
 
 		@Test
@@ -169,7 +196,7 @@ class TransactionalSetTest {
 		void shouldReportEmptyCorrectly() {
 			assertFalse(TransactionalSetTest.this.tested.isEmpty());
 
-			final TransactionalSet<String> empty = new TransactionalSet<>(new HashSet<>());
+			final TransactionalSet<String> empty = new TransactionalSet<>(new HashSet<>(), String.class);
 			assertTrue(empty.isEmpty());
 		}
 
@@ -600,17 +627,6 @@ class TransactionalSetTest {
 	class TransactionalLayerProducerContractTest {
 
 		@Test
-		@DisplayName("createLayer returns SetChanges referencing the delegate")
-		void shouldCreateLayerReferencingDelegate() {
-			final SetChanges<String> layer = TransactionalSetTest.this.tested.createLayer();
-
-			assertNotNull(layer);
-			assertEquals(2, layer.getSetDelegate().size());
-			assertTrue(layer.getSetDelegate().contains("a"));
-			assertTrue(layer.getSetDelegate().contains("b"));
-		}
-
-		@Test
 		@DisplayName("createCopyWithMergedTransactionalMemory with null layer returns delegate")
 		void shouldReturnDelegateWhenLayerIsNull() {
 			final TransactionalLayerMaintainer maintainer = Mockito.mock(TransactionalLayerMaintainer.class);
@@ -624,6 +640,9 @@ class TransactionalSetTest {
 			assertTrue(result.contains("b"));
 		}
 
+		/**
+		 * Verifies that merging a populated diff applies both the added key and the removed delegate key.
+		 */
 		@Test
 		@DisplayName("createCopyWithMergedTransactionalMemory with layer returns merged set")
 		void shouldReturnMergedSetWhenLayerExists() {
@@ -631,7 +650,7 @@ class TransactionalSetTest {
 
 			final SetChanges<String> layer = TransactionalSetTest.this.tested.createLayer();
 			layer.put("c");
-			layer.registerRemovedKey("a");
+			layer.remove("a");
 
 			final Set<String> result = TransactionalSetTest.this.tested
 				.createCopyWithMergedTransactionalMemory(layer, maintainer);
@@ -711,7 +730,7 @@ class TransactionalSetTest {
 				new TransactionalSet<>(
 					new LinkedHashSet<>(
 						Arrays.asList("a", "b")
-					)
+					), String.class
 				);
 
 			assertEquals(
@@ -735,7 +754,7 @@ class TransactionalSetTest {
 		void shouldHaveEqualHashCodeForSameElements() {
 			final TransactionalSet<String> other =
 				new TransactionalSet<>(
-					new LinkedHashSet<>(Arrays.asList("a", "b"))
+					new LinkedHashSet<>(Arrays.asList("a", "b")), String.class
 				);
 
 			assertEquals(
@@ -747,7 +766,7 @@ class TransactionalSetTest {
 		@Test
 		@DisplayName("empty set toString returns {}")
 		void shouldReturnCurlyBracesForEmptySet() {
-			final TransactionalSet<String> empty = new TransactionalSet<>(new HashSet<>());
+			final TransactionalSet<String> empty = new TransactionalSet<>(new HashSet<>(), String.class);
 
 			assertEquals("{}", empty.toString());
 		}
@@ -770,6 +789,134 @@ class TransactionalSetTest {
 	@Nested
 	@DisplayName("Iterator contract")
 	class IteratorContractTest {
+
+		/**
+		 * Verifies removal after lookahead for a created key and after exhaustion for a delegate key, and that neither
+		 * the removal nor a following `hasNext()` makes the iterator removable again.
+		 *
+		 * @param moreElements whether the iterator should have another element after the one being removed
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {true, false})
+		@DisplayName("remove targets the last returned element after hasNext")
+		void shouldRemoveLastReturnedElementWhenHasNextLooksAhead(boolean moreElements) {
+			final Set<String> expected = new HashSet<>(Set.of("a", "c", "d"));
+			assertStateAfterCommit(
+				TransactionalSetTest.this.tested,
+				original -> {
+					original.add("c");
+					original.add("d");
+					original.remove("b");
+
+					final Iterator<String> iterator = original.iterator();
+					if (!moreElements) {
+						iterator.next();
+						iterator.next();
+					}
+					final String returned = iterator.next();
+					assertEquals(moreElements, iterator.hasNext());
+					iterator.remove();
+					assertThrows(IllegalStateException.class, iterator::remove);
+					assertEquals(moreElements, iterator.hasNext());
+					assertThrows(IllegalStateException.class, iterator::remove);
+
+					assertTrue(expected.remove(returned));
+					assertSetContains(original, expected.toArray(String[]::new));
+					if (moreElements) {
+						assertTrue(expected.contains(iterator.next()));
+						assertEquals("a", iterator.next());
+					}
+					assertFalse(iterator.hasNext());
+					assertFalse(original.contains(returned));
+				},
+				(original, committedVersion) -> assertSetContains(committedVersion, expected.toArray(String[]::new))
+			);
+		}
+
+		/**
+		 * Verifies that `hasNext()` fetching the next delegate key leaves the delegate key `next()` returned as the
+		 * removal target.
+		 */
+		@Test
+		@DisplayName("remove targets the returned delegate key after hasNext fetched the next one")
+		void shouldRemoveReturnedDelegateKeyWhenHasNextFetchedNextDelegateKey() {
+			assertStateAfterCommit(
+				TransactionalSetTest.this.tested,
+				original -> {
+					// a cancelled addition leaves a diff layer without created keys, so only delegate keys are merged
+					assertTrue(original.add("c"));
+					assertTrue(original.remove("c"));
+					assertNotNull(Transaction.getTransactionalMemoryLayerIfExists(original));
+
+					final Iterator<String> iterator = original.iterator();
+					assertEquals("a", iterator.next());
+					assertTrue(iterator.hasNext());
+					iterator.remove();
+
+					assertEquals("b", iterator.next());
+					assertFalse(iterator.hasNext());
+					assertSetContains(original, "b");
+				},
+				(original, committedVersion) -> {
+					assertSetContains(original, "a", "b");
+					assertSetContains(committedVersion, "b");
+				}
+			);
+		}
+
+		/**
+		 * Verifies that `hasNext()` falling through to the delegate after the last created key leaves that created key
+		 * as the removal target.
+		 */
+		@Test
+		@DisplayName("remove targets the last created key after hasNext fetched a delegate key")
+		void shouldRemoveLastCreatedKeyWhenHasNextFetchedDelegateKey() {
+			assertStateAfterCommit(
+				TransactionalSetTest.this.tested,
+				original -> {
+					assertTrue(original.add("c"));
+
+					final Iterator<String> iterator = original.iterator();
+					assertEquals("c", iterator.next());
+					assertTrue(iterator.hasNext());
+					iterator.remove();
+
+					assertEquals("a", iterator.next());
+					assertEquals("b", iterator.next());
+					assertFalse(iterator.hasNext());
+					assertSetContains(original, "a", "b");
+				},
+				(original, committedVersion) -> assertSetContains(committedVersion, "a", "b")
+			);
+		}
+
+		/**
+		 * Checks both illegal removal states on a merged iterator whose only visible key comes from the delegate.
+		 */
+		@Test
+		@DisplayName("merged iterator requires a fresh next before removing a delegate key")
+		void shouldRejectRemovalWhenMergedIteratorHasNoRemovableDelegateKey() {
+			assertStateAfterCommit(
+				TransactionalSetTest.this.tested,
+				original -> {
+					assertTrue(original.remove("b"));
+					removeFirstKeyAndCheckIllegalRemovals(original.iterator());
+					assertSetContains(original);
+				},
+				(original, committedVersion) -> assertSetContains(committedVersion)
+			);
+		}
+
+		/**
+		 * Checks both illegal removal states on a delegate iterator outside a transaction.
+		 */
+		@Test
+		@DisplayName("delegate iterator requires a fresh next outside a transaction")
+		void shouldRejectRemovalWhenDelegateIteratorHasNoRemovableKeyOutsideTransaction() {
+			final TransactionalSet<String> set = TransactionalSetTest.this.tested;
+			removeFirstKeyAndCheckIllegalRemovals(set.iterator());
+			assertSetContains(set, "b");
+		}
 
 		@Test
 		@DisplayName("hasNext is idempotent")
@@ -884,6 +1031,100 @@ class TransactionalSetTest {
 					assertSetContains(committedVersion, "b", "c");
 				}
 			);
+		}
+
+		/**
+		 * Verifies that either removal operation can be rolled back when it is the first write.
+		 *
+		 * @param useRemoveIf whether to remove via `removeIf` instead of the iterator
+		 */
+		@ParameterizedTest(name = "removeIf={0}")
+		@ValueSource(booleans = {false, true})
+		@DisplayName("first removal stays isolated through rollback")
+		void shouldIsolateFirstRemovalWhenTransactionRollsBack(boolean useRemoveIf) {
+			assertFirstRemovalIsolated(useRemoveIf, false);
+		}
+
+		/**
+		 * Verifies that either removal operation can be committed when it is the first write.
+		 *
+		 * @param useRemoveIf whether to remove via `removeIf` instead of the iterator
+		 */
+		@ParameterizedTest(name = "removeIf={0}")
+		@ValueSource(booleans = {false, true})
+		@DisplayName("first removal stays isolated until commit")
+		void shouldIsolateFirstRemovalWhenTransactionCommits(boolean useRemoveIf) {
+			assertFirstRemovalIsolated(useRemoveIf, true);
+		}
+
+		/**
+		 * Verifies that an iterator obtained before the transaction opened removes into that transaction's diff layer
+		 * rather than from the shared delegate.
+		 */
+		@Test
+		@DisplayName("iterator obtained before the transaction removes inside it")
+		void shouldRemoveInsideTransactionWhenIteratorPredatesIt() {
+			final Iterator<String> iterator = TransactionalSetTest.this.tested.iterator();
+			assertStateAfterCommit(
+				TransactionalSetTest.this.tested,
+				original -> {
+					assertEquals("a", iterator.next());
+					assertNull(Transaction.getTransactionalMemoryLayerIfExists(original));
+					iterator.remove();
+
+					assertSetContains(original, "b");
+				},
+				(original, committedVersion) -> {
+					assertSetContains(original, "a", "b");
+					assertSetContains(committedVersion, "b");
+				}
+			);
+		}
+
+		/**
+		 * Checks the transactional view, the shared delegate during the transaction, and the outcome on close.
+		 *
+		 * @param useRemoveIf whether to remove via `removeIf` instead of the iterator
+		 * @param commit whether to commit the removal
+		 */
+		private void assertFirstRemovalIsolated(boolean useRemoveIf, boolean commit) {
+			final Set<String> initial = Set.of("a", "b");
+			final Set<String> delegate = new LinkedHashSet<>(List.of("a", "b"));
+			final TransactionalSet<String> set = new TransactionalSet<>(delegate, String.class);
+			final Set<String> transactionalView = new HashSet<>();
+			final Set<String> committedWhileOpen = new HashSet<>();
+			final Consumer<TransactionalSet<String>> removeFirst = original -> {
+				if (useRemoveIf) {
+					original.removeIf("a"::equals);
+				} else {
+					removeFirstKeyAndCheckIllegalRemovals(original.iterator());
+				}
+				transactionalView.addAll(original);
+				committedWhileOpen.addAll(delegate);
+			};
+			final BiConsumer<TransactionalSet<String>, Set<String>> verify = (original, committedVersion) -> assertAll(
+				() -> assertEquals(Set.of("b"), transactionalView, "Transactional view after removal"),
+				() -> assertEquals(initial, committedWhileOpen, "Committed set while the transaction is open"),
+				() -> assertEquals(initial, original, "Original set after the transaction closes"),
+				() -> assertEquals(commit ? Set.of("b") : null, committedVersion, "Commit result")
+			);
+			if (commit) {
+				assertStateAfterCommit(set, removeFirst, verify);
+			} else {
+				assertStateAfterRollback(set, removeFirst, verify);
+			}
+		}
+
+		/**
+		 * Removes the first delegate key and checks that both illegal removal states throw.
+		 *
+		 * @param iterator the fresh iterator over the set containing the delegate key "a"
+		 */
+		private static void removeFirstKeyAndCheckIllegalRemovals(@Nonnull Iterator<String> iterator) {
+			assertThrows(IllegalStateException.class, iterator::remove);
+			assertEquals("a", iterator.next());
+			iterator.remove();
+			assertThrows(IllegalStateException.class, iterator::remove);
 		}
 
 		@Test
@@ -1011,7 +1252,7 @@ class TransactionalSetTest {
 		@Test
 		@DisplayName("empty delegate works correctly in transaction")
 		void shouldWorkWithEmptyDelegate() {
-			final TransactionalSet<String> empty = new TransactionalSet<>(new HashSet<>());
+			final TransactionalSet<String> empty = new TransactionalSet<>(new HashSet<>(), String.class);
 
 			assertStateAfterCommit(
 				empty,
@@ -1033,7 +1274,7 @@ class TransactionalSetTest {
 		void shouldWorkWithSingleElementDelegate() {
 			final TransactionalSet<String> single =
 				new TransactionalSet<>(
-					new LinkedHashSet<>(List.of("x"))
+					new LinkedHashSet<>(List.of("x")), String.class
 				);
 
 			assertStateAfterCommit(
@@ -1215,159 +1456,6 @@ class TransactionalSetTest {
 			final String entry = it.next();
 			assertTrue(expectedSet.contains(entry));
 		}
-	}
-
-	/**
-	 * Tests content substitution for identity-equal but content-different elements.
-	 */
-	@Nested
-	@DisplayName("Content substitution (identity-equal, content-different elements)")
-	class ContentSubstitutionTest {
-
-		@Test
-		void shouldReplaceSameIdentityElementWithDifferentContentOnAdd() {
-			final Box oldA = new Box(1, "OLD-A");
-			final Box newA = new Box(1, "NEW-A");
-			final Set<Box> underlying = new LinkedHashSet<>();
-			underlying.add(oldA);
-			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
-
-			assertStateAfterCommit(
-				set,
-				original -> original.add(newA),
-				(original, committed) -> {
-					assertEquals(1, committed.size());
-					assertEquals("NEW-A", committed.iterator().next().content(),
-						"Committed set must hold the NEW content, not the stale original instance");
-				}
-			);
-		}
-
-		@Test
-		void shouldReplaceSameIdentityElementOnRemoveThenAdd() {
-			final Box oldA = new Box(1, "OLD-A");
-			final Box newA = new Box(1, "NEW-A");
-			final Set<Box> underlying = new LinkedHashSet<>();
-			underlying.add(oldA);
-			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
-
-			assertStateAfterCommit(
-				set,
-				original -> {
-					original.remove(oldA);
-					original.add(newA);
-				},
-				(original, committed) -> {
-					assertEquals(1, committed.size());
-					assertEquals("NEW-A", committed.iterator().next().content(),
-						"Committed set must hold the NEW content after remove-then-add of same identity");
-				}
-			);
-		}
-
-		@Test
-		void shouldKeepLatestContentWhenSubstitutedElementIsAddedAgain() {
-			final Box oldA = new Box(1, "OLD-A");
-			final Box v1 = new Box(1, "V1");
-			final Box v2 = new Box(1, "V2");
-			final Set<Box> underlying = new LinkedHashSet<>();
-			underlying.add(oldA);
-			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
-
-			assertStateAfterCommit(
-				set,
-				original -> {
-					original.add(v1);
-					original.add(v2);
-				},
-				(original, committed) -> {
-					assertEquals(1, committed.size());
-					assertEquals("V2", committed.iterator().next().content(),
-						"Committed set must hold the latest substituted content");
-				}
-			);
-		}
-
-		@Test
-		void shouldRevertToOriginalContentWhenSubstitutionFollowedByOriginalAdd() {
-			// regression guard: after substituting with new content and adding the original-content
-			// instance again, the merged set must contain exactly one logical element and the change-layer
-			// bookkeeping (createdKeys / removedKeys) must not double-count or drop the entry
-			final Box oldA = new Box(1, "OLD-A");
-			final Box newA = new Box(1, "NEW-A");
-			final Box originalAgain = new Box(1, "OLD-A");
-			final Box otherB = new Box(2, "B");
-			final Set<Box> underlying = new LinkedHashSet<>();
-			underlying.add(oldA);
-			underlying.add(otherB);
-			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
-
-			assertStateAfterCommit(
-				set,
-				original -> {
-					original.add(newA);
-					original.add(originalAgain);
-					assertEquals(2, original.size(),
-						"Reverting a substitution must not change the logical size");
-					assertTrue(original.contains(oldA), "Identity must remain present after revert");
-					assertTrue(original.contains(otherB), "Unrelated elements must remain present");
-				},
-				(original, committed) -> {
-					assertEquals(2, committed.size(),
-						"Committed set must contain exactly one entry per identity");
-					assertTrue(committed.contains(oldA), "Identity must survive the substitute-then-revert");
-					assertTrue(committed.contains(otherB), "Unrelated elements must remain in the committed set");
-				}
-			);
-		}
-
-		@Test
-		void shouldRemoveSubstitutedElementWithinSameTransaction() {
-			final Box oldA = new Box(1, "OLD-A");
-			final Box newA = new Box(1, "NEW-A");
-			final Set<Box> underlying = new LinkedHashSet<>();
-			underlying.add(oldA);
-			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
-
-			assertStateAfterCommit(
-				set,
-				original -> {
-					original.add(newA);
-					assertTrue(original.contains(newA), "Substituted element must be visible via contains()");
-					original.remove(newA);
-					assertFalse(original.contains(newA), "Removed substituted element must not be present");
-				},
-				(original, committed) -> assertTrue(committed.isEmpty(),
-					"Committed set must be empty after substitute-then-remove")
-			);
-		}
-
-		/**
-		 * Test element whose identity is {@link #id()} and whose payload is {@link #content()}.
-		 * {@link ContentComparator} lets the change layer detect payload changes for the same identity.
-		 */
-		record Box(int id, @Nonnull String content) implements ContentComparator<Box> {
-
-			@Override
-			public boolean equals(Object o) {
-				if (this == o) return true;
-				if (!(o instanceof Box other)) return false;
-				return this.id == other.id;
-			}
-
-			@Override
-			public int hashCode() {
-				return Integer.hashCode(this.id);
-			}
-
-			@Override
-			public boolean differsFrom(@Nullable Box other) {
-				if (other == this) return false;
-				if (other == null) return true;
-				return this.id != other.id || !this.content.equals(other.content);
-			}
-		}
-
 	}
 
 }

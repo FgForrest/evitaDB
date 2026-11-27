@@ -78,32 +78,14 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	@Serial private static final long serialVersionUID = 124088192205606247L;
 	private static final String ERROR_UPDATER_RETURNED_NULL = "The updater returned null - a B+ tree value must " +
 		"never be null, because a stored null is indistinguishable from an absent key on the read path!";
-	private static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
-	private static final int DEFAULT_MIN_VALUE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
-	private static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
-	private static final int DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(
-		(float) DEFAULT_INTERNAL_NODE_BLOCK_SIZE / 2.0) - 1);
 	/**
 	 * The type of the values stored in the tree.
 	 */
-	@Getter private final Class<V> valueType;
+	private final Class<V> valueType;
 	/**
 	 * Operator that wraps the values in a transactional layer.
 	 */
 	private final Function<Object, V> transactionalLayerWrapper;
-
-	/**
-	 * Returns the class type of the generic TransactionalLongBPlusTree with the specified key and value types.
-	 * This method may be necessary if you need the proper generic class for constructor of other classes.
-	 *
-	 * @param <V> the type of values in the TransactionalLongBPlusTree
-	 * @return the Class object representing the type TransactionalLongBPlusTree with the specified generic parameters
-	 */
-	@Nonnull
-	public static <V> Class<TransactionalLongBPlusTree<V>> genericClass() {
-		//noinspection unchecked
-		return (Class<TransactionalLongBPlusTree<V>>) (Class<?>) TransactionalLongBPlusTree.class;
-	}
 
 	/**
 	 * Returns the left boundary key of an arbitrary node reached through the key-agnostic {@link BPlusTreeNode} SPI
@@ -274,28 +256,6 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		if (children[childIndex] instanceof BPlusInternalTreeNode childInternalNode) {
 			addCursorLevels(childInternalNode, key, path);
 		}
-	}
-
-	/**
-	 * Constructor to initialize the B+ Tree with default block sizes.
-	 *
-	 * @param valueType                 the type of the values stored in the tree
-	 * @param transactionalLayerWrapper operator that wraps the values in a transactional layer
-	 */
-	public TransactionalLongBPlusTree(
-		@Nonnull Class<V> valueType,
-		@Nonnull Function<Object, V> transactionalLayerWrapper
-	) {
-		this(
-			DEFAULT_VALUE_BLOCK_SIZE,
-			DEFAULT_MIN_VALUE_BLOCK_SIZE,
-			DEFAULT_INTERNAL_NODE_BLOCK_SIZE,
-			DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE,
-			valueType,
-			transactionalLayerWrapper,
-			new BPlusLeafTreeNode<>(DEFAULT_VALUE_BLOCK_SIZE, valueType, transactionalLayerWrapper, true),
-			0
-		);
 	}
 
 	/**
@@ -881,19 +841,6 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	}
 
 	/**
-	 * Returns the heap this tree occupies in bytes, **excluding the values its leaves point at**.
-	 *
-	 * Like every heap-footprint reading over a tree this is `O(entries / blockSize)` rather than `O(1)`, so it
-	 * belongs to the index detail call and never to a query path — see
-	 * {@link BucketBPlusTree#getHeapSizeInBytes(ToLongFunction)} for the measured cost and where it goes.
-	 *
-	 * @return the owned heap footprint in bytes, including alignment padding
-	 */
-	public long getHeapSizeInBytes() {
-		return getHeapSizeInBytes(element -> 0L);
-	}
-
-	/**
 	 * Returns the heap this tree occupies in bytes, **including the values its leaves point at**, each priced by
 	 * `elementSizer`.
 	 *
@@ -917,7 +864,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	}
 
 	/**
-	 * Returns the heap of this tree's node graph alone — everything {@link #getHeapSizeInBytes()} counts except the
+	 * Returns the heap of this tree's node graph alone — everything the full heap estimate counts except the
 	 * tree object itself. Split out for the same reason as in {@link TransactionalBucketBPlusTree}: the tree holds a
 	 * lambda field, and a lambda is a hidden class whose field offsets JOL cannot read, so only the node graph can
 	 * be asserted against a real measurement.
@@ -1324,28 +1271,6 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	}
 
 	/**
-	 * Returns an iterator that traverses the B+ tree values from right to left starting from the specified key or
-	 * a key that is immediately lesser than the specified key. The key may not be present in the tree.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return an iterator that traverses the B+ tree values from right to left starting from the specified key
-	 */
-	@Nonnull
-	public Iterator<V> lesserOrEqualValueIterator(long key) {
-		return new ReverseTreeValueIterator<>(createCursor(key), key);
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree values from right to left.
-	 *
-	 * @return an iterator that traverses the B+ tree values from right to left
-	 */
-	@Nonnull
-	public Iterator<V> valueReverseIterator() {
-		return new ReverseTreeValueIterator<>(createRightmostCursor());
-	}
-
-	/**
 	 * Returns an iterator that traverses the B+ tree entries (both keys and values) from left to right.
 	 *
 	 * @return an iterator that traverses the B+ tree entries (both keys and values) from left to right
@@ -1353,30 +1278,6 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	@Nonnull
 	public Iterator<Entry<V>> entryIterator() {
 		return new ForwardTreeEntryIterator<>(createLeftmostCursor());
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree entries (both keys and values) from left to right starting from the specified key or
-	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return an iterator that traverses the B+ tree entries (both keys and values) from left to right starting from the specified key
-	 */
-	@Nonnull
-	public Iterator<Entry<V>> greaterOrEqualEntryIterator(long key) {
-		return new ForwardTreeEntryIterator<>(createCursor(key), key);
-	}
-
-	/**
-	 * Returns an iterator that traverses the B+ tree entries (both keys and values) from right to left starting from the specified key or
-	 * a key that is immediately lesser than the specified key. The key may not be present in the tree.
-	 *
-	 * @param key the key from which to start the iteration
-	 * @return an iterator that traverses the B+ tree entries (both keys and values) from right to left starting from the specified key
-	 */
-	@Nonnull
-	public Iterator<Entry<V>> lesserOrEqualEntryIterator(long key) {
-		return new ReverseTreeEntryIterator<>(createCursor(key), key);
 	}
 
 	@Override
@@ -1739,14 +1640,6 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	interface LongKeyedNode {
 
 		/**
-		 * Retrieves an array of long keys associated with the node.
-		 *
-		 * @return an array of long keys present in the node. The array is guaranteed to be non-null.
-		 */
-		@Nonnull
-		long[] getKeys();
-
-		/**
 		 * Retrieves the left boundary (smallest) key contained within the node.
 		 *
 		 * @return the left boundary key of the node.
@@ -1890,7 +1783,13 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			}
 		}
 
-		@Override
+		/**
+		 * Sets the index of the last occupied child slot. Lowering it clears the keys and children past the new peek.
+		 * Inside a transaction a committed node makes the change in its diff layer.
+		 * The layer copies only the live prefix of any shared array, leaving the new tail empty.
+		 *
+		 * @param peek the index of the new last occupied child slot
+		 */
 		public void setPeek(int peek) {
 			final BPlusInternalTreeNode layer = writeLayer(this, this.transactionalLayer);
 			if (layer == null) {
@@ -1910,14 +1809,14 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 					//noinspection ArrayEquality
 					if (layer.keys == this.keys) {
 						layer.keys = new long[this.keys.length];
-						System.arraycopy(this.keys, 0, layer.keys, 0, originPeek);
+						System.arraycopy(this.keys, 0, layer.keys, 0, Math.max(0, peek));
 					} else {
 						Arrays.fill(layer.keys, Math.max(0, peek), originPeek, 0L);
 					}
 					//noinspection ArrayEquality
 					if (layer.children == this.children) {
 						layer.children = new BPlusTreeNode[this.children.length];
-						System.arraycopy(this.children, 0, layer.children, 0, originPeek + 1);
+						System.arraycopy(this.children, 0, layer.children, 0, peek + 1);
 					} else {
 						Arrays.fill(layer.children, peek + 1, originPeek + 1, null);
 					}
@@ -1987,7 +1886,12 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			}
 		}
 
-		@Override
+		/**
+		 * Checks whether the node holds its maximum number of children, reading its diff layer when the current
+		 * transaction has one.
+		 *
+		 * @return whether the node is full
+		 */
 		public boolean isFull() {
 			final BPlusInternalTreeNode layer = this.transactionalLayer ?
 				Transaction.getTransactionalMemoryLayerIfExists(this) :
@@ -2341,7 +2245,6 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 
 		/**
 		 * Searches for the child index that should contain the given key.
-		 * This method avoids allocating a NodeWithIndex record.
 		 *
 		 * @param key the long key to search for within the B+ Tree.
 		 * @return the index of the child that should contain the specified key.
@@ -2361,18 +2264,6 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				return insertionPosition.alreadyPresent() ?
 					insertionPosition.position() + 1 : insertionPosition.position();
 			}
-		}
-
-		/**
-		 * Searches for the BPlusTreeNode that should contain the given key.
-		 *
-		 * @param key the long key to search for within the B+ Tree.
-		 * @return the BPlusTreeNode that should contain the specified key.
-		 */
-		@Nonnull
-		public NodeWithIndex search(long key) {
-			final int thePosition = searchIndex(key);
-			return new NodeWithIndex(getChildren()[thePosition], thePosition);
 		}
 
 		/**
@@ -2807,7 +2698,13 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			}
 		}
 
-		@Override
+		/**
+		 * Sets the index of the last occupied slot and marks the leaf dirty. Lowering it clears the keys and values
+		 * past the new peek. Inside a transaction a committed leaf does both in its diff layer.
+		 * The layer copies only the live prefix of any shared array, leaving the new tail empty.
+		 *
+		 * @param peek the index of the new last occupied slot
+		 */
 		public void setPeek(int peek) {
 			final BPlusLeafTreeNode<V> layer = writeLayer(this, this.transactionalLayer);
 			// changing the occupied range is a content mutation (truncation on split/removal, donor shrink on
@@ -2834,7 +2731,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 					//noinspection ArrayEquality
 					if (layer.keys == this.keys) {
 						layer.keys = new long[this.keys.length];
-						System.arraycopy(this.keys, 0, layer.keys, 0, originPeek + 1);
+						System.arraycopy(this.keys, 0, layer.keys, 0, peek + 1);
 					} else {
 						Arrays.fill(layer.keys, peek + 1, originPeek + 1, 0L);
 					}
@@ -2843,7 +2740,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 						//noinspection unchecked
 						layer.values = (V[]) Array.newInstance(
 							this.values.getClass().getComponentType(), this.values.length);
-						System.arraycopy(this.values, 0, layer.values, 0, originPeek + 1);
+						System.arraycopy(this.values, 0, layer.values, 0, peek + 1);
 					} else {
 						Arrays.fill(layer.values, peek + 1, originPeek + 1, null);
 					}
@@ -2907,7 +2804,12 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			}
 		}
 
-		@Override
+		/**
+		 * Checks whether the leaf holds its maximum number of entries, reading its diff layer when the current
+		 * transaction has one.
+		 *
+		 * @return whether the leaf is full
+		 */
 		public boolean isFull() {
 			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
 				Transaction.getTransactionalMemoryLayerIfExists(this) :
@@ -4044,44 +3946,6 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	}
 
 	/**
-	 * Iterator that traverses the B+ Tree values from right to left.
-	 *
-	 * @param <V> the type of the values stored in the tree
-	 */
-	static class ReverseTreeValueIterator<V> extends AbstractReverseTreeIterator<V> implements Iterator<V> {
-
-		/**
-		 * Creates a reverse value iterator starting from the rightmost value.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 */
-		public ReverseTreeValueIterator(@Nonnull Cursor cursor) {
-			super(cursor);
-		}
-
-		/**
-		 * Creates a reverse value iterator starting from the specified key or the first key lesser than or equal to it.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 * @param key    the key to start the iteration from
-		 */
-		public ReverseTreeValueIterator(@Nonnull Cursor cursor, long key) {
-			super(cursor, key);
-		}
-
-		@Override
-		public V next() {
-			if (!this.hasNextElement) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			// read straight from the cached leaf value array - no per-element ThreadLocal accessor call
-			final V value = this.leafValues[this.currentIndex];
-			advance();
-			return value;
-		}
-	}
-
-	/**
 	 * Iterator that traverses the B+ Tree from left to right and provides access to entries (both keys and values).
 	 *
 	 * @param <V> the type of the values stored in the tree
@@ -4095,54 +3959,6 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 */
 		public ForwardTreeEntryIterator(@Nonnull Cursor cursor) {
 			super(cursor);
-		}
-
-		/**
-		 * Creates a forward entry iterator starting from the specified key or the first key greater than it.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 * @param key    the key to start the iteration from
-		 */
-		public ForwardTreeEntryIterator(@Nonnull Cursor cursor, long key) {
-			super(cursor, key);
-		}
-
-		@Override
-		public Entry<V> next() {
-			if (!this.hasNextElement) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			// build straight from the cached leaf arrays - no per-element ThreadLocal accessor call
-			final Entry<V> entry = new Entry<>(this.leafKeys[this.currentIndex], this.leafValues[this.currentIndex]);
-			advance();
-			return entry;
-		}
-	}
-
-	/**
-	 * Iterator that traverses the B+ Tree from right to left and provides access to entries (both keys and values).
-	 *
-	 * @param <V> the type of the values stored in the tree
-	 */
-	static class ReverseTreeEntryIterator<V> extends AbstractReverseTreeIterator<V> implements Iterator<Entry<V>> {
-
-		/**
-		 * Creates a reverse entry iterator starting from the rightmost entry.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 */
-		public ReverseTreeEntryIterator(@Nonnull Cursor cursor) {
-			super(cursor);
-		}
-
-		/**
-		 * Creates a reverse entry iterator starting from the specified key or the first key lesser than or equal to it.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 * @param key    the key to start the iteration from
-		 */
-		public ReverseTreeEntryIterator(@Nonnull Cursor cursor, long key) {
-			super(cursor, key);
 		}
 
 		@Override

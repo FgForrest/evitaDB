@@ -2355,6 +2355,9 @@ class ChainIndexTest {
 			assertReloadIdentical(idx, harvestPages(idx), "circular chain", true);
 		}
 
+		/**
+		 * Checks that reloading an empty page stream leaves no elements, chain state, or dirty leaves.
+		 */
 		@Test
 		@DisplayName("an empty index reloads to an empty index emitting no pages")
 		void shouldReloadEmptyIndex() {
@@ -2367,7 +2370,17 @@ class ChainIndexTest {
 			assertEquals(0, reconstructed.elements.getLength());
 			assertEquals(0, reconstructed.chains.size());
 			assertEquals(0, reconstructed.predecessors.size());
-			assertTrue(reconstructed.elements.collectChangedPages().isEmpty(), "Empty reload must emit no pages.");
+			assertTrue(hasNoDirtyLeaves(reconstructed), "Empty reload must emit no pages.");
+		}
+
+		/**
+		 * Checks the dirty flags on the element array's live page handles.
+		 *
+		 * @param index the chain index to inspect
+		 * @return true when none of the element leaves is dirty
+		 */
+		private static boolean hasNoDirtyLeaves(@Nonnull ChainIndex index) {
+			return index.elements.leafPageHandles().stream().noneMatch(UnorderedLookupTree.LeafPageHandle::isDirty);
 		}
 
 		/**
@@ -2429,6 +2442,11 @@ class ChainIndexTest {
 		 * predecessors, same successor inverse, not BROKEN, head marks coherent, and a first flush emits no pages. When
 		 * `deterministicLookupOrder` the semi-consistent {@code getUnorderedLookup} order is compared exactly; otherwise
 		 * (equal (state, length) ties make that order map-iteration-dependent) only the element multiset is compared.
+		 *
+		 * @param original the index before reload
+		 * @param pages the harvested leaf pages to reload
+		 * @param label the scenario label for assertion messages
+		 * @param deterministicLookupOrder whether to compare the exact lookup order
 		 */
 		private static void assertReloadIdentical(
 			@Nonnull ChainIndex original,
@@ -2498,7 +2516,7 @@ class ChainIndexTest {
 
 			// zero-emission proxy: the freshly reloaded index re-emits no pages on a first flush
 			assertTrue(
-				reconstructed.elements.collectChangedPages().isEmpty(),
+				hasNoDirtyLeaves(reconstructed),
 				label + ": a freshly reloaded index must emit no pages"
 			);
 		}

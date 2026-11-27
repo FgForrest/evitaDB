@@ -155,15 +155,6 @@ class TransactionalBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should return element by get without transaction")
-		void shouldReturnElementByGetWithoutTransaction() {
-			final TransactionalBitmap bitmap = new TransactionalBitmap(1, 5, 10);
-			assertEquals(1, bitmap.get(0));
-			assertEquals(5, bitmap.get(1));
-			assertEquals(10, bitmap.get(2));
-		}
-
-		@Test
 		@DisplayName("should return getRange without transaction")
 		void shouldReturnGetRangeWithoutTransaction() {
 			final TransactionalBitmap bitmap = new TransactionalBitmap(1, 5, 10, 15, 20);
@@ -887,29 +878,6 @@ class TransactionalBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should return get(index) reflecting transactional changes")
-		void shouldReturnGetInTransaction() {
-			final TransactionalBitmap bitmap = new TransactionalBitmap(1, 5, 10);
-
-			assertStateAfterCommit(
-				bitmap,
-				original -> {
-					original.add(3);
-					original.remove(5);
-					// transactional state: [1, 3, 10]
-					assertEquals(1, original.get(0));
-					assertEquals(3, original.get(1));
-					assertEquals(10, original.get(2));
-				},
-				(original, committed) -> {
-					assertArrayEquals(
-						new int[]{1, 3, 10}, committed.getArray()
-					);
-				}
-			);
-		}
-
-		@Test
 		@DisplayName("should return getRange reflecting transactional changes")
 		void shouldReturnGetRangeInTransaction() {
 			final TransactionalBitmap bitmap =
@@ -1071,18 +1039,6 @@ class TransactionalBitmapTest {
 			assertThrows(
 				NoSuchElementException.class,
 				bitmap::getLast
-			);
-		}
-
-		@Test
-		@DisplayName("should throw on get with out-of-bounds index")
-		void shouldHandleGetThrowsOnOutOfBoundsIndex() {
-			final TransactionalBitmap bitmap = new TransactionalBitmap(1, 5, 10);
-
-			// PersistentRoaringBitmap.select() throws IllegalArgumentException on OOB
-			assertThrows(
-				IllegalArgumentException.class,
-				() -> bitmap.get(100)
 			);
 		}
 

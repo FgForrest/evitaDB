@@ -755,7 +755,7 @@ class RangeValueColumnTest {
 			column.bulkLoad(new Object[0], 0);
 			assertEquals(0, column.size());
 			assertEquals(
-				columnOf(RangeKind.DATE_TIME, 0).getHeapSizeInBytes(), column.getHeapSizeInBytes(),
+				columnOf(RangeKind.DATE_TIME, 0).getHeapSizeInBytes(key -> 0L), column.getHeapSizeInBytes(key -> 0L),
 				"an empty load must leave both arrays on the shared empty constant"
 			);
 
@@ -817,14 +817,14 @@ class RangeValueColumnTest {
 				assertRebuiltBoundsAt(copy, i, offsetBearingRange(i + 1), "duplicate");
 			}
 
-			// `clearAt` truncates the live run, after which `trimmed` reallocates the survivors into a shorter backing
-			copy.clearAt(2);
+			// `fillEmpty` truncates the live run, then `trimmed` moves the survivors into a shorter backing array.
+			copy.fillEmpty(2, copy.capacity());
 			assertEquals(2, copy.size());
 			final ValueColumn<DateTimeRange> trimmed = copy.trimmed();
 			assertNotSame(copy, trimmed, "two live keys in eight slots must be worth a trim");
 			assertEquals(2, trimmed.size());
-			assertRebuiltBoundsAt(trimmed, 0, offsetBearingRange(0), "clearAt + trimmed");
-			assertRebuiltBoundsAt(trimmed, 1, offsetBearingRange(2), "clearAt + trimmed");
+			assertRebuiltBoundsAt(trimmed, 0, offsetBearingRange(0), "fillEmpty + trimmed");
+			assertRebuiltBoundsAt(trimmed, 1, offsetBearingRange(2), "fillEmpty + trimmed");
 		}
 	}
 

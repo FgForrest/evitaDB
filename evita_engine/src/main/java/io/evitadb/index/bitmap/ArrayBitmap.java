@@ -40,7 +40,6 @@ import java.util.PrimitiveIterator.OfInt;
 @RequiredArgsConstructor
 public class ArrayBitmap implements Bitmap {
 	@Serial private static final long serialVersionUID = -3942282119857234L;
-	private static final String ERROR_REMOVALS_NOT_SUPPORTED = "ArrayBitmap doesn't support removals!";
 	private final CompositeIntArray intArray;
 
 	public ArrayBitmap(int... recordId) {
@@ -58,29 +57,9 @@ public class ArrayBitmap implements Bitmap {
 	}
 
 	@Override
-	public void addAll(int... recordId) {
-		this.intArray.addAll(recordId, 0, recordId.length);
-	}
-
-	@Override
 	public void addAll(@Nonnull Bitmap recordIds) {
 		final int[] recs = recordIds.getArray();
 		this.intArray.addAll(recs, 0, recs.length);
-	}
-
-	@Override
-	public boolean remove(int recordId) {
-		throw new UnsupportedOperationException(ERROR_REMOVALS_NOT_SUPPORTED);
-	}
-
-	@Override
-	public void removeAll(int... recordId) {
-		throw new UnsupportedOperationException(ERROR_REMOVALS_NOT_SUPPORTED);
-	}
-
-	@Override
-	public void removeAll(@Nonnull Bitmap recordIds) {
-		throw new UnsupportedOperationException(ERROR_REMOVALS_NOT_SUPPORTED);
 	}
 
 	@Override
@@ -91,11 +70,6 @@ public class ArrayBitmap implements Bitmap {
 	@Override
 	public int indexOf(int recordId) {
 		return this.intArray.indexOf(recordId);
-	}
-
-	@Override
-	public int get(int index) {
-		return this.intArray.get(index);
 	}
 
 	@Override

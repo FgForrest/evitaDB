@@ -54,20 +54,20 @@ import static org.junit.jupiter.api.Assertions.fail;
 /**
  * Generational randomized proof test for {@link TransactionalIntToLongBPlusTree} - the primitive-`int` key,
  * primitive-`long` value B+ tree. The value is deterministically derived from the key ({@code key * 10}), so a plain
- * ascending key set is a sufficient reference double and a value-preserving `upsert` keeps that reference exact whether
+ * ascending key set is a sufficient reference. A value-preserving overwrite keeps that reference exact whether
  * the key was absent (insert + possible split) or already present.
  *
  * The class exposes both coverage axes the family needs:
- * - the **WARM_UP** (non-transactional / bulk-load) axis churns random insert / upsert / delete operations directly on
+ * - the **WARM_UP** (non-transactional / bulk-load) axis applies random inserts, overwrites and deletes to
  *   one long-lived bare tree, asserting `getConsistencyReport()` == CONSISTENT and the exact ascending content after
  *   every structural change;
  * - the **ALIVE** (transactional) axis rebuilds a fresh tree from the previous generation's committed contents, applies
- *   a random batch of insert / upsert / delete inside a single transaction and commits via
+ *   a random batch of insert / overwrite / delete inside a single transaction and commits via
  *   {@link io.evitadb.utils.AssertionUtils#assertStateAfterCommit} - which runs the transactional-layer sweep on every
  *   commit - then validates the committed tree against a `TreeSet<Integer>` reference double. Each generation draws a
  *   small block size from `{3, 5, 7}` so leaves split and merge densely.
  *
- * All three public mutation paths that drive split / merge (insert, upsert, delete) are exercised. The run is
+ * All three public mutation paths that drive split / merge (insert, overwrite, delete) are exercised. The run is
  * time-bounded; the seed is printed on failure and the per-generation operation log is included in the failure message.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -111,7 +111,7 @@ class LongRunningTransactionalIntToLongBPlusTreeTest implements TimeBoundedTestS
 	}
 
 	/**
-	 * Verifies the tree's internal consistency report and that both the forward and reverse value iterators agree with
+	 * Checks the tree's consistency report and compares both traversal orders and their values with
 	 * the deterministic values of the expected ascending key array.
 	 *
 	 * @param tree         the tree to verify
@@ -129,23 +129,23 @@ class LongRunningTransactionalIntToLongBPlusTreeTest implements TimeBoundedTestS
 			expectedValues[i] = valueOf(expectedKeys[i]);
 		}
 
-		// forward value iteration
+		// forward traversal and value lookup
 		final long[] forwardValues = new long[expectedValues.length];
 		int index = 0;
-		final PrimitiveIterator.OfLong forward = tree.valueIterator();
+		final PrimitiveIterator.OfInt forward = tree.keyIterator();
 		while (forward.hasNext()) {
-			forwardValues[index++] = forward.nextLong();
+			forwardValues[index++] = tree.search(forward.nextInt()).orElseThrow();
 		}
 		assertEquals(expectedValues.length, index, "Forward iterator produced a different element count");
 		assertArrayEquals(expectedValues, forwardValues, "Forward value iterator mismatch");
 		assertThrows(NoSuchElementException.class, forward::next, "Forward iterator should be exhausted");
 
-		// reverse value iteration
+		// reverse traversal and value lookup
 		final long[] reverseValues = new long[expectedValues.length];
 		index = expectedValues.length;
-		final PrimitiveIterator.OfLong reverse = tree.valueReverseIterator();
+		final PrimitiveIterator.OfInt reverse = tree.keyReverseIterator();
 		while (reverse.hasNext()) {
-			reverseValues[--index] = reverse.nextLong();
+			reverseValues[--index] = tree.search(reverse.nextInt()).orElseThrow();
 		}
 		assertEquals(0, index, "Reverse iterator produced a different element count");
 		assertArrayEquals(expectedValues, reverseValues, "Reverse value iterator mismatch");
@@ -153,10 +153,10 @@ class LongRunningTransactionalIntToLongBPlusTreeTest implements TimeBoundedTestS
 	}
 
 	@ParameterizedTest(
-		name = "TransactionalIntToLongBPlusTree should survive non-transactional generational insert/upsert/delete churn"
+		name = "TransactionalIntToLongBPlusTree should survive non-transactional insert/overwrite/delete churn"
 	)
 	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("survives randomized non-transactional (warm-up) insert/upsert/delete churn")
+	@DisplayName("survives randomized non-transactional (warm-up) insert/overwrite/delete churn")
 	void generationalWarmUpProofTest(@Nonnull GenerationalTestInput input) {
 		final long seed = input.randomSeed();
 		// print the seed so a failing run can be reproduced deterministically
@@ -181,7 +181,7 @@ class LongRunningTransactionalIntToLongBPlusTreeTest implements TimeBoundedTestS
 				final boolean delete =
 					(startArray.length > 0 && random.nextInt(3) == 0)
 						|| (state.limitReached() && startArray.length > LIMIT_ELEMENTS / 2);
-				final boolean useUpsert = !delete && random.nextBoolean();
+				final boolean useOverwrite = !delete && random.nextBoolean();
 				try {
 					final int[] endArray;
 					if (delete) {
@@ -191,11 +191,11 @@ class LongRunningTransactionalIntToLongBPlusTreeTest implements TimeBoundedTestS
 					} else {
 						key = random.nextInt(LIMIT_ELEMENTS << 1);
 						endArray = ArrayUtils.insertIntIntoOrderedArray(key, startArray);
-						if (useUpsert) {
-							// value-preserving upsert exercises the insert-or-update public path while keeping the
+						if (useOverwrite) {
+							// insert can overwrite an existing key while keeping the
 							// reference exact whether the key was absent (insert + possible split) or already present
-							final int upsertKey = key;
-							tree.upsert(upsertKey, existing -> valueOf(upsertKey));
+							final int overwriteKey = key;
+							tree.insert(overwriteKey, tree.searchOrDefault(overwriteKey, valueOf(overwriteKey)));
 						} else {
 							tree.insert(key, valueOf(key));
 						}
@@ -204,7 +204,7 @@ class LongRunningTransactionalIntToLongBPlusTreeTest implements TimeBoundedTestS
 					verifyTreeConsistency(tree, endArray);
 
 					return new GenState(
-						state.code().append(delete ? "D:" : useUpsert ? "U:" : "I:").append(key).append(' '),
+						state.code().append(delete ? "D:" : useOverwrite ? "W:" : "I:").append(key).append(' '),
 						endArray,
 						state.limitReached()
 							? endArray.length > LIMIT_ELEMENTS / 2
@@ -212,7 +212,7 @@ class LongRunningTransactionalIntToLongBPlusTreeTest implements TimeBoundedTestS
 					);
 				} catch (Exception ex) {
 					fail(
-						"Failed to " + (delete ? "delete" : useUpsert ? "upsert" : "insert") + " key " + key
+						"Failed to " + (delete ? "delete" : useOverwrite ? "overwrite" : "insert") + " key " + key
 							+ " for seed " + seed,
 						ex
 					);
@@ -223,10 +223,10 @@ class LongRunningTransactionalIntToLongBPlusTreeTest implements TimeBoundedTestS
 	}
 
 	@ParameterizedTest(
-		name = "TransactionalIntToLongBPlusTree should survive transactional generational insert/upsert/delete churn"
+		name = "TransactionalIntToLongBPlusTree should survive transactional generational insert/overwrite/delete churn"
 	)
 	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("survives randomized transactional insert/upsert/delete churn swept cleanly on commit")
+	@DisplayName("survives randomized transactional insert/overwrite/delete churn swept cleanly on commit")
 	void generationalTransactionalProofTest(@Nonnull GenerationalTestInput input) {
 		final long seed = input.randomSeed();
 		// print the seed so a failing run can be reproduced deterministically
@@ -276,9 +276,9 @@ class LongRunningTransactionalIntToLongBPlusTreeTest implements TimeBoundedTestS
 										original.insert(key, valueOf(key));
 										code.append("I:").append(key).append(' ');
 									} else {
-										// value-preserving upsert keeps the oracle exact on both insert and update
-										original.upsert(key, existing -> valueOf(key));
-										code.append("U:").append(key).append(' ');
+										// the same insert overwrites an existing key
+										original.insert(key, original.searchOrDefault(key, valueOf(key)));
+										code.append("W:").append(key).append(' ');
 									}
 									oracle.add(key);
 								}

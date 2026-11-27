@@ -197,6 +197,9 @@ class ChainIndexLegacyLoadTransactionalFlushTest {
 	@DisplayName("First flush after a legacy load")
 	class FirstFlushTest {
 
+		/**
+		 * Stamps page sequences on leaves the transaction never touched without tripping the sealed layer.
+		 */
 		@Test
 		@DisplayName("stamps page sequences on leaves the transaction never touched without tripping the sealed layer")
 		void shouldStampUntouchedLeavesDuringSealedCommitFlush() {
@@ -225,7 +228,7 @@ class ChainIndexLegacyLoadTransactionalFlushTest {
 			);
 			assertEquals(
 				RECORD_COUNT + 1,
-				committed.getUnorderedLookup().size(),
+				committed.getUnorderedLookup().getArray().length,
 				"The appended record must be part of the merged index!"
 			);
 		}

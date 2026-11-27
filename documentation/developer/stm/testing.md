@@ -220,13 +220,13 @@ Every generational test class lives in `evita_test/evita_long_running_tests` and
 
 | Data structure                       | Generational test class (long-running module)      | Operations tested                                      |
 |--------------------------------------|----------------------------------------------------|--------------------------------------------------------|
-| `TransactionalIntArray`        | `LongRunningTransactionalIntArrayTest` | Add, indexed get, remove → committed array |
+| `TransactionalIntArray`        | `LongRunningTransactionalIntArrayTest` | Add, read the array, remove → committed array |
 | `TransactionalUnorderedIntArray` | `LongRunningTransactionalUnorderedIntArrayTest` | Append/insert/rm → order/index |
 | `UnorderedLookupTree` | `LongRunningUnorderedLookupTreeTest` | Positional insert, remove → order, lookups, integrity |
 | `TransactionalMap`  | `LongRunningTransactionalMapTest` | Put/remove, entry setValue, iterator remove → map contents |
 | Bitmap-valued map | `LongRunningTransactionalMapWithBitmapValuesTest` | Put/remove, bitmap add/remove → map and bits |
 | `TransactionalSet`                   | `LongRunningTransactionalSetTest`  | Add/remove, iterator remove → membership |
-| `TransactionalBitmap`      | `LongRunningTransactionalBitmapTest` | Add, indexed get, remove → ordered bits and size |
+| `TransactionalBitmap`      | `LongRunningTransactionalBitmapTest` | Add, select with a one-record `getRange`, remove → ordered bits and size |
 | `TransactionalBoolean`          | `LongRunningTransactionalBooleanTest` | Set true/false → live and committed values |
 | `TransactionalReference` | `LongRunningTransactionalReferenceTest` | Set true/false → live and committed values |
 | `TransactionalRangePoint` | `LongRunningTransactionalRangePointTest` | Add/remove starts/ends → bitmaps, threshold |
@@ -234,7 +234,7 @@ Every generational test class lives in `evita_test/evita_long_running_tests` and
 | `TransactionalLongBPlusTree`   | `LongRunningTransactionalLongBPlusTreeTest` | Ins/upsert/rm, search/bit add → order |
 | `TransactionalObjectBPlusTree`  | `LongRunningTransactionalObjectBPlusTreeTest` | Insert/upsert/delete → value order |
 | `TransactionalElementBPlusTree` | `LongRunningTransactionalElementBPlusTreeTest` | Insert/delete → both ID orders |
-| `TransactionalIntToLongBPlusTree` | `LongRunningTransactionalIntToLongBPlusTreeTest` | Insert/upsert/rm → value scan |
+| `TransactionalIntToLongBPlusTree` | `LongRunningTransactionalIntToLongBPlusTreeTest` | Insert/overwrite/remove → ordered keys and value lookups |
 | `CumulativeWeightBPlusTree`  | `LongRunningCumulativeWeightBPlusTreeTest` | Insert/remove/reweight → order and ranks |
 | `PersistentTransactionalMap`      | `LongRunningPersistentTransactionalMapTest` | Put/rm, edit/rm entries → ChampMap |
 | `PersistentTransactionalProducerMap` | `LongRunningPersistentTransactionalProducerMapTest` | Put/rm, edit+mark → map |

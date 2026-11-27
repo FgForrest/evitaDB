@@ -714,28 +714,8 @@ class WarmUpSavepointIndexRollbackTest {
 		}
 
 		@Override
-		public void addAll(int... recordId) {
-			throw unreached("addAll(int...)");
-		}
-
-		@Override
 		public void addAll(@Nonnull Bitmap recordIds) {
 			throw unreached("addAll(Bitmap)");
-		}
-
-		@Override
-		public boolean remove(int recordId) {
-			throw unreached("remove");
-		}
-
-		@Override
-		public void removeAll(int... recordId) {
-			throw unreached("removeAll(int...)");
-		}
-
-		@Override
-		public void removeAll(@Nonnull Bitmap recordIds) {
-			throw unreached("removeAll(Bitmap)");
 		}
 
 		@Override
@@ -746,11 +726,6 @@ class WarmUpSavepointIndexRollbackTest {
 		@Override
 		public int indexOf(int recordId) {
 			throw unreached("indexOf");
-		}
-
-		@Override
-		public int get(int index) {
-			throw unreached("get");
 		}
 
 		@Override
@@ -871,28 +846,8 @@ class WarmUpSavepointIndexRollbackTest {
 		}
 
 		@Override
-		public void addAll(int... recordId) {
-			throw unreached("addAll(int...)");
-		}
-
-		@Override
 		public void addAll(@Nonnull Bitmap recordIds) {
 			throw unreached("addAll(Bitmap)");
-		}
-
-		@Override
-		public boolean remove(int recordId) {
-			throw unreached("remove");
-		}
-
-		@Override
-		public void removeAll(int... recordId) {
-			throw unreached("removeAll(int...)");
-		}
-
-		@Override
-		public void removeAll(@Nonnull Bitmap recordIds) {
-			throw unreached("removeAll(Bitmap)");
 		}
 
 		@Override
@@ -903,11 +858,6 @@ class WarmUpSavepointIndexRollbackTest {
 		@Override
 		public int indexOf(int recordId) {
 			throw unreached("indexOf");
-		}
-
-		@Override
-		public int get(int index) {
-			throw unreached("get");
 		}
 
 		@Override

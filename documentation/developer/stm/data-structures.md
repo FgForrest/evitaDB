@@ -19,7 +19,7 @@ diff strategy, and its commit behaviour.
 
 | Depth       | Meaning                                                                           | Examples                                                   |
 |-------------|-----------------------------------------------------------------------------------|------------------------------------------------------------|
-| **Shallow** | The diff captures changes to the structure itself (inserts, removals, reorderings). On commit, a new container is created with the merged data. Contained elements are plain values (primitives, strings, etc.) and are not recursively merged. | `TransactionalIntArray`, `TransactionalBitmap`, `TransactionalBoolean`, `TransactionalReference`, `TransactionalSet` (when elements are plain values) |
+| **Shallow** | The diff captures changes to the structure itself (inserts, removals, reorderings). On commit, a new container is created with the merged data. Contained elements are plain values (primitives, strings, etc.) and are not recursively merged. | `TransactionalIntArray`, `TransactionalBitmap`, `TransactionalBoolean`, `TransactionalReference`, `TransactionalSet` |
 | **Deep** | Commits nested producers recursively. | `TransactionalMap` with producer values |
 
 ---
@@ -38,12 +38,12 @@ Ordered (sorted, ascending) array of unique `int` values.
 - Maintains a memoized merged `int[]` that is recomputed lazily on the first read after a write.
 
 **Optimised read-through methods** (operate on the diff without materialising the merged array):
-- `indexOf(int)`, `contains(int)`, `length()`
+- `contains(int)`, `getLength()` and `isEmpty()`
 
 **Commit:** Returns `layer.getMergedArray()` -- a new `int[]` combining original and diff.
 
-**Non-transactional fallback:** When no transaction is active, mutations (e.g. `addRecordId`) modify
-the delegate `int[]` directly.
+**Non-transactional fallback:** When no transaction is active, `add(int)` and `remove(int)` apply changes
+to the delegate by replacing its `int[]`.
 
 ---
 
@@ -51,17 +51,17 @@ the delegate `int[]` directly.
 
 **Implements:** `TransactionalLayerProducer<Void, TransactionalUnorderedIntArray>`
 
-Unordered `int` array that allows duplicate values and position-based insertion.
+Unordered `int` array of distinct values that supports position-based insertion.
 
 **Key operations:**
 - `add(previousRecordId, recordId)` -- insert after a specific element.
 - `addOnIndex(index, recordId)` -- positional insertion.
-- `removeRange(startIndex, endIndex)`.
-- Optimised read-through: `indexOf`, `contains`, `length`.
+- `remove(recordId)` -- remove a single record by id.
+- Optimised read-through: `indexOf`, `contains`, `getLength`.
 
 **No own diff layer (composite façade).** The array is a thin façade over two transactional B+ trees,
 each of which carries its own transactional layer (so the façade itself produces a `Void` diff and
-delegates). This keeps every operation -- positional insert, removal range, and `indexOf` -- at
+delegates). This keeps every operation -- positional insert, single-record removal, and `indexOf` -- at
 `O(log N)` without a hand-maintained positional diff:
 
 - a **position tree** (`UnorderedLookupTree`, an order-statistic tree) holding the elements in
@@ -104,23 +104,24 @@ Transactional wrapper for a single object reference (backed by `AtomicReference<
 
 **Implements:** `TransactionalLayerProducer<BitmapChanges, Bitmap>`
 
-Transactional wrapper for `RoaringBitmap` -- a compressed bitset of unique integers.
+Transactional wrapper for `PersistentRoaringBitmap` -- a compressed bitset of unique integers.
 
 **Diff layer (`BitmapChanges`):**
-- `insertions: RoaringBitmap` -- bits added in the transaction.
-- `removals: RoaringBitmap` -- bits removed in the transaction.
-- `memoizedMergedBitmap` -- cached merge result, invalidated on each write.
+- `insertions: PersistentRoaringBitmap` -- bits added in the transaction.
+- `removals: PersistentRoaringBitmap` -- bits removed in the transaction.
+- `memoizedMergedBitmap` -- cached merge result, invalidated when the diff changes.
 
 **Merge formula:**
 ```
 merged = (original OR insertions) AND_NOT removals
 ```
 
-**Performance note:** Merging clones the original `RoaringBitmap` internally, which is suboptimal.
-The `RoaringBitmap` library does not provide an immutable variant, so the entire bitmap is cloned
-during merge. Results are cached until the next write operation.
+**Performance note:** An empty diff returns the original bitmap. For a non-empty diff, the vendored
+copy-on-write `PersistentRoaringBitmap` combines the original bitmap and the insertions with `or`,
+then applies the removals with `andNot`. These operations share unchanged containers and build
+new containers where their container keys overlap. The result is run-optimized before it is cached.
 
-**Commit:** Returns a new `BaseBitmap` wrapping the merged `RoaringBitmap`.
+**Commit:** Returns a new `BaseBitmap` wrapping the merged `PersistentRoaringBitmap` when a diff layer exists. A commit without a layer returns the original bitmap.
 
 ---
 
@@ -168,10 +169,10 @@ When `valueType` is `null`, the map is "shallow" -- values are treated as plain 
 Transactional wrapper for `java.util.Set`.
 
 **Diff layer (`SetChanges<K>`):**
-- Added keys (newly inserted).
-- Removed keys (deleted from original).
+- Added keys are absent from the delegate.
+- Removed keys are members of the delegate. Adding one of these keys back cancels its pending removal.
 
-**Iterator:** Merges created keys with original keys minus removed keys.
+**Iterator:** Yields created keys first, followed by delegate keys still present in the transactional set.
 
 ---
 

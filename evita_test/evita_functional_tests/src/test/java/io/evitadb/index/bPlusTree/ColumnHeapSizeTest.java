@@ -142,7 +142,7 @@ class ColumnHeapSizeTest {
 			for (int i = 0; i < POPULATED_ENTRIES; i++) {
 				column.insertKeyAt(i, i);
 			}
-			assertEquals(JolHeapSize.ownedSize(column), column.getHeapSizeInBytes());
+			assertEquals(JolHeapSize.ownedSize(column), column.getHeapSizeInBytes(key -> 0L));
 		}
 
 		@Test
@@ -153,7 +153,7 @@ class ColumnHeapSizeTest {
 				column.insertKeyAt(i, i);
 			}
 			// the codec is excluded from the measurement because it is a shared enum constant, not this column's
-			assertEquals(JolHeapSize.ownedSize(column, codec), column.getHeapSizeInBytes());
+			assertEquals(JolHeapSize.ownedSize(column, codec), column.getHeapSizeInBytes(key -> 0L));
 		}
 
 		@Test
@@ -167,7 +167,7 @@ class ColumnHeapSizeTest {
 				column.insertKeyAt(i, Instant.ofEpochMilli(i));
 			}
 			// the codec is excluded from the measurement because it is a shared enum constant, not this column's
-			assertEquals(JolHeapSize.ownedSize(column, codec), column.getHeapSizeInBytes());
+			assertEquals(JolHeapSize.ownedSize(column, codec), column.getHeapSizeInBytes(key -> 0L));
 		}
 
 		@Test
@@ -179,7 +179,7 @@ class ColumnHeapSizeTest {
 			for (int i = 0; i < POPULATED_ENTRIES; i++) {
 				column.insertKeyAt(i, dateTimeRange(i));
 			}
-			assertEquals(JolHeapSize.ownedSize(column, RangeKind.DATE_TIME), column.getHeapSizeInBytes());
+			assertEquals(JolHeapSize.ownedSize(column, RangeKind.DATE_TIME), column.getHeapSizeInBytes(key -> 0L));
 		}
 
 		@Test
@@ -194,7 +194,7 @@ class ColumnHeapSizeTest {
 			}
 			assertEquals(
 				JolHeapSize.ownedSize(column, RangeKind.INTEGER_NUMBER),
-				column.getHeapSizeInBytes()
+				column.getHeapSizeInBytes(key -> 0L)
 			);
 			final ValueColumn<DateTimeRange> dateTimeShape =
 				new RangeValueColumn<>(RangeKind.DATE_TIME, 0, BLOCK_SIZE);
@@ -202,7 +202,7 @@ class ColumnHeapSizeTest {
 				dateTimeShape.insertKeyAt(i, dateTimeRange(i));
 			}
 			assertEquals(
-				dateTimeShape.getHeapSizeInBytes(), column.getHeapSizeInBytes(),
+				dateTimeShape.getHeapSizeInBytes(key -> 0L), column.getHeapSizeInBytes(key -> 0L),
 				"the two range kinds must weigh the same for the same key count"
 			);
 		}
@@ -214,7 +214,7 @@ class ColumnHeapSizeTest {
 				// a shared-prefix corpus, which is what front-coding exists for
 				column.insertKeyAt(i, String.format("product-name-%04d", i));
 			}
-			assertEquals(JolHeapSize.ownedSize(column), column.getHeapSizeInBytes());
+			assertEquals(JolHeapSize.ownedSize(column), column.getHeapSizeInBytes(key -> 0L));
 		}
 
 		@Test
@@ -264,8 +264,8 @@ class ColumnHeapSizeTest {
 			}
 			column.fillEmpty(1, BLOCK_SIZE);
 			final ValueColumn<Integer> trimmed = column.trimmed();
-			assertEquals(JolHeapSize.ownedSize(trimmed), trimmed.getHeapSizeInBytes());
-			assertTrue(trimmed.getHeapSizeInBytes() < column.getHeapSizeInBytes());
+			assertEquals(JolHeapSize.ownedSize(trimmed), trimmed.getHeapSizeInBytes(key -> 0L));
+			assertTrue(trimmed.getHeapSizeInBytes(key -> 0L) < column.getHeapSizeInBytes(key -> 0L));
 		}
 	}
 
@@ -283,14 +283,14 @@ class ColumnHeapSizeTest {
 
 			// the codec really is reachable from the column, so a naive deep walk would bill it here...
 			final long naiveDeepWalk = JolHeapSize.ownedSize(column);
-			assertTrue(naiveDeepWalk > column.getHeapSizeInBytes());
+			assertTrue(naiveDeepWalk > column.getHeapSizeInBytes(key -> 0L));
 
 			// ...and every column of this key type would be billed for the same one enum constant
 			final ValueColumn<Integer> sibling = new LongValueColumn<>(codec, BLOCK_SIZE);
 			for (int i = 0; i < POPULATED_ENTRIES; i++) {
 				sibling.insertKeyAt(i, i);
 			}
-			assertEquals(column.getHeapSizeInBytes(), sibling.getHeapSizeInBytes());
+			assertEquals(column.getHeapSizeInBytes(key -> 0L), sibling.getHeapSizeInBytes(key -> 0L));
 		}
 
 		@Test
@@ -300,7 +300,7 @@ class ColumnHeapSizeTest {
 			// pair of objects once per empty leaf in the whole catalog
 			assertEquals(
 				JolHeapSize.ownedSize(column, EMPTY_BYTE_ARRAY, EMPTY_INT_ARRAY),
-				column.getHeapSizeInBytes()
+				column.getHeapSizeInBytes(key -> 0L)
 			);
 		}
 
@@ -356,7 +356,7 @@ class ColumnHeapSizeTest {
 			// fails. It therefore allocates a zero-length array of its real component type and pays the sixteen
 			// bytes - which also keeps the arithmetic and a JOL walk in agreement without a sixth shared constant
 			final ValueColumn<UUID> column = new BoxedObjectColumn<>(UUID.class, BLOCK_SIZE);
-			assertEquals(JolHeapSize.ownedSize(column, UUID.class), column.getHeapSizeInBytes());
+			assertEquals(JolHeapSize.ownedSize(column, UUID.class), column.getHeapSizeInBytes(key -> 0L));
 		}
 
 		@Test
@@ -371,7 +371,7 @@ class ColumnHeapSizeTest {
 				"an empty duplicate must own its array, or the pair reports one array twice"
 			);
 
-			final long reported = column.getHeapSizeInBytes() + copy.getHeapSizeInBytes();
+			final long reported = column.getHeapSizeInBytes(key -> 0L) + copy.getHeapSizeInBytes(key -> 0L);
 			final long measured = JolHeapSize.ownedSize(column, UUID.class)
 				+ JolHeapSize.ownedSize(copy, UUID.class);
 			assertEquals(
@@ -394,7 +394,7 @@ class ColumnHeapSizeTest {
 			// its loader, which JOL happily walks into and bills at ~1 kB - once per column, if it were charged
 			assertEquals(
 				JolHeapSize.ownedSize(column, sharedRootsOf(elements)),
-				column.getHeapSizeInBytes()
+				column.getHeapSizeInBytes(key -> 0L)
 			);
 		}
 
@@ -423,7 +423,7 @@ class ColumnHeapSizeTest {
 
 			// the sparse column owns four reference slots against the full one's sixty-four, so even the
 			// element-free figure separates them now
-			assertTrue(full.getHeapSizeInBytes() > sparse.getHeapSizeInBytes());
+			assertTrue(full.getHeapSizeInBytes(key -> 0L) > sparse.getHeapSizeInBytes(key -> 0L));
 			assertTrue(
 				full.getHeapSizeInBytes(JolHeapSize::shallowSize)
 					> sparse.getHeapSizeInBytes(JolHeapSize::shallowSize),
@@ -442,7 +442,7 @@ class ColumnHeapSizeTest {
 			// one live key over a backing array of eight, so seven slots must be null and must contribute nothing
 			column.fillEmpty(1, BLOCK_SIZE);
 			assertEquals(
-				column.getHeapSizeInBytes() + JolHeapSize.shallowSize(uuid(0)),
+				column.getHeapSizeInBytes(key -> 0L) + JolHeapSize.shallowSize(uuid(0)),
 				column.getHeapSizeInBytes(JolHeapSize::shallowSize)
 			);
 		}
@@ -457,7 +457,7 @@ class ColumnHeapSizeTest {
 			// keys live as `int` values inside the array - there is no element to price, and a caller passing a
 			// sizer must not accidentally inflate the figure
 			assertEquals(
-				column.getHeapSizeInBytes(),
+				column.getHeapSizeInBytes(key -> 0L),
 				column.getHeapSizeInBytes(element -> 1_000_000L)
 			);
 		}
@@ -476,9 +476,9 @@ class ColumnHeapSizeTest {
 			}
 
 			// the footprint moves with the content: an empty block owns no storage at all, a full one owns all of it
-			assertTrue(empty.getHeapSizeInBytes() < full.getHeapSizeInBytes());
-			assertEquals(JolHeapSize.ownedSize(empty, EMPTY_INT_ARRAY), empty.getHeapSizeInBytes());
-			assertEquals(JolHeapSize.ownedSize(full), full.getHeapSizeInBytes());
+			assertTrue(empty.getHeapSizeInBytes(key -> 0L) < full.getHeapSizeInBytes(key -> 0L));
+			assertEquals(JolHeapSize.ownedSize(empty, EMPTY_INT_ARRAY), empty.getHeapSizeInBytes(key -> 0L));
+			assertEquals(JolHeapSize.ownedSize(full), full.getHeapSizeInBytes(key -> 0L));
 		}
 
 		@Test
@@ -492,15 +492,15 @@ class ColumnHeapSizeTest {
 				large.insertKeyAt(i, i);
 			}
 
-			assertEquals(small.getHeapSizeInBytes(), large.getHeapSizeInBytes());
-			assertEquals(JolHeapSize.ownedSize(large), large.getHeapSizeInBytes());
+			assertEquals(small.getHeapSizeInBytes(key -> 0L), large.getHeapSizeInBytes(key -> 0L));
+			assertEquals(JolHeapSize.ownedSize(large), large.getHeapSizeInBytes(key -> 0L));
 
 			// ...while the same block size holding four times the content does move it
 			final ValueColumn<Integer> denser = new IntValueColumn<>(BLOCK_SIZE);
 			for (int i = 0; i < BLOCK_SIZE; i++) {
 				denser.insertKeyAt(i, i);
 			}
-			assertTrue(denser.getHeapSizeInBytes() > small.getHeapSizeInBytes());
+			assertTrue(denser.getHeapSizeInBytes(key -> 0L) > small.getHeapSizeInBytes(key -> 0L));
 		}
 	}
 
@@ -519,12 +519,12 @@ class ColumnHeapSizeTest {
 
 			// both report the full figure: the predecessor is garbage-in-waiting and the survivor becomes sole owner,
 			// so discounting the share would under-report whichever one outlives the other
-			assertEquals(committed.getHeapSizeInBytes(), duplicate.getHeapSizeInBytes());
-			assertEquals(JolHeapSize.ownedSize(duplicate), duplicate.getHeapSizeInBytes());
+			assertEquals(committed.getHeapSizeInBytes(key -> 0L), duplicate.getHeapSizeInBytes(key -> 0L));
+			assertEquals(JolHeapSize.ownedSize(duplicate), duplicate.getHeapSizeInBytes(key -> 0L));
 
 			// and the share is real - excluding the source strips almost the whole footprint of the duplicate
 			assertTrue(
-				JolHeapSize.ownedSize(duplicate, committed) < duplicate.getHeapSizeInBytes() / 2,
+				JolHeapSize.ownedSize(duplicate, committed) < duplicate.getHeapSizeInBytes(key -> 0L) / 2,
 				"the duplicate must genuinely alias the source's backing arrays"
 			);
 		}

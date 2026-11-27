@@ -427,7 +427,9 @@ class TransactionalBucketBPlusTreeLongPayloadTest {
 		@Test
 		@DisplayName("rejects the long-payload API on an int record-set tree")
 		void shouldRejectLongApiOnIntTree() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(5, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				5, Integer.class, null
+			);
 			tree.addRecord(1, 100);
 			assertThrows(GenericEvitaInternalError.class, () -> tree.addLongRecord(2, 222L));
 			assertThrows(GenericEvitaInternalError.class, () -> tree.removeLongRecord(1));

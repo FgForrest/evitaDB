@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -49,7 +50,10 @@ import java.util.Set;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TRANSACTION;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies that the collection-backed index structures — {@link TransactionalMap}, {@link PersistentTransactionalMap}
@@ -102,6 +106,14 @@ class WarmUpSavepointCollectionRollbackTest {
 		return copy;
 	}
 
+	/**
+	 * Map value with value-based equality, so two instances can be equal yet distinct.
+	 *
+	 * @param value the payload that equality compares
+	 */
+	private record Payload(int value) {
+	}
+
 	@Nested
 	@DisplayName("TransactionalMap - own mutators")
 	class Maps {
@@ -138,6 +150,60 @@ class WarmUpSavepointCollectionRollbackTest {
 			savepoint.rollback();
 
 			assertEquals(Map.of("a", 1, "b", 2), contentOf(map), "Rollback must restore a cleared map wholesale.");
+		}
+
+		@Test
+		@DisplayName("Rollback succeeds after the delegate rejected every single-key write")
+		void shouldRollBackWhenDelegateRejectsSlotWrites() {
+			final TransactionalMap<String, Integer> map = new TransactionalMap<>(Map.of("a", 1));
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			assertThrows(UnsupportedOperationException.class, () -> map.put("a", 2));
+			assertThrows(UnsupportedOperationException.class, () -> map.put("b", 2));
+			assertThrows(UnsupportedOperationException.class, () -> map.remove("a"));
+			assertThrows(UnsupportedOperationException.class, () -> map.putAll(Map.of("b", 2)));
+			final Iterator<String> it = map.keySet().iterator();
+			it.next();
+			assertThrows(UnsupportedOperationException.class, it::remove);
+			assertThrows(
+				UnsupportedOperationException.class, () -> map.entrySet().iterator().next().setValue(3)
+			);
+			assertDoesNotThrow(
+				savepoint::rollback,
+				"Writes the delegate rejected changed nothing, so the rollback has nothing to write back."
+			);
+
+			assertEquals(Map.of("a", 1), contentOf(map), "The rejected writes must leave the map as it was.");
+		}
+
+		@Test
+		@DisplayName("Rollback succeeds after the delegate rejected a clear")
+		void shouldRollBackWhenDelegateRejectsClear() {
+			final TransactionalMap<String, Integer> map = new TransactionalMap<>(Map.of("a", 1, "b", 2));
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			assertThrows(UnsupportedOperationException.class, map::clear);
+			assertDoesNotThrow(
+				savepoint::rollback, "A clear the delegate rejected changed nothing, so the rollback must not rewrite."
+			);
+
+			assertEquals(Map.of("a", 1, "b", 2), contentOf(map), "The rejected clear must leave the map as it was.");
+		}
+
+		@Test
+		@DisplayName("Rollback puts back the very value instance an equal value overwrote")
+		void shouldRestoreOriginalInstanceAfterEqualOverwrite() {
+			final Payload original = new Payload(1);
+			final TransactionalMap<String, Payload> map = new TransactionalMap<>(new HashMap<>(Map.of("a", original)));
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			map.put("a", new Payload(1));
+			savepoint.rollback();
+
+			assertSame(
+				original, map.get("a"),
+				"An equal value is still a different instance, so the rollback must restore the original one."
+			);
 		}
 
 		@Test
@@ -446,7 +512,7 @@ class WarmUpSavepointCollectionRollbackTest {
 		@DisplayName("Rollback restores the set through every mutator kind")
 		void shouldRestoreSetAfterMixedMutations() {
 			final TransactionalSet<String> set = new TransactionalSet<>(
-				new HashSet<>(Set.of("a", "b", "c", "d"))
+				new HashSet<>(Set.of("a", "b", "c", "d")), String.class
 			);
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
@@ -468,7 +534,9 @@ class WarmUpSavepointCollectionRollbackTest {
 		@Test
 		@DisplayName("Rollback restores elements removed through the iterator and removeIf")
 		void shouldRestoreRemovalsThroughIterator() {
-			final TransactionalSet<String> set = new TransactionalSet<>(new HashSet<>(Set.of("a", "b", "c")));
+			final TransactionalSet<String> set = new TransactionalSet<>(
+				new HashSet<>(Set.of("a", "b", "c")), String.class
+			);
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			final Iterator<String> it = set.iterator();
@@ -488,10 +556,60 @@ class WarmUpSavepointCollectionRollbackTest {
 		}
 
 		@Test
+		@DisplayName("Rollback succeeds after the delegate rejected an iterator removal")
+		void shouldRollBackWhenDelegateRejectsIteratorRemoval() {
+			final TransactionalSet<String> set = new TransactionalSet<>(Set.of("a"), String.class);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			final Iterator<String> it = set.iterator();
+			it.next();
+			assertThrows(UnsupportedOperationException.class, it::remove, "self-check: the delegate rejects removal");
+			assertDoesNotThrow(
+				savepoint::rollback,
+				"A removal the delegate rejected changed nothing, so the rollback has nothing to write back."
+			);
+
+			assertEquals(Set.of("a"), new HashSet<>(set), "The rejected removal must leave the set as it was.");
+		}
+
+		@Test
+		@DisplayName("Rollback succeeds after the delegate rejected every membership change")
+		void shouldRollBackWhenDelegateRejectsMembershipChanges() {
+			final TransactionalSet<String> set = new TransactionalSet<>(Set.of("a"), String.class);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			assertThrows(UnsupportedOperationException.class, () -> set.add("b"));
+			assertThrows(UnsupportedOperationException.class, () -> set.remove("a"));
+			assertThrows(UnsupportedOperationException.class, () -> set.addAll(Set.of("b")));
+			assertThrows(UnsupportedOperationException.class, () -> set.retainAll(Set.of()));
+			assertThrows(UnsupportedOperationException.class, () -> set.removeAll(Set.of("a")));
+			assertDoesNotThrow(
+				savepoint::rollback,
+				"Changes the delegate rejected changed nothing, so the rollback has nothing to write back."
+			);
+
+			assertEquals(Set.of("a"), new HashSet<>(set), "The rejected changes must leave the set as it was.");
+		}
+
+		@Test
+		@DisplayName("Rollback succeeds after the delegate rejected a clear")
+		void shouldRollBackWhenDelegateRejectsClear() {
+			final TransactionalSet<String> set = new TransactionalSet<>(Set.of("a", "b"), String.class);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			assertThrows(UnsupportedOperationException.class, set::clear);
+			assertDoesNotThrow(
+				savepoint::rollback, "A clear the delegate rejected changed nothing, so the rollback must not rewrite."
+			);
+
+			assertEquals(Set.of("a", "b"), new HashSet<>(set), "The rejected clear must leave the set as it was.");
+		}
+
+		@Test
 		@DisplayName("Rollback restores a set that was cleared inside the savepoint")
 		void shouldRestoreClearedSet() {
 			final Set<String> delegate = new LinkedHashSet<>(List.of("first", "second", "third"));
-			final TransactionalSet<String> set = new TransactionalSet<>(delegate);
+			final TransactionalSet<String> set = new TransactionalSet<>(delegate, String.class);
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			set.clear();
@@ -507,7 +625,7 @@ class WarmUpSavepointCollectionRollbackTest {
 		@Test
 		@DisplayName("Commit keeps the writes made inside the savepoint")
 		void shouldKeepSetOnCommit() {
-			final TransactionalSet<String> set = new TransactionalSet<>(new HashSet<>(Set.of("a")));
+			final TransactionalSet<String> set = new TransactionalSet<>(new HashSet<>(Set.of("a")), String.class);
 
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
 			set.add("b");
@@ -525,7 +643,9 @@ class WarmUpSavepointCollectionRollbackTest {
 		@Test
 		@DisplayName("A set iterator created before the savepoint opened still journals its removals")
 		void shouldJournalRemovalsThroughASetIteratorOlderThanTheSavepoint() {
-			final TransactionalSet<String> set = new TransactionalSet<>(new LinkedHashSet<>(List.of("a", "b", "c")));
+			final TransactionalSet<String> set = new TransactionalSet<>(
+				new LinkedHashSet<>(List.of("a", "b", "c")), String.class
+			);
 
 			final Iterator<String> it = set.iterator();
 
@@ -538,6 +658,30 @@ class WarmUpSavepointCollectionRollbackTest {
 			assertEquals(
 				Set.of("a", "b", "c"), new LinkedHashSet<>(set),
 				"The removal reached the delegate through an iterator older than the savepoint and must be rewound."
+			);
+		}
+
+		@Test
+		@DisplayName("A stale set iterator's failed removal does not restore an element removed before the savepoint")
+		void shouldNotRestoreElementWhenStaleIteratorRemovalFails() {
+			final TransactionalSet<String> set = new TransactionalSet<>(
+				new LinkedHashSet<>(List.of("a", "b")), String.class
+			);
+
+			final Iterator<String> it = set.iterator();
+			assertEquals("a", it.next(), "self-check on the iteration order");
+			set.remove("a");
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			assertThrows(
+				ConcurrentModificationException.class, it::remove,
+				"self-check: the delegate iterator rejects a removal after the set changed under it"
+			);
+			savepoint.rollback();
+
+			assertEquals(
+				Set.of("b"), new LinkedHashSet<>(set),
+				"The element was already absent when the savepoint opened, so the rollback must not add it back."
 			);
 		}
 	}

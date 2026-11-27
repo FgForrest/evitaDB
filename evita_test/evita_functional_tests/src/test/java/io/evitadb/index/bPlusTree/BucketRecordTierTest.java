@@ -95,7 +95,7 @@ class BucketRecordTierTest {
 	 */
 	@Nonnull
 	private static TransactionalBucketBPlusTree<Integer> emptyTree() {
-		return new TransactionalBucketBPlusTree<>(LEAF_BLOCK_SIZE, Integer.class);
+		return new TransactionalBucketBPlusTree<>(LEAF_BLOCK_SIZE, Integer.class, null);
 	}
 
 	/**
@@ -764,6 +764,9 @@ class BucketRecordTierTest {
 			}
 		}
 
+		/**
+		 * Verifies that callers cannot insert a record into a borrowed array view.
+		 */
 		@Test
 		@DisplayName("a record set the array tier holds is read-only from outside")
 		void shouldRefuseMutationOfTheArrayView() {
@@ -772,7 +775,6 @@ class BucketRecordTierTest {
 
 			assertInstanceOf(SortedArrayBitmap.class, records);
 			assertThrows(UnsupportedOperationException.class, () -> records.add(9));
-			assertThrows(UnsupportedOperationException.class, () -> records.remove(1));
 		}
 	}
 
@@ -780,6 +782,9 @@ class BucketRecordTierTest {
 	@DisplayName("Unsigned ordering")
 	class UnsignedOrdering {
 
+		/**
+		 * Checks ordering and lookup parity across array and bitmap tiers.
+		 */
 		@Test
 		@DisplayName("an array bucket holding negative ids answers exactly as the bitmap tier would")
 		void shouldPresentNegativeIdsLikeARoaringBitmap() {
@@ -801,9 +806,10 @@ class BucketRecordTierTest {
 			// while positional access and iteration are UNSIGNED on both (negatives last), which is roaring's own order
 			assertEquals(bitmapTier.getFirst(), arrayTier.getFirst(), "getFirst differs between the tiers");
 			assertEquals(bitmapTier.getLast(), arrayTier.getLast(), "getLast differs between the tiers");
-			for (int i = 0; i < ids.length; i++) {
-				assertEquals(bitmapTier.get(i), arrayTier.get(i), "get(" + i + ") differs between the tiers");
-			}
+			assertArrayEquals(
+				bitmapTier.getRange(0, ids.length), arrayTier.getRange(0, ids.length),
+				"getRange must answer in the same unsigned order on both tiers"
+			);
 			final OfInt bitmapIt = bitmapTier.iterator();
 			final OfInt arrayIt = arrayTier.iterator();
 			while (bitmapIt.hasNext()) {
@@ -1055,7 +1061,9 @@ class BucketRecordTierTest {
 		@DisplayName("array buckets survive a leaf split with every record intact")
 		void shouldKeepArrayBucketsAcrossASplit() {
 			// a small block size forces splits after a handful of buckets, moving array slots between leaves
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(5, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				5, Integer.class, null
+			);
 			for (int value = 0; value < 40; value++) {
 				tree.addRecord(value, value * 10 + 1, value * 10 + 2, value * 10 + 3);
 			}
@@ -1073,7 +1081,9 @@ class BucketRecordTierTest {
 		@Test
 		@DisplayName("array buckets survive the leaf merges a bulk deletion causes")
 		void shouldKeepArrayBucketsAcrossMerges() {
-			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(5, Integer.class);
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				5, Integer.class, null
+			);
 			for (int value = 0; value < 40; value++) {
 				tree.addRecord(value, value * 10 + 1, value * 10 + 2, value * 10 + 3);
 			}

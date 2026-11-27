@@ -104,7 +104,7 @@ public class ValueIdAllocator
 	/**
 	 * The id an id column slot carries when no value id has been assigned to it. It is `0` rather than `-1` on
 	 * purpose: the leaf id column is a plain `int[]` whose vacated slots are zero-filled by the record column's
-	 * `clearAt` / `fillEmpty`, so a zeroed slot means "unassigned" without any extra bookkeeping. The first id handed
+	 * `fillEmpty`, so a zeroed slot means "unassigned" without any extra bookkeeping. The first id handed
 	 * out is consequently {@link #FIRST_VALUE_ID}.
 	 */
 	public static final int UNASSIGNED_VALUE_ID = 0;

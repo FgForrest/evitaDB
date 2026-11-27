@@ -405,9 +405,9 @@ In transactional mode, all updates go to the transactional overlay that traps:
 
 Using this information, the STM array can build a new array combining the original values with all the changes. To avoid creating a new array (and memory allocations) for each operation, there are optimized methods that operate directly on the diff:
 
-* `indexOf`
 * `contains`
-* `length`
+* `getLength`
+* `isEmpty`
 
 ### Transactional unordered array
 

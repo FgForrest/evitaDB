@@ -58,10 +58,15 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 @Tag(TRANSACTION)
 class LongRunningTransactionalIntArrayTest implements TimeBoundedTestSupport {
 
+	/**
+	 * Compares committed mutations to an independent sorted array.
+	 *
+	 * @param input time budget and random seed for this run
+	 */
 	@DisplayName("survives generational randomized test applying modifications")
 	@ParameterizedTest(name = "TransactionalIntArray should survive generational randomized test applying modifications on it")
 	@ArgumentsSource(TimeArgumentProvider.class)
-	void generationalProofTest(GenerationalTestInput input) {
+	void generationalProofTest(@Nonnull GenerationalTestInput input) {
 		runFor(
 			input,
 			10_000,
@@ -93,7 +98,7 @@ class LongRunningTransactionalIntArrayTest implements TimeBoundedTestSupport {
 								);
 							} else {
 								// remove existing item
-								final int removedRecId = tested.get(rnd.nextInt(length));
+								final int removedRecId = tested.getArray()[rnd.nextInt(length)];
 								tested.remove(removedRecId);
 								control.set(
 									ArrayUtils.removeIntFromOrderedArray(

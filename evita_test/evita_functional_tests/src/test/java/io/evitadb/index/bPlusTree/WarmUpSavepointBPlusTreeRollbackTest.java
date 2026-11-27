@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.OptionalLong;
+import java.util.PrimitiveIterator;
 import java.util.TreeMap;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
@@ -136,7 +137,9 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		@Nonnull
 		private static TransactionalObjectBPlusTree<Integer, Integer> newTree(int count) {
 			final TransactionalObjectBPlusTree<Integer, Integer> tree = new TransactionalObjectBPlusTree<>(
-				8, 3, 7, 3, Integer.class, Integer.class
+				8, 3, 7, 3, Integer.class, Integer.class,
+				null,
+				null
 			);
 			for (int i = 0; i < count; i++) {
 				tree.insert(i, i * 10);
@@ -440,15 +443,18 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		}
 
 		/**
-		 * Reads the tree's whole logical content into a comparable reference value.
+		 * Reads the tree's key-value pairs through the ordered key iterator.
+		 *
+		 * @param tree the tree to read
+		 * @return the visible entries
 		 */
 		@Nonnull
 		private static TreeMap<Integer, Long> contents(@Nonnull TransactionalIntToLongBPlusTree tree) {
 			final TreeMap<Integer, Long> result = new TreeMap<>();
-			final Iterator<TransactionalIntToLongBPlusTree.Entry> it = tree.entryIterator();
+			final PrimitiveIterator.OfInt it = tree.keyIterator();
 			while (it.hasNext()) {
-				final TransactionalIntToLongBPlusTree.Entry entry = it.next();
-				result.put(entry.key(), entry.value());
+				final int key = it.nextInt();
+				result.put(key, tree.search(key).orElseThrow());
 			}
 			return result;
 		}
@@ -508,27 +514,8 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		}
 
 		@Test
-		@DisplayName("Rollback undoes values replaced in place by upsert")
-		void shouldRestoreValuesReplacedByUpsert() {
-			final TransactionalIntToLongBPlusTree tree = newTree(40);
-			final TreeMap<Integer, Long> expected = contents(tree);
-
-			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
-			// upsert reaches the value slot by a DIFFERENT route than insert does: it writes `values[existingIndex]`
-			// straight after decoupleTransactionalArrays(), which journals nothing. An insert at an existing key is
-			// journalled and passes even when this route is not, so the two need separate tests.
-			for (int i = 0; i < 40; i++) {
-				tree.upsert(i, value -> value + 1L);
-			}
-			assertNotEquals(expected, contents(tree), "self-check: the upserts must have changed every value");
-			savepoint.rollback();
-
-			assertEquals(expected, contents(tree), "Rollback must restore every replaced value.");
-		}
-
-		@Test
-		@DisplayName("Rollback undoes upserts interleaved with splits and merges")
-		void shouldRestoreValuesUpsertedAcrossStructuralChurn() {
+		@DisplayName("Rollback undoes overwrites interleaved with splits and merges")
+		void shouldRestoreValuesOverwrittenAcrossStructuralChurn() {
 			final TransactionalIntToLongBPlusTree tree = newTree(40);
 			final TreeMap<Integer, Long> expected = contents(tree);
 
@@ -537,7 +524,8 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 			for (int i = 0; i < 30; i++) {
 				tree.insert(1000 + i, i * 10L);
 				tree.delete(i % 15);
-				tree.upsert(20 + (i % 15), value -> value + 1L);
+				final int key = 20 + (i % 15);
+				tree.insert(key, tree.search(key).orElseThrow() + 1L);
 			}
 			savepoint.rollback();
 
@@ -723,7 +711,8 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		@Nonnull
 		private static TransactionalBucketBPlusTree<Integer> newTree(int count) {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
-				8, 3, 7, 3, Integer.class, null
+				8, 3, 7, 3, Integer.class, null,
+				capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
 			);
 			for (int i = 0; i < count; i++) {
 				tree.addRecord(i, i + 1);
@@ -861,7 +850,8 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		@Nonnull
 		private static TransactionalBucketBPlusTree<Integer> newTree(int count) {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
-				8, 3, 7, 3, Integer.class, null
+				8, 3, 7, 3, Integer.class, null,
+				capacity -> new BoxedObjectColumn<>(Integer.class, capacity)
 			);
 			for (int i = 0; i < count; i++) {
 				tree.addRecord(i, i + 1);

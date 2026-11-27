@@ -29,7 +29,6 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
-import io.evitadb.dataType.iterator.ConstantIntIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.bPlusTree.TransactionalIntToLongBPlusTree;
@@ -49,7 +48,6 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
-import java.util.PrimitiveIterator.OfInt;
 
 /**
  * This array keeps unique (distinct) integer values in an unordered fashion, providing fast positional access,
@@ -405,30 +403,10 @@ public class TransactionalUnorderedIntArray
 	}
 
 	/**
-	 * Method returns last record in the array.
-	 *
-	 * @return record id
-	 * @throws ArrayIndexOutOfBoundsException when array is empty
-	 */
-	public int getLastRecordId() throws ArrayIndexOutOfBoundsException {
-		return this.positionTree.getLastRecordId();
-	}
-
-	/**
 	 * Method returns the underlying array of record ids (logical order).
 	 */
 	public int[] getArray() {
 		return this.positionTree.getArray();
-	}
-
-	/**
-	 * Method returns subset of underlying array of record ids.
-	 *
-	 * @param startIndex inclusive
-	 * @param endIndex   exclusive
-	 */
-	public int[] getSubArray(int startIndex, int endIndex) {
-		return Arrays.copyOfRange(this.positionTree.getArray(), startIndex, endIndex);
 	}
 
 	/**
@@ -507,38 +485,6 @@ public class TransactionalUnorderedIntArray
 	}
 
 	/**
-	 * Method adds multiple record ids to the array (each just after the previous one). Delegates to
-	 * {@link #add(int, int)}, so {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} as `previousRecordId` adds the batch to
-	 * the head, and no record id in the batch may be the reserved primary key.
-	 */
-	public void addAll(int previousRecordId, int... recordIds) {
-		int currentPreviousRecordId = previousRecordId;
-		for (final int recordId : recordIds) {
-			add(currentPreviousRecordId, recordId);
-			currentPreviousRecordId = recordId;
-		}
-	}
-
-	/**
-	 * Method adds multiple record ids to the end of the array.
-	 *
-	 * @param recordIds record ids to add
-	 */
-	public void appendAll(int... recordIds) {
-		for (final int recordId : recordIds) {
-			Assert.isPremiseValid(
-				recordId != EvitaDataTypes.RESERVED_PRIMARY_KEY,
-				RESERVED_PRIMARY_KEY_ERROR
-			);
-			Assert.isTrue(
-				this.valueIndex.searchOrDefault(recordId, Long.MIN_VALUE) == Long.MIN_VALUE,
-				() -> "Record with id " + recordId + " is already part of the array!"
-			);
-			this.positionTree.insertAtPosition(this.positionTree.size(), recordId, this);
-		}
-	}
-
-	/**
 	 * Method removes record id from the array.
 	 */
 	public void remove(int recordId) {
@@ -550,30 +496,6 @@ public class TransactionalUnorderedIntArray
 		);
 		this.positionTree.removeByOrderKey(orderKey, recordId, this);
 		this.valueIndex.delete(recordId);
-	}
-
-	/**
-	 * Method removes multiple record ids from the array.
-	 */
-	public void removeAll(int... recordIds) {
-		for (final int recordId : recordIds) {
-			remove(recordId);
-		}
-	}
-
-	/**
-	 * Method removes all records between two indexes.
-	 *
-	 * @param startIndex inclusive
-	 * @param endIndex   exclusive
-	 * @return removed records
-	 */
-	public int[] removeRange(int startIndex, int endIndex) {
-		final int[] removed = Arrays.copyOfRange(this.positionTree.getArray(), startIndex, endIndex);
-		for (final int recordId : removed) {
-			remove(recordId);
-		}
-		return removed;
 	}
 
 	/**
@@ -684,39 +606,10 @@ public class TransactionalUnorderedIntArray
 	}
 
 	/**
-	 * Returns the page handles of the leaves changed since the last flush, in ascending logical order. Requires a paged
-	 * array.
-	 *
-	 * @return the changed (dirty) leaf-page handles
-	 */
-	@Nonnull
-	public List<UnorderedLookupTree.LeafPageHandle> collectChangedPages() {
-		return this.positionTree.collectChangedPages();
-	}
-
-	/**
-	 * Returns, in ascending logical order, the page sequences currently assigned to the tree's leaves. Requires a paged
-	 * array.
-	 *
-	 * @return the assigned page sequences
-	 */
-	@Nonnull
-	public int[] livePageSequences() {
-		return this.positionTree.livePageSequences();
-	}
-
-	/**
 	 * Resets the page bookkeeping of every leaf (un-assigns page sequences, clears dirty flags). Requires a paged array.
 	 */
 	public void forgetPageStream() {
 		this.positionTree.forgetPageStream();
-	}
-
-	/**
-	 * Returns iterator that allows to iterate through all record ids of the array in logical order.
-	 */
-	public OfInt iterator() {
-		return new ConstantIntIterator(getArray());
 	}
 
 	@Override
