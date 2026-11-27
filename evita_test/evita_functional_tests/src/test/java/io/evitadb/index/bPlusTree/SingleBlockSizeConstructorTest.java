@@ -37,6 +37,8 @@ import java.util.Random;
 import java.util.function.IntConsumer;
 import java.util.function.IntPredicate;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -119,9 +121,85 @@ class SingleBlockSizeConstructorTest {
 	}
 
 	/**
-	 * Inserts `2 * valueBlockSize^2 + 1` keys in random order, verifies all of them are found and the tree is
-	 * consistent, then removes them in a different random order while checking consistency along the way, and
-	 * finally verifies the tree is empty and still consistent.
+	 * Counts the levels above the leaves in a tree using the shared node interfaces.
+	 *
+	 * @param node root of the subtree
+	 * @return zero for a leaf, or one plus the height of its first child for an internal node
+	 */
+	private static int rootHeight(@Nonnull BPlusTreeNode<?> node) {
+		return node instanceof InternalBPlusTreeNode<?> internal ? 1 + rootHeight(internal.getChildren()[0]) : 0;
+	}
+
+	/**
+	 * Counts the levels above the leaves in a bucket tree.
+	 *
+	 * @param node root of the subtree
+	 * @return zero for a leaf, or one plus the height of its first child for an internal node
+	 */
+	private static int rootHeight(@Nonnull TransactionalBucketBPlusTree.BPlusTreeNode<?, ?> node) {
+		return node instanceof TransactionalBucketBPlusTree.BPlusInternalTreeNode<?> internal
+			? 1 + rootHeight(internal.getChildren()[0]) : 0;
+	}
+
+	/**
+	 * Fills the root leaf and then the two-level root to their split boundaries with ascending keys.
+	 * Removes those keys so the randomized checks can start with an empty tree.
+	 *
+	 * @param valueBlockSize maximum number of keys in a leaf node
+	 * @param insert         inserts a key
+	 * @param delete         deletes a key
+	 * @param root           returns the current root node
+	 * @param height         returns the number of levels above the leaves
+	 * @param keyCount       returns the number of keys in a node
+	 * @param <N>            node type of the tree
+	 */
+	private static <N> void assertSplitBoundaries(
+		int valueBlockSize,
+		@Nonnull IntConsumer insert,
+		@Nonnull IntConsumer delete,
+		@Nonnull Supplier<N> root,
+		@Nonnull ToIntFunction<N> height,
+		@Nonnull ToIntFunction<N> keyCount
+	) {
+		int inserted = 0;
+		while (inserted < valueBlockSize - 1) {
+			insert.accept(inserted);
+			inserted++;
+		}
+		final N leaf = root.get();
+		assertEquals(0, height.applyAsInt(leaf), "The root leaf split before reaching its capacity.");
+		assertEquals(valueBlockSize - 1, keyCount.applyAsInt(leaf), "Keys in the root leaf before the filling insert.");
+
+		// Inserts outside a transaction fill the old root in place, then split it as soon as it is full.
+		// Keep the old node so its key count at the split is visible after the insert returns.
+		insert.accept(inserted);
+		inserted++;
+		final N internal = root.get();
+		assertEquals(1, height.applyAsInt(internal), "The insert filling the root leaf must split it.");
+		assertEquals(valueBlockSize, keyCount.applyAsInt(leaf), "Keys in the root leaf at its split.");
+
+		final int internalBlockSize = deriveInternalNodeBlockSize(valueBlockSize);
+		final int maxKeysInTwoLevels = (internalBlockSize + 1) * valueBlockSize;
+		while (height.applyAsInt(root.get()) == 1 && inserted <= maxKeysInTwoLevels) {
+			assertTrue(
+				keyCount.applyAsInt(internal) < internalBlockSize,
+				"The internal root stayed in place at or above its derived capacity."
+			);
+			insert.accept(inserted);
+			inserted++;
+		}
+		assertEquals(2, height.applyAsInt(root.get()), "The full internal root must split.");
+		assertEquals(internalBlockSize, keyCount.applyAsInt(internal), "Keys in the internal root at its split.");
+
+		while (inserted > 0) {
+			delete.accept(--inserted);
+		}
+	}
+
+	/**
+	 * Verifies the split boundaries, then inserts `2 * valueBlockSize^2 + 1` keys in random order.
+	 * Checks membership and consistency, then removes the keys in a different random order while checking
+	 * consistency along the way. Finally verifies that the tree is empty and still consistent.
 	 *
 	 * @param valueBlockSize maximum number of values in a leaf node
 	 * @param tree           the tree under test, built through its single-block-size constructor
@@ -129,15 +207,23 @@ class SingleBlockSizeConstructorTest {
 	 * @param delete         deletes a key
 	 * @param contains       tests the presence of a key
 	 * @param size           returns the number of keys in the tree
+	 * @param root           returns the current root node
+	 * @param height         returns the number of levels above the leaves
+	 * @param keyCount       returns the number of keys in a node
+	 * @param <N>            node type of the tree
 	 */
-	private static void fillAndDrain(
+	private static <N> void fillAndDrain(
 		int valueBlockSize,
 		@Nonnull ConsistencySensitiveDataStructure tree,
 		@Nonnull IntConsumer insert,
 		@Nonnull IntConsumer delete,
 		@Nonnull IntPredicate contains,
-		@Nonnull IntSupplier size
+		@Nonnull IntSupplier size,
+		@Nonnull Supplier<N> root,
+		@Nonnull ToIntFunction<N> height,
+		@Nonnull ToIntFunction<N> keyCount
 	) {
+		assertSplitBoundaries(valueBlockSize, insert, delete, root, height, keyCount);
 		final Random random = new Random(SEED);
 		final int count = keyCountForThreeLevels(valueBlockSize);
 
@@ -197,6 +283,11 @@ class SingleBlockSizeConstructorTest {
 		}
 	}
 
+	/**
+	 * Checks the bucket tree's split boundaries and that it survives randomized inserts and removals.
+	 *
+	 * @param valueBlockSize the leaf capacity passed to the constructor
+	 */
 	@DisplayName("bucket tree is built through the single-size constructor and survives splits and merges")
 	@ParameterizedTest(name = "valueBlockSize = {0}")
 	@ValueSource(ints = {3, 4, 5, 6, 7, 8, 10, 64, 255, 256})
@@ -210,10 +301,18 @@ class SingleBlockSizeConstructorTest {
 			key -> tree.addRecord(key, key),
 			key -> tree.removeRecord(key, key),
 			tree::contains,
-			tree::size
+			tree::size,
+			tree::getRoot,
+			SingleBlockSizeConstructorTest::rootHeight,
+			TransactionalBucketBPlusTree.BPlusTreeNode::keyCount
 		);
 	}
 
+	/**
+	 * Checks the element tree's split boundaries and that it survives randomized inserts and removals.
+	 *
+	 * @param valueBlockSize the leaf capacity passed to the constructor
+	 */
 	@DisplayName("element tree is built through the single-size constructor and survives splits and merges")
 	@ParameterizedTest(name = "valueBlockSize = {0}")
 	@ValueSource(ints = {3, 4, 5, 6, 7, 8, 10, 64, 255, 256})
@@ -226,10 +325,18 @@ class SingleBlockSizeConstructorTest {
 			tree::insert,
 			tree::delete,
 			key -> tree.search(key) != null,
-			tree::size
+			tree::size,
+			tree::getRoot,
+			SingleBlockSizeConstructorTest::rootHeight,
+			BPlusTreeNode::keyCount
 		);
 	}
 
+	/**
+	 * Checks the int-to-long tree's split boundaries and that it survives randomized inserts and removals.
+	 *
+	 * @param valueBlockSize the leaf capacity passed to the constructor
+	 */
 	@DisplayName("int-to-long tree is built through the single-size constructor and survives splits and merges")
 	@ParameterizedTest(name = "valueBlockSize = {0}")
 	@ValueSource(ints = {3, 4, 5, 6, 7, 8, 10, 64, 255, 256})
@@ -240,10 +347,18 @@ class SingleBlockSizeConstructorTest {
 			key -> tree.insert(key, key * 10L),
 			tree::delete,
 			key -> tree.search(key).isPresent(),
-			tree::size
+			tree::size,
+			tree::getRoot,
+			SingleBlockSizeConstructorTest::rootHeight,
+			BPlusTreeNode::keyCount
 		);
 	}
 
+	/**
+	 * Checks the long tree's split boundaries and that it survives randomized inserts and removals.
+	 *
+	 * @param valueBlockSize the leaf capacity passed to the constructor
+	 */
 	@DisplayName("long tree is built through the single-size constructor and survives splits and merges")
 	@ParameterizedTest(name = "valueBlockSize = {0}")
 	@ValueSource(ints = {3, 4, 5, 6, 7, 8, 10, 64, 255, 256})
@@ -254,10 +369,18 @@ class SingleBlockSizeConstructorTest {
 			key -> tree.insert(key, String.valueOf(key)),
 			tree::delete,
 			key -> tree.search(key).isPresent(),
-			tree::size
+			tree::size,
+			tree::getRoot,
+			SingleBlockSizeConstructorTest::rootHeight,
+			BPlusTreeNode::keyCount
 		);
 	}
 
+	/**
+	 * Checks the object tree's split boundaries and that it survives randomized inserts and removals.
+	 *
+	 * @param valueBlockSize the leaf capacity passed to the constructor
+	 */
 	@DisplayName("object tree is built through the single-size constructor and survives splits and merges")
 	@ParameterizedTest(name = "valueBlockSize = {0}")
 	@ValueSource(ints = {3, 4, 5, 6, 7, 8, 10, 64, 255, 256})
@@ -271,7 +394,10 @@ class SingleBlockSizeConstructorTest {
 			key -> tree.insert(key, String.valueOf(key)),
 			tree::delete,
 			key -> tree.search(key).isPresent(),
-			tree::size
+			tree::size,
+			tree::getRoot,
+			SingleBlockSizeConstructorTest::rootHeight,
+			BPlusTreeNode::keyCount
 		);
 	}
 

@@ -36,10 +36,13 @@ import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusInternalTree
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusLeafTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.page.PageEmission;
+import io.evitadb.index.page.PageStreamRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -55,6 +58,7 @@ import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
@@ -62,6 +66,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
@@ -2616,22 +2621,10 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("flags one dirty leaf when adding to a bitmap-tier bucket")
 		@Tag(INDEXING)
 		void shouldFlagOneDirtyLeafWhenAddingToBitmapTierBucket() {
-			final TransactionalBucketBPlusTree<Integer> prepared = prepareBitmapTierBucket();
 			final int[] expected = new int[OverflowRecords.SMALL_BUCKET_THRESHOLD + 3];
 			Arrays.setAll(expected, index -> index);
 
-			assertStateAfterCommit(
-				prepared,
-				tree -> {
-					assertInstanceOf(TransactionalBitmap.class, tree.getRecordsEqualTo(0));
-					tree.addRecord(0, expected.length - 1);
-					assertEquals(1, tree.leafPageHandles().stream().filter(PagedLeafHandle::isDirty).count());
-				},
-				(original, committed) -> {
-					assertInstanceOf(TransactionalBitmap.class, committed.getRecordsEqualTo(0));
-					assertArrayEquals(expected, committed.getRecordsEqualTo(0).getArray());
-				}
-			);
+			assertBitmapTierMutation(tree -> tree.addRecord(0, expected.length - 1), expected);
 		}
 
 		/** Checks that removing a record from a bitmap-tier bucket dirties its leaf and commits the exact set. */
@@ -2639,16 +2632,63 @@ class TransactionalBucketBPlusTreeTest {
 		@DisplayName("flags one dirty leaf when removing from a bitmap-tier bucket")
 		@Tag(INDEXING)
 		void shouldFlagOneDirtyLeafWhenRemovingFromBitmapTierBucket() {
-			final TransactionalBucketBPlusTree<Integer> prepared = prepareBitmapTierBucket();
 			final int[] expected = new int[OverflowRecords.SMALL_BUCKET_THRESHOLD + 1];
 			Arrays.setAll(expected, index -> index + 1);
+
+			assertBitmapTierMutation(tree -> tree.removeRecord(0, 0), expected);
+		}
+
+		/**
+		 * Checks that a mutation dirties and emits only the page holding bucket zero, with the updated records.
+		 * Also checks that the same records remain in the bitmap tier after commit.
+		 *
+		 * @param mutate   changes the records in bucket zero
+		 * @param expected the expected record IDs after the mutation
+		 */
+		private static void assertBitmapTierMutation(
+			@Nonnull Consumer<TransactionalBucketBPlusTree<Integer>> mutate, @Nonnull int[] expected
+		) {
+			final TransactionalBucketBPlusTree<Integer> prepared = prepareBitmapTierBucket();
+			final List<LeafPageHandle<Integer>> baseline = prepared.leafPageHandles();
+			final int streamId = 0;
+			final PageStreamRegistry registry =
+				PageStreamRegistry.restoredFrom(streamId, baseline.size() - 1, baseline);
 
 			assertStateAfterCommit(
 				prepared,
 				tree -> {
 					assertInstanceOf(TransactionalBitmap.class, tree.getRecordsEqualTo(0));
-					tree.removeRecord(0, 0);
-					assertEquals(1, tree.leafPageHandles().stream().filter(PagedLeafHandle::isDirty).count());
+					mutate.accept(tree);
+
+					final List<LeafPageHandle<Integer>> handles = tree.leafPageHandles();
+					int bucketPageSequence = PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE;
+					for (final LeafPageHandle<Integer> handle : handles) {
+						final BucketCursor<Integer> cursor = handle.cursor();
+						// The fixture has non-negative, ascending keys, so zero is the first key on its page.
+						final boolean holdsBucketZero = cursor.next() && cursor.value() == 0;
+						assertEquals(
+							holdsBucketZero, handle.isDirty(),
+							"Dirty flag for page " + handle.getPageSequence() +
+								" (holds bucket 0: " + holdsBucketZero + ")"
+						);
+						if (holdsBucketZero) {
+							bucketPageSequence = handle.getPageSequence();
+						}
+					}
+					assertNotEquals(PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE, bucketPageSequence);
+
+					final PageEmission<Entry<Integer, int[]>> emission = registry.collectChangedPages(
+						streamId, handles, (pageSequence, handle) -> {
+							final BucketCursor<Integer> cursor = handle.cursor();
+							assertTrue(cursor.next(), "The emitted page must contain bucket 0.");
+							assertEquals(0, cursor.value(), "The emitted page must start with bucket 0.");
+							return Map.entry(pageSequence, cursor.records().getArray());
+						}
+					);
+					assertEquals(1, emission.changedPages().size());
+					final Entry<Integer, int[]> emitted = emission.changedPages().getFirst();
+					assertEquals(bucketPageSequence, emitted.getKey());
+					assertArrayEquals(expected, emitted.getValue());
 				},
 				(original, committed) -> {
 					assertInstanceOf(TransactionalBitmap.class, committed.getRecordsEqualTo(0));

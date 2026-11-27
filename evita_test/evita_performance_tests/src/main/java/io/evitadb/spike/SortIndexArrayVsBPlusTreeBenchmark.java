@@ -76,15 +76,14 @@ import java.util.function.Function;
  *    seeker is created and asked for the value at a strictly increasing (resp. decreasing) sequence of record
  *    positions, exactly as {@code MergedComparableSortedRecordsSupplierSorter} drives it during query sorting. The
  *    array seeker indexes into the contiguous array and reads cardinality from the sparse map; the forward tree
- *    seeker walks a `(value, cardinality)` entry iterator and reads cardinality inline. The tree has no reverse entry
- *    traversal, so the reverse tree seeker walks the keys in reverse and pays one {@code search} per distinct value
- *    for its cardinality - its numbers are not comparable with the results recorded for the former reverse cursor.
+ *    seeker reads cardinality inline from an entry iterator. The reverse tree seeker walks the keys in reverse and
+ *    looks up each cardinality.
  * 2. {@code pointLookup*} — the {@code getRecordsEqualTo} probe: locate a random value and read its cardinality.
  *    Array = {@link Arrays#binarySearch} over the contiguous array plus a map lookup; tree = a single
  *    {@link TransactionalObjectBPlusTree#search}.
  * 3. {@code valueIndexRebuild*} — the per-transaction {@code SortIndexChanges} prefix-sum cache build: a full ordered
  *    walk accumulating cardinalities into a start-offset array. Array = array iteration + per-value map lookup; tree =
- *    a single {@code entryIterator} walk with inline cardinality.
+ *    a single {@link TransactionalObjectBPlusTree#valueIterator()} walk with inline cardinality.
  *
  * A second gate — the **shared value→ValueToRecord tree** backing both the filter and sort indexes — adds two
  * candidate-vs-baseline pairs measuring the deltas that design introduces:
@@ -95,6 +94,10 @@ import java.util.function.Function;
  *   cardinality-access cost, not a leaf-density change.
  * - {@code pointLookupHashMap} (today's {@code UniqueIndex} O(1) map) vs {@code pointLookupFatTree} (the unified O(log n)
  *   tree search) — the unique-check-on-write probe, the hot write path this gate must not regress materially.
+ *
+ * The forward seekers in `ascendingSweepTree` and `ascendingSweepFatTree` now allocate one entry object per
+ * bucket. The reverse seekers in `descendingSweepTree` and `descendingSweepFatTree` now pay one point lookup per
+ * bucket. These four tree arms are not comparable with the recorded cursor results.
  *
  * Each benchmark reports both latency ({@link Mode#AverageTime}) and throughput ({@link Mode#Throughput}) so the two
  * facets the migration is gated on can be read directly. The sweep ops cover a bounded, evenly distributed sample of
@@ -212,13 +215,18 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 	// Both emit the identical sorted id sequence. Selectivity is the decisive axis: low selectivity
 	// favours the baseline (it touches only matches); high selectivity / full sort favours merge-join.
 
+	/**
+	 * Intersects each bucket in tree order with the query result and consumes the matching record IDs.
+	 *
+	 * @param state the shared tree and query result
+	 * @param bh    consumes matching record IDs in sort order
+	 */
 	@Benchmark
-	public void orderByMergeJoinFatTree(MergeJoinState state, Blackhole bh) {
+	public void orderByMergeJoinFatTree(@Nonnull MergeJoinState state, @Nonnull Blackhole bh) {
 		final PersistentRoaringBitmap queryResult = state.queryResult;
-		@SuppressWarnings("rawtypes")
-		final Iterator<?> entries = state.fatTree.entryIterator();
-		while (entries.hasNext()) {
-			final ValueToRecord bucket = (ValueToRecord) ((Entry<?, ?>) entries.next()).value();
+		final Iterator<?> buckets = state.fatTree.valueIterator();
+		while (buckets.hasNext()) {
+			final ValueToRecord bucket = (ValueToRecord) buckets.next();
 			final PersistentRoaringBitmap matched = PersistentRoaringBitmap.and(
 				queryResult, RoaringBitmapBackedBitmap.getRoaringBitmap(bucket.getRecordIds())
 			);
@@ -302,14 +310,18 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 		return accumulator;
 	}
 
+	/**
+	 * Walks the tree's inline cardinalities in value order for the prefix-sum rebuild.
+	 *
+	 * @param state the tree containing the cardinalities
+	 * @return the accumulated cardinality
+	 */
 	@Benchmark
-	@SuppressWarnings("rawtypes")
-	public long valueIndexRebuildTree(IndexState state) {
-		// the same prefix-sum build over the tree form: a single entry-iterator walk
+	public long valueIndexRebuildTree(@Nonnull IndexState state) {
 		long accumulator = 0;
-		final Iterator<?> entries = state.tree.entryIterator();
-		while (entries.hasNext()) {
-			accumulator += (Integer) ((Entry<?, ?>) entries.next()).value();
+		final Iterator<?> cardinalities = state.tree.valueIterator();
+		while (cardinalities.hasNext()) {
+			accumulator += (Integer) cardinalities.next();
 		}
 		return accumulator;
 	}
