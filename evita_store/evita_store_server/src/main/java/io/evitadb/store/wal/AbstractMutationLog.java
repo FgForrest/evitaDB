@@ -78,6 +78,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
@@ -532,24 +533,25 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * cumulative-checksum header) and the previous run crashed before a transaction was
 	 * appended, leaving the file as a stub.
 	 *
+	 * The seek uses the length of the open file because the path can disappear after the file is opened.
+	 *
 	 * @param walFile the WAL file to read from
 	 * @param walKind which WAL flavor the file belongs to — used when constructing the
 	 *                corruption exception so log/diagnostic labels stay flavor-correct
 	 * @return the first and last catalog versions found in the WAL file
+	 * @throws FileNotFoundException when the file cannot be opened, for example because it was removed after its
+	 *                               length was checked
+	 * @throws WriteAheadLogCorruptedException when the path or the open file is shorter than the tail; a path that
+	 *                                         no longer exists measures zero bytes
 	 */
 	@Nonnull
 	static FirstAndLastVersionsInWalFile getFirstAndLastVersionsFromWalFile(
 		@Nonnull File walFile,
 		@Nonnull WalKind walKind
 	) throws FileNotFoundException {
-		if (walFile.length() < AbstractMutationLog.WAL_TAIL_LENGTH) {
-			throw new WriteAheadLogCorruptedException(
-				walKind,
-				"WAL file `" + walFile.getAbsolutePath() + "` is " + walFile.length()
-					+ " bytes — shorter than the " + AbstractMutationLog.WAL_TAIL_LENGTH
-					+ "-byte tail; cannot contain valid version markers!",
-				"WAL file is shorter than its tail!"
-			);
+		final long pathLength = walFile.length();
+		if (pathLength < AbstractMutationLog.WAL_TAIL_LENGTH) {
+			throw AbstractMutationLog.tailTooShort(walFile, pathLength, walKind);
 		}
 		try (
 			final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(walFile, "r");
@@ -557,7 +559,11 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				randomAccessOldWalFile, true);
 			final Input input = new Input(inputStream)
 		) {
-			inputStream.seek(walFile.length() - AbstractMutationLog.WAL_TAIL_LENGTH);
+			final long walFileLength = randomAccessOldWalFile.length();
+			if (walFileLength < AbstractMutationLog.WAL_TAIL_LENGTH) {
+				throw AbstractMutationLog.tailTooShort(walFile, walFileLength, walKind);
+			}
+			inputStream.seek(walFileLength - AbstractMutationLog.WAL_TAIL_LENGTH);
 			final long firstCatalogVersion = input.readLong();
 			final long lastCatalogVersion = input.readLong();
 			return new FirstAndLastVersionsInWalFile(firstCatalogVersion, lastCatalogVersion, null);
@@ -569,6 +575,30 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				"Failed to read WAL file!", e
 			);
 		}
+	}
+
+	/**
+	 * Builds the verdict for a WAL file too short to hold its tail, so the check on the path and the check on the
+	 * open file report it the same way.
+	 *
+	 * @param walFile the WAL file that failed the check
+	 * @param length  the length the check compared, in bytes
+	 * @param walKind which WAL flavor the file belongs to
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private static WriteAheadLogCorruptedException tailTooShort(
+		@Nonnull File walFile,
+		long length,
+		@Nonnull WalKind walKind
+	) {
+		return new WriteAheadLogCorruptedException(
+			walKind,
+			"WAL file `" + walFile.getAbsolutePath() + "` is " + length
+				+ " bytes — shorter than the " + AbstractMutationLog.WAL_TAIL_LENGTH
+				+ "-byte tail; cannot contain valid version markers!",
+			"WAL file is shorter than its tail!"
+		);
 	}
 
 	/**
@@ -2219,6 +2249,22 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	}
 
 	/**
+	 * Checks the pending removals for the WAL file index. Rotation holds {@link #walSyncLock} while checking,
+	 * so only the remover can change the queue during the scan.
+	 *
+	 * @param walFileIndex index of the WAL file to look for
+	 * @return whether removal of this file is still pending
+	 */
+	private boolean isWalFileRemovalPending(int walFileIndex) {
+		for (final PendingRemoval pendingRemoval : this.pendingRemovals) {
+			if (pendingRemoval.walFileIndex() == walFileIndex) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Removes the obsolete WAL files from the catalog storage path.
 	 */
 	long removeWalFiles() {
@@ -2511,11 +2557,25 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				// then delete all files except the last `walFileCountKept` files
 				for (int i = 0; i < walFiles.length - this.walFileCountKept; i++) {
 					final File walFile = walFiles[i];
+					final int walFileIndex = AbstractMutationLog.getIndexFromWalFileName(walFile.getName());
+					// For removals by this log instance, the remover deletes the file before dequeuing it.
+					// Check the queue before opening the file. A queued file belongs to the remover, and an
+					// unqueued file was either never queued or already deleted. A listed file that is already
+					// gone is skipped before its length is read; a failed open is caught as FileNotFoundException.
+					if (isWalFileRemovalPending(walFileIndex)) {
+						// Keep the removal retry without reading the tail again.
+						this.removeWalFileTask.schedule();
+						continue;
+					}
+					if (Files.notExists(walFile.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+						continue;
+					}
 					try {
-						final FirstAndLastVersionsInWalFile versionsFromWalFile = AbstractMutationLog.getFirstAndLastVersionsFromWalFile(
-							walFile, this.walKind);
+						final FirstAndLastVersionsInWalFile versionsFromWalFile =
+							AbstractMutationLog.getFirstAndLastVersionsFromWalFile(walFile, this.walKind);
 						final PendingRemoval pendingRemoval = new PendingRemoval(
 							versionsFromWalFile.lastVersion() + 1,
+							walFileIndex,
 							() -> {
 								try {
 									if (walFile.delete()) {
@@ -2749,14 +2809,16 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	}
 
 	/**
-	 * Record that holds information about pending removal of the WAL file.
+	 * Record that holds information about pending removal of the WAL file. Equality and hash code use `version`
+	 * alone, so rotation does not queue a second removal for a version that is already queued.
 	 *
 	 * @param version      the version that needs to be processed before the removal
-	 * @param removeLambda the removeLambda that performs the file removal
-	 *                     and returns first transaction mutation in the removed file
+	 * @param walFileIndex the index of the WAL file to remove
+	 * @param removeLambda the action that removes the file
 	 */
 	protected record PendingRemoval(
 		long version,
+		int walFileIndex,
 		@Nonnull ExceptionThrowingRunnable removeLambda
 	) {
 
@@ -2777,7 +2839,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		@Nonnull
 		@Override
 		public String toString() {
-			return "PendingRemoval: version=" + this.version;
+			return "PendingRemoval: version=" + this.version + ", walFileIndex=" + this.walFileIndex;
 		}
 	}
 }
