@@ -65,6 +65,7 @@ import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.executor.ImmediateExecutorService;
+import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.core.sequence.SequenceService;
@@ -126,10 +127,15 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -143,8 +149,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1503,10 +1515,532 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	 *
 	 * The guard is invoked synchronously here rather than through its {@link Scheduler} task, which is mocked away -
 	 * awaiting an asynchronous purge would only add flakiness to an otherwise deterministic assertion.
+	 *
+	 * The lock-order test is the one exception: it runs the guard through a real {@link Scheduler} over an inline
+	 * executor, because the deadlock it reproduces exists only while the guard runs on the thread that schedules it.
 	 */
 	@Nested
 	@DisplayName("Time travel size guard")
 	class TimeTravelSizeGuardTest {
+
+		/**
+		 * The longest any single wait of the lock-order test may take before it is reported as a failure.
+		 */
+		private static final Duration WAIT_LIMIT = Duration.ofSeconds(30L);
+
+		/**
+		 * The states of the advancer start gate.
+		 */
+		private enum GateState {
+			ARMED, STARTED, CANCELLED
+		}
+
+		/**
+		 * Models the immediate executor with a zero-delay submission for every size guard run. The guard has no
+		 * configured delay and `DelayedAsyncTask` uses its minimal scheduling gap only to throttle dispatch, so
+		 * this executor can run the command inline even when the computed delay is positive.
+		 * The first guard submission by the thread that {@link #arm(Thread) armed} the gate starts the history
+		 * horizon advancer and waits until it returns or blocks on a lock held by the submitting thread.
+		 *
+		 * The guard's first submission is recognised by its call stack, because nothing else tells it apart: every
+		 * {@link io.evitadb.core.executor.DelayedAsyncTask} on the shared scheduler submits the same kind of opaque
+		 * lambda, and neither the guard task nor its command is reachable from a test without reflection. A
+		 * submission is the guard's when the innermost frame of the service on its stack is
+		 * `scheduleTimeTravelSizeGuard`; its command is then kept, and later submissions are recognised by that
+		 * command's identity. If the guard goes unrecognised, {@link #awaitGate()} times out.
+		 */
+		private static final class GatedInlineSchedulerExecutor extends ImmediateScheduledThreadPoolExecutor {
+			/**
+			 * The history horizon advancer that the next guard submission of the armed thread starts.
+			 */
+			private final ThreadLocal<Thread> horizonAdvancer = new ThreadLocal<>();
+			/**
+			 * Serializes cancellation with the transition to started and the thread start itself.
+			 */
+			private final ReentrantLock gateLock = new ReentrantLock();
+			/**
+			 * The state of the gate, guarded by {@link #gateLock}.
+			 */
+			private GateState gateState = GateState.ARMED;
+			/**
+			 * Opened once the gated guard submission has let the advancer settle, or has given up on it.
+			 */
+			private final CountDownLatch gateReached = new CountDownLatch(1);
+			/**
+			 * Why the gate did not hold the guard back as intended, or `null` while it did.
+			 */
+			private final AtomicReference<String> gateFailure = new AtomicReference<>();
+			/**
+			 * The guard task's command, recognised at its first submission - the task submits the same instance on
+			 * every run.
+			 */
+			private volatile Runnable guardCommand;
+
+			/**
+			 * Creates the executor with daemon workers for the delayed tasks.
+			 */
+			private GatedInlineSchedulerExecutor() {
+				setThreadFactory(Thread.ofPlatform().daemon().factory());
+			}
+
+			/**
+			 * Arms the gate for the next guard submission the calling thread makes.
+			 *
+			 * @param advancer the unstarted thread that advances the history horizon
+			 */
+			private void arm(@Nonnull Thread advancer) {
+				this.horizonAdvancer.set(advancer);
+			}
+
+			/**
+			 * Waits until the armed guard submission has passed the gate.
+			 *
+			 * @return whether the gate was passed within the test's `WAIT_LIMIT`
+			 * @throws InterruptedException if the waiting thread is interrupted
+			 */
+			private boolean awaitGate() throws InterruptedException {
+				return this.gateReached.await(WAIT_LIMIT.toMillis(), TimeUnit.MILLISECONDS);
+			}
+
+			/**
+			 * Returns why the gate did not hold the guard back as intended.
+			 *
+			 * @return the reason, or `null` when the gate held the guard back until the advancer had settled
+			 */
+			@Nullable
+			private String getGateFailure() {
+				return this.gateFailure.get();
+			}
+
+			/**
+			 * Cancels an armed gate before cleanup inspects either worker.
+			 */
+			private void cancelGate() {
+				this.gateLock.lock();
+				try {
+					if (this.gateState == GateState.ARMED) {
+						this.gateState = GateState.CANCELLED;
+					}
+				} finally {
+					this.gateLock.unlock();
+				}
+			}
+
+			/**
+			 * Starts the advancer if cleanup has not cancelled the gate.
+			 *
+			 * @param advancer the unstarted thread that advances the history horizon
+			 * @return whether the thread was started
+			 */
+			private boolean startAdvancer(@Nonnull Thread advancer) {
+				this.gateLock.lock();
+				try {
+					if (this.gateState != GateState.ARMED) {
+						return false;
+					}
+					this.gateState = GateState.STARTED;
+					advancer.start();
+					return true;
+				} finally {
+					this.gateLock.unlock();
+				}
+			}
+
+			/**
+			 * Runs the guard inline with its delay replaced by zero; every other command keeps the inherited
+			 * behaviour and its own delay. When the armed submission wins the gate, it first starts the advancer and
+			 * lets it settle - see {@link #letAdvancerSettle(Thread)}.
+			 *
+			 * A gate failure is recorded, never thrown: this runs inside the publication of the service, and an
+			 * exception thrown here would unwind it with the guard's next run still planned.
+			 *
+			 * @param command the task to run
+			 * @param delay   the delay before the task runs, ignored for the guard
+			 * @param unit    the unit of the delay
+			 * @return the future of the task
+			 */
+			@Nonnull
+			@Override
+			public ScheduledFuture<?> schedule(@Nonnull Runnable command, long delay, @Nonnull TimeUnit unit) {
+				if (this.guardCommand == null && isSchedulingSizeGuard()) {
+					this.guardCommand = command;
+				}
+				if (command != this.guardCommand) {
+					return super.schedule(command, delay, unit);
+				}
+				final Thread advancer = this.horizonAdvancer.get();
+				if (advancer != null) {
+					this.horizonAdvancer.remove();
+					if (startAdvancer(advancer)) {
+						try {
+							letAdvancerSettle(advancer);
+						} finally {
+							this.gateReached.countDown();
+						}
+					}
+				}
+				return super.schedule(command, 0L, unit);
+			}
+
+			/**
+			 * Waits until the history horizon advancer has either returned or blocked on a lock the
+			 * calling thread holds - the thread that is about to run the guard inline. Blocked is what a publication
+			 * scheduling the guard under the bootstrap lock produces: the advancer then holds the history horizon
+			 * lock and waits for the bootstrap lock. Returned is what a publication that releases the bootstrap lock
+			 * first produces, and without that exit the gate would wait out its limit on correct code.
+			 *
+			 * The blocking is read from the lock owner the JVM reports for the advancer's wait - the information its
+			 * deadlock detection uses - so the gate needs no knowledge of the method the advancer waits in.
+			 *
+			 * @param advancer the thread advancing the history horizon
+			 */
+			private void letAdvancerSettle(@Nonnull Thread advancer) {
+				if (!awaitReturnOrPublisherLock(advancer)) {
+					this.gateFailure.set(
+						"the history horizon advancer neither returned nor blocked on a lock of the publishing " +
+							"thread within " + WAIT_LIMIT
+					);
+				}
+			}
+
+			/**
+			 * Tells whether the submission being made comes from the size guard's scheduling method.
+			 *
+			 * @return whether the innermost frame of the service on the current stack is `scheduleTimeTravelSizeGuard`
+			 */
+			private static boolean isSchedulingSizeGuard() {
+				return StackWalker.getInstance().walk(
+					frames -> frames
+						.filter(frame -> frame.getClassName().equals(DefaultCatalogPersistenceService.class.getName()))
+						.findFirst()
+						.map(frame -> frame.getMethodName().equals("scheduleTimeTravelSizeGuard"))
+						.orElse(false)
+				);
+			}
+		}
+
+		/**
+		 * Waits for a worker to return or block on a lock held by the calling thread, which must be the thread
+		 * publishing the bootstrap record. Blocking is reported for any lock that thread owns.
+		 *
+		 * @param worker the thread that needs the bootstrap lock
+		 * @return whether either outcome was observed before the deadline
+		 */
+		private static boolean awaitReturnOrPublisherLock(@Nonnull Thread worker) {
+			final ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+			final long publisherId = Thread.currentThread().threadId();
+			final long deadline = System.nanoTime() + WAIT_LIMIT.toNanos();
+			while (worker.isAlive()) {
+				final ThreadInfo threadInfo = threadBean.getThreadInfo(worker.threadId());
+				if (threadInfo != null && threadInfo.getLockOwnerId() == publisherId) {
+					return true;
+				}
+				if (System.nanoTime() - deadline >= 0L) {
+					return false;
+				}
+				LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1L));
+			}
+			return true;
+		}
+
+		/**
+		 * Gives each worker a bounded join even if the test thread is interrupted.
+		 *
+		 * @param workers the threads to join
+		 * @return whether an interrupt was cleared and must be restored after teardown
+		 */
+		private static boolean joinWorkers(@Nonnull Thread... workers) {
+			boolean interrupted = Thread.interrupted();
+			for (final Thread worker : workers) {
+				final long deadline = System.nanoTime() + WAIT_LIMIT.toNanos();
+				long remainingNanos;
+				while (worker.isAlive() && (remainingNanos = deadline - System.nanoTime()) > 0L) {
+					try {
+						TimeUnit.NANOSECONDS.timedJoin(worker, remainingNanos);
+					} catch (InterruptedException e) {
+						interrupted = true;
+					}
+				}
+			}
+			return Thread.interrupted() || interrupted;
+		}
+
+		/**
+		 * Describes the deadlock the threads are caught in together, if they are.
+		 *
+		 * @param threads the threads that must not deadlock with each other
+		 * @return the description naming each thread, the method of the service it waits in and the thread holding
+		 *         the lock it waits for, or `null` when the threads are not all deadlocked
+		 */
+		@Nullable
+		private static String describeDeadlock(@Nonnull Thread... threads) {
+			final ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+			final long[] deadlockedIds = threadBean.findDeadlockedThreads();
+			final long[] threadIds = Arrays.stream(threads).mapToLong(Thread::threadId).toArray();
+			if (deadlockedIds == null ||
+				!Arrays.stream(threadIds).allMatch(id -> Arrays.stream(deadlockedIds).anyMatch(it -> it == id))) {
+				return null;
+			}
+			final StringBuilder description = new StringBuilder(512).append("deadlock between");
+			for (int i = 0; i < threads.length; i++) {
+				description.append(i == 0 ? " " : " and ").append(threads[i].getName());
+			}
+			for (final ThreadInfo threadInfo : threadBean.getThreadInfo(threadIds, Integer.MAX_VALUE)) {
+				final String waitingIn = Arrays.stream(threadInfo.getStackTrace())
+					.filter(frame -> frame.getClassName().equals(DefaultCatalogPersistenceService.class.getName()))
+					.findFirst()
+					.map(StackTraceElement::getMethodName)
+					.orElse("an unknown method");
+				description.append("; ").append(threadInfo.getThreadName()).append(" waits in ").append(waitingIn)
+					.append(" for a lock held by ").append(threadInfo.getLockOwnerName());
+			}
+			return description.toString();
+		}
+
+		/**
+		 * Waits for publication to finish or for the JVM to report a deadlock involving both workers.
+		 *
+		 * @param publisher the thread publishing the bootstrap record
+		 * @param advancer the thread advancing the history horizon
+		 * @return the deadlock description, or `null` if no deadlock was detected in time
+		 * @throws InterruptedException if the test thread is interrupted while waiting
+		 */
+		@Nullable
+		private static String awaitPublication(@Nonnull Thread publisher, @Nonnull Thread advancer)
+			throws InterruptedException {
+			final long deadline = System.nanoTime() + WAIT_LIMIT.toNanos();
+			while (publisher.isAlive()) {
+				final String deadlock = describeDeadlock(publisher, advancer);
+				if (deadlock != null) {
+					return deadlock;
+				}
+				final long remainingNanos = deadline - System.nanoTime();
+				if (remainingNanos <= 0L) {
+					break;
+				}
+				TimeUnit.NANOSECONDS.timedJoin(publisher, Math.min(remainingNanos, TimeUnit.MILLISECONDS.toNanos(10L)));
+			}
+			return null;
+		}
+
+		/**
+		 * Publishes a bootstrap record while another thread advances the history horizon. The publication schedules
+		 * the size guard, and on an inline executor the guard runs at once on the publishing thread and takes the
+		 * history horizon lock. That must not happen while the publication still holds the bootstrap lock, because
+		 * the history horizon advance takes the same two locks the other way round.
+		 *
+		 * The executor's gate makes the interleaving deterministic: the advance starts when the guard is submitted
+		 * and settles - blocked or returned - before the guard runs. Once both threads have been inspected, each one
+		 * still alive is interrupted. The advancer waits for the bootstrap lock interruptibly, so its giving up
+		 * releases the history horizon lock and a deadlock unwinds instead of outliving the test.
+		 *
+		 * @throws InterruptedException if the test thread is interrupted while waiting
+		 */
+		@Test
+		@DisplayName("should not deadlock when the history horizon advances during bootstrap publication")
+		void shouldNotDeadlockWhenHistoryHorizonAdvancesDuringBootstrapPublication() throws InterruptedException {
+			final GatedInlineSchedulerExecutor executor = new GatedInlineSchedulerExecutor();
+			final Scheduler scheduler = new Scheduler(executor);
+			boolean workersStopped = true;
+			boolean interrupted = false;
+			try {
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
+					timeTravelStorageOptions(Long.MAX_VALUE),
+					eagerCheckpointTransactionOptions(),
+					scheduler,
+					Mockito.mock(ExportFileService.class)
+				);
+				try {
+					writeSeveralGenerations(ioService);
+					final long horizon = VERSIONS_WRITTEN - 1L;
+					final long nextVersion = VERSIONS_WRITTEN + 1L;
+					final UUID catalogId = ioService.getCatalogHeader(VERSIONS_WRITTEN).catalogId();
+					// precondition - an advance with nothing to trim never asks for the bootstrap lock at all
+					assertTrue(ioService.computeRetainedHistoryBytes() > 0L, "the fixture must retain history to trim");
+					assertTrue(
+						ioService.getOldestRetainedCatalogVersion() < horizon, "older records must be trimmable"
+					);
+
+					final AtomicReference<Throwable> horizonFailure = new AtomicReference<>();
+					final Thread horizonAdvancer = Thread.ofPlatform().daemon().name("history-horizon-advancer")
+						.uncaughtExceptionHandler((thread, failure) -> horizonFailure.set(failure))
+						.unstarted(() -> ioService.advanceHistoryHorizon(horizon));
+					final AtomicReference<Throwable> publicationFailure = new AtomicReference<>();
+					final Thread bootstrapPublisher = Thread.ofPlatform().daemon().name("bootstrap-publisher")
+						.uncaughtExceptionHandler((thread, failure) -> publicationFailure.set(failure))
+						.unstarted(() -> {
+							final CatalogOffsetIndexStoragePartPersistenceService storage =
+								ioService.getStoragePartPersistenceService(nextVersion);
+							storage.putStoragePart(nextVersion, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+							executor.arm(horizonAdvancer);
+							ioService.storeHeader(
+								catalogId, CatalogState.ALIVE, nextVersion, 1, null, Collections.emptyList(),
+								new WarmUpDataStoreMemoryBuffer(storage)
+							);
+						});
+
+					final boolean gateReached;
+					final boolean publicationFinished;
+					final String deadlock;
+					bootstrapPublisher.start();
+					workersStopped = false;
+					try {
+						gateReached = executor.awaitGate();
+						deadlock = gateReached ? awaitPublication(bootstrapPublisher, horizonAdvancer) : null;
+						publicationFinished = !bootstrapPublisher.isAlive();
+					} catch (InterruptedException e) {
+						interrupted = true;
+						throw e;
+					} finally {
+						executor.cancelGate();
+						if (horizonAdvancer.isAlive()) {
+							horizonAdvancer.interrupt();
+						}
+						if (bootstrapPublisher.isAlive()) {
+							bootstrapPublisher.interrupt();
+						}
+						interrupted |= joinWorkers(bootstrapPublisher, horizonAdvancer);
+						final boolean publisherStopped = !bootstrapPublisher.isAlive();
+						final boolean advancerStopped = !horizonAdvancer.isAlive();
+						workersStopped = publisherStopped && advancerStopped;
+						assertTrue(workersStopped, "the workers survived teardown and the service was left open");
+					}
+					if (interrupted) {
+						throw new InterruptedException("interrupted while joining the publication and horizon workers");
+					}
+					assertTrue(
+						gateReached,
+						() -> "the publication must reach the gate, publication failure: " + publicationFailure.get()
+					);
+					assertNull(
+						executor.getGateFailure(), "the gate must hold the guard back until the advancer settles"
+					);
+					assertNull(deadlock, "the publication and the history horizon advance must not deadlock");
+					assertTrue(publicationFinished, "the publication must finish within " + WAIT_LIMIT);
+					assertNull(publicationFailure.get(), "the publication must succeed");
+					assertNull(horizonFailure.get(), "the history horizon advance must succeed");
+					assertEquals(
+						horizon, ioService.getOldestRetainedCatalogVersion(),
+						"the history horizon advance must trim the bootstrap file"
+					);
+				} finally {
+					if (workersStopped) {
+						ioService.close();
+					}
+				}
+			} finally {
+				try {
+					if (workersStopped) {
+						scheduler.close();
+					} else {
+						scheduler.shutdownNow();
+					}
+				} finally {
+					if (interrupted) {
+						Thread.currentThread().interrupt();
+					}
+				}
+			}
+		}
+
+		/**
+		 * Verifies that a durable checkpoint submits the guard with the bootstrap lock released even when retirement
+		 * handover fails, and that the guard's scheduling failure is suppressed on the handover failure.
+		 */
+		@Test
+		@DisplayName("should schedule the guard when retirement handover fails after bootstrap publication")
+		void shouldScheduleGuardWhenRetirementHandoverFailsAfterPublication() {
+			final Scheduler scheduler = Mockito.mock(Scheduler.class);
+			final StorageOptions storageOptions = timeTravelStorageOptions(Long.MAX_VALUE);
+			final TransactionOptions transactionOptions = deferredCheckpointTransactionOptions();
+			final StorageSettings bootstrapSettings =
+				new StorageSettings(storageOptions, transactionOptions).modifyForBootstrapFile();
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
+					storageOptions,
+					transactionOptions,
+					scheduler,
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+				assertTrue(
+					getLastCatalogBootstrap(TEST_CATALOG, bootstrapSettings).catalogVersion() < VERSIONS_WRITTEN,
+					"the final record must still be waiting for publication"
+				);
+				// Complete the initial guard run so it can accept a new submission from the checkpoint.
+				final ArgumentCaptor<Runnable> initialGuard = ArgumentCaptor.forClass(Runnable.class);
+				Mockito.verify(scheduler)
+					.schedule(initialGuard.capture(), ArgumentMatchers.eq(0L), any(TimeUnit.class));
+				final Runnable guardCommand = initialGuard.getValue();
+				guardCommand.run();
+
+				final long horizon = VERSIONS_WRITTEN - 1L;
+				assertTrue(
+					ioService.getOldestRetainedCatalogVersion() < horizon, "the fixture must have records to trim"
+				);
+				final AtomicReference<Throwable> probeFailure = new AtomicReference<>();
+				final Thread bootstrapProbe = Thread.ofPlatform().daemon().name("bootstrap-lock-probe")
+					.uncaughtExceptionHandler((thread, failure) -> probeFailure.set(failure))
+					.unstarted(() -> ioService.trimBootstrapFile(horizon));
+				final AtomicBoolean probeReturnedDuringSubmission = new AtomicBoolean();
+
+				final IllegalStateException handoverFailure = new IllegalStateException("purge submission failed");
+				Mockito.doThrow(handoverFailure).when(scheduler).schedule(
+					ArgumentMatchers.<Runnable>argThat(ignored -> StackWalker.getInstance().walk(
+						frames -> frames.anyMatch(
+							frame -> frame.getClassName().equals(ObsoleteFileMaintainer.class.getName()) &&
+								frame.getMethodName().equals("removeFileWhenNotUsed")
+						)
+					)),
+					ArgumentMatchers.anyLong(), any(TimeUnit.class)
+				);
+				final IllegalStateException guardFailure = new IllegalStateException("guard submission failed");
+				Mockito.doAnswer(invocation -> {
+					bootstrapProbe.start();
+					probeReturnedDuringSubmission.set(
+						awaitReturnOrPublisherLock(bootstrapProbe) && !bootstrapProbe.isAlive()
+					);
+					throw guardFailure;
+				}).when(scheduler).schedule(
+					ArgumentMatchers.same(guardCommand), ArgumentMatchers.anyLong(), any(TimeUnit.class)
+				);
+
+				final IllegalStateException failure;
+				try {
+					failure = assertThrows(IllegalStateException.class, ioService::checkpoint);
+				} finally {
+					if (bootstrapProbe.isAlive()) {
+						bootstrapProbe.interrupt();
+						try {
+							bootstrapProbe.join(WAIT_LIMIT);
+						} catch (InterruptedException e) {
+							Thread.currentThread().interrupt();
+							fail("interrupted while joining the bootstrap lock probe", e);
+						}
+						assertFalse(bootstrapProbe.isAlive(), "the bootstrap lock probe survived teardown");
+					}
+				}
+				assertSame(handoverFailure, failure, "the retirement handover failure must propagate");
+				assertEquals(
+					VERSIONS_WRITTEN, getLastCatalogBootstrap(TEST_CATALOG, bootstrapSettings).catalogVersion(),
+					"the new record must already be durable when retirement handover fails"
+				);
+				assertArrayEquals(
+					new Throwable[] { guardFailure }, failure.getSuppressed(),
+					"the durable publication must still submit the guard and suppress its scheduling failure"
+				);
+				assertTrue(
+					probeReturnedDuringSubmission.get(),
+					"the bootstrap lock probe must return during guard submission after failed retirement handover"
+				);
+				assertNull(probeFailure.get(), "the bootstrap lock probe must succeed");
+			}
+		}
 
 		/**
 		 * Verifies that interrupting bootstrap trimming preserves the lock acquisition failure and interrupt flag.
