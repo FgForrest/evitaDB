@@ -67,6 +67,14 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
@@ -107,6 +115,11 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 	 */
 	private static final LongConsumer NO_HISTORY_HORIZON_ADVANCE = catalogVersion -> {
 	};
+	/**
+	 * Name of the file that keeps the directory {@link #blockWalFileDeletion(Path)} puts at a WAL file's path
+	 * non-empty, so deleting that path fails.
+	 */
+	private static final String DELETION_BLOCKER_FILE_NAME = "keep";
 
 	private final Path walDirectory = getTestDirectory().resolve(getClass().getSimpleName());
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
@@ -282,6 +295,34 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 		int walFileCountKept,
 		@Nonnull LongConsumer historyHorizonAdvancer
 	) {
+		return createTestWal(
+			storageFolder, catalogVersion, logFileRecordReference, walFileSizeBytes, walFileCountKept,
+			historyHorizonAdvancer, Mockito.mock(Scheduler.class)
+		);
+	}
+
+	/**
+	 * Creates a test WAL in a separate storage folder with a caller-supplied scheduler for its background tasks.
+	 *
+	 * @param storageFolder          the folder the log writes its WAL files to
+	 * @param catalogVersion         the catalog version the log resumes from
+	 * @param logFileRecordReference the reference the log is opened against
+	 * @param walFileSizeBytes       the maximum size of each WAL file in bytes
+	 * @param walFileCountKept       how many WAL files rotation leaves unqueued for removal
+	 * @param historyHorizonAdvancer callback for the first retained version
+	 * @param scheduler              scheduler for WAL background tasks, owned by the caller
+	 * @return a configured CatalogWriteAheadLog instance, which the caller closes
+	 */
+	@Nonnull
+	private CatalogWriteAheadLog createTestWal(
+		@Nonnull Path storageFolder,
+		long catalogVersion,
+		@Nonnull LogFileRecordReference logFileRecordReference,
+		long walFileSizeBytes,
+		int walFileCountKept,
+		@Nonnull LongConsumer historyHorizonAdvancer,
+		@Nonnull Scheduler scheduler
+	) {
 		return new CatalogWriteAheadLog(
 			catalogVersion,
 			TEST_CATALOG,
@@ -297,9 +338,126 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 					.walFileCountKept(walFileCountKept)
 					.build()
 			),
-			Mockito.mock(Scheduler.class),
+			scheduler,
 			historyHorizonAdvancer
 		);
+	}
+
+	/**
+	 * Parks a scheduled command inside its future so cancelling the future cannot prevent the command from running.
+	 */
+	private static final class GatedScheduledExecutor extends ScheduledThreadPoolExecutor {
+		/**
+		 * Counted down when a gated run begins, before it waits on {@link #gate}.
+		 */
+		private final CountDownLatch started = new CountDownLatch(1);
+		/**
+		 * Released by the test to let the parked run go on to its command.
+		 */
+		private final CountDownLatch gate = new CountDownLatch(1);
+		/**
+		 * Counted down when the gated run ends, whether its command completed, threw, or never ran.
+		 */
+		private final CountDownLatch finished = new CountDownLatch(1);
+		/**
+		 * Set when the gated command returned normally.
+		 */
+		private final AtomicBoolean commandCompleted = new AtomicBoolean();
+		/**
+		 * Holds what a gated run threw, including the timeout of waiting on {@link #gate}.
+		 */
+		private final AtomicReference<Throwable> commandFailure = new AtomicReference<>();
+		/**
+		 * Switches {@link #schedule(Runnable, long, TimeUnit)} from zero-delay setup runs to gated runs. Volatile
+		 * because the test thread sets it while the worker may schedule the follow-up of a finishing run.
+		 */
+		private volatile boolean armed;
+
+		/**
+		 * Creates a single daemon worker so an immediate submission can drain earlier remover runs.
+		 */
+		private GatedScheduledExecutor() {
+			super(1, runnable -> {
+				final Thread thread = new Thread(runnable, "test-wal-remover");
+				thread.setDaemon(true);
+				return thread;
+			});
+		}
+
+		/**
+		 * Runs setup submissions without delay and wraps submissions made after the test arms the gate.
+		 *
+		 * @param command the scheduled command
+		 * @param delay   the delay before the future starts
+		 * @param unit    the unit of the delay
+		 * @return the future which runs the command, including the gate when armed
+		 */
+		@Nonnull
+		@Override
+		public ScheduledFuture<?> schedule(@Nonnull Runnable command, long delay, @Nonnull TimeUnit unit) {
+			if (!this.armed) {
+				return super.schedule(command, 0, unit);
+			}
+			return super.schedule(() -> {
+				try {
+					this.started.countDown();
+					if (!this.gate.await(30, TimeUnit.SECONDS)) {
+						throw new TimeoutException("The test did not release the WAL remover");
+					}
+					command.run();
+					this.commandCompleted.set(true);
+				} catch (Throwable ex) {
+					this.commandFailure.set(ex);
+					if (ex instanceof InterruptedException) {
+						Thread.currentThread().interrupt();
+					}
+				} finally {
+					this.finished.countDown();
+				}
+			}, delay, unit);
+		}
+	}
+
+	/**
+	 * Makes deleting a WAL file fail: the file moves aside and a non-empty directory takes its path. A directory is
+	 * used rather than file permissions, which a test running on Windows or as root cannot rely on.
+	 * {@link #restoreBlockedWalFile(Path)} undoes it.
+	 *
+	 * @param walFile the WAL file whose deletion must fail
+	 * @throws IOException if the file cannot be moved aside or the directory cannot be created
+	 */
+	private static void blockWalFileDeletion(@Nonnull Path walFile) throws IOException {
+		Files.move(walFile, getMovedAsidePath(walFile));
+		Files.createDirectory(walFile);
+		Files.createFile(walFile.resolve(DELETION_BLOCKER_FILE_NAME));
+	}
+
+	/**
+	 * Undoes {@link #blockWalFileDeletion(Path)}: removes the directory and moves the WAL file back. Does nothing when
+	 * the file was never moved aside, so a `finally` block may call it whether or not the block was reached.
+	 *
+	 * @param walFile the WAL file whose deletion was blocked
+	 * @throws IOException if the directory cannot be removed or the file cannot be moved back
+	 */
+	private static void restoreBlockedWalFile(@Nonnull Path walFile) throws IOException {
+		final Path movedWalFile = getMovedAsidePath(walFile);
+		if (Files.exists(movedWalFile)) {
+			Files.deleteIfExists(walFile.resolve(DELETION_BLOCKER_FILE_NAME));
+			Files.deleteIfExists(walFile);
+			Files.move(movedWalFile, walFile);
+		}
+	}
+
+	/**
+	 * Returns where {@link #blockWalFileDeletion(Path)} keeps a WAL file. Both index discovery and rotation list only
+	 * names ending in the WAL suffix, so the log does not see the moved file.
+	 *
+	 * @param walFile the WAL file to move aside
+	 * @return the sibling path the file is moved to
+	 */
+	@Nonnull
+	private static Path getMovedAsidePath(@Nonnull Path walFile) {
+		return walFile.resolveSibling(walFile.getFileName() + ".aside");
 	}
 
 	/**
@@ -1600,6 +1758,160 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			}
 
 			assertFalse(Files.exists(firstWalFile), "The queued removal must purge file 0 once it is fully processed");
+		}
+
+		/**
+		 * Verifies that the WAL can reopen when both removal passes fail to delete the oldest file.
+		 *
+		 * @throws IOException if fixture setup or cleanup fails
+		 */
+		@Test
+		@DisplayName("should reopen the log after the removal of its oldest rotated file failed")
+		void shouldReopenWalWhenRemovalOfOldestRotatedFileFails() throws IOException {
+			final Path walDirectory = Files.createDirectory(
+				CatalogWriteAheadLogTest.this.walDirectory.resolve("failed-oldest-removal")
+			);
+			final Path firstWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 0));
+			final Path secondWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 1));
+			final Path fourthWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 3));
+			final RotatedWal rotated;
+			try (final CatalogWriteAheadLog wal = createTestWal(
+				walDirectory, 0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
+				4_096L, 2, NO_HISTORY_HORIZON_ADVANCE
+			)) {
+				rotated = appendUntilWalFileAppears(wal, fourthWalFile, 3L);
+				// The first version of file 2 makes files 0 and 1 due.
+				wal.walProcessedUntil(wal.getFirstVersionOf(2));
+				blockWalFileDeletion(firstWalFile);
+				wal.removeWalFiles();
+				// Closing the log runs a second pass while file 0's deletion is still blocked.
+			} finally {
+				restoreBlockedWalFile(firstWalFile);
+			}
+
+			assertAll(
+				() -> assertDoesNotThrow(() -> {
+					try (final CatalogWriteAheadLog reopened = createTestWal(
+						walDirectory, 3L, rotated.capturedReference(), 4_096L, 2, NO_HISTORY_HORIZON_ADVANCE
+					)) {
+						assertNotNull(reopened);
+					}
+				}, "The log must reopen after the removal of its oldest rotated file failed"),
+				() -> assertTrue(Files.exists(secondWalFile), "File 1 must survive both removal passes")
+			);
+		}
+
+		/**
+		 * Verifies that a remover already running when the WAL closes cannot delete files or advance the history
+		 * horizon after close returns. Files 0 and 1 are due, and a non-empty directory at file 1's path makes the
+		 * final synchronous pass delete file 0 and fail at file 1. The test restores file 1 before releasing the
+		 * parked remover.
+		 *
+		 * @throws Exception if fixture setup or a bounded wait fails
+		 */
+		@Test
+		@DisplayName("should leave WAL files and the history horizon alone after the log closes")
+		void shouldLeaveWalFilesAndHistoryHorizonAloneWhenRemoverResumesAfterClose() throws Exception {
+			final Path walDirectory = Files.createDirectory(
+				CatalogWriteAheadLogTest.this.walDirectory.resolve("removal-after-close")
+			);
+			final Path firstWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 0));
+			final Path secondWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 1));
+			final Path fourthWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 3));
+			final AtomicInteger historyHorizonAdvances = new AtomicInteger();
+			final GatedScheduledExecutor executor = new GatedScheduledExecutor();
+			try {
+				try {
+					try (final CatalogWriteAheadLog wal = createTestWal(
+						walDirectory, 0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
+						4_096L, 2, ignored -> historyHorizonAdvances.incrementAndGet(), new Scheduler(executor)
+					)) {
+						appendUntilWalFileAppears(wal, fourthWalFile, 3L);
+						// With setup delays disabled, a barrier on the single worker drains rotation's remover runs.
+						// A run still executing when rotation last scheduled the remover enqueues one more behind
+						// the barrier, so the barrier repeats until the worker finds the queue empty while running it.
+						boolean drained = false;
+						for (int attempt = 0; attempt < 10 && !drained; attempt++) {
+							drained = executor.submit(() -> executor.getQueue().isEmpty()).get(30, TimeUnit.SECONDS);
+						}
+						assertTrue(drained, "Earlier remover runs must be drained before arming");
+						executor.armed = true;
+						// Each removal is due at its file's last version plus one, so the first version of file 2
+						// makes files 0 and 1 due.
+						wal.walProcessedUntil(wal.getFirstVersionOf(2));
+						assertTrue(executor.started.await(30, TimeUnit.SECONDS), "The due WAL remover must start");
+						assertTrue(Files.exists(firstWalFile), "File 0 must be queued and still exist before close");
+						assertTrue(Files.exists(secondWalFile), "File 1 must be queued and still exist before close");
+						// Close's own removal pass must fail at file 1.
+						blockWalFileDeletion(secondWalFile);
+					}
+					assertFalse(Files.exists(firstWalFile), "Close's final removal pass must delete file 0");
+					assertTrue(Files.isDirectory(secondWalFile), "Close must fail to delete the directory at file 1");
+				} finally {
+					restoreBlockedWalFile(secondWalFile);
+				}
+
+				final int advancesAtClose = historyHorizonAdvances.get();
+				executor.gate.countDown();
+				assertTrue(executor.finished.await(30, TimeUnit.SECONDS), "The late WAL remover wrapper must finish");
+				assertNull(executor.commandFailure.get(), "The late WAL remover must not throw");
+				assertTrue(executor.commandCompleted.get(), "The late WAL remover command must complete");
+				assertAll(
+					() -> assertTrue(Files.exists(secondWalFile), "File 1 was deleted after close returned"),
+					() -> assertEquals(
+						advancesAtClose, historyHorizonAdvances.get(),
+						"The history horizon advanced after close returned"
+					)
+				);
+			} finally {
+				executor.shutdownNow();
+				assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS), "The WAL remover executor must stop");
+			}
+		}
+
+		/**
+		 * Verifies that closing the WAL a second time runs no removal pass: a due file the first close failed to
+		 * delete survives the second close, and the history horizon does not move again.
+		 *
+		 * @throws IOException if fixture setup or closing the log fails
+		 */
+		@Test
+		@DisplayName("should run no removal pass when the log is closed a second time")
+		void shouldNotRunRemovalPassWhenLogIsClosedTwice() throws IOException {
+			final Path walDirectory = Files.createDirectory(
+				CatalogWriteAheadLogTest.this.walDirectory.resolve("repeated-close")
+			);
+			final Path firstWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 0));
+			final Path secondWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 1));
+			final Path fourthWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 3));
+			final AtomicInteger historyHorizonAdvances = new AtomicInteger();
+			final int advancesAtFirstClose;
+			try (final CatalogWriteAheadLog wal = createTestWal(
+				walDirectory, 0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
+				4_096L, 2, ignored -> historyHorizonAdvances.incrementAndGet()
+			)) {
+				appendUntilWalFileAppears(wal, fourthWalFile, 3L);
+				// Files 0 and 1 are queued, and the first version of file 2 makes both due.
+				wal.walProcessedUntil(wal.getFirstVersionOf(2));
+				try {
+					blockWalFileDeletion(secondWalFile);
+					wal.close();
+					assertFalse(Files.exists(firstWalFile), "The first close's removal pass must delete file 0");
+					assertTrue(Files.isDirectory(secondWalFile), "The first close must fail to delete file 1");
+				} finally {
+					restoreBlockedWalFile(secondWalFile);
+				}
+				advancesAtFirstClose = historyHorizonAdvances.get();
+				// Leaving the block closes the log a second time, with file 1 deletable again.
+			}
+
+			assertAll(
+				() -> assertTrue(Files.exists(secondWalFile), "The second close deleted file 1"),
+				() -> assertEquals(
+					advancesAtFirstClose, historyHorizonAdvances.get(),
+					"The second close advanced the history horizon"
+				)
+			);
 		}
 
 		@Test

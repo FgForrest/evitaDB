@@ -79,12 +79,12 @@ import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -300,6 +300,14 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * records in them were not yet processed.
 	 */
 	private final Queue<PendingRemoval> pendingRemovals = new ConcurrentLinkedDeque<>();
+	/**
+	 * Serializes passes that drain {@link #pendingRemovals} and guards {@link #closed}.
+	 */
+	private final ReentrantLock walRemovalLock = new ReentrantLock();
+	/**
+	 * Set after the final removal pass in {@link #close()}, under {@link #walRemovalLock}.
+	 */
+	private boolean closed;
 
 	/**
 	 * Returns the index extracted from the given Write-Ahead-Log file name.
@@ -1880,6 +1888,14 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		}
 	}
 
+	/**
+	 * Closes the WAL resources and tasks, then runs the final removal pass and marks the remover closed
+	 * under the same lock. Once that pass has completed, a repeated call runs no further pass.
+	 *
+	 * Exceptions from closing the current WAL file, output stream, or scheduled tasks are logged at debug
+	 * level and swallowed so the remaining teardown can proceed. A due WAL file the final pass cannot delete
+	 * is logged at error level instead and stays queued.
+	 */
 	@Override
 	public void close() throws IOException {
 		IOUtils.closeQuietly(
@@ -1896,7 +1912,15 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			this.cutWalCacheTask::close,
 			this.removeWalFileTask::close
 		);
-		removeWalFiles();
+		this.walRemovalLock.lock();
+		try {
+			if (!this.closed) {
+				drainPendingWalRemovals();
+				this.closed = true;
+			}
+		} finally {
+			this.walRemovalLock.unlock();
+		}
 	}
 
 	/**
@@ -2250,7 +2274,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 
 	/**
 	 * Checks the pending removals for the WAL file index. Rotation holds {@link #walSyncLock} while checking,
-	 * so only the remover can change the queue during the scan.
+	 * so the scan can overlap only with a removal pass under {@link #walRemovalLock}.
 	 *
 	 * @param walFileIndex index of the WAL file to look for
 	 * @return whether removal of this file is still pending
@@ -2265,37 +2289,63 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	}
 
 	/**
-	 * Removes the obsolete WAL files from the catalog storage path.
+	 * Runs a removal pass while the log is open. Closing the task via {@link DelayedAsyncTask#close()} uses
+	 * `cancel(false)`, so an already-started run can reach this method after close. Checking the closed flag
+	 * under the same lock as the final pass in {@link #close()} makes such a run delete no file and report
+	 * nothing through {@link #updateFirstVersionKept(long)}. This mirrors the size guard in
+	 * `DefaultCatalogPersistenceService#enforceTimeTravelSizeLimit`.
+	 *
+	 * @return always `-1` because the remover does not reschedule itself
 	 */
 	long removeWalFiles() {
-		synchronized (this.pendingRemovals) {
-			final long catalogVersion = this.processedVersion.get();
-			final Set<PendingRemoval> toRemove = new HashSet<>(64);
+		this.walRemovalLock.lock();
+		try {
+			if (!this.closed) {
+				drainPendingWalRemovals();
+			}
+			return -1;
+		} finally {
+			this.walRemovalLock.unlock();
+		}
+	}
 
-			long firstVersionToBeKept = -1;
-			for (PendingRemoval pendingRemoval : this.pendingRemovals) {
-				if (pendingRemoval.version() <= catalogVersion) {
-					try {
-						pendingRemoval.removeLambda().run();
-						if (pendingRemoval.version() > firstVersionToBeKept) {
-							firstVersionToBeKept = pendingRemoval.version();
-						}
-						toRemove.add(pendingRemoval);
-					} catch (Exception ex) {
-						// failed to remove the file, we will try again later and continue with the next one
-						AbstractMutationLog.log.error(ex.getMessage(), ex);
+	/**
+	 * Deletes the queued WAL files the processed version has made due, and reports the first version after the newest
+	 * deleted file through {@link #updateFirstVersionKept(long)}, which is not called when nothing was deleted. A due
+	 * file whose deletion fails is logged at error level and stays queued. If the file is already gone, the pass
+	 * continues. Any other deletion failure ends the pass to preserve the oldest-first removal order and keep the
+	 * remaining WAL files contiguous. Callers must hold {@link #walRemovalLock}.
+	 */
+	private void drainPendingWalRemovals() {
+		final long catalogVersion = this.processedVersion.get();
+		final Set<PendingRemoval> toRemove = CollectionUtils.createHashSet(64);
+
+		long firstVersionToBeKept = -1;
+		for (final PendingRemoval pendingRemoval : this.pendingRemovals) {
+			if (pendingRemoval.version() <= catalogVersion) {
+				try {
+					pendingRemoval.removeLambda().run();
+					if (pendingRemoval.version() > firstVersionToBeKept) {
+						firstVersionToBeKept = pendingRemoval.version();
 					}
-				} else {
+					toRemove.add(pendingRemoval);
+				} catch (NoSuchFileException ex) {
+					AbstractMutationLog.log.error(
+						"WAL file queued for removal is already gone: {}", ex.getMessage(), ex
+					);
+				} catch (Exception ex) {
+					AbstractMutationLog.log.error("Failed to delete WAL file: {}", ex.getMessage(), ex);
+					// Stop at the first blocked file to preserve oldest-first removal and keep the files contiguous.
 					break;
 				}
+			} else {
+				break;
 			}
+		}
 
-			if (!toRemove.isEmpty()) {
-				this.pendingRemovals.removeAll(toRemove);
-				updateFirstVersionKept(firstVersionToBeKept);
-			}
-
-			return -1;
+		if (!toRemove.isEmpty()) {
+			this.pendingRemovals.removeAll(toRemove);
+			updateFirstVersionKept(firstVersionToBeKept);
 		}
 	}
 
@@ -2577,17 +2627,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 							versionsFromWalFile.lastVersion() + 1,
 							walFileIndex,
 							() -> {
-								try {
-									if (walFile.delete()) {
-										AbstractMutationLog.log.debug("Deleted WAL file `{}`!", walFile);
-									} else {
-										throw new IOException(
-											"Failed to delete WAL file `" + walFile.getAbsolutePath() + "`!");
-									}
-								} catch (Exception ex) {
-									throw new IOException(
-										"Failed to delete WAL file `" + walFile.getAbsolutePath() + "`!", ex);
-								}
+								Files.delete(walFile.toPath());
+								AbstractMutationLog.log.debug("Deleted WAL file `{}`!", walFile);
 							}
 						);
 						if (!this.pendingRemovals.contains(pendingRemoval)) {
