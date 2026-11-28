@@ -377,7 +377,9 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	private final AtomicReference<BootstrapWriteOnlyFileHandle> bootstrapWriteHandle;
 	/**
-	 * This lock synchronizes the access to the bootstrap file.
+	 * Serializes bootstrap publication and trimming. Trimming takes this lock under {@link #historyHorizonLock}.
+	 * Retirement handover can take {@link #cpsvLock} and the obsolete-file purge task's scheduling lock.
+	 * Publication releases the bootstrap lock before scheduling the time travel size guard.
 	 */
 	private final ReentrantLock bootstrapWriteLock = new ReentrantLock();
 	/**
@@ -395,11 +397,10 @@ public class DefaultCatalogPersistenceService
 	 * handed the same instance so both paths take one lock, and it exists even when there is no coordinator, which
 	 * is what lets {@link #storeHeader} lock unconditionally instead of branching.
 	 *
-	 * This is the outermost lock of this class, never acquired while another of them is held.
-	 * {@link #bootstrapWriteLock}, {@link #cpsvLock} and the write-handle locks are all taken beneath it, in that same
-	 * order on every path, and so is {@link #historyHorizonLock}, by the statistics read at the end of
-	 * {@link #storeHeader}. The only thing beneath it that takes it again is the coordinator, reentrantly, on the
-	 * thread that already holds it.
+	 * This is the outermost lock of this class. The publication locks beneath it are ordered
+	 * {@link #bootstrapWriteLock}, {@link #cpsvLock}, then the write-handle locks when nested. Statistics,
+	 * inline size guard execution and inline WAL removal can also take {@link #historyHorizonLock} beneath it.
+	 * The coordinator can reacquire this lock reentrantly on the same thread.
 	 */
 	private final ReentrantLock checkpointLock = new ReentrantLock();
 	/**
@@ -494,15 +495,11 @@ public class DefaultCatalogPersistenceService
 	 * {@link #closed} beneath it, which is what makes the closed checks inside the two long-running paths conclusive
 	 * rather than best-effort.
 	 *
-	 * Lock order: {@link #bootstrapWriteLock} and {@link #cpsvLock} are taken beneath it, by way of
-	 * {@link #trimBootstrapFile(long)}. It is taken beneath only two other locks of this class:
-	 * {@link #checkpointLock}, by the statistics read {@link #computeRetainedHistoryBytes()} at the end of
-	 * {@link #storeHeader}, and {@link #walWriteLock}, when {@link #close()} closes a log that still has rotated-out
-	 * files to report. Neither of those two is ever taken while this one is held, so these edges form no cycle. It is
-	 * notably not taken from the commit thread's {@link #retireDataFile}, which runs under {@link #cpsvLock} and only
-	 * ever *schedules* the guard rather than driving it.
-	 * Moving the floor readers under this lock introduced no new edge - session close already took it a few
-	 * statements later through {@link #retentionStateChanged()}.
+	 * {@link #checkpointLock} and the WAL locks are never taken while this lock is held. Inline WAL removal
+	 * can take this lock under {@link #walWriteLock}, the WAL sync lock and the remover's scheduling and pending
+	 * removals locks. Trimming takes {@link #bootstrapWriteLock} and then {@link #cpsvLock} beneath this lock.
+	 * A deferred purge or sweep can take the scheduling lock of the {@link ObsoleteFileMaintainer} purge task.
+	 * The purge task's callbacks never acquire this lock.
 	 */
 	private final ReentrantLock historyHorizonLock = new ReentrantLock();
 	/**
@@ -516,8 +513,9 @@ public class DefaultCatalogPersistenceService
 	 */
 	private final AtomicLong pendingHistoryHorizonRequest = new AtomicLong(-1L);
 	/**
-	 * Enforces {@link StorageOptions#timeTravelSizeLimitBytes()} off the commit thread. `null` when the limit cannot
-	 * bind - either time travel is off, or the operator asked for no limit at all.
+	 * Reclaims unreachable files and enforces {@link StorageOptions#timeTravelSizeLimitBytes()} through the
+	 * scheduler, which may run it inline. Present even with an unlimited budget and `null` only when time travel
+	 * is off.
 	 */
 	@Nullable private final DelayedAsyncTask timeTravelSizeGuardTask;
 	/**
@@ -4362,8 +4360,8 @@ public class DefaultCatalogPersistenceService
 			// the service reopened at the end of `replaceWith` would load the catalog under the name it had before the
 			// rename. Discarding it is right on the merits rather than merely expedient: the record written above
 			// already did what the owed checkpoint was for, since `prepareBootstrap` flushed the offset index and
-			// `writeCatalogBootstrap` forced the pending syncs at its fence - which is also where the time travel size
-			// guard is scheduled, so the history this record reveals is still accounted for and the discard drops a
+			// `writeCatalogBootstrap` forced the pending syncs at its fence - and it scheduled the time travel size
+			// guard after publishing, so the history this record reveals is still accounted for and the discard drops a
 			// duplicate publication rather than the bookkeeping that rides along with it. Skipping `walProcessedUntil`
 			// is harmless: the marker only decides which rotated-out log files may be deleted, so at worst they stay on
 			// disk for longer, and the reopened service seeds its own marker from the version of this record. The
@@ -4636,11 +4634,10 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Hands a data file over to {@link ObsoleteFileMaintainer} and schedules the time travel size guard.
+	 * Parks a data file's handover to {@link ObsoleteFileMaintainer} until its replacement is published.
 	 *
-	 * With time travel enabled the maintainer runs the removal lambda but skips the `delete()`, and that skipped delete
-	 * is the entire disk cost of the feature - which makes these call sites the only events that grow retained history
-	 * and therefore the only ones the guard needs to be driven by. No polling is needed.
+	 * With time travel enabled the maintainer runs the removal lambda and keeps the file as history. The
+	 * bootstrap publication schedules the size guard after handing over all eligible retirements.
 	 *
 	 * @param catalogVersion the last catalog version that may still use the file
 	 * @param path           path of the file being retired
@@ -4651,7 +4648,8 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Parks the retirement of a data file until the record superseding it is published.
+	 * Parks the retirement of a data file until the record superseding it is published. The action hands the
+	 * file to the maintainer when {@link #releaseUnpublishedRetirements(long)} runs it.
 	 *
 	 * @param catalogVersion       version of the round that supersedes the file; the retirement is released by the
 	 *                             first record at or above it
@@ -4674,10 +4672,8 @@ public class DefaultCatalogPersistenceService
 			new ParkedRetirement(
 				catalogVersion,
 				lastVersionUsingFile,
-				handedOverVersion -> {
-					this.obsoleteFileMaintainer.removeFileWhenNotUsed(handedOverVersion, path, removalLambda);
-					scheduleTimeTravelSizeGuard();
-				}
+				handedOverVersion ->
+					this.obsoleteFileMaintainer.removeFileWhenNotUsed(handedOverVersion, path, removalLambda)
 			)
 		);
 	}
@@ -4689,6 +4685,8 @@ public class DefaultCatalogPersistenceService
 	 * pointer chain names the file that replaced it, so nothing a reload follows can reach the retired one. A round
 	 * that failed before publishing simply leaves its entries parked for the next successful one - the files it
 	 * wrote are unreferenced dead space until then, which costs disk and never correctness.
+	 *
+	 * @param publishedCatalogVersion the version of the durable bootstrap record
 	 */
 	private void releaseUnpublishedRetirements(long publishedCatalogVersion) {
 		ParkedRetirement retirement;
@@ -4704,13 +4702,15 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Schedules the time travel size guard, unless it cannot bind at all (time travel off, or no limit configured).
+	 * Schedules the size guard when time travel is enabled, including with an unlimited budget.
+	 * Callers must leave {@link #bootstrapWriteLock} released because an inline run takes
+	 * {@link #historyHorizonLock}.
 	 */
 	private void scheduleTimeTravelSizeGuard() {
 		final DelayedAsyncTask theGuardTask = this.timeTravelSizeGuardTask;
 		// `close()` closes the guard task but leaves the field set, and scheduling a closed task throws. `trySchedule`
 		// is what keeps a late arrival - a task cancelled after its catalog went away - from throwing out of a
-		// tear-down path that has no business failing, or out of the commit thread retiring a data file. Reading a
+		// tear-down path that has no business failing, or out of the thread publishing a bootstrap record. Reading a
 		// `closed` flag here and then calling `schedule()` would not do it: the close can land between the two
 		if (theGuardTask != null) {
 			theGuardTask.trySchedule();
@@ -4930,7 +4930,9 @@ public class DefaultCatalogPersistenceService
 	 * Creates the task that reclaims unreachable data files and keeps retained history within
 	 * {@link StorageOptions#timeTravelSizeLimitBytes()}, or returns `null` when time travel is switched off entirely.
 	 * Compaction is the only event that grows history - with time travel enabled the compacted-away file is kept
-	 * instead of deleted - so the task is driven by compaction rather than polled.
+	 * instead of deleted - but that file becomes history only once the bootstrap record superseding it is published.
+	 * So the task is not polled: every completed bootstrap publication schedules it, and so do a lowered retention
+	 * floor and the opening of the catalog's storage.
 	 *
 	 * The task binds whenever time travel is on, including when the operator asked for an unlimited budget: the budget
 	 * is only half of what it does. Reclaiming files no retained bootstrap record can reach is a correctness property
@@ -4960,14 +4962,15 @@ public class DefaultCatalogPersistenceService
 
 	/**
 	 * Moves the history horizon up until the retained history fits into
-	 * {@link StorageOptions#timeTravelSizeLimitBytes()}. Runs off the commit thread on the guard task.
+	 * {@link StorageOptions#timeTravelSizeLimitBytes()}. Reclaims unreachable files even with an unlimited
+	 * budget. The scheduler may run the guard task on the submitting thread.
 	 *
 	 * Costs one directory listing (where `File.length()` is a stat, not a read) plus `O(log n)` catalog header reads,
 	 * because the retained size is monotone non-increasing in the horizon - see {@link TimeTravelRetention}.
 	 *
 	 * Package-private so a test can run it synchronously instead of racing the scheduler.
 	 *
-	 * @return always `-1`, the guard is scheduled by compaction and never re-plans itself
+	 * @return always `-1`, the guard never re-plans itself - {@link #createTimeTravelSizeGuardTask} names what does
 	 */
 	long enforceTimeTravelSizeLimit() {
 		// held across the measurement too, not just the advance: the bootstrap file is read record by record here and
@@ -5182,10 +5185,10 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Trims the bootstrap file so that it contains only records starting with the bootstrap record precedes the given
-	 * timestamp and all the records following it.
+	 * Trims the bootstrap file to the given catalog version and all subsequent versions.
 	 *
-	 * @param catalogVersion the first catalog version that should remain in bootstrap file
+	 * @param catalogVersion the first catalog version that should remain in the bootstrap file
+	 * @throws GenericEvitaInternalError if acquiring the bootstrap lock is interrupted; the interrupt flag is restored
 	 */
 	void trimBootstrapFile(long catalogVersion) {
 		// create tracking event
@@ -5197,35 +5200,42 @@ public class DefaultCatalogPersistenceService
 
 		try {
 			this.bootstrapWriteLock.lockInterruptibly();
-			final BootstrapWriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
-			final BootstrapWriteOnlyFileHandle newBootstrapHandle = createBootstrapTempWriteHandle(this.storagePrefix);
+			try {
+				final BootstrapWriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
+				final BootstrapWriteOnlyFileHandle newBootstrapHandle =
+					createBootstrapTempWriteHandle(this.storagePrefix);
 
-			// copy all bootstrap records since the timestamp to the new file
-			copyAllNecessaryBootstrapRecords(
-				catalogVersion, originalBootstrapHandle.getTargetFile(), newBootstrapHandle);
+				// copy the retained bootstrap records to the new file
+				copyAllNecessaryBootstrapRecords(
+					catalogVersion, originalBootstrapHandle.getTargetFile(), newBootstrapHandle
+				);
 
-			// now close both handles
-			originalBootstrapHandle.close();
-			newBootstrapHandle.close();
-			// try to atomically rewrite original bootstrap file
-			FileUtils.rewriteTargetFileAtomically(
-				newBootstrapHandle.getTargetFile(), originalBootstrapHandle.getTargetFile());
-			// we should be the only writer here, so this should always pass
-			Assert.isPremiseValid(
-				this.bootstrapWriteHandle.compareAndSet(
-					originalBootstrapHandle,
-					createBootstrapWriteOnlyHandle(originalBootstrapHandle)
-				),
-				() -> new GenericEvitaInternalError(
-					"Failed to replace the bootstrap write handle in a critical section!")
-			);
-			// remove the persistence services of every generation that just fell below the retained history
-			final int obsoleteServiceCount = countObsoletePersistenceServices(
-				ArrayUtils.computeInsertPositionOfLongInOrderedArray(
-					catalogVersion, this.catalogPersistenceServiceVersions)
-			);
-			for (int i = 0; i < obsoleteServiceCount; i++) {
-				removeCatalogPersistenceServiceForVersion(this.catalogPersistenceServiceVersions[0]);
+				// now close both handles
+				originalBootstrapHandle.close();
+				newBootstrapHandle.close();
+				// try to atomically rewrite original bootstrap file
+				FileUtils.rewriteTargetFileAtomically(
+					newBootstrapHandle.getTargetFile(), originalBootstrapHandle.getTargetFile()
+				);
+				// we should be the only writer here, so this should always pass
+				Assert.isPremiseValid(
+					this.bootstrapWriteHandle.compareAndSet(
+						originalBootstrapHandle,
+						createBootstrapWriteOnlyHandle(originalBootstrapHandle)
+					),
+					() -> new GenericEvitaInternalError(
+						"Failed to replace the bootstrap write handle in a critical section!")
+				);
+				// remove the persistence services of every generation that just fell below the retained history
+				final int obsoleteServiceCount = countObsoletePersistenceServices(
+					ArrayUtils.computeInsertPositionOfLongInOrderedArray(
+						catalogVersion, this.catalogPersistenceServiceVersions)
+				);
+				for (int i = 0; i < obsoleteServiceCount; i++) {
+					removeCatalogPersistenceServiceForVersion(this.catalogPersistenceServiceVersions[0]);
+				}
+			} finally {
+				this.bootstrapWriteLock.unlock();
 			}
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -5235,7 +5245,6 @@ public class DefaultCatalogPersistenceService
 				e
 			);
 		} finally {
-			this.bootstrapWriteLock.unlock();
 			// emit the event
 			event.finish().commit();
 		}
@@ -5445,10 +5454,18 @@ public class DefaultCatalogPersistenceService
 	 * more high-level method {@link #recordBootstrap(long, String, int, long, DataStoreMemoryBuffer)} or
 	 * {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)} instead.
 	 *
+	 * Once the record is published, the time travel size guard is scheduled after {@link #bootstrapWriteLock} is
+	 * released: an inline executor runs the guard on the calling thread, and the guard takes
+	 * {@link #historyHorizonLock}, which {@link #advanceHistoryHorizon(long)} holds while it waits for the bootstrap
+	 * lock. The guard is scheduled even when the retirement handover then fails, because the published record already
+	 * exposes the retired generation; a scheduling failure is then added to the handover failure as suppressed, and
+	 * propagates on its own otherwise. A publication that fails before the record is published schedules nothing.
+	 *
 	 * @param catalogVersion  the version of the catalog
 	 * @param storagePrefix  prefix the catalog's files are named with
 	 * @param bootstrapRecord the bootstrap record to store
 	 * @return the stored CatalogBootstrap object
+	 * @throws GenericEvitaInternalError if acquiring the bootstrap write lock is interrupted
 	 */
 	@Nonnull
 	private CatalogBootstrap writeCatalogBootstrap(
@@ -5459,60 +5476,66 @@ public class DefaultCatalogPersistenceService
 		final Kryo kryo = this.walKryoPool.obtain();
 		try {
 			this.bootstrapWriteLock.lockInterruptibly();
-			// THE FENCE. A bootstrap record is a pointer into the data files, and it must never become durable
-			// before the bytes it addresses have. Forcing here rather than at the call sites makes that structural:
-			// every writer of a bootstrap record - trunk round, compaction, go-live, rename, restore - is covered,
-			// including ones added later that would never think to ask.
-			if (this.checkpointCoordinator != null) {
-				this.checkpointCoordinator.forcePendingSyncs();
-			}
-			final BootstrapWriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
-			final BootstrapWriteOnlyFileHandle bootstrapHandle = getOrCreateNewBootstrapTempWriteHandle(
-				catalogVersion, storagePrefix, originalBootstrapHandle
-			);
-
-			// append to the existing file (we will compact it when the WAL files are purged)
-			bootstrapHandle.checkAndExecuteAndSync(
-				"store bootstrap record",
-				() -> {
-				},
-				output -> serializeBootstrapRecord(output, bootstrapRecord).payload(),
-				(output, catalogBootstrap) -> catalogBootstrap
-			);
-
-			// replace the original handle with new one
-			if (bootstrapHandle != originalBootstrapHandle) {
-				originalBootstrapHandle.close();
-				bootstrapHandle.close();
-				// try to atomically rewrite original bootstrap file
-				FileUtils.rewriteTargetFileAtomically(
-					bootstrapHandle.getTargetFile(), originalBootstrapHandle.getTargetFile());
-				// we should be the only writer here, so this should always pass
-				Assert.isPremiseValid(
-					this.bootstrapWriteHandle.compareAndSet(
-						originalBootstrapHandle,
-						createBootstrapWriteOnlyHandle(originalBootstrapHandle)
-					),
-					() -> new GenericEvitaInternalError(
-						"Failed to replace the bootstrap write handle in a critical section!")
+			boolean published = false;
+			Throwable publicationFailure = null;
+			try {
+				// THE FENCE. A bootstrap record is a pointer into the data files, and it must never become durable
+				// before the bytes it addresses have. Forcing here rather than at the call sites makes that structural:
+				// every writer of a bootstrap record - trunk round, compaction, go-live, rename, restore - is covered,
+				// including ones added later that would never think to ask.
+				if (this.checkpointCoordinator != null) {
+					this.checkpointCoordinator.forcePendingSyncs();
+				}
+				final BootstrapWriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
+				final BootstrapWriteOnlyFileHandle bootstrapHandle = getOrCreateNewBootstrapTempWriteHandle(
+					catalogVersion, storagePrefix, originalBootstrapHandle
 				);
+
+				// append to the existing file (we will compact it when the WAL files are purged)
+				bootstrapHandle.checkAndExecuteAndSync(
+					"store bootstrap record",
+					() -> {
+					},
+					output -> serializeBootstrapRecord(output, bootstrapRecord).payload(),
+					(output, catalogBootstrap) -> catalogBootstrap
+				);
+
+				// replace the original handle with new one
+				if (bootstrapHandle != originalBootstrapHandle) {
+					originalBootstrapHandle.close();
+					bootstrapHandle.close();
+					// try to atomically rewrite original bootstrap file
+					FileUtils.rewriteTargetFileAtomically(
+						bootstrapHandle.getTargetFile(), originalBootstrapHandle.getTargetFile()
+					);
+					// we should be the only writer here, so this should always pass
+					Assert.isPremiseValid(
+						this.bootstrapWriteHandle.compareAndSet(
+							originalBootstrapHandle,
+							createBootstrapWriteOnlyHandle(originalBootstrapHandle)
+						),
+						() -> new GenericEvitaInternalError(
+							"Failed to replace the bootstrap write handle in a critical section!")
+					);
+				}
+
+				published = true;
+				// THE CONFIRM PHASE. The record above is durable, so the pointer chain a reload follows now names the
+				// files this round wrote - and only now may the generation they superseded be unlinked. Deleting any
+				// earlier removes a file the previously published record still reaches, which no bootstrap write is
+				// needed to turn into an unloadable catalog.
+				releaseUnpublishedRetirements(bootstrapRecord.catalogVersion());
+			} catch (Throwable failure) {
+				publicationFailure = failure;
+				throw failure;
+			} finally {
+				this.bootstrapWriteLock.unlock();
+				if (published) {
+					// Publication exposes the retired generation to the guard, even if handover failed.
+					// An inline guard acquires the history horizon lock, so schedule only after unlocking.
+					scheduleTimeTravelSizeGuardAfterPublication(publicationFailure);
+				}
 			}
-
-			// A retired generation only becomes history once the record that supersedes it is published, and that
-			// publication may be deferred long after the compaction that scheduled the guard from `retireDataFile`.
-			// Until then the newest published record still pins the retired file, so the guard counts it as active
-			// and sees no new history at all. Scheduling here - at the one point every bootstrap record passes
-			// through, deferred checkpoints included - is what makes the budget observe the generation that
-			// scheduling on retirement alone would skip.
-			scheduleTimeTravelSizeGuard();
-
-			// THE CONFIRM PHASE. The record above is durable, so the pointer chain a reload follows now names the
-			// files this round wrote - and only now may the generation they superseded be unlinked. Deleting any
-			// earlier removes a file the previously published record still reaches, which no bootstrap write is
-			// needed to turn into an unloadable catalog.
-			releaseUnpublishedRetirements(bootstrapRecord.catalogVersion());
-
-			return bootstrapRecord;
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError(
@@ -5521,9 +5544,30 @@ public class DefaultCatalogPersistenceService
 				e
 			);
 		} finally {
-			this.bootstrapWriteLock.unlock();
 			this.walKryoPool.free(kryo);
 			log.debug("Catalog `{}` stored to `{}`.", storagePrefix, this.catalogStoragePath);
+		}
+		return bootstrapRecord;
+	}
+
+	/**
+	 * Schedules the time travel size guard after a bootstrap record was published, without letting a scheduling
+	 * failure mask the failure the publication is already throwing.
+	 *
+	 * @param publicationFailure the failure that ended the publication after the record was published, or `null`
+	 *                           when the publication completed; a scheduling failure is added to it as suppressed,
+	 *                           and propagates on its own when this is `null`
+	 */
+	private void scheduleTimeTravelSizeGuardAfterPublication(@Nullable Throwable publicationFailure) {
+		try {
+			scheduleTimeTravelSizeGuard();
+		} catch (Throwable schedulingFailure) {
+			if (publicationFailure == null) {
+				throw schedulingFailure;
+			}
+			if (publicationFailure != schedulingFailure) {
+				publicationFailure.addSuppressed(schedulingFailure);
+			}
 		}
 	}
 
