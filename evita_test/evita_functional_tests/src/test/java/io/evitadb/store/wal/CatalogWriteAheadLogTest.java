@@ -1761,6 +1761,47 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 		}
 
 		/**
+		 * Verifies that the WAL can reopen when both removal passes fail to delete the oldest file.
+		 *
+		 * @throws IOException if fixture setup or cleanup fails
+		 */
+		@Test
+		@DisplayName("should reopen the log after the removal of its oldest rotated file failed")
+		void shouldReopenWalWhenRemovalOfOldestRotatedFileFails() throws IOException {
+			final Path walDirectory = Files.createDirectory(
+				CatalogWriteAheadLogTest.this.walDirectory.resolve("failed-oldest-removal")
+			);
+			final Path firstWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 0));
+			final Path secondWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 1));
+			final Path fourthWalFile = walDirectory.resolve(getWalFileName(TEST_CATALOG, 3));
+			final RotatedWal rotated;
+			try (final CatalogWriteAheadLog wal = createTestWal(
+				walDirectory, 0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
+				4_096L, 2, NO_HISTORY_HORIZON_ADVANCE
+			)) {
+				rotated = appendUntilWalFileAppears(wal, fourthWalFile, 3L);
+				// The first version of file 2 makes files 0 and 1 due.
+				wal.walProcessedUntil(wal.getFirstVersionOf(2));
+				blockWalFileDeletion(firstWalFile);
+				wal.removeWalFiles();
+				// Closing the log runs a second pass while file 0's deletion is still blocked.
+			} finally {
+				restoreBlockedWalFile(firstWalFile);
+			}
+
+			assertAll(
+				() -> assertDoesNotThrow(() -> {
+					try (final CatalogWriteAheadLog reopened = createTestWal(
+						walDirectory, 3L, rotated.capturedReference(), 4_096L, 2, NO_HISTORY_HORIZON_ADVANCE
+					)) {
+						assertNotNull(reopened);
+					}
+				}, "The log must reopen after the removal of its oldest rotated file failed"),
+				() -> assertTrue(Files.exists(secondWalFile), "File 1 must survive both removal passes")
+			);
+		}
+
+		/**
 		 * Verifies that a remover already running when the WAL closes cannot delete files or advance the history
 		 * horizon after close returns. Files 0 and 1 are due, and a non-empty directory at file 1's path makes the
 		 * final synchronous pass delete file 0 and fail at file 1. The test restores file 1 before releasing the
