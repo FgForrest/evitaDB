@@ -5182,10 +5182,10 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Trims the bootstrap file so that it contains only records starting with the bootstrap record precedes the given
-	 * timestamp and all the records following it.
+	 * Trims the bootstrap file to the given catalog version and all subsequent versions.
 	 *
-	 * @param catalogVersion the first catalog version that should remain in bootstrap file
+	 * @param catalogVersion the first catalog version that should remain in the bootstrap file
+	 * @throws GenericEvitaInternalError if acquiring the bootstrap lock is interrupted; the interrupt flag is restored
 	 */
 	void trimBootstrapFile(long catalogVersion) {
 		// create tracking event
@@ -5197,35 +5197,42 @@ public class DefaultCatalogPersistenceService
 
 		try {
 			this.bootstrapWriteLock.lockInterruptibly();
-			final BootstrapWriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
-			final BootstrapWriteOnlyFileHandle newBootstrapHandle = createBootstrapTempWriteHandle(this.storagePrefix);
+			try {
+				final BootstrapWriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
+				final BootstrapWriteOnlyFileHandle newBootstrapHandle =
+					createBootstrapTempWriteHandle(this.storagePrefix);
 
-			// copy all bootstrap records since the timestamp to the new file
-			copyAllNecessaryBootstrapRecords(
-				catalogVersion, originalBootstrapHandle.getTargetFile(), newBootstrapHandle);
+				// copy the retained bootstrap records to the new file
+				copyAllNecessaryBootstrapRecords(
+					catalogVersion, originalBootstrapHandle.getTargetFile(), newBootstrapHandle
+				);
 
-			// now close both handles
-			originalBootstrapHandle.close();
-			newBootstrapHandle.close();
-			// try to atomically rewrite original bootstrap file
-			FileUtils.rewriteTargetFileAtomically(
-				newBootstrapHandle.getTargetFile(), originalBootstrapHandle.getTargetFile());
-			// we should be the only writer here, so this should always pass
-			Assert.isPremiseValid(
-				this.bootstrapWriteHandle.compareAndSet(
-					originalBootstrapHandle,
-					createBootstrapWriteOnlyHandle(originalBootstrapHandle)
-				),
-				() -> new GenericEvitaInternalError(
-					"Failed to replace the bootstrap write handle in a critical section!")
-			);
-			// remove the persistence services of every generation that just fell below the retained history
-			final int obsoleteServiceCount = countObsoletePersistenceServices(
-				ArrayUtils.computeInsertPositionOfLongInOrderedArray(
-					catalogVersion, this.catalogPersistenceServiceVersions)
-			);
-			for (int i = 0; i < obsoleteServiceCount; i++) {
-				removeCatalogPersistenceServiceForVersion(this.catalogPersistenceServiceVersions[0]);
+				// now close both handles
+				originalBootstrapHandle.close();
+				newBootstrapHandle.close();
+				// try to atomically rewrite original bootstrap file
+				FileUtils.rewriteTargetFileAtomically(
+					newBootstrapHandle.getTargetFile(), originalBootstrapHandle.getTargetFile()
+				);
+				// we should be the only writer here, so this should always pass
+				Assert.isPremiseValid(
+					this.bootstrapWriteHandle.compareAndSet(
+						originalBootstrapHandle,
+						createBootstrapWriteOnlyHandle(originalBootstrapHandle)
+					),
+					() -> new GenericEvitaInternalError(
+						"Failed to replace the bootstrap write handle in a critical section!")
+				);
+				// remove the persistence services of every generation that just fell below the retained history
+				final int obsoleteServiceCount = countObsoletePersistenceServices(
+					ArrayUtils.computeInsertPositionOfLongInOrderedArray(
+						catalogVersion, this.catalogPersistenceServiceVersions)
+				);
+				for (int i = 0; i < obsoleteServiceCount; i++) {
+					removeCatalogPersistenceServiceForVersion(this.catalogPersistenceServiceVersions[0]);
+				}
+			} finally {
+				this.bootstrapWriteLock.unlock();
 			}
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -5235,7 +5242,6 @@ public class DefaultCatalogPersistenceService
 				e
 			);
 		} finally {
-			this.bootstrapWriteLock.unlock();
 			// emit the event
 			event.finish().commit();
 		}
@@ -5449,6 +5455,7 @@ public class DefaultCatalogPersistenceService
 	 * @param storagePrefix  prefix the catalog's files are named with
 	 * @param bootstrapRecord the bootstrap record to store
 	 * @return the stored CatalogBootstrap object
+	 * @throws GenericEvitaInternalError if acquiring the bootstrap write lock is interrupted
 	 */
 	@Nonnull
 	private CatalogBootstrap writeCatalogBootstrap(
@@ -5459,60 +5466,63 @@ public class DefaultCatalogPersistenceService
 		final Kryo kryo = this.walKryoPool.obtain();
 		try {
 			this.bootstrapWriteLock.lockInterruptibly();
-			// THE FENCE. A bootstrap record is a pointer into the data files, and it must never become durable
-			// before the bytes it addresses have. Forcing here rather than at the call sites makes that structural:
-			// every writer of a bootstrap record - trunk round, compaction, go-live, rename, restore - is covered,
-			// including ones added later that would never think to ask.
-			if (this.checkpointCoordinator != null) {
-				this.checkpointCoordinator.forcePendingSyncs();
-			}
-			final BootstrapWriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
-			final BootstrapWriteOnlyFileHandle bootstrapHandle = getOrCreateNewBootstrapTempWriteHandle(
-				catalogVersion, storagePrefix, originalBootstrapHandle
-			);
-
-			// append to the existing file (we will compact it when the WAL files are purged)
-			bootstrapHandle.checkAndExecuteAndSync(
-				"store bootstrap record",
-				() -> {
-				},
-				output -> serializeBootstrapRecord(output, bootstrapRecord).payload(),
-				(output, catalogBootstrap) -> catalogBootstrap
-			);
-
-			// replace the original handle with new one
-			if (bootstrapHandle != originalBootstrapHandle) {
-				originalBootstrapHandle.close();
-				bootstrapHandle.close();
-				// try to atomically rewrite original bootstrap file
-				FileUtils.rewriteTargetFileAtomically(
-					bootstrapHandle.getTargetFile(), originalBootstrapHandle.getTargetFile());
-				// we should be the only writer here, so this should always pass
-				Assert.isPremiseValid(
-					this.bootstrapWriteHandle.compareAndSet(
-						originalBootstrapHandle,
-						createBootstrapWriteOnlyHandle(originalBootstrapHandle)
-					),
-					() -> new GenericEvitaInternalError(
-						"Failed to replace the bootstrap write handle in a critical section!")
+			try {
+				// THE FENCE. A bootstrap record is a pointer into the data files, and it must never become durable
+				// before the bytes it addresses have. Forcing here rather than at the call sites makes that structural:
+				// every writer of a bootstrap record - trunk round, compaction, go-live, rename, restore - is covered,
+				// including ones added later that would never think to ask.
+				if (this.checkpointCoordinator != null) {
+					this.checkpointCoordinator.forcePendingSyncs();
+				}
+				final BootstrapWriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
+				final BootstrapWriteOnlyFileHandle bootstrapHandle = getOrCreateNewBootstrapTempWriteHandle(
+					catalogVersion, storagePrefix, originalBootstrapHandle
 				);
+
+				// append to the existing file (we will compact it when the WAL files are purged)
+				bootstrapHandle.checkAndExecuteAndSync(
+					"store bootstrap record",
+					() -> {
+					},
+					output -> serializeBootstrapRecord(output, bootstrapRecord).payload(),
+					(output, catalogBootstrap) -> catalogBootstrap
+				);
+
+				// replace the original handle with new one
+				if (bootstrapHandle != originalBootstrapHandle) {
+					originalBootstrapHandle.close();
+					bootstrapHandle.close();
+					// try to atomically rewrite original bootstrap file
+					FileUtils.rewriteTargetFileAtomically(
+						bootstrapHandle.getTargetFile(), originalBootstrapHandle.getTargetFile()
+					);
+					// we should be the only writer here, so this should always pass
+					Assert.isPremiseValid(
+						this.bootstrapWriteHandle.compareAndSet(
+							originalBootstrapHandle,
+							createBootstrapWriteOnlyHandle(originalBootstrapHandle)
+						),
+						() -> new GenericEvitaInternalError(
+							"Failed to replace the bootstrap write handle in a critical section!")
+					);
+				}
+
+				// A retired generation only becomes history once the record that supersedes it is published, and that
+				// publication may be deferred long after the compaction that scheduled the guard from `retireDataFile`.
+				// Until then the newest published record still pins the retired file, so the guard counts it as active
+				// and sees no new history at all. Scheduling here - at the one point every bootstrap record passes
+				// through, deferred checkpoints included - is what makes the budget observe the generation that
+				// scheduling on retirement alone would skip.
+				scheduleTimeTravelSizeGuard();
+
+				// THE CONFIRM PHASE. The record above is durable, so the pointer chain a reload follows now names the
+				// files this round wrote - and only now may the generation they superseded be unlinked. Deleting any
+				// earlier removes a file the previously published record still reaches, which no bootstrap write is
+				// needed to turn into an unloadable catalog.
+				releaseUnpublishedRetirements(bootstrapRecord.catalogVersion());
+			} finally {
+				this.bootstrapWriteLock.unlock();
 			}
-
-			// A retired generation only becomes history once the record that supersedes it is published, and that
-			// publication may be deferred long after the compaction that scheduled the guard from `retireDataFile`.
-			// Until then the newest published record still pins the retired file, so the guard counts it as active
-			// and sees no new history at all. Scheduling here - at the one point every bootstrap record passes
-			// through, deferred checkpoints included - is what makes the budget observe the generation that
-			// scheduling on retirement alone would skip.
-			scheduleTimeTravelSizeGuard();
-
-			// THE CONFIRM PHASE. The record above is durable, so the pointer chain a reload follows now names the
-			// files this round wrote - and only now may the generation they superseded be unlinked. Deleting any
-			// earlier removes a file the previously published record still reaches, which no bootstrap write is
-			// needed to turn into an unloadable catalog.
-			releaseUnpublishedRetirements(bootstrapRecord.catalogVersion());
-
-			return bootstrapRecord;
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError(
@@ -5521,10 +5531,10 @@ public class DefaultCatalogPersistenceService
 				e
 			);
 		} finally {
-			this.bootstrapWriteLock.unlock();
 			this.walKryoPool.free(kryo);
 			log.debug("Catalog `{}` stored to `{}`.", storagePrefix, this.catalogStoragePath);
 		}
+		return bootstrapRecord;
 	}
 
 	/**

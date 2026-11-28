@@ -1509,6 +1509,82 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	class TimeTravelSizeGuardTest {
 
 		/**
+		 * Verifies that interrupting bootstrap trimming preserves the lock acquisition failure and interrupt flag.
+		 */
+		@Test
+		@DisplayName("should preserve the interrupt when acquiring the bootstrap lock for trimming")
+		void shouldPreserveInterruptWhenTrimmingBootstrap() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
+					timeTravelStorageOptions(Long.MAX_VALUE),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+				final long horizon = VERSIONS_WRITTEN - 1L;
+				assertTrue(
+					ioService.getOldestRetainedCatalogVersion() < horizon, "the fixture must have records to trim"
+				);
+
+				Thread.currentThread().interrupt();
+				try {
+					final GenericEvitaInternalError failure = assertThrows(
+						GenericEvitaInternalError.class, () -> ioService.trimBootstrapFile(horizon)
+					);
+					assertInstanceOf(
+						InterruptedException.class, failure.getCause(), "the cause must be the lock interruption"
+					);
+					assertTrue(Thread.currentThread().isInterrupted(), "the interrupt flag must be preserved");
+				} finally {
+					Thread.interrupted();
+				}
+				ioService.trimBootstrapFile(horizon);
+				assertEquals(horizon, ioService.getOldestRetainedCatalogVersion());
+			}
+		}
+
+		/**
+		 * Verifies that publishing an already prepared checkpoint preserves the lock acquisition failure
+		 * and interrupt flag.
+		 */
+		@Test
+		@DisplayName("should preserve the interrupt when acquiring the bootstrap lock for publication")
+		void shouldPreserveInterruptWhenPublishingBootstrap() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
+					timeTravelStorageOptions(Long.MAX_VALUE),
+					deferredCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+				assertTrue(ioService.getLastCatalogVersion() < VERSIONS_WRITTEN, "the fixture must owe a checkpoint");
+
+				Thread.currentThread().interrupt();
+				try {
+					final GenericEvitaInternalError failure = assertThrows(
+						GenericEvitaInternalError.class, ioService::checkpoint
+					);
+					assertInstanceOf(
+						InterruptedException.class, failure.getCause(), "the cause must be the lock interruption"
+					);
+					assertTrue(Thread.currentThread().isInterrupted(), "the interrupt flag must be preserved");
+				} finally {
+					Thread.interrupted();
+				}
+				ioService.checkpoint();
+				assertEquals(VERSIONS_WRITTEN, ioService.getLastCatalogVersion());
+			}
+		}
+
+		/**
 		 * Storage options that compact on every round and keep the compacted-away file for time travel.
 		 *
 		 * @param timeTravelSizeLimitBytes the history budget under test
